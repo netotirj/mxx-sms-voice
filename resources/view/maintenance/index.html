@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-br" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr"
+      data-pc-theme="light">
+<head>
+    <title>{{title}}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="description"
+          content="Maxx Solutions SMS em manutenção. Em breve voltaremos com novidades." />
+    <meta name="author" content="Maxx Solutions" />
+    <meta name="base-url" content="{{URL}}">
+
+    <link rel="icon" href="{{URL}}/resources/view/login/assets/images/favicon.ico" type="image/x-icon" />
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css" />
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/feather.css" />
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/fontawesome.css" />
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/material.css" />
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/style.css" id="main-style-link" />
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Fundo gradiente animado */
+        body {
+            background: linear-gradient(-45deg, #ff9a9e, #fad0c4, #a1c4fd, #c2e9fb);
+            background-size: 400% 400%;
+            animation: gradientBG 12s ease infinite;
+        }
+
+        @keyframes gradientBG {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
+</head>
+
+<body class="dark:bg-slate-900">
+
+<!-- Tela principal -->
+<div class="w-full px-6 py-6 mx-auto min-h-screen flex items-center justify-center">
+    <div class="flex flex-wrap -mx-3 justify-center w-full">
+        <div class="w-full max-w-lg px-3">
+            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-2xl rounded-2xl p-6 text-center animate-fadeIn">
+
+                <!-- Cabeçalho -->
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    <h6 class="text-2xl font-extrabold flex items-center gap-2 animate-bounce">
+                        🚧
+                        <span class="bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-300 bg-clip-text text-transparent">
+                      Em Manutenção
+                        </span>
+                        🚧
+                    </h6>
+                </div>
+
+                <!-- Conteúdo -->
+                <div class="p-6 flex flex-col items-center justify-center space-y-4">
+                    <!-- Ícone animado -->
+                    <svg class="w-20 h-20 text-red-500 animate-spin-slow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+                    </svg>
+
+                    <!-- Mensagem -->
+                    <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed ">
+                        Nosso sistema está passando por manutenção no momento.<br />
+                        Em breve voltaremos a funcionar normalmente.
+                    </p>
+
+                    <!-- Botão atualizar -->
+                    <button onclick="location.reload()"
+                            class="inline-flex items-center gap-2 bg-gradient-to-tr from-blue-600 to-blue-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow hover:shadow-md transition transform hover:scale-105 animate-fadeInUp">
+                        <i class="ti ti-refresh"></i> Atualizar Página
+                    </button>
+                </div>
+
+                <!-- Rodapé -->
+                <p class="mt-6 text-xs text-slate-500 dark:text-slate-400 text-center animate-fadeInUp">
+                    Se precisar de ajuda, entre em contato com o suporte.
+                </p>
+                <!-- Contato WhatsApp -->
+                <p class="mt-1 text-xs text-green-600 dark:text-green-400 text-center flex items-center justify-center gap-1 animate-fadeInUp">
+                    <i class="ti ti-brand-whatsapp text-sm"></i>
+                    <a href="https://wa.me/5521968943160" target="_blank" class="underline hover:text-green-700">
+                        +55 21 96894-3160
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom animações extras -->
+<style>
+    .animate-fadeIn {
+        animation: fadeIn 1.5s ease forwards;
+    }
+    .animate-fadeInUp {
+        animation: fadeInUp 1.5s ease forwards;
+    }
+    .animate-spin-slow {
+        animation: spin 6s linear infinite;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+</body>
+</html>

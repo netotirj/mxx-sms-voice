@@ -1,0 +1,852 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 border-transparent border-solid shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border">
+
+                <!-- Cabeçalho -->
+                <div class="p-6 pb-0 mb-0 border-b-0 border-b-solid rounded-t-2xl border-b-transparent flex justify-between items-center">
+                    <h6 class="dark:text-white">Tarifas Revenda</h6>
+                    <a data-modal-target="tarifa-modal" data-modal-toggle="tarifa-modal"
+                       class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Criar Tarifa
+                    </a>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center">
+
+                    <!-- SELECT: Registros por página -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-600 dark:text-slate-300">Mostrar:</span>
+
+                        <select id="rowsPerPage"
+                                class="text-sm border rounded-lg px-2 py-1 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <!-- BUSCA -->
+                    <div class="relative w-[250px]">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                            </svg>
+                        </div>
+
+                        <input type="text" id="searchInput"
+                               placeholder="Buscar tarifa..."
+                               class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2
+                      focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                    </div>
+                </div>
+
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="tarifas-table" class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Nome da Tarifa
+                                </th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Valor da Tarifa
+                                </th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Tipo da Tarifa
+                                </th>
+
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Usuário
+                                </th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Status
+                                </th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Criado em
+                                </th>
+                                <th class="px-6 py-3 font-semibold capitalize align-middle bg-transparent border-b border-collapse border-solid shadow-none dark:border-white/40 dark:text-white tracking-none whitespace-nowrap text-slate-400 opacity-70">
+                                    Ações
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                            <!-- linhas da tabela -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Paginação -->
+                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
+                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                            id="prevPage">Anterior
+                    </button>
+                    <span class="text-sm text-slate-600 dark:text-slate-300" id="pageInfo">Página 1 de 1</span>
+                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                            id="nextPage">Próxima
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="tarifa-modal" tabindex="-1" aria-hidden="true"
+     class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full overflow-y-auto overflow-x-hidden bg-black/50 opacity-0 transition-opacity duration-300">
+
+    <!-- Conteúdo com transição -->
+    <div class="relative p-4 w-full max-w-lg max-h-full transform transition-all duration-300 scale-95">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between p-4 border-b rounded-t dark:border-gray-600 border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Criar nova Tarifa
+                </h3>
+                <button type="button"
+                        class="text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
+                        data-modal-hide="tarifa-modal">
+                    <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M1 1l6 6m0 0l6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6">
+                <form id="form-tarifa" class="space-y-4">
+                    <!-- Nome da tarifa -->
+                    <div>
+                        <label for="nome_tarifa" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Nome
+                            da Tarifa</label>
+                        <input type="text" id="nome_tarifa" name="nome_tarifa"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                               placeholder="Ex: Tarifa SMS" required>
+                    </div>
+
+                    <!-- Valor -->
+                    <div>
+                        <label for="valor_tarifa" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Valor</label>
+                        <input type="number" step="0.01" id="valor_tarifa" name="valor_tarifa"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                               placeholder="0.00" required>
+                    </div>
+
+                    <!-- Tipo da tarifa -->
+                    <div>
+                        <label for="tipo_tarifa" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Tipo da Tarifa
+                        </label>
+                        <select id="tipo_tarifa" name="type"
+                                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg
+                                   focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5
+                                   dark:bg-gray-600 dark:border-gray-500 dark:text-white" required>
+                            <option value="">Selecione...</option>
+                            <option value="sms">SMS</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="voice">Ligação (por minuto)</option>
+                            <option value="torpedo">Torpedo</option>
+                            <option value="service_fee">Taxa de Serviço (por evento)</option>
+                        </select>
+                    </div>
+
+                    <!-- Campos específicos de Taxa de Serviço -->
+                    <div id="serviceFeeFields" class="hidden space-y-4">
+
+                        <div>
+                            <label for="service_event" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                                Evento de cobrança
+                            </label>
+                            <select id="service_event" name="service_event"
+                                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg
+                               focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5
+                               dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                <option value="answered">Chamada atendida</option>
+                                <!--<option value="attempt">Tentativa de chamada</option>
+                                <option value="setup">Setup / conexão</option>-->
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="service_scope" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                                Aplicar em
+                            </label>
+                            <select id="service_scope" name="service_scope"
+                                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg
+                   focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5
+                   dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                <option value="reseller_trunks">Somente sip trunks do revendor</option>
+                                <option value="all_trunks">Todos os sip trunks</option>
+                            </select>
+                            <p class="text-xs text-slate-500 mt-1">
+                                Ex.: se for sip trunk do revendor, você zera as tarifas e cobra essa taxa por evento.
+                            </p>
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- Usuário -->
+                    <div>
+                        <label for="usuario_id" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Usuário</label>
+                        <select id="usuario_id" name="usuario_id"
+                                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                                required>
+                            <option value="">Carregando revendedor...</option>
+                        </select>
+                    </div>
+
+                    <!-- Botão -->
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm px-5 py-2.5 focus:outline-none focus:ring-4 focus:ring-emerald-300">
+                            Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // garante baseUrl em qualquer ordem de script
+        window.baseUrl = window.baseUrl || document.querySelector('meta[name="base-url"]').getAttribute('content');
+        const baseUrl = window.baseUrl;
+
+        const modal = document.getElementById("tarifa-modal");
+        const modalContent = modal.querySelector("div > div");
+
+        function openModal() {
+            modal.classList.remove("hidden");
+            setTimeout(() => {
+                modal.classList.remove("opacity-0");
+                modal.classList.add("opacity-100");
+                modalContent.classList.remove("scale-95");
+                modalContent.classList.add("scale-100");
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.classList.remove("opacity-100");
+            modal.classList.add("opacity-0");
+            modalContent.classList.remove("scale-100");
+            modalContent.classList.add("scale-95");
+            setTimeout(() => modal.classList.add("hidden"), 300);
+        }
+
+        document.addEventListener("click", (e) => {
+            if (e.target.closest("[data-modal-toggle='tarifa-modal']")) {
+                window.openTarifaModal();
+            }
+        });
+
+        document.addEventListener("click", (e) => {
+            if (e.target.closest("[data-modal-hide='tarifa-modal']") || e.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+        });
+
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+    });
+</script>
+
+<script>
+
+    // ======================================================================
+    //  BADGES CORRETOS — Version FINAL
+    // ======================================================================
+    function getTypeBadge(type) {
+
+        const types = {
+            sms: {
+                text: "SMS",
+                icon: "📩",
+                color: "bg-blue-500 text-white",
+            },
+            whatsapp: {
+                text: "WhatsApp",
+                icon: "💬",
+                color: "bg-green-500 text-white",
+            },
+            voice: {
+                text: "Ligação",
+                icon: "📞",
+                color: "bg-purple-500 text-white",
+            },
+            torpedo: {
+                text: "Torpedo",
+                icon: "🧧",
+                color: "bg-yellow-500 text-black",
+            },
+            service_fee: {
+                text: "Taxa Serviço",
+                icon: "🧾",
+                color: "bg-slate-700 text-white",
+            },
+
+        };
+
+        const item = types[type] ?? {
+            text: type ?? "-",
+            icon: "❔",
+            color: "bg-gray-500 text-white",
+        };
+
+        return `
+        <span class="px-3 py-1 text-xs font-bold rounded flex items-center gap-1 justify-center ${item.color}">
+            ${item.icon} ${item.text}
+        </span>
+    `;
+    }
+
+
+    // ======================================================================
+    //  CREATE + UPDATE
+    // ======================================================================
+    document.addEventListener("DOMContentLoaded", () => {
+
+        const modal = document.getElementById("tarifa-modal");
+        const formRate = document.getElementById("form-tarifa");
+        const selectUser = document.getElementById("usuario_id");
+        const tableBody = document.getElementById("tableBody");
+        let editingId = null;
+
+        const tipoSelect = document.getElementById("tipo_tarifa");
+        const serviceBox = document.getElementById("serviceFeeFields");
+
+        function syncServiceFeeUI() {
+            const isService = tipoSelect.value === "service_fee";
+
+            if (serviceBox) serviceBox.classList.toggle("hidden", !isService);
+
+            const evEl = document.getElementById("service_event");
+            const scEl = document.getElementById("service_scope");
+
+            if (evEl) evEl.required = isService;
+            if (scEl) scEl.required = isService;
+
+            // reset quando não for taxa de serviço
+            if (!isService) {
+                if (evEl) evEl.value = "answered";
+                if (scEl) scEl.value = "reseller_trunks";
+            }
+        }
+
+        tipoSelect.addEventListener("change", syncServiceFeeUI);
+        syncServiceFeeUI();
+
+
+
+        // -----------------------------------
+        //  ABRIR NOVA TARIFA
+        // -----------------------------------
+        window.openTarifaModal = function () {
+            editingId = null;
+            formRate.reset();
+            loadUsers();
+            window.openModal();
+        };
+
+
+        // -----------------------------------
+        //  EDITAR TARIFA
+        // -----------------------------------
+        document.addEventListener("click", (e) => {
+            const btn = e.target.closest(".btn-edit-rate");
+            if (!btn) return;
+
+            editingId = btn.dataset.id;
+
+            document.getElementById("nome_tarifa").value = btn.dataset.namerate;
+            document.getElementById("valor_tarifa").value = btn.dataset.value;
+            document.getElementById("tipo_tarifa").value = btn.dataset.type;
+
+            // preencher metadados da taxa de serviço, se existirem no dataset
+            const ev = btn.dataset.serviceEvent || "answered";
+            const sc = btn.dataset.serviceScope || "reseller_trunks";
+
+            const evEl = document.getElementById("service_event");
+            const scEl = document.getElementById("service_scope");
+            if (evEl) evEl.value = ev;
+            if (scEl) scEl.value = sc;
+
+            syncServiceFeeUI();
+
+            loadUsers().then(() => {
+                const usuario = btn.dataset.usuario;
+                const opt = [...selectUser.options].find(o => o.textContent.includes(usuario));
+                if (opt) selectUser.value = opt.value;
+            });
+
+            openModal();
+        });
+
+
+        // -----------------------------------
+        //  CARREGAR USUÁRIOS
+        // -----------------------------------
+        async function loadUsers() {
+            const response = await fetch(`${baseUrl}/rates/search`);
+            const json = await response.json();
+            const users = json.data || [];
+
+            selectUser.innerHTML = '<option value="">Selecione um reseller</option>';
+
+            users.forEach(u => {
+                const opt = document.createElement("option");
+                opt.value = u.reseller_id;
+                opt.textContent = `${u.reseller_name} (${u.reseller_email})`;
+                selectUser.appendChild(opt);
+            });
+        }
+
+
+        // ======================================================================
+        //  SALVAR (CREATE + UPDATE)
+        // ======================================================================
+        formRate.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            try {
+                const nome = formRate.nome_tarifa.value.trim();
+                const tipoTarifa = document.getElementById("tipo_tarifa").value;
+                const serviceEvent = document.getElementById("service_event")?.value || "answered";
+                const serviceScope = document.getElementById("service_scope")?.value || "reseller_trunks";
+
+                if (tipoTarifa === "service_fee") {
+                    if (!serviceEvent || !serviceScope) throw new Error("Preencha os campos da Taxa de Serviço.");
+                }
+
+                const valorNum = Number(formRate.valor_tarifa.value);
+                const valor = valorNum.toFixed(2);
+                const usuarioText = selectUser.selectedOptions[0]?.textContent || "-";
+
+                let rateClass = "bg-gray-400";
+                if (valorNum < 0.10) rateClass = "bg-emerald-500";
+                else if (valorNum < 0.15) rateClass = "bg-yellow-500 text-black";
+                else rateClass = "bg-red-500";
+
+                const formData = new FormData(formRate);
+                if (editingId) formData.append("id", editingId);
+
+                const endpoint = editingId
+                    ? `${baseUrl}/rates/update`
+                    : `${baseUrl}/rates/new`;
+
+                const response = await fetch(endpoint, { method:"POST", body:formData });
+                const result = await response.json();
+
+                if (!result || result.status >= 400)
+                    throw new Error(result?.message || "Erro ao salvar");
+
+                //notyf.dismiss(loadingToast);
+                notyf.success(editingId ? "Tarifa atualizada!" : "Tarifa criada!");
+
+
+                // =============================
+                // UPDATE
+                // =============================
+                // =============================
+// UPDATE
+// =============================
+                if (editingId) {
+                    const row = tableBody.querySelector(`tr[data-id="${editingId}"]`);
+                    if (!row) throw new Error("Linha não encontrada para atualizar.");
+
+                    row.querySelector(".td-nome").textContent = nome;
+                    row.querySelector(".td-valor").innerHTML =
+                        `<span class="px-2.5 py-1 text-xs font-bold text-white rounded ${rateClass}">${valor}</span>`;
+                    row.querySelector(".td-tipo").innerHTML = getTypeBadge(tipoTarifa);
+                    row.querySelector(".td-usuario").textContent = usuarioText;
+
+                    // ✅ mantém o botão Edit sincronizado (senão abre com dados antigos)
+                    const editBtn = row.querySelector(".btn-edit-rate");
+                    if (editBtn) {
+                        editBtn.dataset.namerate = nome;
+                        editBtn.dataset.value = valor;
+                        editBtn.dataset.type = tipoTarifa;
+                        editBtn.dataset.usuario = usuarioText;
+
+                        if (tipoTarifa === "service_fee") {
+                            editBtn.dataset.serviceEvent = serviceEvent;
+                            editBtn.dataset.serviceScope = serviceScope;
+                        } else {
+                            delete editBtn.dataset.serviceEvent;
+                            delete editBtn.dataset.serviceScope;
+                        }
+                    }
+                }
+
+
+                    // =============================
+                    // CREATE (linha com layout idêntico à do backend)
+                    // =============================
+                else {
+                    const rateId = result["rate-id"];
+
+                    const newRow = document.createElement("tr");
+                    newRow.dataset.id = rateId;
+
+                    newRow.innerHTML = `
+
+                    <td class="td-nome p-2 text-center">
+                        <p class="text-sm font-semibold dark:text-white">${nome}</p>
+                    </td>
+
+                    <td class="td-valor p-2 text-center">
+                        <span class="px-2.5 py-1 text-xs font-bold text-white rounded ${rateClass}">
+                            ${valor}
+                        </span>
+                    </td>
+
+                    <td class="td-tipo p-2 text-center">
+                        ${getTypeBadge(tipoTarifa)}
+                    </td>
+
+                    <td class="td-usuario p-2 text-center">
+                        <p class="text-sm font-semibold dark:text-white">${usuarioText}</p>
+                    </td>
+
+                    <td class="td-status p-2 text-center">
+                        <button onclick="handleStatusClick('${rateId}', this)"
+                            class="px-2.5 py-1.4 text-xs font-bold uppercase rounded text-white bg-emerald-500">
+                            active
+                        </button>
+                    </td>
+
+                    <td class="p-2 text-center">
+                        <span class="text-xs font-semibold text-slate-400">
+                            ${new Date().toLocaleString()}
+                        </span>
+                    </td>
+
+                    <td class="p-2 td-acoes text-center">
+                        <div class="flex justify-center gap-2">
+                            <button class="btn-edit-rate bg-orange-300 px-2 py-1 rounded"
+                                  data-id="${rateId}"
+                                  data-namerate="${nome}"
+                                  data-value="${valor}"
+                                  data-type="${tipoTarifa}"
+                                  data-usuario="${usuarioText}"
+                                  data-service-event="${serviceEvent}"
+                                  data-service-scope="${serviceScope}">
+                                  <i data-feather="edit-2"></i>
+                            </button>
+                            <button class="btn-delete-rate bg-red-300 px-2 py-1 rounded"
+                                data-id="${rateId}">
+                                <i data-feather="trash-2"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+
+                    tableBody.appendChild(newRow);
+                    feather.replace();
+                }
+
+
+                formRate.reset();
+                window.closeModal();
+
+            } catch (err) {
+                //notyf.dismiss(loadingToast);
+                notyf.error(err.message);
+            }
+        });
+
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        const tbody = document.querySelector('table tbody');
+        const prevBtn = document.getElementById('prevPage');
+        const nextBtn = document.getElementById('nextPage');
+        const pageInfo = document.getElementById('pageInfo');
+        const searchInput = document.getElementById('searchInput');
+
+        let allRows = [];
+        let filteredRows = [];
+        let currentPage = 1;
+        let perPage = 10;
+
+        const rowsPerPageSelect = document.getElementById("rowsPerPage");
+        rowsPerPageSelect.addEventListener("change", () => {
+            perPage = Number(rowsPerPageSelect.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+
+
+        function renderPage(page = 1) {
+            tbody.innerHTML = '';
+            const start = (page - 1) * perPage;
+            const end = start + perPage;
+            const rows = filteredRows.slice(start, end);
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="p-2 text-center text-slate-400 italic">
+                        Nenhuma tarifa encontrada
+                    </td>
+                </tr>`;
+            } else {
+                rows.forEach(row => tbody.insertAdjacentHTML('beforeend', row));
+            }
+
+            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
+            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages;
+
+            feather.replace();
+        }
+
+
+        function buildRows(data) {
+            const rows = [];
+
+            data.forEach(user => {
+                const userEmailOrName = user.reseller_email || user.reseller_name;
+
+                user.rates?.forEach(rate => {
+
+                    const rateValue = Number(rate.rate) || 0;
+
+                    let rateClass = "bg-gray-400";
+                    if (rateValue < 0.10) rateClass = "bg-emerald-500";
+                    else if (rateValue < 0.15) rateClass = "bg-yellow-500 text-black";
+                    else rateClass = "bg-red-500";
+
+                    rows.push(`
+                    <tr data-id="${rate.id}">
+
+                        <td class="td-nome p-2 text-center">${rate.name}</td>
+
+                        <td class="td-valor p-2 text-center">
+                            <span class="px-2.5 py-1 text-xs font-bold text-white rounded ${rateClass}">
+                                ${rateValue.toFixed(2)}
+                            </span>
+                        </td>
+
+                        <td class="td-tipo p-2 text-center">
+                            ${getTypeBadge(rate.type)}     <!-- AQUI Corrigido -->
+                        </td>
+
+                        <td class="td-usuario p-2 text-center">${userEmailOrName}</td>
+
+                        <td class="status p-2 text-center">
+                            <button onclick="handleStatusClick('${rate.id}', this)"
+                                class="px-2.5 py-1 text-xs font-bold uppercase rounded text-white
+                                    ${rate.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}">
+                                ${rate.status}
+                            </button>
+                        </td>
+
+                        <td class="p-2 text-center">
+                            <span class="text-xs text-slate-400">${rate.created_at ?? '-'}</span>
+                        </td>
+
+                        <!-- Ações -->
+                        <td class="acoes p-2 text-center">
+                            <div class="flex justify-center gap-2">
+                               <button class="btn-edit-rate bg-orange-300 px-2 py-1 rounded"
+                                      data-id="${rate.id}"
+                                      data-namerate="${rate.name}"
+                                      data-value="${rateValue}"
+                                      data-type="${rate.type}"
+                                      data-usuario="${userEmailOrName}"
+                                      data-service-event="${rate.service_event ?? ''}"
+                                      data-service-scope="${rate.service_scope ?? ''}">
+                                      <i data-feather="edit-2" class="w-4 h-4"></i>
+                               </button>
+
+
+                                <button class="btn-delete-rate bg-red-300 px-2 py-1 rounded"
+                                    data-id="${rate.id}">
+                                    <i data-feather="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+                });
+            });
+
+            return rows;
+        }
+
+
+        function removeDiacritics(str) {
+            return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+        }
+
+        function applySearch(query) {
+            const q = removeDiacritics(query.toLowerCase());
+            filteredRows = allRows.filter(row =>
+                removeDiacritics(row.toLowerCase()).includes(q)
+            );
+            currentPage = 1;
+            renderPage(currentPage);
+        }
+
+
+        // Carregar tabela inicial
+        fetch(`${baseUrl}/rates/search`)
+            .then(r => r.json())
+            .then(result => {
+                allRows = buildRows(result.data);
+                filteredRows = allRows;
+                renderPage(currentPage);
+            });
+
+
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredRows.length / perPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        searchInput.addEventListener('input', e => applySearch(e.target.value));
+
+    });
+</script>
+
+
+<script>
+    function handleStatusClick(rateId, el) {
+        // Pega o status atual do botão
+        let currentStatus = el.textContent.trim();
+
+        // Alterna entre active e inactive
+        let newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+        // Cria os dados para envio
+        let formData = new FormData();
+        formData.append("id", rateId);
+        formData.append("status", newStatus);
+
+        // Envia para o backend
+        fetch(`${baseUrl}/rates/up-status`, {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 200) {
+                    // Atualiza texto e cor do botão sem reload
+                    el.textContent = newStatus;
+                    el.classList.remove("bg-emerald-500", "bg-red-500");
+
+                    if (newStatus === "active") {
+                        el.classList.add("bg-emerald-500", "text-white");
+                    } else {
+                        el.classList.add("bg-red-500", "text-white");
+                    }
+
+                    notyf.success(data.message || `Status alterado para ${newStatus}`);
+                } else {
+                    notyf.error(data.message || 'Não foi possível atualizar o status.');
+                }
+            })
+            .catch((error) => {
+                console.error('Erro de rede:', error);
+                notyf.error('Falha na comunicação com o servidor.');
+            });
+    }
+</script>
+
+
+<script>
+
+    document.addEventListener('click', e => {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        if (e.target.closest('.btn-delete-rate')) {
+            const id = e.target.closest('.btn-delete-rate').dataset.id;
+
+            //console.log(id)
+            confirmDelete(id); // aqui chama o Swal + DELETE
+        }
+
+
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: "Essa ação não pode ser desfeita!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, deletar!',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#e3342f',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // 🔥 Chama seu backend
+                    fetch(`${baseUrl}/rates/${id}/delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            //console.log('Resposta da API:', data);
+
+                            if (data.status === 200) {
+                                Swal.fire(
+                                    'Deletado!',
+                                    data.message || 'O registro foi removido com sucesso.',
+                                    'success'
+                                ).then(() => {
+                                    window.location.href = baseUrl + '/rates';
+                                });
+                            } else {
+                                Swal.fire('Erro!', data.message || 'Não foi possível deletar.', 'error');
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Erro de rede:', error);
+                            Swal.fire('Erro!', 'Falha na comunicação com o servidor.', 'error');
+                        });
+
+                }
+            });
+        }
+    });
+</script>

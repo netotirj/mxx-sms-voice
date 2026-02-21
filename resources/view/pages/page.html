@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="base-url" content="{{URL}}">
+    <title>{{title}}</title>
+
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="76x76" href="{{URL}}/resources/assets/img/apple-icon.png" />
+    <link rel="icon" type="image/png" href="{{URL}}/resources/assets/img/favicon.png" />
+
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/ed8de5f6c8.js" crossorigin="anonymous"></script>
+
+    <!-- Argon Dashboard CSS -->
+    <link href="{{URL}}/resources/assets/css/nucleo-icons.css" rel="stylesheet" />
+    <link href="{{URL}}/resources/assets/css/nucleo-svg.css" rel="stylesheet" />
+    <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=1.0.1" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+    <link href="{{URL}}/resources/assets/css/datatables-tailwind.css" rel="stylesheet">
+
+    <script src="https://unpkg.com/feather-icons"></script>
+
+    <!-- Notify CSS -->
+    <link href="{{URL}}/resources/view/login/assets/css/notify.css" rel="stylesheet">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+
+</head>
+
+<body
+    class="m-0 font-sans text-base antialiased font-normal dark:bg-slate-900 leading-default bg-gray-50 text-slate-500">
+    <div class="absolute w-full bg-blue-500 dark:hidden min-h-75"></div>
+    {{menu}}
+
+    <main class="relative h-full transition-all duration-200 ease-in-out xl:ml-68 rounded-xl">
+        {{header}}
+        {{content}}
+        {{footer}}
+
+        <a href="https://wa.me/5521968943160?text=Olá%2C%20gostaria%20de%20mais%20informações%21"
+           target="_blank"
+           class="fixed bottom-4 right-4 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition duration-300 z-50 animate-pulse-custom"
+           aria-label="Fale conosco no WhatsApp">
+            <!-- Ícone do WhatsApp (SVG) -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.52 3.48A11.87 11.87 0 0 0 12 0a11.88 11.88 0 0 0-10.6 17.25L0 24l6.9-1.81A11.88 11.88 0 0 0 12 24c6.63 0 12-5.37 12-12 0-3.2-1.25-6.21-3.48-8.52zm-8.52 18c-1.57 0-3.09-.4-4.44-1.15l-.32-.18-4.08 1.07 1.09-3.97-.21-.33a9.92 9.92 0 0 1 8.95-14.92c5.48 0 9.93 4.45 9.93 9.93s-4.45 9.93-9.93 9.93zm5.47-7.5c-.3-.15-1.77-.87-2.04-.96-.27-.1-.47-.15-.66.15s-.76.96-.93 1.15-.34.22-.63.07a8.08 8.08 0 0 1-2.38-1.46 8.8 8.8 0 0 1-1.62-2.01c-.17-.3 0-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.38-.02-.53s-.66-1.6-.91-2.2c-.24-.58-.49-.5-.67-.5-.17 0-.36 0-.55 0-.2 0-.53.08-.8.38s-1.05 1.02-1.05 2.5 1.08 2.9 1.23 3.1c.15.2 2.12 3.24 5.13 4.55.72.31 1.28.5 1.72.64.72.23 1.37.2 1.88.12.57-.08 1.77-.73 2.02-1.43.25-.7.25-1.3.18-1.43-.07-.13-.27-.2-.57-.35z"/>
+            </svg>
+        </a>
+    </main>
+
+
+    <!-- Plugins -->
+    <script src="{{URL}}/resources/assets/js/plugins/chartjs.min.js"></script>
+    <script src="{{URL}}/resources/assets/js/plugins/perfect-scrollbar.min.js"></script>
+    <script src="{{URL}}/resources/assets/js/argon-dashboard-tailwind.js?v=1.0.1"></script>
+    <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="{{URL}}/resources/assets/js/camp.js"></script>
+    <script src="{{URL}}/resources/assets/js/heartbeat.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script src="https://unpkg.com/inputmask@5.0.8/dist/inputmask.min.js"></script>
+
+
+    <script>
+    const notyf = new Notyf({
+    duration: 4000,
+    position: { x: 'right', y: 'top' }
+    });
+    </script>
+<script>
+        const flashError = localStorage.getItem('flash_error');
+        if (flashError) {
+            notyf.error(flashError);
+            localStorage.removeItem('flash_error');
+        }
+    </script>
+
+    <!-- Tailwind custom animation -->
+    <style>
+        @keyframes pulse-custom {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.15);
+                opacity: 0.9;
+            }
+        }
+
+        .animate-pulse-custom {
+            animation: pulse-custom 1.5s infinite;
+        }
+    </style>
+
+    <!-- Dropdown Handler -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const userDropdownTrigger = document.getElementById('userDropdownTrigger');
+            const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+            const toggleDropdown = () => {
+                if (userDropdownMenu.classList.contains('hidden')) {
+                    userDropdownMenu.classList.remove('hidden');
+                    setTimeout(() => {
+                        userDropdownMenu.classList.add('opacity-100', 'pointer-events-auto');
+                        userDropdownMenu.classList.remove('opacity-0', 'pointer-events-none');
+                    }, 10);
+                } else {
+                    userDropdownMenu.classList.remove('opacity-100', 'pointer-events-auto');
+                    userDropdownMenu.classList.add('opacity-0', 'pointer-events-none');
+                    setTimeout(() => {
+                        userDropdownMenu.classList.add('hidden');
+                    }, 250);
+                }
+            };
+
+            userDropdownTrigger?.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleDropdown();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!userDropdownMenu?.contains(e.target) && !userDropdownTrigger?.contains(e.target)) {
+                    userDropdownMenu?.classList.remove('opacity-100', 'pointer-events-auto');
+                    userDropdownMenu?.classList.add('opacity-0', 'pointer-events-none');
+                    setTimeout(() => {
+                        userDropdownMenu?.classList.add('hidden');
+                    }, 250);
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>

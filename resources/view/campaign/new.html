@@ -1,0 +1,338 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <main class="flex-1 flex flex-col">
+        <form id="smsCampaignForm" class="flex-1 flex flex-col" method="POST">
+            <!-- Hidden inputs com valores padrão -->
+            <input type="hidden" name="sender_type" id="senderInput" value="short">
+            <input type="hidden" name="charset" id="charsetInput" value="0">
+            <!-- Card principal -->
+            <div class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-soft-xl rounded-2xl p-6">
+
+                <!-- Botões de opções -->
+                <div class="p-4 bg-white border-b grid grid-cols-2 md:flex gap-3">
+                    <!-- Grupo 1 -->
+                    <div id="group1" class="flex flex-1 gap-2">
+
+                        <!-- SHORT CODE -->
+                        <div class="relative group flex-1">
+                            <button  type="button" data-value="short" aria-label="Short Code"
+                                    class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-blue-600 text-white text-sm font-medium">
+                                SHORT CODE <br><span class="text-xs">R$ {{value_sms}}</span>
+                            </button>
+                            <span
+                                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg z-50 w-56 text-center">
+                <strong>Short Code</strong><br>
+                Número curto de cinco dígitos será o remetente das mensagens.<br>
+                Exemplo: 29000
+              </span>
+                        </div>
+
+                        <!-- SHORT MKT -->
+                        <div class="relative group flex-1">
+                            <button  type="button" data-value="mkt" aria-label="Short MKT"
+                                    class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-white hover:bg-gray-50 text-sm font-medium">
+                                SHORT MKT <br><span class="text-xs text-gray-500">R$ {{value_sms}}</span>
+                            </button>
+                            <span
+                                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg z-50 w-56 text-center">
+                <strong>Short MKT</strong><br>
+                Indicado para campanhas de marketing, cobranças e informações.
+              </span>
+                        </div>
+                    </div>
+
+                    <!-- Grupo 2 -->
+                    <div id="group2" class="flex flex-1 gap-2">
+
+                        <!-- SEM ACENTUAÇÃO -->
+                        <div class="relative group flex-1">
+                            <button  type="button" data-value="0" aria-label="Sem acentuação"
+                                    class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-blue-600 text-white text-sm font-medium">
+                                SEM ACENTUAÇÃO <br><span class="text-xs">7-BIT</span>
+                            </button>
+                            <span
+                                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg z-50 w-56 text-center">
+                <strong>SMS sem acentuação (7-bit)</strong><br>
+                Envia Mensagens sem Acentuação (até 160 caracteres).<br>
+                ❌ Não permite emojis
+              </span>
+                        </div>
+
+                        <!-- COM ACENTUAÇÃO -->
+                        <div class="relative group flex-1">
+                            <button  type="button" data-value="8" aria-label="Com acentuação"
+                                    class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-white hover:bg-gray-50 text-sm font-medium">
+                                COM ACENTUAÇÃO <br><span class="text-xs">16-BIT</span>
+                            </button>
+                            <span
+                                    class="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg z-50 w-56 text-center">
+                <strong>SMS com acentuação (16-bit)</strong><br>
+                Envia Mensagens com Acentuação (até 70 caracteres).<br>
+                ✅ Permite emojis
+              </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conteúdo principal -->
+            <div class="flex-1 p-4 md:p-6 flex flex-col md:flex-row gap-6 overflow-y-auto">
+
+                <!-- Formulário -->
+                <div class="flex-1 bg-white rounded-xl shadow p-4 md:p-6">
+                    <!-- Nome da Campanha -->
+                    <label for="campaignName" class="block mb-2 font-medium">Nome da Campanha</label>
+                    <input id="campaignName" name="campaignName" type="text" placeholder="Digite o nome da campanha" required
+                           class="w-full border rounded-lg p-3 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                    <!-- Mensagem -->
+                    <label for="messageInput" class="block mb-2 font-medium">Mensagem</label>
+                    <div class="relative w-full">
+                    <textarea id="messageInput" name="messageInput" rows="3" placeholder="Digite sua mensagem..." required
+                        class="w-full border rounded-lg p-3 h-32 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"></textarea>
+
+                        <button id="emojiBtn" type="button" aria-label="Selecionar emoji"
+                                class="absolute bottom-3 right-3 text-2xl cursor-pointer">😊</button>
+                    </div>
+
+                    <p id="counter" class="text-xs text-gray-500 mt-1">
+                        SMS cobrados: 1 / Caracteres: 0
+                    </p>
+                    <p id="limitWarning" class="text-red-500 text-sm mt-1 hidden">
+                        ⚠️ Limite de caracteres atingido!
+                    </p>
+
+
+                    <!-- Status -->
+                    <div class="mb-4">
+                        <label for="status" class="block text-sm font-medium text-slate-700">Status</label>
+                        <select id="status" name="status" required
+                                class="mt-1 block w-full border border-slate-300 rounded-lg bg-white px-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="y">Ativa</option>
+                            <option value="n">Inativa</option>
+                        </select>
+                    </div>
+
+                    <hr class="my-4 border-slate-200" />
+
+                    <!-- Checkbox aviso -->
+                    <label class="flex items-start mt-6 text-sm">
+                        <input type="checkbox" class="mr-2 mt-1">
+                        <span>Estou ciente que mensagens com links podem ser consideradas spam pelas operadoras.</span>
+                    </label>
+
+                    <!-- Botões -->
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button id="createButton" type="submit"
+                                class="inline-flex items-center justify-center px-6 py-2 text-white text-sm font-bold uppercase rounded-lg bg-gradient-to-tl from-green-500 to-green-700 shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
+                            <span id="createButtonText">Criar</span>
+                            <svg id="createButtonLoader" class="animate-spin h-5 w-5 ml-2 hidden text-white" xmlns="http://www.w3.org/2000/svg"
+                                 fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                        </button>
+
+                        <button type="button" onclick="window.location.href='/campaign';"
+                                class="inline-flex items-center justify-center px-6 py-2 text-white text-sm font-bold uppercase rounded-lg bg-gradient-to-tl from-red-500 to-red-700 shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview celular -->
+                <div
+                        class="w-full md:w-80 bg-gray-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden border-4 border-black flex flex-col">
+                    <!-- Barra superior -->
+                    <div class="bg-black h-6 flex items-center justify-center relative">
+                        <div class="w-20 h-4 bg-gray-800 rounded-full"></div>
+                        <span class="absolute left-4 text-white text-xs">9:41</span>
+                        <div class="absolute right-4 flex items-center space-x-1 text-white text-xs">
+                            <span>📶</span>
+                            <span>🔋</span>
+                        </div>
+                    </div>
+
+                    <!-- Conversa -->
+                    <div class="bg-gray-100 flex flex-col flex-1 h-[500px] overflow-y-auto p-4">
+                        <div class="flex justify-start mb-2">
+                            <p class="bg-gray-200 text-gray-800 rounded-lg px-3 py-2 text-sm max-w-[75%]">
+                                Oi! Tudo bem?
+                            </p>
+                        </div>
+                        <p id="messagePreview"
+                           class="bg-blue-500 text-white rounded-lg px-3 py-2 text-sm max-w-[75%] break-words whitespace-pre-line">
+                            Digite uma mensagem 😊
+                        </p>
+                    </div>
+
+                    <!-- Rodapé -->
+                    <div class="bg-white p-3 border-t flex items-center space-x-2">
+                        <div class="flex-1 bg-gray-200 rounded-full px-3 py-2 text-sm text-gray-500">
+                            Mensagem...
+                        </div>
+                        <button
+                                class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-blue-600 transition">
+                            ➤
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </main>
+</div>
+
+
+
+
+
+
+<script type="importmap">
+    {
+      "imports": {
+        "picmo": "https://cdn.jsdelivr.net/npm/picmo@5.8.1/dist/index.js"
+      }
+    }
+</script>
+<script type="module" src="{{URL}}/resources/assets/js/emoji.js"></script>
+
+<!--<script type="module">
+    import * as picmoPopup from "https://cdn.jsdelivr.net/npm/@picmo/popup-picker@5.8.1/dist/index.js";
+
+    const textarea = document.getElementById("messageInput");
+    const button = document.getElementById("emojiBtn");
+
+    const picker = picmoPopup.createPopup(
+        { emojiSize: "1.4em", hideOnEmojiSelect: false },
+        { referenceElement: button, triggerElement: button, position: "top-end" }
+    );
+
+    picker.addEventListener("emoji:select", (selection) => {
+        const emoji = selection.emoji;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+
+        textarea.value = text.substring(0, start) + emoji + text.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+        updateCounter();
+    });
+
+    button.addEventListener("click", () => picker.toggle());
+</script>-->
+
+<script>
+
+</script>
+
+
+
+
+
+<!--<script>
+    const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+    const form = document.querySelector('#campaignForm');
+    const createButton = document.querySelector('#createButton');
+    const createButtonText = document.querySelector('#createButtonText');
+    const createButtonLoader = document.querySelector('#createButtonLoader');
+
+    if (form) {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            // Ativar loader no botão
+            createButton.disabled = true;
+            createButtonText.textContent = 'Enviando...';
+            createButtonLoader.classList.remove('hidden');
+
+            const formData = new FormData(form);
+
+            const notyf = new Notyf({
+                duration: 4000,
+                position: { x: 'right', y: 'top' }
+            });
+
+            try {
+                const response = await fetch(`${baseUrl}/campaign/new`, {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                console.log(result);
+
+                // Simulando sucesso
+                if (!result.status === 200) {
+                    notyf.success(result.message || 'Campanha criada com sucesso!');
+                    setTimeout(() => {
+                        window.location.href = `${baseUrl}/campaign`;
+                    }, 1500);
+                } else {
+                    notyf.error(result.message || 'Erro ao criar campanha.');
+                }
+            } catch (error) {
+                console.error(error);
+                notyf.error('Erro ao enviar a campanha.');
+            } finally {
+                // Restaurar botão
+                createButton.disabled = false;
+                createButtonText.textContent = 'Criar';
+                createButtonLoader.classList.add('hidden');
+            }
+        });
+    }
+</script>-->
+
+
+
+<!--<script>
+    const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+    const form = document.querySelector('#campaignForm');
+    const createButton = document.querySelector('#createButton');
+    const createButtonText = document.querySelector('#createButtonText');
+    const createButtonLoader = document.querySelector('#createButtonLoader');
+
+    if (form) {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            // Ativar loader no botão
+            createButton.disabled = true;
+            createButtonText.textContent = 'Enviando...';
+            createButtonLoader.classList.remove('hidden');
+
+            const formData = new FormData(form);
+
+            const notyf = new Notyf({
+                duration: 4000,
+                position: { x: 'right', y: 'top' }
+            });
+
+            try {
+                const response = await fetch(`${baseUrl}/campaign/new`, {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                console.log(result);
+
+                // Simulando sucesso
+                if (!result.status === 200) {
+                    notyf.success(result.message || 'Campanha criada com sucesso!');
+                    setTimeout(() => {
+                        window.location.href = `${baseUrl}/campaign`;
+                    }, 1500);
+                } else {
+                    notyf.error(result.message || 'Erro ao criar campanha.');
+                }
+            } catch (error) {
+                console.error(error);
+                notyf.error('Erro ao enviar a campanha.');
+            } finally {
+                // Restaurar botão
+                createButton.disabled = false;
+                createButtonText.textContent = 'Criar';
+                createButtonLoader.classList.add('hidden');
+            }
+        });
+    }
+</script>-->

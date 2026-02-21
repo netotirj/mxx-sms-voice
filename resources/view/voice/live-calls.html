@@ -1,0 +1,937 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <!-- ===================== LISTAGEM DE CHAMADAS ===================== -->
+    <div id="callsList">
+        <div class="flex flex-wrap -mx-3">
+            <div class="flex-none w-full max-w-full px-3">
+                <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 border-transparent shadow-xl rounded-2xl bg-clip-border">
+
+                    <!-- Cabeçalho -->
+                    <div class="p-6 pb-0 mb-0 flex justify-between items-center">
+                        <h6 class="text-slate-700 text-lg font-semibold flex items-center gap-2">
+                            📞 Chamadas Ativas
+                            <span id="badgeAtendidas"
+                                  class="hidden bg-emerald-100 text-emerald-700 text-xs font-medium px-2 py-1 rounded-lg transition-all duration-500">
+                                0 Atendidas
+                            </span>
+                        </h6>
+
+                        <!-- Botão de Escuta -->
+                        <div class="flex justify-center py-4">
+                            <button id="btnListenCalls"
+                                    class="inline-flex items-center gap-2 bg-gradient-to-tr from-sky-500 to-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
+                                🎧 Escutar Chamadas
+                            </button>
+                        </div>
+
+                        <button id="refreshCallsButton"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-14"/>
+                            </svg>
+                            Atualizar
+                        </button>
+                    </div>
+
+                    <!-- Status geral -->
+                    <div class="px-6 py-3 flex items-center justify-between border-b bg-slate-50">
+                        <div class="flex items-center gap-2">
+                            <span id="call-status-text" class="text-sm text-slate-600 font-medium">Carregando...</span>
+                            <span class="text-xs text-slate-400">(Atualizado: <span
+                                    id="call-last-update">—</span>)</span>
+                        </div>
+                        <div class="text-sm text-slate-500">
+                            Total de chamadas: <span id="call-total" class="font-semibold text-emerald-600">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Busca -->
+                    <div class="px-6 py-4 flex justify-between items-center">
+
+                        <!-- SELECT: Registros por página -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-slate-600 dark:text-slate-300">Mostrar:</span>
+
+                            <select id="rowsPerPage"
+                                    class="text-sm border rounded-lg px-2 py-1 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <!-- BUSCA -->
+                        <div class="relative w-[250px]">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                </svg>
+                            </div>
+
+                            <input type="text" id="searchInput"
+                                   placeholder="Buscar tarifa..."
+                                   class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2
+                      focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                        </div>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="flex-auto px-0 pt-0 pb-2">
+                        <div class="p-0 overflow-x-auto">
+                            <table id="table-calls" class="w-full text-slate-600 border-collapse">
+                                <thead class="bg-slate-100 text-slate-700 text-sm font-semibold">
+                                <tr>
+                                    <th class="px-4 py-2 border text-center">Ação</th>
+                                    <th class="px-4 py-2 border text-center">CID</th>
+                                    <th class="px-4 py-2 border text-center">Destino</th>
+                                    <th class="px-4 py-2 border text-center">Status</th>
+                                    <th class="px-4 py-2 border text-center">DTMF</th>
+                                    <th class="px-4 py-2 border text-center">Taxa</th>
+                                    <th class="px-4 py-2 border text-center">Custo/Min</th>
+                                    <th class="px-4 py-2 border text-center">Tipo</th>
+                                    <th class="px-4 py-2 border text-center">Tronco</th>
+                                    <th class="px-4 py-2 border text-center">Duração</th>
+                                    <th class="px-4 py-2 border text-center">Início</th>
+                                </tr>
+
+                                </thead>
+
+                                <tbody id="calls-body">
+                                <tr>
+                                    <td colspan="4" class="px-4 py-2 text-center text-slate-500 italic">
+                                        Carregando chamadas...
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Paginação -->
+                    <!-- Paginação -->
+                    <div class="flex items-center justify-between px-6 py-4 border-t bg-slate-50">
+                        <button id="prevPage"
+                                class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50">
+                            Anterior
+                        </button>
+
+                        <span id="pageInfo" class="text-sm text-slate-600">
+                            Página 1 de 1
+                        </span>
+
+                        <button id="nextPage"
+                                class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50">
+                            Próxima
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== Modal de Escuta Avançado ===================== -->
+<div id="listenModal"
+     class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
+
+        <!-- Título -->
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            🎧 Escutar Chamadas Ativas
+            <span id="listenBadge"
+                  class="hidden text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg flex items-center gap-1">
+                Escutando <span id="listenTimer">00:00</span>
+            </span>
+        </h2>
+
+        <!-- Campo do ramal -->
+        <div class="mb-3">
+            <label class="text-sm text-slate-600 font-medium">Ramal do Admin:</label>
+            <input type="text" id="adminExtension" placeholder="Digite seu ramal..."
+                   class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <!-- Lista de chamadas -->
+        <div id="activeCallsList"
+             class="border rounded-lg p-3 h-44 overflow-y-auto text-sm text-slate-600">
+            <p class="italic text-center text-slate-400">Aguardando dados...</p>
+        </div>
+
+        <!-- Rodapé -->
+        <!-- Botão Parar (fica separado e 100% largura) -->
+        <button id="stopListening"
+                class="hidden w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition-all hover:scale-105 mb-3">
+            <span class="animate-pulse">⛔</span>
+            Parar Escuta
+        </button>
+
+        <!-- Grid com Whisper / Escutar / Fechar -->
+        <div class="grid grid-cols-3 gap-2 mt-1">
+
+            <!-- Whisper -->
+            <button id="btnWhisper"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all hover:scale-105">
+                <span class="animate-pulse">🗣️</span>
+                Interagir
+            </button>
+
+            <!-- Listen -->
+            <button id="btnListenOnly"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all hover:scale-105">
+                <span class="animate-bounce">🎧</span>
+                Escutar
+            </button>
+
+            <!-- Fechar -->
+            <button id="cancelListen"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all hover:scale-105">
+                ❌ Fechar
+            </button>
+
+        </div>
+
+
+
+    </div>
+</div>
+
+
+<script>
+    document.querySelectorAll('.spy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.spy-btn').forEach(b => {
+                b.classList.remove('ring-4', 'ring-blue-300', 'scale-105');
+            });
+
+            btn.classList.add('ring-4', 'ring-blue-300', 'scale-105');
+        });
+    });
+
+</script>
+
+<!-- ===================== Animação e Som ===================== -->
+<style>
+    @keyframes pulse-badge {
+        0% {
+            background-color: #bbf7d0;
+            transform: scale(1);
+        }
+        50% {
+            background-color: #86efac;
+            transform: scale(1.15);
+        }
+        100% {
+            background-color: #bbf7d0;
+            transform: scale(1);
+        }
+    }
+
+    .animate-pulse-badge {
+        animation: pulse-badge 0.6s ease-in-out;
+    }
+</style>
+
+<audio id="alert-sound" preload="auto">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+</audio>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        const refreshButton = document.getElementById('refreshCallsButton');
+        const badgeAtendidas = document.getElementById('badgeAtendidas');
+        const alertSound = document.getElementById('alert-sound');
+        const tbody = document.getElementById('calls-body');
+
+        let callSource = null;
+        const activeTimers = new Map();
+        const timeAnchors = new Map();
+
+        // 🟢 Novos globais
+        let currentCalls = [];
+        let listenModalOpen = false;
+        let modalUpdateTimeout = null;
+
+        // paginação / busca
+        let currentPage = 1;
+        let perPage = Number(document.getElementById('rowsPerPage')?.value || 10);
+
+        const prevBtn = document.getElementById('prevPage');
+        const nextBtn = document.getElementById('nextPage');
+        const pageInfo = document.getElementById('pageInfo');
+        const rowsPerPageSelect = document.getElementById('rowsPerPage');
+        const searchInput = document.getElementById('searchInput');
+
+        // Elementos do modal
+        const listenModal = document.getElementById('listenModal');
+        const adminExtensionInput = document.getElementById('adminExtension');
+        const activeCallsList = document.getElementById('activeCallsList');
+        const cancelListen = document.getElementById('cancelListen');
+        const confirmListen = document.getElementById('confirmListen');
+
+        // 🟣 Botão já existente no HTML (centralizado)
+        const listenButton = document.getElementById('btnListenCalls');
+
+        let isListening = false;
+        let listeningCallId = null;
+
+        const listenBadge = document.getElementById('listenBadge');
+        const stopListeningBtn = document.getElementById('stopListening');
+
+        let listenStartTime = null;
+        let listenTimerInterval = null;
+
+
+
+        // 🎧 Ao clicar, abre o modal e carrega as chamadas
+        listenButton?.addEventListener('click', () => {
+            listenModal.classList.remove('hidden');
+            listenModalOpen = true;
+            loadActiveCalls();
+        });
+
+        cancelListen?.addEventListener('click', () => {
+            listenModal.classList.add('hidden');
+            listenModalOpen = false;
+        });
+
+        function startListenTimer() {
+            listenStartTime = Date.now();
+
+            if (listenTimerInterval) clearInterval(listenTimerInterval);
+
+            listenTimerInterval = setInterval(() => {
+                const now = Date.now();
+                const elapsed = Math.floor((now - listenStartTime) / 1000);
+
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+
+                document.getElementById("listenTimer").textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopListenTimer() {
+            if (listenTimerInterval) {
+                clearInterval(listenTimerInterval);
+                listenTimerInterval = null;
+            }
+            document.getElementById("listenTimer").textContent = "00:00";
+        }
+
+
+        const fmt = s => {
+            const m = Math.floor(s / 60).toString().padStart(2, '0');
+            const ss = (s % 60).toString().padStart(2, '0');
+            return `${m}:${ss}`;
+        };
+
+        const computeSkewMs = (payload) => {
+            if (payload && typeof payload.server_now === 'number') {
+                return Date.now() - payload.server_now * 1000;
+            }
+            if (payload && typeof payload.timestamp === 'string') {
+                const t = Date.parse(payload.timestamp.replace(' ', 'T'));
+                if (!Number.isNaN(t)) return Date.now() - t;
+            }
+            return 0;
+        };
+
+        // 🧼 remove \n \r <br> tabs e espaços duplicados
+        const cleanText = (v) => {
+            if (v === null || v === undefined) return '';
+            return String(v)
+                .replace(/<br\s*\/?>/gi, ' ')
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+        };
+
+
+        // 🔢 PAGINAÇÃO + BUSCA: renderiza a tabela baseado em currentCalls
+        function renderCallsTable() {
+            const chamadas = Array.isArray(currentCalls) ? currentCalls : [];
+
+            const term = (searchInput?.value || '').toLowerCase();
+            const filtered = term
+                ? chamadas.filter(c => {
+                    const fields = [
+                        c.number,
+                        c.destination,
+                        c.status,
+                        c.trunk,
+                        c.variable_type,
+                        c.dtmf,
+                        c.taxa_of_service
+                    ];
+                    // ✅ busca usando texto limpo (evita \n atrapalhar)
+                    return fields.some(v => cleanText(v).toLowerCase().includes(term));
+                })
+                : chamadas;
+
+            const total = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const start = (currentPage - 1) * perPage;
+            const pageCalls = filtered.slice(start, start + perPage);
+
+            tbody.innerHTML = '';
+
+            if (pageCalls.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="10" class="px-4 py-4 text-center text-slate-500 italic">Nenhuma chamada ativa no momento</td>`;
+                tbody.appendChild(tr);
+            } else {
+                const nowMs = Date.now();
+
+                pageCalls.forEach(call => {
+                    const id = String(call.id);
+
+                    const startedTime = call.started
+                        ? new Date(call.started * 1000).toLocaleTimeString('pt-BR', { hour12: false })
+                        : '—';
+
+                    // ✅ normaliza campos que podem vir com \n, <br>, tabs etc.
+                    const trunkTxt  = cleanText(call.trunk);
+                    const statusTxt = cleanText(call.status);
+                    const destTxt   = cleanText(call.destination);
+                    const numberTxt = cleanText(call.number);
+                    const dtmfTxt   = cleanText(call.dtmf);
+
+                    // ✅ status class baseado no texto limpo
+                    const statusClass = statusTxt.includes('Atendida')
+                        ? 'text-emerald-600'
+                        : statusTxt.includes('Ocupada')
+                            ? 'text-red-500'
+                            : statusTxt.includes('Finalizada')
+                                ? 'text-slate-500'
+                                : 'text-yellow-600';
+
+                    // ✅ tipo
+                    const type = cleanText(call.variable_type).toUpperCase();
+                    let typeIcon = '❔';
+                    let typeColor = 'text-slate-600';
+                    let typeLabel = null; // ✅ precisa existir
+
+                    if (type === 'TORPEDO') {
+                        typeIcon = '✉️';
+                        typeColor = 'text-fuchsia-700 font-semibold';
+
+                    } else if (type === 'NORMAL' || type === 'VOICE') {
+                        typeIcon = '📞';
+                        typeColor = 'text-emerald-700 font-semibold';
+
+                    } else if (type === 'SMS') {
+                        typeIcon = '💬';
+                        typeColor = 'text-sky-700 font-semibold';
+
+                    } else if (type === 'WHATSAPP') {
+                        typeIcon = '🟢';
+                        typeColor = 'text-green-700 font-semibold';
+
+                    } else if (type === 'SERVICE_FEE') {
+                        // ✅ taxa por chamada atendida (trunk do cliente)
+                        typeIcon = '💰';
+                        typeColor = 'text-emerald-800 font-semibold';
+                        typeLabel = 'TAXA'; // ✅ label amigável
+
+                    } else if (type === 'ESCUTA') {
+                        typeIcon = '🎧';
+                        typeColor = 'text-blue-700 font-semibold';
+
+                    } else if (type === 'LOCAL') {
+                        typeIcon = '🏠';
+                        typeColor = 'text-gray-600 font-semibold';
+
+                    } else if (type === 'OUTBOUND') {
+                        typeIcon = '📤';
+                        typeColor = 'text-orange-700 font-semibold';
+                    }
+
+                    // ✅ classe do tronco usando texto limpo
+                    const trunkClass =
+                        type === 'OUTBOUND'
+                            ? 'text-blue-700 font-semibold'
+                            : trunkTxt === 'Local'
+                                ? 'text-slate-500 italic'
+                                : 'text-blue-700 font-semibold';
+
+                    // ✅ textos de taxa/custo (precisam existir antes do HTML)
+                    const taxaTxt =
+                        (call.taxa_of_service !== null &&
+                            call.taxa_of_service !== undefined &&
+                            !Number.isNaN(Number(call.taxa_of_service)))
+                            ? 'R$ ' + Number(call.taxa_of_service).toFixed(2)
+                            : '—';
+
+                    const minuteCostTxt =
+                        type === 'SERVICE_FEE'
+                            ? '—'
+                            : (call.call_minute_cost !== null &&
+                                call.call_minute_cost !== undefined &&
+                                !Number.isNaN(Number(call.call_minute_cost)))
+                                ? 'R$ ' + Number(call.call_minute_cost).toFixed(2)
+                                : '—';
+
+                    let durationText = call.duration ?? '00:00';
+                    const anchor = timeAnchors.get(id);
+                    if (anchor) {
+                        const secs = Math.max(0, Math.floor((nowMs - anchor.baseMs) / 1000));
+                        durationText = fmt(secs);
+                    }
+
+                    const row = document.createElement('tr');
+                    row.classList.add('border-t', 'hover:bg-slate-50', 'transition');
+
+                    row.innerHTML = `
+                            <td class="px-4 py-2 border text-center">
+                                <button
+                                    class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition focus:outline-none hangup-btn"
+                                    data-call-id="${id}">
+                                    ⛔ Encerrar
+                                </button>
+                            </td>
+
+                            <td class="px-4 py-2 border text-sm text-slate-700 font-medium">
+                                ${numberTxt || '—'}
+                            </td>
+
+                            <td class="px-4 py-2 border text-sm text-slate-600 text-center">
+                                ${destTxt || '—'}
+                            </td>
+
+                            <td class="px-4 py-2 border text-center text-sm font-semibold ${statusClass}">
+                                ${statusTxt || '—'}
+                            </td>
+
+                            <td class="px-4 py-2 border text-sm text-slate-700 text-center">
+                                ${dtmfTxt || '—'}
+                            </td>
+
+                            <!-- 💰 Taxa por chamada -->
+                            <td class="px-4 py-2 border text-center text-sm text-emerald-700 font-semibold">
+                                ${taxaTxt}
+                            </td>
+
+                            <!-- ⏱️ Custo por minuto (oculto quando TAXA) -->
+                            <td class="px-4 py-2 border text-center text-sm text-emerald-700 font-semibold">
+                                ${minuteCostTxt}
+                            </td>
+
+                            <!-- 🔖 Tipo -->
+                            <td class="px-4 py-2 border text-center text-sm uppercase ${typeColor}">
+                                ${typeIcon} ${(typeLabel ?? type) || '—'}
+                            </td>
+
+                            <!-- 🔌 Tronco (sem quebrar linha) -->
+                            <td class="px-4 py-2 border text-center text-sm ${trunkClass} whitespace-nowrap">
+                                ${trunkTxt || '—'}
+                            </td>
+
+                            <!-- ⏱️ Duração -->
+                            <td class="px-4 py-2 border text-center text-sm">
+                                <span id="duration-${id}">${durationText}</span>
+                            </td>
+
+                            <!-- 🕒 Início -->
+                            <td class="px-4 py-2 border text-center text-sm">
+                                ${startedTime}
+                            </td>
+                        `;
+
+                    tbody.appendChild(row);
+                });
+
+
+                // eventos de encerrar chamada
+                tbody.querySelectorAll('.hangup-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const callId = btn.dataset.callId;
+                        if (!callId) return;
+
+                        try {
+                            btn.disabled = true;
+                            btn.textContent = 'Encerrando...';
+
+                            const res = await fetch(`${baseUrl}/campaign/voice/hangup`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ call_id: callId })
+                            });
+
+                            const result = await res.json();
+                            if (result) {
+                                notyf.success('Chamada encerrada com sucesso');
+                            } else {
+                                notyf.error(result.message || 'Erro ao encerrar chamada');
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            notyf.error('Falha ao conectar ao servidor');
+                        } finally {
+                            btn.disabled = false;
+                            btn.textContent = '⛔ Encerrar';
+                        }
+                    });
+                });
+            }
+
+            const totalPages2 = Math.max(1, Math.ceil(total / perPage));
+            if (pageInfo) {
+                pageInfo.textContent = `Página ${currentPage} de ${totalPages2}`;
+            }
+            if (prevBtn) prevBtn.disabled = currentPage === 1;
+            if (nextBtn) nextBtn.disabled = currentPage === totalPages2;
+        }
+
+
+        // 🔄 Atualização da UI principal a cada evento SSE
+        function updateCallStatusUI(payload) {
+            const statusEl = document.getElementById('call-status-text');
+            const totalEl = document.getElementById('call-total');
+            const lastUpdateEl = document.getElementById('call-last-update');
+
+            statusEl.textContent = payload.statusGeral ?? '—';
+            totalEl.textContent = payload.totalChamadas ?? 0;
+            lastUpdateEl.textContent = payload.timestamp ?? new Date().toLocaleTimeString();
+
+            const chamadas = Array.isArray(payload.chamadas) ? payload.chamadas : [];
+            currentCalls = chamadas;
+
+            const atendidas = chamadas.filter(c => (c.status || '').includes('Atendida')).length;
+
+            // 🟢 Badge de atendidas
+            if (badgeAtendidas) {
+                const previous = parseInt(badgeAtendidas.dataset.count || '0', 10);
+                if (atendidas > 0) {
+                    badgeAtendidas.textContent = `${atendidas} Atendidas`;
+                    badgeAtendidas.classList.remove('hidden');
+                    if (atendidas !== previous) {
+                        badgeAtendidas.classList.add('animate-pulse-badge');
+                        setTimeout(() => badgeAtendidas.classList.remove('animate-pulse-badge'), 700);
+                        alertSound?.play().catch(() => {});
+                    }
+                } else {
+                    badgeAtendidas.classList.add('hidden');
+                }
+                badgeAtendidas.dataset.count = atendidas.toString();
+            }
+
+            // 🔁 Limpa timers de canais que saíram
+            const currentIds = new Set(chamadas.map(c => String(c.id)));
+            for (const [id, h] of activeTimers.entries()) {
+                if (!currentIds.has(id)) {
+                    clearInterval(h);
+                    activeTimers.delete(id);
+                    timeAnchors.delete(id);
+                }
+            }
+
+            const skewMs = computeSkewMs(payload);
+
+            // Atualiza âncoras e timers (independente da página)
+            chamadas.forEach(call => {
+                const id = String(call.id);
+                const startedEpoch = (call.started ?? 0) * 1000;
+                const answeredEpoch = typeof call.answered === 'number' ? call.answered * 1000 : null;
+
+                if (call.state === 'up') {
+                    const baseMs = (answeredEpoch ?? startedEpoch) - skewMs;
+
+                    if (!timeAnchors.has(id)) {
+                        timeAnchors.set(id, { baseMs, answeredMs: answeredEpoch });
+                    }
+
+                    if (!activeTimers.has(id)) {
+                        const h = setInterval(() => {
+                            const anchor = timeAnchors.get(id);
+                            if (!anchor) {
+                                clearInterval(h);
+                                activeTimers.delete(id);
+                                return;
+                            }
+                            const secs = Math.max(0, Math.floor((Date.now() - anchor.baseMs) / 1000));
+                            const el = document.getElementById(`duration-${id}`);
+                            if (el) el.textContent = fmt(secs);
+                        }, 1000);
+                        activeTimers.set(id, h);
+                    }
+                } else {
+                    if (activeTimers.has(id)) {
+                        clearInterval(activeTimers.get(id));
+                        activeTimers.delete(id);
+                    }
+                    timeAnchors.delete(id);
+                }
+            });
+
+            // Renderiza tabela com paginação / busca
+            renderCallsTable();
+
+            // 🔄 Atualiza lista no modal automaticamente
+            if (listenModalOpen) {
+                clearTimeout(modalUpdateTimeout);
+                modalUpdateTimeout = setTimeout(() => loadActiveCalls(), 4000);
+            }
+        }
+
+        function loadActiveCalls() {
+            if (!activeCallsList) return;
+
+            activeCallsList.innerHTML = '';
+
+            if (!Array.isArray(currentCalls) || currentCalls.length === 0) {
+                activeCallsList.innerHTML =
+                    '<p class="italic text-center text-slate-400">Nenhuma chamada ativa</p>';
+                return;
+            }
+
+            currentCalls
+                .filter(c => (c.status || '').includes('Atendida'))
+                .forEach(call => {
+                    const selected = isListening && listeningCallId === call.name;
+
+                    activeCallsList.insertAdjacentHTML('beforeend', `
+                <label class="flex items-center gap-3 p-2 border-b last:border-none cursor-pointer
+                       ${selected ? 'bg-blue-50 border-blue-300' : ''}">
+                    <input type="radio"
+                           name="selectedCall"
+                           value="${call.name}"
+                           ${selected ? 'checked' : ''}
+                           class="text-blue-600">
+
+                    <div class="flex flex-col">
+                        <span class="font-medium text-slate-700">
+                            ${call.destination ?? '—'}
+                        </span>
+                        <span class="text-xs text-slate-500">
+                            ${call.status ?? '—'} — ${call.trunk ?? ''}
+                        </span>
+                    </div>
+
+                    ${selected
+                        ? '<span class="ml-auto text-blue-600 text-xs font-semibold animate-pulse">ESCUTANDO</span>'
+                        : ''
+                    }
+                </label>
+            `);
+                });
+        }
+
+
+        // Função unificada para iniciar escuta
+        async function startSpy(mode = "listen") {
+            const selected = document.querySelector('input[name="selectedCall"]:checked');
+            const adminExtension = adminExtensionInput.value.trim();
+
+            if (!adminExtension || !selected) {
+                notyf.error('Preencha seu ramal e selecione uma chamada.');
+                return;
+            }
+
+            const selectedCall = currentCalls.find(c => String(c.name) === selected.value);
+
+            if (!selectedCall) {
+                notyf.error('Não foi possível encontrar a chamada.');
+                return;
+            }
+
+            const payload = {
+                admin_extension: adminExtension,
+                spy_mode: mode, // << listen | whisper
+                call_id: selected.value,
+                call_number: selectedCall.number ?? null,
+                call_destination: selectedCall.destination ?? null,
+                call_trunk: selectedCall.trunk ?? null,
+                call_type: selectedCall.variable_type ?? null
+            };
+
+            try {
+                const res = await fetch(`${baseUrl}/campaign/voice/listening`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+
+                    isListening = true;
+                    listeningCallId = selected.value;
+
+                    const listenBadge = document.getElementById("listenBadge");
+                    const stopListeningBtn = document.getElementById("stopListening");
+
+                    if (listenBadge) listenBadge.classList.remove('hidden');
+                    if (stopListeningBtn) stopListeningBtn.classList.remove('hidden');
+
+                    stopListenTimer();
+
+                    notyf.success(
+                        mode === "whisper"
+                            ? '🗣️ Interação habilitada! Você pode falar com o consultor.'
+                            : '🎧 Escuta iniciada!'
+                    );
+
+                    startListenTimer();
+                    loadActiveCalls();
+
+                } else {
+                    notyf.error(result.message || 'Erro ao iniciar escuta.');
+                }
+
+            } catch (e) {
+
+                console.error("ERRO NO FRONT:", e); // <--- IMPORTANTE PARA DEBUG
+
+                notyf.error('Erro ao conectar ao backend.');
+            }
+
+        }
+
+        document.getElementById("btnListenOnly")
+            ?.addEventListener("click", () => startSpy("listen"));
+
+
+        document.getElementById("btnWhisper")
+            ?.addEventListener("click", () => startSpy("whisper"));
+
+
+
+        /*cancelListen.addEventListener('click', () => {
+            listenModal.classList.add('hidden');
+            listenModalOpen = false;
+
+            if (isListening) stopListenTimer();
+        });*/
+
+
+
+        stopListeningBtn?.addEventListener('click', async () => {
+            try {
+                const res = await fetch(`${baseUrl}/campaign/voice/stop-listening`, {
+                    method: 'POST'
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    isListening = false;
+                    listeningCallId = null;
+
+                    listenBadge.classList.add('hidden');
+                    stopListeningBtn.classList.add('hidden');
+
+                    notyf.success('⛔ Escuta finalizada.');
+                    loadActiveCalls();
+                } else {
+                    notyf.error(result.message || 'Erro ao parar escuta.');
+                }
+
+            } catch (e) {
+                notyf.error('Erro ao conectar.');
+            }
+        });
+
+
+
+        function startCallStream() {
+            if (callSource) return;
+            const sseUrl = `${baseUrl}/campaign/voice/live-calls`;
+            callSource = new EventSource(sseUrl);
+
+            callSource.addEventListener("open", () => {
+                document.getElementById('call-status-text').textContent = "Conectado...";
+            });
+
+            callSource.addEventListener("calls", (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    updateCallStatusUI(payload);
+                } catch (err) {
+                    console.error("Erro ao processar evento [calls]:", err);
+                }
+            });
+
+            callSource.addEventListener("error", () => {
+                document.getElementById('call-status-text').textContent = "Reconectando...";
+                stopCallStream();
+                setTimeout(startCallStream, 3000);
+            });
+
+            callSource.addEventListener("auth", (event) => {
+                const data = JSON.parse(event.data);
+                alert(data.message || "Sessão expirada, faça login novamente.");
+                stopCallStream();
+            });
+        }
+
+        function stopCallStream() {
+            if (callSource) {
+                callSource.close();
+                callSource = null;
+            }
+        }
+
+        refreshButton?.addEventListener('click', () => {
+            refreshButton.disabled = true;
+            refreshButton.classList.add('opacity-50', 'cursor-not-allowed');
+            stopCallStream();
+            updateCallStatusUI({ statusGeral: "Atualizando...", chamadas: [] });
+            startCallStream();
+            setTimeout(() => {
+                refreshButton.disabled = false;
+                refreshButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }, 1500);
+        });
+
+        // eventos da paginação / busca
+        rowsPerPageSelect?.addEventListener('change', () => {
+            perPage = Number(rowsPerPageSelect.value || 10);
+            currentPage = 1;
+            renderCallsTable();
+        });
+
+        prevBtn?.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderCallsTable();
+            }
+        });
+
+        nextBtn?.addEventListener('click', () => {
+            const chamadas = Array.isArray(currentCalls) ? currentCalls : [];
+            const term = (searchInput?.value || '').toLowerCase();
+            const filtered = term
+                ? chamadas.filter(c => {
+                    const fields = [c.number, c.destination, c.status, c.trunk, c.variable_type, c.dtmf];
+                    return fields.some(v => (v || '').toString().toLowerCase().includes(term));
+                })
+                : chamadas;
+            const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderCallsTable();
+            }
+        });
+
+        searchInput?.addEventListener('input', () => {
+            currentPage = 1;
+            renderCallsTable();
+        });
+
+        const path = window.location.pathname;
+        if (path.includes("calls-view")) startCallStream();
+        window.addEventListener('beforeunload', stopCallStream);
+    });
+</script>

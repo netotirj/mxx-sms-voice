@@ -1,0 +1,345 @@
+<!-- Navbar -->
+<nav
+        class="relative flex flex-wrap items-center justify-between px-0 py-2 mx-6 transition-all ease-in shadow-none duration-250 rounded-2xl lg:flex-nowrap lg:justify-start"
+        navbar-main navbar-scroll="false">
+    <div class="flex items-center justify-between w-full px-4 py-1 mx-auto flex-wrap-inherit">
+        <nav>
+            <!-- breadcrumb -->
+            <ol id="breadcrumb" class="flex flex-wrap pt-1 mr-12 bg-transparent rounded-lg sm:mr-16"></ol>
+            <h6 id="breadcrumb-title" class="mb-0 font-bold text-white capitalize"></h6>
+        </nav>
+
+        <div class="flex items-center mt-2 grow sm:mt-0 sm:mr-6 md:mr-0 lg:flex lg:basis-auto">
+
+            <!-- Dropdown de Plano Centralizado -->
+            <div id="planoSwitcher" class="flex justify-center flex-1 {{planoSwitcherHidden}}">
+                <div class="flex items-center space-x-2 bg-white text-slate-700 px-4 py-1.5 rounded-lg shadow-md">
+                    <i class="fa fa-layer-group text-blue-500"></i>
+                    <label for="planoSelect" class="text-sm font-medium">Plano Atual:</label>
+                    <select id="planoSelect"
+                            class="text-sm bg-white text-slate-800 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onchange="swapPlan(this.value)">
+                        {{planOptions}}
+                    </select>
+                </div>
+            </div>
+            <div class="relative w-max mx-auto">
+                <!-- Sino -->
+                <a href="javascript:void(0);" id="notificationBell" class="relative flex items-center justify-center cursor-pointer mr-6">
+                    <i class="fa fa-bell text-xl text-white"></i>
+                    <!-- Badge aumentado -->
+                    <svg id="badgeT" class="absolute -top-1 -right-1 h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
+                        <circle id="badgePulse" cx="12" cy="12" r="12" fill="red" fill-opacity="0.5" style="display:none">
+                            <animate attributeName="r" values="12;14;12" dur="1s" repeatCount="indefinite"/>
+                            <animate attributeName="fill-opacity" values="0.5;0.2;0.5" dur="1s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle cx="12" cy="12" r="10" fill="red"/>
+                        <text id="badgeCount" x="12" y="16" text-anchor="middle" font-size="12" font-weight="bold"
+                              fill="white" font-family="sans-serif">0</text>
+                    </svg>
+                </a>
+
+                <!-- Dropdown -->
+                <div id="dropdownMenu"
+                     class="absolute right-0 mt-2 w-100 max-h-100 overflow-y-auto rounded-lg bg-white shadow-lg opacity-0 pointer-events-none transition-all duration-200"
+                     style="z-index:9999;">
+                    <!-- Barra de ações -->
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+                        <p id="clearAll" class="text-xs text-blue-600 font-medium cursor-pointer">Apagar Todas</p>
+                        <p id="markAllRead" class="text-xs text-blue-600 font-medium cursor-pointer">Marcar todas como Lidas</p>
+                    </div>
+                    <!-- Conteúdo gerado pelo JS -->
+                </div>
+            </div>
+            <ul class="flex flex-row justify-end pl-0 mb-0 list-none md-max:w-full">
+
+                <li class="relative flex items-center pr-2">
+                    <p class="hidden transform-dropdown-show"></p>
+                    <a href="javascript:;" id="userDropdownTrigger"
+                       class="flex items-center space-x-4 p-0 text-sm text-white transition-all ease-nav-brand"
+                       aria-expanded="false">
+
+                        <img
+                                src="{{avatar}}"
+                                alt="avatar image"
+                                class="inline-flex items-center justify-center w-10 h-10 mr-2 text-white transition-all duration-200 ease-in-out text-sm rounded-circle"/>
+
+                        {{name}} 🖖
+                    </a>
+                    <ul id="userDropdownMenu"
+                        class="text-sm transform-dropdown before:font-awesome before:leading-default before:duration-350 before:ease lg:shadow-3xl duration-250 min-w-44 before:text-5.5 pointer-events-none absolute right-0 top-0 z-50 origin-top list-none rounded-lg border-0 border-solid border-transparent dark:shadow-dark-xl dark:bg-slate-850 bg-white bg-clip-padding px-2 py-4 text-left text-slate-500 opacity-0 transition-all before:absolute before:right-2 before:left-auto before:top-0 before:z-50 before:inline-block before:font-normal before:text-white before:antialiased before:transition-all before:content-['\f0d8'] sm:-mr-6 lg:absolute lg:right-0 lg:left-auto lg:mt-2 lg:block lg:cursor-pointer hidden">
+                        <!-- Adiciona .show para abrir via JS -->
+                        <li class="relative mb-2">
+                            <a href="{{URL}}/users/profile"
+                               class="dark:hover:bg-slate-900 ease py-1.2 clear-both block w-full whitespace-nowrap rounded-lg px-4 transition-colors duration-300 hover:bg-gray-200 hover:text-slate-700">
+                                <div class="flex py-1">
+                                    <div class="my-auto">
+                                        <i class="fa fa-user text-blue-500 text-lg mr-4"></i>
+                                    </div>
+                                    <div class="flex flex-col justify-center">
+                                        <h6 class="mb-1 text-sm font-normal leading-normal dark:text-white">Perfil</h6>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="relative mb-2">
+                            <a href="{{URL}}/help/movies"
+                               class="dark:hover:bg-slate-900 ease py-1.2 clear-both block w-full whitespace-nowrap rounded-lg px-4 transition-colors duration-300 hover:bg-gray-200 hover:text-slate-700">
+                                <div class="flex py-1">
+                                    <div class="my-auto">
+                                        <i class="fa-solid fa-video text-green-500 text-lg mr-4"></i>
+                                    </div>
+                                    <div class="flex flex-col justify-center">
+                                        <h6 class="mb-1 text-sm font-normal leading-normal dark:text-white">
+                                            Videos Tutoriais</h6>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="relative">
+                            <a href="{{URL}}/dashboard/logout"
+                               class="dark:hover:bg-slate-900 ease py-1.2 clear-both block w-full whitespace-nowrap rounded-lg px-4 transition-colors duration-300 hover:bg-gray-200 hover:text-slate-700">
+                                <div class="flex py-1">
+                                    <div class="my-auto">
+                                        <i class="fa fa-sign-out-alt text-red-500 text-lg mr-4"></i>
+                                    </div>
+                                    <div class="flex flex-col justify-center">
+                                        <h6 class="mb-1 text-sm font-normal leading-normal dark:text-white">Sair</h6>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="flex items-center pl-4 xl:hidden">
+                    <a href="javascript:;" class="block p-0 text-sm text-white transition-all ease-nav-brand"
+                       sidenav-trigger>
+                        <div class="w-4.5 overflow-hidden">
+                            <i class="ease mb-0.75 relative block h-0.5 rounded-sm bg-white transition-all"></i>
+                            <i class="ease mb-0.75 relative block h-0.5 rounded-sm bg-white transition-all"></i>
+                            <i class="ease relative block h-0.5 rounded-sm bg-white transition-all"></i>
+                        </div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<!-- end Navbar -->
+
+<script>
+    async function swapPlan(planId) {
+        if (!planId) return;
+
+        try {
+            const response = await fetch(baseURL + '/dashboard/swap-plan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ plan_id: planId })
+            });
+
+            const data = await response.json(); // <-- já pega o JSON retornado
+
+            if (response.ok) {
+                // Sucesso → mostra notyf
+                notyf.success(data.message || 'Plano alterado com sucesso!');
+
+                // Aguarda 1.5 segundos antes de recarregar a página
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                notyf.error(data.error || 'Erro ao alterar o plano.');
+            }
+
+        } catch (err) {
+            //console.error(err);
+            //alert('Falha na comunicação com o servidor.');
+        }
+    }
+</script>
+
+
+
+
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const bell = document.getElementById('notificationBell');
+        const badgeT = document.getElementById('badgeT');
+        const badgeCount = document.getElementById('badgeCount');
+        const badgePulse = document.getElementById('badgePulse');
+        const dropdown = document.getElementById('dropdownMenu');
+
+        // Barra de ações
+        const clearAll = document.getElementById('clearAll');
+        const markAllRead = document.getElementById('markAllRead');
+
+        // Container para notificações
+        let msgNot = document.getElementById('msgNot');
+        if (!msgNot) {
+            msgNot = document.createElement('div');
+            msgNot.id = 'msgNot';
+            dropdown.appendChild(msgNot);
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        }
+
+        function renderNotifications(notifications) {
+            if (!msgNot) return;
+
+            let htmlContent = '';
+
+            if (!notifications || !notifications.length) {
+                htmlContent = `<div class="text-center text-gray-500 p-3">Sem novas notificações.</div>`;
+            } else {
+                htmlContent = `
+                <ul class="divide-y divide-gray-200">
+                    ${notifications.map(item => `
+                        <li class="dropdown-item p-3 cursor-pointer ${item.read_at === null ? 'bg-amber-100 border-l-4 border-red-400' : 'bg-white'} rounded-lg hover:bg-gray-200"
+                                    data-id="${item.id}">
+                            <div class="flex items-start space-x-2">
+                                <i class="fa ${
+                    item.type === 'alert' ? 'fa-times-circle text-red-500' :
+                        item.type === 'notice' ? 'fa-exclamation-circle text-green-500' :
+                            'fa-info-circle text-blue-500'
+                } mt-0.5"></i>
+                                <div class="flex-1">
+                                    <h6 class="text-sm font-semibold">${item.title}</h6>
+                                    <p class="text-xs text-gray-600 mt-1">${item.message}</p>
+                                    <div class="mt-1 text-xs text-gray-400 flex justify-end italic">${formatDate(item.created_at)}</div>
+                                </div>
+                            </div>
+                        </li>
+                    `).join('')}
+                    <li class="text-center mt-2">
+                        <a href="/reports/notifications" class="text-sm font-semibold text-blue-600 hover:underline block py-2">Ver todas</a>
+                    </li>
+                </ul>
+            `;
+            }
+
+            msgNot.innerHTML = htmlContent;
+
+            // Marcar notificações como lidas ao clicar
+            dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = item.dataset.id;
+                    if (!id) return;
+                    axios.post(`${baseUrl}/notifications`, { id })
+                        .then(() => item.classList.add('opacity-50'))
+                        .catch(err => console.error(err));
+                });
+            });
+        }
+
+        function toggleDropdown(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!dropdown) return;
+            dropdown.classList.toggle('opacity-0');
+            dropdown.classList.toggle('pointer-events-none');
+        }
+
+        if (bell) bell.addEventListener('click', toggleDropdown);
+        if (badgeT) badgeT.addEventListener('click', toggleDropdown);
+
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target) && !(bell && bell.contains(e.target)) && !(badgeT && badgeT.contains(e.target))) {
+                dropdown.classList.add('opacity-0');
+                dropdown.classList.add('pointer-events-none');
+            }
+        });
+
+        // SSE para notificações
+        if (typeof(EventSource) !== 'undefined') {
+            const sse = new EventSource(`${baseUrl}/notifications`);
+            sse.addEventListener('notifications', event => {
+                const data = JSON.parse(event.data);
+                if (!data) return;
+
+                if (badgeCount) badgeCount.textContent = data.qtd_new || '0';
+                if (badgePulse) badgePulse.style.display = (data.qtd_new > 0) ? 'block' : 'none';
+
+                renderNotifications(data.notifications);
+            });
+        }
+
+        // Ações da barra
+        if (clearAll) clearAll.addEventListener('click', () => {
+            msgNot.innerHTML = `<div class="text-center text-gray-500 p-3">Sem novas notificações.</div>`;
+            if (badgeCount) badgeCount.textContent = '0';
+            if (badgePulse) badgePulse.style.display = 'none';
+        });
+
+        if (markAllRead) markAllRead.addEventListener('click', () => {
+            dropdown.querySelectorAll('.dropdown-item').forEach(item => item.classList.add('opacity-50'));
+            if (badgeCount) badgeCount.textContent = '0';
+            if (badgePulse) badgePulse.style.display = 'none';
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const breadcrumbEl = document.getElementById("breadcrumb");
+        const titleEl = document.getElementById("breadcrumb-title");
+
+        // mapa de traduções
+        const translations = {
+            "users": "Usuários",
+            "contacts": "Contatos",
+            "campaign": "Campanhas",
+            "refills": "Recargas",
+            "rates":   "Tarifas",
+            "reports": "Relatórios",
+            "settings": "Configurações",
+            "notifications": "Notificações",
+            "permissions": "Permissões",
+            "profile": "Perfil",
+            "transactions": "Transações",
+            "recharge-transactions": "Transações Recargas"
+            // pode ir expandindo aqui conforme suas rotas
+        };
+
+        // pega o path e divide em partes
+        const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
+        const parts = path.split("/").filter(Boolean);
+
+        // se não houver nada ("/"), define "dashboard"
+        const items = parts.length ? parts : ["dashboard"];
+
+        items.forEach((part, index) => {
+            const li = document.createElement("li");
+            li.className =
+                "text-sm capitalize leading-normal text-white" +
+                (index > 0 ? " pl-2 before:float-left before:pr-2 before:text-white before:content-['/']" : "");
+
+            // traduz se existir no mapa, senão deixa como está (só substitui traços e underscores)
+            const name = translations[part.toLowerCase()] || part.replace(/[-_]/g, " ");
+
+            if (index === items.length - 1) {
+                // último = texto + título
+                li.textContent = name;
+                li.setAttribute("aria-current", "page");
+                titleEl.textContent = name;
+            } else {
+                // intermediários = link
+                li.innerHTML = `<a href="/${items.slice(0, index + 1).join("/")}" class="text-white opacity-50">${name}</a>`;
+            }
+
+            breadcrumbEl.appendChild(li);
+        });
+    });
+</script>
+
+
+
+

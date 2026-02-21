@@ -1,0 +1,4939 @@
+<?php
+
+namespace App\Controller\Pages;
+
+use App\Model\Entity\BalanceSms;
+use App\Model\Entity\CdrVoice;
+use App\Model\Entity\Notifications;
+use App\Model\Entity\Rates;
+use App\Model\Entity\RegisterTenancies;
+use App\Model\Entity\UserPlans;
+use App\Model\Entity\UserSearch;
+use App\RedisConn;
+use Exception;
+use GuzzleHttp\Client;
+use Predis\Client as RedisClient;
+use App\Http\Response;
+use App\Session\User as SessionUser;
+use App\Utils\View;
+use App\Model\Entity\CampaignVoice;
+use GuzzleHttp\Exception\GuzzleException;
+use Random\RandomException;
+use Throwable;
+
+class Voice extends ViewComponents
+{
+    public static function getComponentsVoice(): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/index', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsVoiceList($request): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/list', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsAudioList($request): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/audios', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsActiveCalls($request): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/live-calls', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsListExtensions($request): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/sip-devices', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsVoiceTrunks($request): Response|string
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/voice/trunks', []);
+        return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
+    }
+
+    public static function getComponentsVoiceSearch(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, ['message' => "Usuário não autenticado"], 'application/json');
+        }
+
+        $userId  = (int) $obUser['id'];
+        $role    = strtolower($obUser['function']);
+        $tenancy = (string) $obUser['tenancy_id'];
+
+        // ==============================
+        // 🔎 DEFINIÇÃO DE ESCOPO
+        // ==============================
+        $filterUserId  = null;
+        $filterTenancy = null;
+
+        if ($role === 'super_admin') {
+            // vê tudo → sem filtros
+            $filterUserId  = null;
+            $filterTenancy = null;
+
+        } elseif ($role === 'admin') {
+            // vê tudo da tenancy
+            $filterTenancy = $tenancy;
+
+        } elseif ($role === 'reseller') {
+            // vê somente dele
+            $filterUserId  = $userId;
+            $filterTenancy = $tenancy;
+
+        } else {
+            // usuário comum
+            $filterUserId  = $userId;
+            $filterTenancy = $tenancy;
+        }
+
+        // ==============================
+        // 🔽 BUSCA NO BANCO
+        // ==============================
+        try {
+            $listVoice = CampaignVoice::getVoiceListsDetail(
+                $filterUserId,
+                $filterTenancy
+            );
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'message' => "Erro ao consultar chamadas",
+                'error'   => $e->getMessage()
+            ], 'application/json');
+        }
+
+        self::processCdrFromRedis();
+
+        // ==============================
+        // 🔄 FORMATANDO OS DADOS
+        // ==============================
+        $formatted = array_map(function ($row) {
+
+            return [
+                'id'             => (int)$row['id'],
+                'job_id'         => (string)($row['job_id'] ?? ''),   // ✅ ADD
+                'name'           => $row['name'],
+                'type'           => $row['type'],
+                'total_contacts' => (int) ($row['total_contacts'] ?? 0),
+                'status'         => $row['status'],
+                'total_calls'    => (int) ($row['total_calls'] ?? 0),
+                'answered_calls' => (int) ($row['answered_calls'] ?? 0),
+                'failed_calls'   => (int) ($row['failed_calls'] ?? 0),
+                'created_at'     => $row['created_at'],
+            ];
+        }, $listVoice);
+
+        $monitor = [
+            'has_alert' => false,
+            'alerts'    => [],
+            'stats'     => [],
+            'window_s'  => 120,
+        ];
+
+        try {
+            // se você já tem um singleton/conn global, use ele.
+            $redis = RedisConn::get();
+
+            $alerts = self::getVoiceHttpAlerts($redis, 120, 20);
+            $stats  = self::getVoiceHttpErrorStats($redis);
+            $stasis = self::getStasisStatus($redis, 10);
+
+            $requeue = [];
+
+            foreach ($formatted as $c) {
+                $jobId = $c['job_id'] ?? '';
+                if (!$jobId) continue;
+
+                $requeue[$jobId] = self::getRequeueStatus($redis, $jobId, 120, 20);
+            }
+
+            $monitor = [
+                'has_alert' => self::hasCriticalHttpAlert($alerts)
+                    || !$stasis['online']
+                    || self::hasCriticalRequeue($requeue),
+                'alerts'    => $alerts,
+                'stats'     => $stats,
+                'window_s'  => 120,
+                'stasis'    => $stasis,
+                'requeue'   => $requeue, // ✅ ADD
+            ];
+        } catch (\Throwable $e) {
+            // não quebra a tela por causa do monitor
+            $monitor['error'] = $e->getMessage();
+        }
+
+        // ==============================
+        // ✅ RETORNO
+        // ==============================
+        return new Response(200, [
+            'success' => true,
+            'total'   => count($formatted),
+            'data'    => $formatted,
+            'monitor' => $monitor,
+        ], 'application/json');
+    }
+
+
+    private static function getRequeueStatus( RedisClient $redis, string $jobId, int $windowSeconds = 120, int $maxEvents = 20): array
+    {
+        $now = time();
+
+        // status atual do job (badge)
+        $raw = $redis->get("campaign:{$jobId}:runtime_status");
+        $st  = $raw ? json_decode((string)$raw, true) : null;
+
+        $lastTs = is_array($st) ? (int)($st['ts'] ?? 0) : 0;
+        $code   = is_array($st) ? (string)($st['code'] ?? '') : '';
+        $msg    = is_array($st) ? ($st['msg'] ?? null) : null;
+
+        $active = $lastTs > 0 && ($now - $lastTs) <= 20; // combina com TTL 20s do worker
+
+        // contadores
+        $countsRaw = $redis->hgetall("campaign:{$jobId}:requeue_counts");
+        $counts = [];
+        if (is_array($countsRaw)) {
+            foreach ($countsRaw as $k => $v) $counts[(string)$k] = (int)$v;
+        }
+
+        // últimos eventos (janela)
+        $events = [];
+        $rawList = $redis->lrange("campaign:{$jobId}:events", 0, $maxEvents - 1);
+        if (is_array($rawList)) {
+            foreach ($rawList as $rawEv) {
+                $it = json_decode((string)$rawEv, true);
+                if (!is_array($it)) continue;
+
+                $ts = (int)($it['ts'] ?? 0);
+                if ($ts <= 0) continue;
+                if (($now - $ts) > $windowSeconds) continue;
+
+                $events[] = [
+                    'ts'   => $ts,
+                    'code' => (string)($it['code'] ?? ''),
+                    'msg'  => (string)($it['msg'] ?? ''),
+                    'ctx'  => $it['ctx'] ?? [],
+                ];
+            }
+        }
+
+        return [
+            'active'   => $active,
+            'last_ts'  => $lastTs,
+            'window_s' => $windowSeconds,
+            'status'   => [
+                'code' => $code ?: null,
+                'msg'  => $msg,
+            ],
+            'counts'   => $counts,
+            'events'   => $events,
+        ];
+    }
+
+    private static function hasCriticalRequeue(array $requeueByJob): bool
+    {
+        foreach ($requeueByJob as $r) {
+            $code = $r['status']['code'] ?? null;
+            if (in_array($code, ['no_agents_online','no_agents_available'], true)) return true;
+        }
+        return false;
+    }
+
+    private static function getVoiceHttpAlerts(RedisClient $redis, int $seconds = 120, int $max = 20): array
+    {
+        $rawList = $redis->lrange('voice:errors:http', 0, $max - 1);
+        if (!is_array($rawList)) return [];
+
+        $now = time();
+        $alerts = [];
+
+        foreach ($rawList as $raw) {
+            $item = json_decode((string)$raw, true);
+            if (!is_array($item)) continue;
+
+            $ts = (int)($item['ts'] ?? 0);
+            if ($ts <= 0) continue;
+            if (($now - $ts) > $seconds) continue; // só recentes
+
+            $alerts[] = [
+                'ts'          => $ts,
+                'class'       => (string)($item['class'] ?? 'unknown_http'),
+                'http_status' => $item['http']['status'] ?? null,
+                'error'       => $item['http']['error'] ?? null,
+                'endpoint'    => $item['endpoint'] ?? null,
+                'call_id'     => $item['call_id'] ?? null,
+                'job_id'      => $item['job_id'] ?? null,
+            ];
+        }
+
+        return $alerts;
+    }
+
+    private static function getVoiceHttpErrorStats(RedisClient $redis): array
+    {
+        $stats = $redis->hgetall('voice:http_errors_by_class');
+        if (!is_array($stats)) return [];
+
+        $out = [];
+        foreach ($stats as $k => $v) $out[(string)$k] = (int)$v;
+
+        return $out;
+    }
+
+    private static function hasCriticalHttpAlert(array $alerts): bool
+    {
+        foreach ($alerts as $a) {
+            $cls = (string)($a['class'] ?? '');
+            if (in_array($cls, ['timeout','connect_fail','conn_refused','ari_5xx','auth','dns','ssl'], true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function getStasisStatus(RedisClient $redis, int $ttlSeconds = 10): array
+    {
+        $hbRaw = $redis->get('voice:stasis:heartbeat');
+        $hb    = $hbRaw ? json_decode((string)$hbRaw, true) : null;
+
+        $lastTs = is_array($hb) ? (int)($hb['ts'] ?? 0) : 0;
+        $online = $lastTs > 0 && (time() - $lastTs) <= $ttlSeconds;
+
+        $errRaw = $redis->get('voice:stasis:last_error');
+        $err    = $errRaw ? json_decode((string)$errRaw, true) : null;
+
+        return [
+            'online'   => $online,
+            'last_ts'  => $lastTs,
+            'ttl_s'    => $ttlSeconds,
+            'last_err' => is_array($err) ? ($err['msg'] ?? null) : null,
+            'err_ts'   => is_array($err) ? (int)($err['ts'] ?? 0) : null,
+            'pid'      => is_array($hb) ? ($hb['pid'] ?? null) : null,
+            'host'     => is_array($hb) ? ($hb['host'] ?? null) : null,
+            'app'      => is_array($hb) ? ($hb['app'] ?? null) : null,
+        ];
+    }
+
+
+
+    /**
+     * @throws Exception
+     */
+    public static function getComponentsVoiceListSearch($request): Response|string
+    {
+        // 🔹 Verifica se o usuário está logado
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $userId = $obUser['id'] ?? null;
+        $tenancyId = $obUser['tenancy_id'] ?? null;
+        $userFunc = $obUser['function'] ?? null;
+
+        // ======================================================
+        // 🔹 Busca listas conforme o tipo de usuário
+        // ======================================================
+        if ($userFunc === 'super_admin') {
+
+            // Super admin pode ver tudo
+            $lists = CampaignVoice::getVoiceLists();
+
+        } elseif ($userFunc === 'admin') {
+
+            // Admin vê apenas pelo tenancy
+            $lists = CampaignVoice::getVoiceLists(null, $tenancyId);
+
+        } else {
+
+            // Usuário comum: filtra por tenancy e user_id
+            $lists = CampaignVoice::getVoiceLists($userId, $tenancyId);
+        }
+
+
+        // ======================================================
+        // 🔹 Monta as listas formatadas
+        // ======================================================
+        $formattedLists = [];
+
+        foreach ($lists as $list) {
+            $contacts = CampaignVoice::getContactsByListId($list['id']);
+            $numContacts = count($contacts);
+
+            $formattedLists[] = [
+                'id' => (int)$list['id'],
+                'nome_lista' => $list['name'] ?? 'Sem nome',
+                'num_contatos' => $numContacts,
+                'status' => $list['status'] === 'active' ? 'Ativa' : 'Inativa',
+                'total_contacts' => (int)($list['total_contacts'] ?? $numContacts),
+                'created' => !empty($list['created_at'])
+                    ? (new \DateTime($list['created_at']))->format('d/m/Y H:i')
+                    : '--/--/---- --:--'
+            ];
+        }
+
+        // ======================================================
+        // 🔹 Monta a resposta JSON final
+        // ======================================================
+        return new Response(200, [
+            'status' => 200,
+            'message' => 'Listas de voz encontradas com sucesso.',
+            'data' => $formattedLists
+        ], 'application/json');
+    }
+
+    public static function getVoiceListening($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 🔹 Lê JSON recebido
+        $rawInput = file_get_contents('php://input');
+
+        $params = json_decode($rawInput, true);
+        $spyMode = $params['spy_mode'] ?? 'listen';
+        $spyOpts = match ($spyMode) {
+            'whisper' => 'bqW',
+            default => 'bq',
+        };
+
+        if (!is_array($params)) {
+            return new Response(400, [
+                'status' => 400,
+                'message' => 'JSON inválido no corpo da requisição'
+            ], 'application/json');
+        }
+
+        // 🔹 Parâmetros obrigatórios
+        $adminExtension = trim($params['admin_extension'] ?? '');
+        $callId = trim($params['call_id'] ?? '');
+
+        if ($adminExtension === '' || $callId === '') {
+            return new Response(400, [
+                'status' => 400,
+                'message' => 'Parâmetros obrigatórios ausentes: admin_extension, call_id'
+            ], 'application/json');
+        }
+
+        // 🔹 Demais dados opcionais
+        $spyNumber = $params['call_number'] ?? 'Desconhecido';
+        $spyDestination = $params['call_destination'] ?? 'Desconhecido';
+        $spyTrunk = $params['call_trunk'] ?? '—';
+        $spyType = $params['call_type'] ?? 'NORMAL';
+
+        // 🔹 Configuração ARI
+        $ariBase = 'http://192.168.1.8:8088/ari/';
+        $ariUser = 'maxx';
+        $ariPass = 'mxx123';
+        $stasisApp = 'app-asterisk';
+
+        $client = new Client([
+            'auth' => [$ariUser, $ariPass],
+            'timeout' => 10,
+            'http_errors' => false // evita exception automática
+        ]);
+
+        try {
+
+            // -------------------------------
+            //   CRIA CANAL DE ESCUTA (Spy)
+            // -------------------------------
+
+            $targetChannel = $callId;
+            $spyChannel = "PJSIP/{$adminExtension}";
+
+            // Variáveis enviadas ao dialplan
+            $variables = [
+                'SPY_CHANNEL' => $targetChannel,
+                'SPY_OPTS' => $spyOpts,   // ← Aqui você coloca as opções desejadas
+                'SPY_NUMBER' => $spyNumber,
+                'SPY_DESTINATION' => $spyDestination,
+                'SPY_TRUNK' => $spyTrunk,
+                'SPY_TYPE' => $spyType,
+                'SPY_OPERATOR' => $obUser->name ?? 'Administrador',
+            ];
+
+            $payload = [
+                'endpoint' => $spyChannel,
+                'extension' => '9999',     // extensão do dialplan que executa ChanSpy
+                'context' => 'spy-control',
+                'priority' => 1,
+                'timeout' => 60,
+                'callerId' => "Escuta <{$adminExtension}>",
+                'variables' => $variables
+            ];
+
+            // Envia originate
+            $res = $client->post("{$ariBase}channels", [
+                'json' => $payload
+            ]);
+
+            $body = json_decode($res->getBody(), true);
+
+            if ($res->getStatusCode() >= 300) {
+                return new Response(500, [
+                    'status' => 500,
+                    'message' => 'ARI retornou erro ao iniciar escuta.',
+                    'ari_status' => $res->getStatusCode(),
+                    'ari_response' => $body
+                ], 'application/json');
+            }
+
+            return new Response(200, [
+                'status' => 200,
+                'success' => true,
+                'message' => '🎧 Escuta iniciada com sucesso!',
+                'data' => [
+                    'spy_channel_id' => $body['id'] ?? null,
+                    'admin_extension' => $adminExtension,
+                    'target_channel' => $targetChannel,
+                    'variables_sent' => $variables,
+                ]
+            ], 'application/json');
+
+        } catch (Exception $e) {
+
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'Erro ao enviar Originate via ARI.',
+                'error' => $e->getMessage()
+            ], 'application/json');
+        } catch (GuzzleException $e) {
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'Erro ao enviar Originate via ARI.',
+                'error' => $e->getMessage()
+            ], 'application/json');
+        }
+
+    }
+
+
+    public static function setVoiceHangup($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status'  => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $params = json_decode(file_get_contents('php://input'), true);
+        $callId = $params['call_id'] ?? null;
+
+        if (!$callId) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'ID da chamada não informado.'
+            ], 'application/json');
+        }
+
+        try {
+            $client = new Client([
+                'auth'    => ['maxx', 'mxx123'],
+                'timeout' => 5
+            ]);
+
+            $ariBase = 'http://192.168.1.8:8088/ari/';
+            $client->delete("{$ariBase}channels/{$callId}");
+
+            return new Response(200, [
+                'success' => true,
+                'message' => 'Chamada encerrada com sucesso.'
+            ], 'application/json');
+
+        } catch (GuzzleException $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro de comunicação com o ARI: ' . $e->getMessage()
+            ], 'application/json');
+
+        } catch (Exception $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro inesperado: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+    private static function trunkIsApto(array $trunk): array
+    {
+        if (($trunk['status'] ?? '') !== 'active') {
+            return [false, 'Trunk inativo'];
+        }
+
+        // 🔄 valida se permite saída
+        if (!in_array($trunk['direction'] ?? '', ['outbound', 'both'], true)) {
+            return [false, 'Trunk não aceita chamadas de saída'];
+        }
+
+        // 🔒 Valida Asterisk apenas se existir
+        if (array_key_exists('asterisk_up', $trunk) && !$trunk['asterisk_up']) {
+            return [false, 'Asterisk indisponível'];
+        }
+
+        // 🔒 Valida SIP apenas se existir
+        if (array_key_exists('sip_status', $trunk) && $trunk['sip_status'] !== 'OK') {
+            return [false, 'SIP não está OK'];
+        }
+
+        $authType  = $trunk['auth_type'] ?? null;
+        $sipDetail = $trunk['sip_detail'] ?? null;
+
+        if ($authType === 'register' && $sipDetail !== null && $sipDetail !== 'Registered') {
+            return [false, 'Trunk não está registrado'];
+        }
+
+        if ($authType === 'ip' && $sipDetail !== null && $sipDetail !== 'Avail') {
+            return [false, 'Trunk por IP indisponível'];
+        }
+
+        return [true, 'Trunk apto para uso'];
+    }
+
+    /**
+     * @throws RandomException
+     */
+
+    public static function sendVoiceAsterisk($request): Response
+    {
+        header('Content-Type: application/json');
+
+        // -----------------------
+        // conectar Redis
+        // -----------------------
+        try {
+            $redis = new RedisClient([
+                'scheme' => 'tcp',
+                'host' => '192.168.1.8',
+                'password' => 'mxx123',
+                'port' => 6379,
+            ]);
+        } catch (Throwable $e) {
+            return new Response(500, [
+                'error' => 'Falha ao conectar no Redis.',
+                'details' => $e->getMessage()
+            ], 'application/json');
+        }
+
+        // -----------------------
+        // usuário logado
+        // -----------------------
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['status' => 401, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $tenantId = $obUser['tenancy_id'];
+        $userId = (int)$obUser['id'];
+        $userRole = strtolower($obUser['function']);
+        $currentPlan = RegisterTenancies::getActivePlanId($tenantId);
+        $isReseller = ($userRole === 'reseller');
+
+        // -----------------------
+        // POST / inputs
+        // -----------------------
+        $data = $request->getPostVars();
+
+        //echo "<pre>";
+        //print_r($data);
+        //echo "</pre>";exit();
+
+        //$action = $data['action'] ?? 'dtmf'; // compatibilidade com campanhas antigas
+        $idList = $data['contact_list'] ?? 0;
+        $audioFiles = $_FILES['audios'] ?? null;
+        $audiosOrigin = $data['audios_origin'] ?? [];
+        $rate = max(1, (int)($data['rate'] ?? 1));
+        $name = $data['campaign_name'] ?? '';
+        $sip_trunk = (string)$data['sip_trunk'];
+        $strategy = (string)$data['dial_strategy']?? 'rrmemory';
+        $sip_trunk_id = $data['sip_trunk_id'];
+        $cliType = $data['cli_type'] ?? null;
+        $totalGeral = (float)($data['totalGeral'] ?? 0);
+
+        // =============================
+        // 1️⃣ Caller ID Number
+        // =============================
+        $callerIdNumber = $data['caller_id'] ?? null;
+
+        // se bina_inteligente → usa account_code da sessão
+        if ($cliType === 'bina_inteligente') {
+            $sessAcc = $_SESSION['user']['account_code'] ?? null;
+
+            if (is_string($sessAcc) && trim($sessAcc) !== '') {
+                $callerIdNumber = trim($sessAcc);
+            }
+        }
+
+        // =============================
+        // 2️⃣ Nome vindo da sessão
+        // =============================
+        $sessionName = $_SESSION['user']['name'] ?? null;
+        $sessionName = is_string($sessionName) ? trim($sessionName) : null;
+
+        if ($sessionName === '') {
+            $sessionName = null;
+        }
+
+        // =============================
+        // 3️⃣ Caller ID Name
+        // =============================
+        if (!empty($data['caller_id_name'])) {
+            $callerIdName = $data['caller_id_name'];
+        } elseif ($cliType === 'bina_inteligente' && !empty($sessionName)) {
+            $callerIdName = $sessionName;   // ✅ usa nome da sessão
+        } else {
+            $callerIdName = $callerIdNumber ?: 'Discador';
+        }
+
+        // endpoints (ramais)
+        $endpointsJson = $data['ramais'] ?? '[]';
+        $endpointsArr = json_decode($endpointsJson, true);
+        if (!is_array($endpointsArr)) $endpointsArr = [];
+        $endpoints = array_values(array_filter(array_map(fn($i) => $i['ramal'] ?? null, $endpointsArr)));
+
+        // =======================
+        // ACTION
+        // =======================
+        $action = $data['action'] ?? 'dtmf';
+
+        // =======================
+        // SMS direto
+        // =======================
+        $smsText    = $data['sms_text']    ?? null;
+        $smsService = $data['sms_service'] ?? null;
+        $smsStatus  = $data['sms_status']  ?? null;
+
+        $hasSmsDirect =
+            $smsText !== null &&
+            $smsService !== null &&
+            $smsStatus !== null;
+
+        // =======================
+        // DTMF
+        // =======================
+        $dtmfRaw = $data['dtmf'] ?? '[]';
+        $dtmf = is_array($dtmfRaw) ? $dtmfRaw : json_decode($dtmfRaw, true);
+        if (!is_array($dtmf)) $dtmf = [];
+
+        // ⛔ blindagem total
+        if ($action !== 'dtmf') {
+            $dtmf = [];
+        }
+
+        // =======================
+        // SMS em DTMF
+        // =======================
+        $hasSmsInDtmf = false;
+
+        if ($action === 'dtmf') {
+            foreach ($dtmf as $item) {
+                if (($item['action'] ?? null) === 'sms') {
+                    $hasSmsInDtmf = true;
+                    break;
+                }
+            }
+        }
+
+        //echo "<pre>";
+        //print_r($action);
+        //echo "</pre>";exit;
+
+        // =======================
+        // Tipo real da operação
+        // =======================
+        $variableType = strtolower($data['variable_type'] ?? 'voice');
+        if ($variableType === 'normal') $variableType = 'voice';
+
+        // ✅ este é o tipo solicitado pelo frontend (NÃO muda)
+        $campaignTypeRequested = $variableType;
+
+        // tipo REAL (pode virar sms/service_fee)
+        $variableTypeReal = ($hasSmsDirect || $hasSmsInDtmf) ? 'sms' : $variableType;
+
+        // =======================
+        // Buscar contatos
+        // =======================
+        if ($obUser['function'] === 'admin') {
+            $listInfo = CampaignVoice::getPhonesByListId($idList, $tenantId, null);
+        } else {
+            $listInfo = CampaignVoice::getPhonesByListId($idList, $tenantId, $userId);
+        }
+
+        if (empty($listInfo)) {
+            return new Response(404, ['status' => 404, 'message' => 'Lista de contatos vazia.'], 'application/json');
+        }
+
+        $contactList = array_values(
+            array_unique(
+                array_filter(
+                    array_map(function ($p) {
+                        $p = preg_replace('/\D+/', '', $p);
+
+                        if (!str_starts_with($p, '55') && strlen($p) >= 10 && strlen($p) <= 11) {
+                            $p = '55' . $p;
+                        }
+
+                        return $p;
+                    }, $listInfo)
+                )
+            )
+        );
+
+        if (empty($contactList)) {
+            return new Response(400, ['status' => 400, 'message' => 'Nenhum contato válido.'], 'application/json');
+        }
+
+        // =======================
+        // Tarifas (reseller x user)
+        // =======================
+        $isAdmin = (strtolower((string)($obUser['function'] ?? '')) === 'admin');
+
+        // tarifas normais
+        if ($isReseller) {
+            $ratesAll = Rates::getActiveRatesByUser($tenantId, $userId);
+            if (empty($ratesAll)) {
+                return new Response(404, ['status' => 404, 'message' => 'Nenhuma tarifa configurada para o revendedor.'], 'application/json');
+            }
+
+            $rateVoice    = (float)($ratesAll['voice'] ?? 0);
+            $rateSms      = (float)($ratesAll['sms'] ?? 0);
+            $rateTorpedo  = (float)($ratesAll['torpedo'] ?? 0);
+            $rateWhatsApp = (float)($ratesAll['whatsapp'] ?? 0);
+
+        } else {
+            $obBalanceTariffs = BalanceSms::getBalanceSms($userId, $tenantId, $currentPlan);
+            if (!$obBalanceTariffs) {
+                return new Response(404, ['status' => 404, 'message' => 'Nenhum saldo disponível para o usuário.'], 'application/json');
+            }
+
+            $rateVoice    = (float)($obBalanceTariffs->value_voice ?? 0);
+            $rateSms      = (float)($obBalanceTariffs->value_sms ?? 0);
+            $rateTorpedo  = (float)($obBalanceTariffs->value_torpedo ?? 0);
+            $rateWhatsApp = (float)($obBalanceTariffs->value_whatsapp ?? 0);
+        }
+
+        // =======================
+        // Verificação de plano ativo (PRECISA VIR ANTES do trunk p/ ter $adminId)
+        // =======================
+        if ($isReseller) {
+            $obPlan = UserPlans::getActivePlanByTenancy($currentPlan, $tenantId);
+            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
+                return new Response(404, ['status' => 404, 'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.'], 'application/json');
+            }
+        } else {
+            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId);
+            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
+                return new Response(404, ['status' => 404, 'message' => 'Nenhum plano habilitado ou plano inativo.'], 'application/json');
+            }
+        }
+
+        $adminId = (int)$obPlan->user_id;
+
+        // =======================
+        // Service Fee config (reseller via Rates / admin via BalanceSms)
+        // =======================
+        $taxaOfService   = 0.0;          // default: sem taxa
+        $serviceFeeValue = 0.0;
+        $serviceEvent    = 'answered';
+        $serviceScope    = 'reseller_trunks';
+
+        if ($isReseller) {
+            // busca o service_fee completo do reseller
+            $sf = Rates::getLatestActiveRate($tenantId, $userId, 'service_fee'); // precisa aceitar type
+            if (!empty($sf)) {
+                $serviceFeeValue = (float)($sf['rate'] ?? 0);
+                $serviceEvent    = (string)($sf['service_event'] ?? 'answered');
+                $serviceScope    = (string)($sf['service_scope'] ?? 'reseller_trunks');
+            }
+        } elseif ($isAdmin) {
+            // admin usa BalanceSms->service_fee
+            // garante que $obBalanceTariffs exista (admin cai no else acima)
+            $serviceFeeValue = (float)($obBalanceTariffs->service_fee ?? 0);
+            $serviceEvent    = 'answered';
+            $serviceScope    = 'reseller_trunks'; // por enquanto (balance não tem scope)
+        }
+
+        // =====================================================
+        // 2) Busca trunk e aplica regra is_system + scope
+        // =====================================================
+        $query = [
+            'user_id'   => $userId,
+            'tenant_id' => $tenantId
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+        $resTrunk = $asterisk->getTrunkById($query, (int)$sip_trunk_id);
+
+        if (empty($resTrunk['ok']) || empty($resTrunk['data'])) {
+            return new Response(
+                $resTrunk['status'] ?? 404,
+                ['status' => ($resTrunk['status'] ?? 404), 'message' => 'Trunk não encontrado ou erro ao consultar trunk.'],
+                'application/json'
+            );
+        }
+
+        $trunk = $resTrunk['data']['data'] ?? $resTrunk['data'];
+        $techPrefix = $trunk['techprefix'];
+
+        //echo "<pre>";
+        //print_r($techPrefix);
+        //echo "</pre>";exit();
+
+        [$isApto, $reason] = self::trunkIsApto($trunk);
+
+        if (!$isApto) {
+            return new Response(
+                422,
+                [
+                    'status'  => 422,
+                    'message' => "SIP Trunk Error. Motivo: {$reason}",
+                    'reason'  => $reason,
+                ],
+                'application/json'
+            );
+        }
+
+        $isSystem        = (int)($trunk['is_system'] ?? 0);
+        $isCustomerTrunk = ($isSystem === 0);
+        $trunkOwnerId    = (int)($trunk['user_id'] ?? 0);
+
+        $applyServiceFee = false;
+
+        // Regra FINAL:
+        // is_system=1 => tarifa normal (sem taxa)
+        // is_system=0 => taxa por evento (service_fee), com scope (reseller) / sempre (admin)
+        if ($isCustomerTrunk) {
+
+            if ($isAdmin) {
+                $applyServiceFee = true;
+
+            } elseif ($isReseller) {
+                // scope só vale para reseller
+                if ($serviceScope === 'all_trunks') {
+                    // trunk do reseller OU trunk do admin do reseller
+                    $applyServiceFee = ($trunkOwnerId === (int)$userId || $trunkOwnerId === (int)$adminId);
+                } else {
+                    // reseller_trunks (default)
+                    $applyServiceFee = ($trunkOwnerId === (int)$userId);
+                }
+
+            } else {
+                // user comum (se existir)
+                $applyServiceFee = true;
+            }
+
+            if ($applyServiceFee) {
+
+                // por enquanto só answered
+                if ($serviceEvent !== 'answered') {
+                    return new Response(400, [
+                        'status' => 400,
+                        'message' => 'Evento de cobrança inválido (somente answered por enquanto).'
+                    ], 'application/json');
+                }
+
+                $taxaOfService = (float)$serviceFeeValue;
+
+                if ($taxaOfService <= 0) {
+                    return new Response(
+                        404,
+                        ['status' => 404, 'message' => 'Trunk do cliente sem taxa de serviço configurada.'],
+                        'application/json'
+                    );
+                }
+
+                // trunk do cliente => zera por minuto
+                $rateVoice   = 0.0;
+                $rateTorpedo = 0.0;
+
+                // ✅ ajustar tipo real (se não for sms)
+                if ($variableTypeReal !== 'sms') {
+                    $variableTypeReal = 'service_fee';
+                }
+
+            } else {
+                // trunk é do cliente mas scope não permite
+                return new Response(403, [
+                    'status'  => 403,
+                    'message' => 'Este trunk não está habilitado para taxa de serviço conforme o escopo configurado.'
+                ], 'application/json');
+            }
+        }
+
+        // =====================================================
+        // 3) Tarifa por tipo (somente se NÃO for service_fee)
+        // =====================================================
+        $typeMap = [
+            'voice'    => $rateVoice,
+            'sms'      => $rateSms,
+            'torpedo'  => $rateTorpedo,
+            'whatsapp' => $rateWhatsApp,
+        ];
+
+        $rateValue = ($variableTypeReal === 'service_fee')
+            ? 0.0
+            : (float)($typeMap[$variableTypeReal] ?? 0);
+
+            // is_system=1 => exige tarifa normal
+        if (!$isCustomerTrunk && $rateValue <= 0) {
+            return new Response(
+                404,
+                ['status' => 404, 'message' => "Nenhuma tarifa configurada para o tipo {$variableTypeReal}"],
+                'application/json'
+            );
+        }
+
+        // valores usados no payload
+        $smsCost        = (float)$rateSms;
+        $callMinuteCost = (float)$rateVoice;
+        $valorTorpedo   = (float)$rateTorpedo;
+
+        // (opcional) meta para worker cobrar na answered
+        /*$serviceFeeMeta = [
+            'apply' => ($variableTypeReal === 'service_fee'),
+            'value' => $taxaOfService,
+            'event' => $serviceEvent,
+            'scope' => $serviceScope,
+            'trunk_owner_id' => $trunkOwnerId,
+            'is_system' => $isSystem
+        ];*/
+
+
+        // =======================
+        // Verificação de plano ativo
+        // =======================
+        if ($isReseller) {
+            $obPlan = UserPlans::getActivePlanByTenancy($currentPlan, $tenantId);
+            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
+                return new Response(404, ['status' => 404, 'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.'], 'application/json');
+            }
+        } else {
+            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId);
+            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
+                return new Response(404, ['status' => 404, 'message' => 'Nenhum plano habilitado ou plano inativo.'], 'application/json');
+            }
+        }
+
+        $adminId = $obPlan->user_id;
+
+        //echo "<pre>";
+        //print_r($adminId);
+        //echo "</pre>";exit();
+
+        // =======================
+        // Validação de saldo
+        // =======================
+
+        if ($isReseller) {
+
+            // 1️⃣ Buscar o revendedor
+            $resellerInfo = UserSearch::getResellers($tenantId, $userId);
+            $reseller = $resellerInfo[0] ?? null;
+
+            if (!$reseller) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Erro ao consultar revendedor.'
+                ], 'application/json');
+            }
+
+            // 2️⃣ Buscar saldo do ADMIN
+            $adminBalance = BalanceSms::getBalanceSms($adminId, $tenantId, $currentPlan);
+
+            if (!$adminBalance) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Saldo do administrador não encontrado.'
+                ], 'application/json');
+            }
+
+            $adminAvailable = (float)$adminBalance->balance;
+
+            // 3️⃣ Buscar saldo do revendedor
+            $resellerBalance = (float)number_format($reseller['reseller_balance'], 2, '.', '');
+
+            // 4️⃣ Verificar se ambos têm saldo suficiente
+            if ($resellerBalance < $totalGeral) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Saldo insuficiente para o revendedor.',
+                    'reseller_balance' => $resellerBalance,
+                    'need' => $totalGeral
+                ], 'application/json');
+            }
+
+            if ($adminAvailable < $totalGeral) {
+
+                $adminBalanceFormatted = number_format($adminAvailable, 2, ',', '.');
+
+                Notifications::insertNotifications(
+                    $tenantId,
+                    $adminId,
+                    "Saldo insuficiente",
+                    "Seu saldo atual é de <b>R$ {$adminBalanceFormatted}</b>. 
+                              É necessário realizar uma nova recarga para continuar utilizando os serviços.",
+                    'alert'
+                );
+
+
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.',
+                    'admin_balance' => $adminAvailable,
+                    'need' => $totalGeral
+                ], 'application/json');
+            }
+
+        } else {
+
+            // Usuário comum
+            $obBalance = BalanceSms::getBalanceSms($userId, $tenantId, $currentPlan);
+
+            if (!$obBalance) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Saldo não encontrado para o usuário.'
+                ], 'application/json');
+            }
+
+            $availableBalance = (float)$obBalance->balance;
+
+            if ($availableBalance < $totalGeral) {
+                UserPlans::deactivatePlan($currentPlan, $tenantId, $userId);
+
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Saldo insuficiente. Plano desativado.',
+                    'balance' => $availableBalance,
+                    'necessary' => $totalGeral
+                ], 'application/json');
+            }
+        }
+
+        // =======================
+        // 🔹 Campanha sem áudio → ignora toda a lógica de áudio
+        // =======================
+        $hasAudio =
+            !empty($audioFiles) ||
+            (is_array($audiosOrigin) && count($audiosOrigin) > 0);
+
+        if (!$hasAudio) {
+            // campanha sem áudio, segue o fluxo normalmente
+            $allAudios = [];
+            $currentAudios = 0;
+            // NÃO retorna erro
+        } else {
+
+            // =======================
+            // Verificar áudios já existentes no Asterisk (limite máximo)
+            // =======================
+            $maxAudios = 5;
+
+            try {
+                $asterisk = new AsteriskExtensionsSip();
+                $result = $asterisk->listAudios();
+
+                if (
+                    !isset($result['ok'], $result['status']) ||
+                    (int)$result['ok'] !== 1 ||
+                    (int)$result['status'] !== 200
+                ) {
+                    return new Response(
+                        502,
+                        ['status' => 502, 'message' => 'Erro ao consultar Asterisk.'],
+                        'application/json'
+                    );
+                }
+
+                $dataAsterisk = is_array($result['data'] ?? null) ? $result['data'] : [];
+
+                $filtered = array_filter($dataAsterisk, function ($audio) use ($tenantId, $userId) {
+                    return isset($audio['tenant_id'], $audio['user_id']) &&
+                        $audio['tenant_id'] === $tenantId &&
+                        (int)$audio['user_id'] === (int)$userId;
+                });
+
+                $currentAudios = count($filtered);
+
+            } catch (Throwable $e) {
+                return new Response(
+                    500,
+                    [
+                        'status' => 500,
+                        'message' => 'Erro ao consultar Asterisk.',
+                        'details' => $e->getMessage()
+                    ],
+                    'application/json'
+                );
+            }
+
+            // =======================
+            // Processar áudios (upload + existentes)
+            // =======================
+            $allAudios = self::processAudios(
+                $audioFiles,
+                $audiosOrigin,
+                (string)$tenantId,
+                $userId,
+                $userRole
+            );
+
+            if (empty($allAudios)) {
+                return new Response(
+                    400,
+                    ['status' => 400, 'message' => 'Nenhum áudio válido foi enviado.'],
+                    'application/json'
+                );
+            }
+
+            $totalAfter = $currentAudios + count($allAudios);
+
+            if ($totalAfter > $maxAudios) {
+                return new Response(
+                    400,
+                    [
+                        'status' => 400,
+                        'message' =>
+                            "Limite de {$maxAudios} áudios atingido. Você já possui {$currentAudios}."
+                    ],
+                    'application/json'
+                );
+            }
+        }
+
+
+        // =======================
+        // Principal e DTMF (somente se houver áudio)
+        // =======================
+
+        // ⚠️ garanta qual variável é a lista final de áudios válidos
+        // aqui vou assumir que a lista final é $allAudios (que vem do processAudios)
+        // se você usa $validatedAudios em outro lugar, ajuste para apontar para a correta:
+        $validatedAudios = $allAudios ?? [];
+
+        $mainAudio = null; // ou "sound:..." quando houver áudio
+
+        if (!empty($validatedAudios)) {
+
+            // principal
+            $mainAudioInfo = $validatedAudios[0];
+            $relativePath = str_replace('/var/lib/asterisk/sounds/', '', $mainAudioInfo['path']);
+            $mainAudioNoExt = preg_replace('/\.(wav|ulaw|gsm|alaw)$/i', '', $relativePath);
+            $mainAudio = "sound:" . $mainAudioNoExt;
+
+            // dtmf
+            $dtmfAudios = array_slice($validatedAudios, 1);
+            foreach ($dtmf as $i => &$item) {
+                if (!isset($dtmfAudios[$i])) continue;
+
+                $relDtmf = str_replace('/var/lib/asterisk/sounds/', '', $dtmfAudios[$i]['path']);
+                $item['audio'] = "sound:" . preg_replace('/\.(wav|ulaw|gsm|alaw)$/i', '', $relDtmf);
+            }
+
+        } else {
+            // campanha sem áudio: garante que não fica lixo nos dtmfs
+            foreach ($dtmf as &$item) {
+                if (isset($item['audio'])) unset($item['audio']); // ou $item['audio'] = null;
+            }
+        }
+        unset($item);
+
+
+        // =======================
+        // Criar job no Redis e enfileirar contatos
+        // =======================
+        $jobId = "job:voice:" . bin2hex(random_bytes(10));
+        $jobIdCampaign = bin2hex(random_bytes(10));
+
+        $redis->hMSet("campaign:{$jobId}", [
+            'tenant_id' => $tenantId,
+            'user_id' => $userId,
+            'type' => 'voice',
+            'created' => time(),
+            'total' => count($contactList),
+            'processed' => 0,
+            'status' => 'pending',
+            'campaign_name' => $name
+        ]);
+        $redis->expire("campaign:{$jobId}", 86400);
+
+        $campaign = new CampaignVoice();
+        $campaign->user_id        = $userId;
+        $campaign->tenancy_id     = $tenantId;
+        $campaign->name           = $name;
+        $campaign->type           = $campaignTypeRequested;
+        $campaign->job_id         = $jobId;
+        $campaign->total_contacts = count($contactList);
+        $campaign->status         = 'y';
+
+        if (!$campaign->create()) {
+
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'Erro ao criar campanha'
+            ], 'application/json');
+        }
+
+        $campaignId = $campaign->id; // 👈 ISSO É O PONTO-CHAVE
+
+        //echo "<pre>";
+        //print_r($taxaOfService);
+        //echo "</pre>";exit();
+
+        // payload comum para cada contato
+        foreach ($contactList as $dest) {
+            $callId = 'call:' . bin2hex(random_bytes(12));
+            $payload = [
+                'job_id' => $jobId,
+                'call_id' => $callId,
+                'tenant_id' => $tenantId,
+                'user_id' => $userId,
+                'campaign_id'   => $campaignId,
+                'campaign_type' => $campaignTypeRequested,
+
+                'phone' => $dest,
+                'extension' => $dest,
+
+                'role' => $userRole,
+                'trunk' => $sip_trunk,
+                'tech_prefix' => $techPrefix,
+                'strategy' => $strategy,
+
+                'call_minute_cost' => $callMinuteCost,
+                'torpedo_cost' => $valorTorpedo,
+                'taxa_of_service' => $taxaOfService,
+                'sms_cost' => $smsCost,
+
+                'variable_type' => $variableTypeReal,
+                'rate' => $rate,
+                'caller_id' => $callerIdNumber,
+                'caller_id_name' => $callerIdName,
+
+                'audio' => [
+                    'main' => $mainAudio,
+                    'dtmf' => $dtmf
+                ],
+
+                'sms' => $hasSmsDirect ? [
+                    'text' => $smsText,
+                    'service' => $smsService,
+                    'status' => $smsStatus
+                ] : null,
+
+                'action' => $action,
+
+                'endpoints' => $endpoints,
+
+                'timestamp' => time()
+            ];
+
+            $redis->rPush("voice:queue", json_encode($payload));
+            $redis->rPush("queue:originate:{$jobId}", $dest);
+        }
+
+        exit;
+
+        // =======================
+        // Retorno final
+        // =======================
+        return new Response(200, [
+            'success' => true,
+            //'campaign_name' => $name,
+            //'campaign_job_id' => $jobId,
+            //'contacts' => count($contactList),
+            //'main_audio' => $mainAudio,
+            //'all_audios' => $validatedAudios,
+            //'dtmf' => $dtmf
+        ], 'application/json');
+    }
+
+
+    private static function processAudios(?array $audioFiles, array $audiosOrigin, string $tenantId, int $userId, string $userRole): array
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Diretório remoto baseado no perfil
+        |--------------------------------------------------------------------------
+        */
+        $remoteDir = match ($userRole) {
+            'super_admin' => "/var/lib/asterisk/sounds/voice/super_admin/",
+            'admin' => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/admin_{$userId}/",
+            'reseller' => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/reseller_{$userId}/",
+            default => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/user_{$userId}/",
+        };
+
+        $maxAudios = 5;
+        $uploadedAudios = [];
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPLOAD DE NOVOS ÁUDIOS
+        |--------------------------------------------------------------------------
+        */
+        if ($audioFiles && isset($audioFiles['tmp_name'])) {
+
+            foreach ($audioFiles['tmp_name'] as $i => $tmpName) {
+
+                if (count($uploadedAudios) >= $maxAudios) {
+                    break;
+                }
+
+                // extensão
+                $ext = strtolower(pathinfo($audioFiles['name'][$i], PATHINFO_EXTENSION));
+                if (!in_array($ext, ['wav', 'ulaw', 'gsm', 'alaw'])) {
+                    $ext = 'wav';
+                }
+
+                $base = pathinfo($audioFiles['name'][$i], PATHINFO_FILENAME);
+
+                // nome único
+                try {
+                    $unique = "{$base}-" . bin2hex(random_bytes(6)) . ".{$ext}";
+                } catch (\Exception) {
+                    $unique = "{$base}-" . uniqid() . ".{$ext}";
+                }
+
+                $file = [
+                    'name' => $unique,
+                    'tmp_name' => $tmpName,
+                    'type' => $audioFiles['type'][$i] ?? 'audio/wav',
+                    'size' => $audioFiles['size'][$i] ?? 0,
+                    'error' => $audioFiles['error'][$i] ?? 0,
+                ];
+
+                $uploader = new AudioUploadFtpAsterisk(
+                    $file,
+                    '192.168.1.8',
+                    'astmin',
+                    '123321',
+                    $remoteDir
+                );
+
+                if (!$uploader->upload()) {
+                    continue;
+                }
+
+                $uploadedAudios[] = [
+                    'file_name' => $unique,
+                    'path' => "{$remoteDir}{$unique}",
+                    'tenant_id' => $tenantId,
+                    'user_id' => $userId,
+                    'role' => $userRole
+                ];
+
+                // registra no banco
+                self::registerAsteriskAudio(
+                    $tenantId,
+                    $userId,
+                    $base,
+                    $userRole,
+                    $unique,
+                    $remoteDir
+                );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | TRATAMENTO DOS ÁUDIOS EXISTENTES ENVIADOS PELO FRONT
+        |--------------------------------------------------------------------------
+        | Pode vir:
+        | - URL com token (legado)
+        | - Caminho direto "tenant_32/admin_9/audio.wav"
+        |--------------------------------------------------------------------------
+        */
+        $existingAudios = [];
+
+        foreach ($audiosOrigin as $origin) {
+
+            if (empty($origin)) {
+                continue;
+            }
+
+            // ---------------------------------------------------------
+            // 1) Formato legado: URL com token
+            // ---------------------------------------------------------
+            if (str_contains($origin, '/audio.php?token=')) {
+
+                $parts = parse_url($origin);
+                parse_str($parts['query'] ?? '', $params);
+
+                $token = $params['token'] ?? null;
+                if (!$token) continue;
+
+                $decoded = base64_decode($token, true);
+                if (!$decoded) continue;
+
+                $clean = ltrim($decoded, '/');
+
+                $existingAudios[] = [
+                    'file_name' => basename($clean),
+                    'path' => "/var/lib/asterisk/sounds/voice/{$clean}",
+                    'tenant_id' => $tenantId,
+                    'user_id' => $userId,
+                    'role' => $userRole
+                ];
+
+                continue;
+            }
+
+            // ---------------------------------------------------------
+            // 2) Novo formato: caminho direto
+            // Ex: "tenant_32/admin_9/audio.wav"
+            // ---------------------------------------------------------
+            $clean = trim($origin, '/');
+
+            $existingAudios[] = [
+                'file_name' => basename($clean),
+                'path' => "/var/lib/asterisk/sounds/voice/{$clean}",
+                'tenant_id' => $tenantId,
+                'user_id' => $userId,
+                'role' => $userRole
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Retorno final consolidado
+        |--------------------------------------------------------------------------
+        */
+        return array_merge($uploadedAudios, $existingAudios);
+    }
+
+    public static function getPriceVoiceList($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, ['error' => 'Unauthorized'], 'application/json');
+        }
+
+        $tenantId = $obUser['tenancy_id'];
+        $userId = $obUser['id'];
+        $planId = $obUser['plan_id'] ?? null;
+
+        // 🔍 Verifica se é RESELLER
+        $isReseller = strtolower($obUser['function']) === 'reseller';
+
+        // =========================================
+        // 👉 1. RESELLER → BUSCA TARIFA NA RATES
+        // =========================================
+        if ($isReseller) {
+
+            $rateData = Rates::getActiveRatesByUser($tenantId, $userId);
+
+            if (empty($rateData)) {
+                return new Response(404, [
+                    'status' => 404,
+                    'message' => 'Nenhuma tarifa configurada.'
+                ], 'application/json');
+            }
+
+            return new Response(200, [
+                'success' => true,
+                'type' => 'reseller',
+                'data' => [
+                    'voice' => (float)$rateData['voice'],
+                    'sms' => (float)$rateData['sms'],
+                    'torpedo' => (float)$rateData['torpedo'],
+                    'whatsapp' => (float)$rateData['whatsapp']
+                ]
+            ], 'application/json');
+        }
+
+        // =========================================
+        // 👉 2. USUÁRIO NORMAL / ADMIN → BUSCA NO BALANCE
+        // =========================================
+        $obBalance = BalanceSms::getBalanceSms($userId, $tenantId, $planId);
+
+        return new Response(200, [
+            'success' => true,
+            'type' => 'balance',
+            'data' => [
+                'voice' => (float)($obBalance->value_voice ?? 0),
+                'sms' => (float)($obBalance->value_sms ?? 0),
+                'torpedo' => (float)($obBalance->value_torpedo ?? 0),
+                'whatsapp' => (float)($obBalance->value_whatsapp ?? 0)
+            ]
+        ], 'application/json');
+    }
+
+
+    private static function registerAsteriskAudio(string $tenantId, int $userId, string $name, string $role, string $uniqueName, string $remoteDir): void
+    {
+        $client = new AsteriskExtensionsSip();
+        $payload = [
+            'user_id' => $userId,
+            'tenant_id' => $tenantId,
+            'name' => $name,
+            'role' => $role,
+            'file_name' => $uniqueName,
+            'path' => $remoteDir . $uniqueName,
+        ];
+        $client->createAudio([], $payload);
+    }
+
+    /**
+     * @return Response função resposavel pelo audios fora da campanha     *
+     * @throws RandomException
+     */
+    public static function setUploadAudiosAsterisk(): Response
+    {
+        // =====================================================
+        // 1) Autenticação
+        // =====================================================
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $tenantId = $obUser['tenancy_id'];
+        $userId = $obUser['id'];
+        $userRole = $obUser['function'];
+
+        // =====================================================
+        // 2) Receber arquivo único
+        // =====================================================
+        if (!isset($_FILES['file'])) {
+            return new Response(400, [
+                'error' => 'Nenhum arquivo recebido.'
+            ], 'application/json');
+        }
+
+        $file = $_FILES['file'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return new Response(400, ['error' => 'Falha no upload.'], 'application/json');
+        }
+
+        // Nome original escolhido no front-end
+        $baseName = $_POST['name'] ?? pathinfo($file['name'], PATHINFO_FILENAME);
+        $baseName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $baseName);
+
+        // Extensão permitida
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['wav', 'ulaw', 'gsm', 'alaw', 'mp3'])) {
+            $ext = 'wav';
+        }
+
+        // Gera nome único no servidor
+        $uniqueName = "{$baseName}-" . bin2hex(random_bytes(5)) . ".{$ext}";
+
+        // =====================================================
+        // 3) Determinar diretório de destino baseado no role
+        // =====================================================
+        $remoteDir = match ($userRole) {
+            'super_admin' => "/var/lib/asterisk/sounds/voice/super_admin/",
+            'admin' => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/admin_{$userId}/",
+            'reseller' => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/reseller_{$userId}/",
+            default => "/var/lib/asterisk/sounds/voice/tenant_{$tenantId}/user_{$userId}/",
+        };
+
+        // =====================================================
+        // 4) Verificar quantidade de áudios existentes
+        // =====================================================
+        try {
+            $asterisk = new AsteriskExtensionsSip();
+            $result = $asterisk->listAudios();
+
+            if (!isset($result['ok'], $result['status']) ||
+                $result['ok'] != 1 || $result['status'] != 200) {
+                return new Response(502, ['details' => $result], 'application/json');
+            }
+
+            $dataAsterisk = $result['data'] ?? [];
+
+            $filtered = array_filter($dataAsterisk, function ($audio) use ($tenantId, $userId) {
+                return $audio['tenant_id'] === $tenantId &&
+                    (int)$audio['user_id'] === (int)$userId;
+            });
+
+            $currentAudios = count($filtered);
+
+        } catch (Throwable $e) {
+            return new Response(500, ['error' => 'Erro ao consultar Asterisk.'], 'application/json');
+        }
+
+        // limite
+        $maxAudios = 5;
+        if ($currentAudios >= $maxAudios) {
+            return new Response(400, [
+                'error' => "Limite de {$maxAudios} áudios atingido. Você já possui {$currentAudios}."
+            ], 'application/json');
+        }
+
+        // =====================================================
+        // 5) Efetuar upload via FTP
+        // =====================================================
+        $uploadFile = [
+            'name' => $uniqueName,
+            'type' => $file['type'],
+            'tmp_name' => $file['tmp_name'],
+            'error' => $file['error'],
+            'size' => $file['size'],
+        ];
+
+        $uploader = new AudioUploadFtpAsterisk(
+            $uploadFile,
+            '192.168.1.8',
+            'astmin',
+            '123321',
+            $remoteDir
+        );
+
+        if (!$uploader->upload()) {
+            return new Response(500, [
+                'error' => "Falha ao enviar via FTP."
+            ], 'application/json');
+        }
+
+        // =====================================================
+        // 6) Registrar no banco / Asterisk (mantém sua função atual)
+        // =====================================================
+        self::registerAsteriskAudio(
+            $tenantId,
+            $userId,
+            $baseName,
+            $userRole,
+            $uniqueName,
+            $remoteDir
+        );
+
+        // =====================================================
+        // 7) Resposta final
+        // =====================================================
+        return new Response(200, [
+            'status' => 'success',
+            'file' => $uniqueName,
+            'path' => "{$remoteDir}{$uniqueName}"
+        ], 'application/json');
+    }
+
+
+    public static function getAudiosFilesAsterisk(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // ⚙️ Parâmetros básicos da requisição
+        $query = [
+            'tenant_id' => $obUser['tenancy_id'],
+            'user_id' => $obUser['id'],
+            'role' => strtolower($obUser['function']),
+            'function' => $obUser['function']
+        ];
+
+        // 🔗 Chama o cliente Asterisk
+        $asterisk = new AsteriskExtensionsSip();
+        $result = $asterisk->listAudios($query);
+
+        // ❌ Falha na requisição
+        if (empty($result['ok'])) {
+            return new Response(
+                $result['status'] ?? 500,
+                [
+                    'status' => $result['status'] ?? 500,
+                    'ok' => false,
+                    'error' => $result['error'] ?? 'Falha ao consultar áudios no Asterisk',
+                    'info' => $result['info'] ?? null,
+                ],
+                'application/json'
+            );
+        }
+
+        // ✅ Corrige camada aninhada (caso o retorno venha dentro de 'data' → 'data')
+        $data = $result['data']['data'] ?? $result['data'] ?? [];
+
+        // 🧩 Filtro local conforme função do usuário
+        switch (strtolower($obUser['function'])) {
+            case 'super_admin':
+                break;
+
+            case 'admin':
+                $data = array_filter($data, fn($audio) => isset($audio['tenant_id']) && $audio['tenant_id'] === $obUser['tenancy_id']
+                );
+                break;
+
+            case 'reseller':
+            default:
+                $data = array_filter($data, fn($audio) => isset($audio['user_id']) && (int)$audio['user_id'] === (int)$obUser['id']
+                );
+                break;
+        }
+
+        // 🔹 Reindexa os resultados após o filtro
+        $data = array_values($data);
+
+        // ============================================================
+        // 🔊 Gera URL pública acessível via audio.php
+        // ============================================================
+
+        $baseUrl = 'http://192.168.1.8/audio.php';
+
+        foreach ($data as &$audio) {
+            if (!empty($audio['path'])) {
+                // remove prefixo absoluto
+                $relativePath = str_replace('/var/lib/asterisk/sounds/voice/', '', $audio['path']);
+
+                // remove o tenant_id do início (ex: tenant_xxxxx/)
+                $relativePathClean = preg_replace('/^tenant_[a-z0-9\-]+\//i', '', $relativePath);
+
+                // gera token codificado (para não expor caminho real)
+                $token = base64_encode($relativePath); // pode usar hash_hmac se quiser mais seguro
+
+                // 🔹 URL final com token seguro
+                $audio['url'] = "{$baseUrl}?token=" . urlencode($token);
+                $audio['display_name'] = basename($relativePathClean); // exibe só o nome do arquivo no front
+                $audio['token'] = $token;
+
+            } else {
+                $audio['url'] = null;
+                $audio['display_name'] = null;
+                $audio['token'] = null;
+            }
+        }
+        unset($audio);
+
+
+        // ✅ Retorna formato padronizado
+        return new Response(200, [
+            'status' => 200,
+            'success' => true,
+            'message' => 'Áudios encontrados com sucesso.',
+            'total' => count($data),
+            'data' => $data,
+        ], 'application/json');
+    }
+
+
+    public static function setAudiosDelete($Request): Response
+    {
+        // ============================================================
+        // 🔐 0. Usuário logado
+        // ============================================================
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // ============================================================
+        // 📥 1. Leitura do JSON + validações básicas
+        // ============================================================
+        $inputData = json_decode(file_get_contents('php://input'), true);
+
+        if (!is_array($inputData)) {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Payload inválido.'
+            ], 'application/json');
+        }
+
+        if (empty($inputData['token'])) {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Token não enviado.'
+            ], 'application/json');
+        }
+
+        // id obrigatório e válido
+        $id = isset($inputData['id']) ? (int)$inputData['id'] : 0;
+        if ($id <= 0) {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'ID inválido.'
+            ], 'application/json');
+        }
+
+        $token = trim($inputData['token']);
+        if ($token === '') {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Token vazio.'
+            ], 'application/json');
+        }
+
+        // ============================================================
+        // 🔐 2. Decodificação segura do token
+        // ============================================================
+        // Mantemos base64_decode com strict, mas garantimos que result será tratado
+        $decoded = base64_decode($token, true);
+        if ($decoded === false) {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Token inválido (base64).'
+            ], 'application/json');
+        }
+
+        // Trim, remover bytes nulos e normalizar separadores
+        $decoded = str_replace("\0", '', trim($decoded));
+        $decoded = str_replace('\\', '/', $decoded); // normaliza barras
+
+        // ============================================================
+        // 🔧 2.a Normalizar para caminho relativo seguro
+        // ============================================================
+        // Base do armazenamento (sempre com barra final)
+        $basePath = '/var/lib/asterisk/sounds/voice/';
+        $basePathNormalized = rtrim($basePath, '/') . '/';
+
+        // Se o token continha o basePath inteiro, removemos para garantir relativo
+        if (str_starts_with($decoded, $basePathNormalized)) {
+            $decoded = substr($decoded, strlen($basePathNormalized));
+        }
+
+        // Remove possíveis "/" iniciais
+        $relativePathRaw = ltrim($decoded, '/');
+
+        // Função de normalização que resolve "." e ".." sem usar realpath
+        $normalizeSegments = function (string $path) {
+            $parts = explode('/', $path);
+            $stack = [];
+            foreach ($parts as $part) {
+                if ($part === '' || $part === '.') continue;
+                if ($part === '..') {
+                    // descarta um segmento anterior se houver
+                    if (!empty($stack)) array_pop($stack);
+                    // se não houver, ignora (não permite subir acima)
+                    continue;
+                }
+                $stack[] = $part;
+            }
+            return implode('/', $stack);
+        };
+
+        $relativePath = $normalizeSegments($relativePathRaw);
+
+        // Recheca se ficou vazia
+        if ($relativePath === '') {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Caminho inválido após normalização.'
+            ], 'application/json');
+        }
+
+        // ============================================================
+        // 🛡️ 3. Validação da estrutura do caminho (tenant / user / admin)
+        // ============================================================
+        $role = strtolower($obUser['function']);
+        $tenant = $obUser['tenancy_id'];
+        $userId = (int)$obUser['id'];
+
+        // Validar extensão permitida
+        $allowedExtensions = ['wav', 'gsm', 'mp3', 'ulaw', 'alaw', 'sln'];
+        $ext = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION) ?: '');
+
+        if ($ext === '' || !in_array($ext, $allowedExtensions, true)) {
+            return new Response(400, [
+                'status' => 400,
+                'success' => false,
+                'message' => 'Extensão de arquivo não permitida.'
+            ], 'application/json');
+        }
+
+        // Prefixo fixo do tenant
+        $tenantPrefix = "tenant_{$tenant}/";
+
+        // ============================================================
+        // SUPER ADMIN → Acesso total
+        // ============================================================
+        if ($role === 'super_admin') {
+            // Nenhuma validação extra
+        }
+
+        // ============================================================
+        // ADMIN → Pode acessar *qualquer coisa* dentro do tenant
+        // ============================================================
+        elseif ($role === 'admin') {
+
+            // Deve começar com tenant_<id>/
+            if (!preg_match("#^{$tenantPrefix}#i", $relativePath)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Você não pode acessar áudios de outro tenant.'
+                ], 'application/json');
+            }
+
+            // Admin pode acessar qualquer pasta dentro do próprio tenant
+            // Ex: admin_6, reseller_7, user_XXX, etc.
+            // Portanto -> nada mais a validar
+        }
+
+        // ============================================================
+        // RESELLER → Pode acessar apenas sua pasta reseller_<id>
+        // ============================================================
+        elseif ($role === 'reseller') {
+
+            $pattern = "#^{$tenantPrefix}reseller_{$userId}(/.*)?$#i";
+
+            if (!preg_match($pattern, $relativePath)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Você só pode acessar seus próprios áudios de reseller.'
+                ], 'application/json');
+            }
+        }
+
+        // ============================================================
+        // USER COMUM → Pode acessar apenas admin_<admin_id>
+        // ============================================================
+        else {
+
+            $adminId = $obUser['admin_id'] ?? null;
+
+            if (!$adminId) {
+                return new Response(403, [
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Admin responsável não encontrado.'
+                ], 'application/json');
+            }
+
+            $pattern = "#^{$tenantPrefix}admin_{$adminId}(/.*)?$#i";
+
+            if (!preg_match($pattern, $relativePath)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'Você só pode acessar áudios dentro do admin responsável.'
+                ], 'application/json');
+            }
+        }
+
+        // ============================================================
+        // 🔍 4. Verificar existência local (opcional)
+        // ============================================================
+        $fullPath = $basePathNormalized . $relativePath;
+        $fileExistsLocal = file_exists($fullPath);
+
+        // ============================================================
+        // 🧹 5. Validar ID e preparar payload para Asterisk
+        // ============================================================
+        // Observação: ideal é verificar no banco se o registro com esse ID pertence ao tenant/user.
+        // Se você tiver acesso ao DB, faça essa checagem aqui (recomendo fortemente).
+        // Por ora, apenas garantimos que id > 0 (já feito), e passamos os dados para o Asterisk.
+
+        $query = [
+            'user_id' => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $payload = [
+            'id' => $id,
+            'tenant_id' => $obUser['tenancy_id'],
+            'user_id' => $obUser['id'],
+            'user_function' => strtolower($obUser['function']),
+        ];
+
+        // ============================================================
+        // 🔌 6. Excluir no Asterisk (API externa)
+        // ============================================================
+        try {
+            $asterisk = new AsteriskExtensionsSip();
+            $response = $asterisk->deleteAudio($query, $payload);
+        } catch (\Throwable $e) {
+            error_log("[setAudiosListDelete] Erro ao chamar deleteAudio: " . $e->getMessage());
+            return new Response(500, [
+                'status' => 500,
+                'success' => false,
+                'message' => 'Erro ao excluir áudio no Asterisk (exceção).',
+                'error' => $e->getMessage()
+            ], 'application/json');
+        }
+
+        // Checagens robustas na resposta
+        $asteriskOk = false;
+        $asteriskStatus = $response['status'] ?? 500;
+        $asteriskOk = array_key_exists('ok', $response) && (bool)$response['ok'];
+        $asteriskError = $response['error'] ?? null;
+
+        if (!$asteriskOk) {
+            // Se resposta explicitamente indica falha, aborta
+            return new Response($asteriskStatus ?: 500, [
+                'status' => $asteriskStatus ?: 500,
+                'success' => false,
+                'message' => 'Erro ao excluir áudio no Asterisk.',
+                'error' => $asteriskError ?? 'Resposta inválida da API Asterisk.'
+            ], 'application/json');
+        }
+
+        // ============================================================
+        // 🗂️ 7. Excluir fisicamente via FTP/SFTP (AsteriskUploadFtpAsterisk)
+        // ============================================================
+        // Preferível usar SFTP. Se sua classe já suporta SFTP, configure aqui.
+        $ftpServer = '192.168.1.8';
+        $ftpUser = 'astmin';
+        $ftpPass = '123321';
+
+        $ftp = new AudioUploadFtpAsterisk([], $ftpServer, $ftpUser, $ftpPass);
+
+        // Caminho REAL usado no FTP (mesmo basePath)
+        $ftpBaseDir = '/var/lib/asterisk/sounds/voice/';
+        $ftpFullPath = rtrim($ftpBaseDir, '/') . '/' . $relativePath;
+
+        $deletedFtp = false;
+        $ftpWarning = null;
+
+        try {
+            $deletedFtp = $ftp->delete($ftpFullPath);
+        } catch (\Throwable $e) {
+            error_log("[setAudiosListDelete] Erro FTP ao deletar {$ftpFullPath}: " . $e->getMessage());
+            $ftpWarning = 'Erro ao tentar excluir via FTP/SFTP: ' . $e->getMessage();
+            //$deletedFtp = false;
+        }
+
+        // Se FTP retornou false, pode ser que o arquivo já não exista no servidor FTP.
+        // Não tratamos isso como falha crítica se a API do Asterisk devolveu ok.
+        if (!$deletedFtp) {
+            // opcional: se sua classe tem método exists(), podemos checar para diferenciar "não encontrado" x "erro"
+            if ($fileExistsLocal) {
+                // Se arquivo estava local e ainda existe, tentamos remover local e retornamos aviso
+                @unlink($fullPath);
+                $fileExistsLocal = file_exists($fullPath);
+            }
+
+            // Se ainda existe local, consideramos warning.
+            if ($fileExistsLocal) {
+                // Não abortamos imediatamente, retornamos aviso ao cliente
+                $ftpWarning = $ftpWarning ?? 'Arquivo não removido via FTP e ainda existe no disco.';
+            } else {
+                // arquivo local removido ou inexistente -> podemos prosseguir com sucesso
+                $ftpWarning = $ftpWarning ?? 'Arquivo não encontrado no FTP (ou já removido).';
+            }
+        } else {
+            // sucesso na exclusão via FTP — também tenta remover local (caso exista)
+            if ($fileExistsLocal && file_exists($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+
+        // ============================================================
+        // ✅ 8. Resposta final (padronizada)
+        // ============================================================
+        $responsePayload = [
+            'status' => 200,
+            'success' => true,
+            'message' => 'Áudio excluído com sucesso.',
+            'file' => $relativePath
+        ];
+
+        if ($ftpWarning !== null) {
+            // incluímos um campo warning para informar o usuário
+            $responsePayload['warning'] = $ftpWarning;
+        }
+
+        return new Response(200, $responsePayload, 'application/json');
+    }
+
+
+    public static function setUploadVoiceList($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, json_encode([
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ]), 'application/json');
+        }
+
+        $file = $_FILES['fileInput'] ?? null;
+        $voiceListName = $request->getPostVars()['listName'] ?? null;
+
+        if (!$file || empty($file['tmp_name'])) {
+            return new Response(422, json_encode([
+                'status' => 422,
+                'message' => 'Nenhum arquivo enviado.'
+            ]), 'application/json');
+        }
+
+        if (!$voiceListName) {
+            return new Response(422, json_encode([
+                'status' => 422,
+                'message' => 'A lista precisa ter um nome.'
+            ]), 'application/json');
+        }
+
+        try {
+            $service = new ImportContactsService($obUser, null, false, 'voice', (string)$voiceListName);
+            $count = $service->import($file);
+
+            return new Response(200, json_encode([
+                'status' => 200,
+                'message' => "Lista '{$voiceListName}' criada com {$count} contatos importados com sucesso.",
+            ]), 'application/json');
+
+        } catch (Exception $e) {
+            return new Response(500, json_encode([
+                'status' => 500,
+                'message' => $e->getMessage()
+            ]), 'application/json');
+        }
+    }
+
+
+    public static function setVoiceListDelete($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ([
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ]), 'application/json');
+        }
+
+        // Lê o JSON enviado
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input['ids']) || !is_array($input['ids'])) {
+            return new Response(400, ([
+                'success' => false,
+                'message' => 'Nenhuma lista informada para exclusão.'
+            ]), 'application/json');
+        }
+
+        $deleted = 0;
+
+        foreach ($input['ids'] as $voiceListId) {
+            if (CampaignVoice::deleteVoiceList((int)$voiceListId)) {
+                $deleted++;
+            }
+        }
+
+        return new Response(200, ([
+            'success' => true,
+            'deleted' => $deleted,
+            'message' => "$deleted lista(s) excluída(s) com sucesso."
+        ]), 'application/json');
+    }
+
+
+    public static function getActiveCalls($request): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        $user = SessionUser::getLogged();
+        if (!$user) {
+            echo "event: auth\n";
+            echo 'data: ' . json_encode([
+                    'status' => 401,
+                    'message' => 'Usuário não autenticado'
+                ]) . "\n\n";
+            flush();
+            return;
+        }
+
+        try {
+            // ===== Conexão Redis =====
+            $redis = new RedisClient([
+                'scheme' => 'tcp',
+                'host' => '192.168.1.8',
+                'port' => 6379,
+                'password' => 'mxx123'
+            ]);
+
+            $data = $redis->get('asterisk:active_calls');
+            $payload = $data ? json_decode($data, true) : null;
+            $calls = $payload['chamadas'] ?? [];
+
+            // ===== Normaliza dados do usuário =====
+            $userRole = strtolower((string)($user['function'] ?? 'reseller'));
+            $userIdStr = (string)($user['id'] ?? '');
+            $tenantStr = (string)($user['tenancy_id'] ?? '');
+
+            // ===== Helper p/ extrair identidade da chamada =====
+            $extractIdentity = static function (array $call): array {
+                $vars = $call['vars'] ?? [];
+                $owner = $call['owner_id'] ?? ($vars['OWNER_ID'] ?? null);
+                $tenant = $call['tenant_id'] ?? ($vars['TENANT_ID'] ?? null);
+                $role = $call['role'] ?? ($vars['ROLE'] ?? null);
+
+                return [
+                    'owner' => (string)($owner ?? ''),
+                    'tenant' => (string)($tenant ?? ''),
+                    'role' => strtolower((string)($role ?? '')),
+                ];
+            };
+
+            // ===== Filtro conforme papel =====
+            $filtered = array_filter($calls, function (array $call) use ($userRole, $userIdStr, $tenantStr, $extractIdentity) {
+                $id = $extractIdentity($call);
+
+                return match ($userRole) {
+                    'super_admin', 'root' => true,
+                    'admin' => $id['tenant'] !== '' && $id['tenant'] === $tenantStr,
+                    'reseller' => $id['owner'] !== '' && $id['owner'] === $userIdStr,
+                    default => false,
+                };
+            });
+
+            // ===== Normaliza dados e remove vars =====
+            $formatted = array_map(function (array $call) use ($extractIdentity) {
+                $id = $extractIdentity($call);
+                $call['owner_id'] = $call['owner_id'] ?? $id['owner'];
+                $call['tenant_id'] = $call['tenant_id'] ?? $id['tenant'];
+                $call['role'] = $call['role'] ?? $id['role'];
+                unset($call['vars']); // resposta mais leve
+                return $call;
+            }, $filtered);
+
+            // ===== Envia evento SSE =====
+            $response = [
+                'statusGeral' => 'OK',
+                'totalChamadas' => count($formatted),
+                'chamadas' => array_values($formatted),
+                'timestamp' => date('Y-m-d H:i:s'),
+                'server_now' => time(),
+            ];
+
+            echo "event: calls\n";
+            echo 'data: ' . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n";
+            ob_flush();
+            flush();
+
+            echo ": ping\n\n";
+            ob_flush();
+            flush();
+
+            usleep(800000); // 0.8s
+
+            // 🔹 Após enviar os dados, processa novas tarifações do Redis e grava na tabela CDR
+            //self::processCdrFromRedis();
+
+        } catch (Exception $e) {
+            echo "event: error\n";
+            echo 'data: ' . json_encode([
+                    'message' => 'Erro ao conectar/ler Redis',
+                    'erro' => $e->getMessage()
+                ]) . "\n\n";
+            ob_flush();
+            flush();
+        }
+    }
+
+
+    private static function calcNormal(float $durationSec, float $minuteCost): float
+    {
+        $minSeconds = 30;
+        $incrementSec = 6;
+        $halfRate = $minuteCost / 2;
+
+        if ($durationSec <= $minSeconds) {
+            return round($halfRate, 4);
+        }
+
+        if ($durationSec <= 60) {
+            $extra = ceil(($durationSec - $minSeconds) / $incrementSec) * $incrementSec;
+            $billedDuration = $minSeconds + $extra;
+            $progress = ($billedDuration - $minSeconds) / 30;
+            return round($halfRate + ($progress * $halfRate), 4);
+        }
+
+        $extra = ceil(($durationSec - 60) / $incrementSec) * $incrementSec;
+        $billedDuration = 60 + $extra;
+        return round(($billedDuration / 60) * $minuteCost, 4);
+    }
+
+    private static function calcTorpedo(float $durationSec, float $torpedoCost, float $minuteCost): float
+    {
+        if ($durationSec <= 60) {
+            return round($torpedoCost, 4);
+        }
+
+        $incrementSec = 6;
+        $extraSec = max(0, $durationSec - 60);
+        $steps = ceil($extraSec / $incrementSec);
+        $perStep = $minuteCost / 10.0; // 6 segundos = 1/10 de minuto
+
+        $total = $torpedoCost + ($steps * $perStep);
+        return round($total, 4);
+    }
+
+
+    /**
+     * Processa as tarifações armazenadas no Redis e grava no banco de dados (CDR).
+     * Lê a fila 'asterisk:tarifacoes' e insere os registros no MySQL.
+     */
+
+    /*public static function processCdrFromRedis(): void
+    {
+        try {
+            // 🔹 Conexão com Redis
+            $redis = new RedisClient([
+                'scheme'   => 'tcp',
+                'host'     => '192.168.1.8',
+                'port'     => 6379,
+                'password' => 'mxx123'
+            ]);
+
+            //$json = $redis->lpop('asterisk:tarifacoes');
+            //$tariff = json_decode($json, true);
+
+            //echo "<pre>";
+            //print_r($tariff);
+            //echo "</pre>";exit;
+
+
+            <pre>Array
+            (
+                [channel_id] => 1770048161.7
+                [job_id] => job:voice:cffc768b544419e5addd
+                [campaign_id] => 5
+                [campaign_type] => NORMAL
+                [owner_id] => 10
+                [tenant_id] => c6982ccc-8c67-4e2b-b720-4e4488354cfb
+                [number] => Desconhecido
+                [destination] => 5521968943160
+                [type] => normal
+                [state] => failed
+                [dialstatus] => NOANSWER
+                [cause] => 16
+                [cause_txt] => Normal Clearing
+                [duration] => 0
+                [value] => 0.0000
+                [call_minute_cost] => 0.1
+                [sms_cost] => 0
+                [torpedo_cost] => 0.15
+                [started] => 1770048161
+                [ended] => 1770048169
+                [timestamp] => 2026-02-02 13:02:49
+                [application] => app-asterisk
+            )
+            </pre>
+
+            // 🔹 Loop principal de leitura da fila correta
+            while (true) {
+                $json = $redis->lpop('asterisk:tarifacoes'); // 👈 mesma fila usada em calculateTariff()
+                if (!$json) {
+                    break;
+                }
+
+                $tariff = json_decode($json, true);
+
+
+
+                if (!$tariff || empty($tariff['channel_id'])) {
+                    continue;
+                }
+
+                // 🔹 Cria instância do modelo CdrVoice
+                $cdr = new CdrVoice();
+
+                $cdr->channel_id = $tariff['channel_id'];
+                $cdr->job_id = $tariff['job_id'] ?? null;
+                $cdr->campaign_id   = $tariff['campaign_id']   ?? null;
+                $cdr->campaign_type = $tariff['campaign_type'] ?? null;
+                $cdr->tenancy_id = $tariff['tenant_id'] ?? null;
+                $cdr->user_id = $tariff['owner_id'] ?? null;
+                $cdr->channel_number = $tariff['channelNumber'] ?? null;
+                $cdr->number = $tariff['number'] ?? null;
+                $cdr->destination = $tariff['destination'] ?? null;
+                $cdr->type = $tariff['type'];
+                $cdr->state = $tariff['state'] ?? null;
+                $cdr->dialstatus = $tariff['dialstatus'] ?? null;
+                $cdr->cause = $tariff['cause'] ?? null;
+                $cdr->cause_txt = $tariff['cause_txt'] ?? null;
+                $cdr->duration = $tariff['duration'] ?? 0;
+                //$cdr->value = $tariff['value'] ?? 0;
+                $cdr->value = (float)($tariff['value'] ?? 0);
+                //$cdr->role = strtolower($tariff['role']); // 👈 ADICIONADO
+                $cdr->role  = strtolower((string)($tariff['role'] ?? 'user'));
+
+                $cdr->started  = !empty($tariff['started'])
+                    ? date('Y-m-d H:i:s', $tariff['started'])
+                    : null;
+
+                $cdr->answered = !empty($tariff['answered'])
+                    ? date('Y-m-d H:i:s', $tariff['answered'])
+                    : null;
+
+                $cdr->ended    = !empty($tariff['ended'])
+                    ? date('Y-m-d H:i:s', $tariff['ended'])
+                    : null;
+
+                // 🔹 Grava registro no banco
+                $cdr->insertCdr();
+
+                //blindar por tenancy e userId
+
+                CampaignVoice::updateStatusByJob($cdr->job_id, 'f');
+
+                //blindar por tenancy e userId
+                CampaignVoice::incrementCampaignCounters(
+                    (int)$cdr->campaign_id,
+                    (string)$cdr->dialstatus
+                );
+
+                // IGNORAR CDR DO RAMAL → tarifa sempre 0
+                if ($cdr->value <= 0) {
+                    continue;
+                }
+
+                // =====================================================
+                // 🔥 REGRAS DE DÉBITO BASEADAS EM $cdr->role E $cdr->type
+                // =====================================================
+
+                // 1️⃣ Buscar ADMIN PAI da tenancy
+                $adminId = RegisterTenancies::getTenancyOwnerUserId($cdr->tenancy_id);
+
+                //echo "<pre>";
+                //print_r($adminId);
+                //echo "</pre>";exit;
+
+                if (!$adminId) {
+                    error_log("Nenhum admin localizado para tenancy {$cdr->tenancy_id}");
+                    return;
+                }
+
+                if (!$adminId) {
+                    echo "event: debug\n";
+                    echo "data: " . json_encode([
+                            'skip' => true,
+                            'reason' => 'no_admin_for_tenancy',
+                            'tenancy_id' => $cdr->tenancy_id,
+                            'channel_id' => $cdr->channel_id,
+                            'user_id' => $cdr->user_id,
+                            'value' => $cdr->value,
+                        ], JSON_UNESCAPED_UNICODE) . "\n\n";
+                    ob_flush(); flush();
+                    continue;
+                }
+
+
+                // =====================================================
+                // 🔹 2️⃣ SE FOR RESELLER → debita reseller + admin
+                // =====================================================
+                if ($cdr->role === 'reseller') {
+
+                    // ✔ A) Debitar reseller_balance com valor vindo do Asterisk
+                    BalanceSms::decrementResellerBalance(
+                        $cdr->value,
+                        $cdr->user_id,
+                        $cdr->tenancy_id
+                    );
+
+                    $resellerBalanceAsterisk = UserSearch::getUserById(
+                        $cdr->tenancy_id,
+                        $cdr->user_id
+                    );
+
+                    $role = $resellerBalanceAsterisk['user_function'];
+
+                    $query = [
+                        'user_id'   => $cdr->user_id,
+                        'tenant_id' => $cdr->tenancy_id,
+                    ];
+
+                    // 🧱 Monta payload para atualização
+                    $payload = [
+                        'user_id'          => $cdr->user_id,
+                        'tenant_id'        => $cdr->tenancy_id,
+                        'balance_reseller' => -$cdr->value,
+                        'role'             => $role
+                    ];
+
+                    // 🔗 Chama a API Asterisk (rota update_extension)
+                    $asterisk = new AsteriskExtensionsSip();
+                    $asterisk->updateBalance($query, $payload);
+
+                    // ✔ B) Buscar tarifas do ADMIN (tenancy_balance)
+                    $adminRatesObj = BalanceSms::getBalanceSms(
+                        $adminId,
+                        $cdr->tenancy_id
+                    );
+
+                    if ($adminRatesObj) {
+
+                        $voiceCost    = (float) $adminRatesObj->value_voice;
+                        $smsCost      = (float) $adminRatesObj->value_sms;
+                        $torpedoCost  = (float) $adminRatesObj->value_torpedo;
+                        $whatsCost    = (float) $adminRatesObj->value_whatsapp;
+
+                        // ===== 🔥 CALCULAR IGUAL AO ASTERISK =====
+                        $adminCost = match ($cdr->type) {
+                            'normal',
+                            'voice',
+                            'outbound' => self::calcNormal($cdr->duration, $voiceCost),
+                            'torpedo'  => self::calcTorpedo(
+                                $cdr->duration,
+                                $torpedoCost,
+                                $voiceCost
+                            ),
+                            'sms'      => $smsCost,
+                            'whatsapp' => $whatsCost,
+                            default    => 0,
+                        };
+
+                        // Debitar ADMIN
+                        $adminBalanceObj = BalanceSms::getBalanceSms(
+                            $adminId,
+                            $cdr->tenancy_id
+                        );
+
+                        if ($adminBalanceObj) {
+
+                            $newAdminBalance = max(
+                                0,
+                                $adminBalanceObj->balance - $adminCost
+                            );
+
+                            BalanceSms::updateBalance(
+                                $adminId,
+                                $cdr->tenancy_id,
+                                $adminBalanceObj->plan_id ?? null,
+                                $newAdminBalance
+                            );
+
+                            $resellerBalanceAsterisk = UserSearch::getUserById(
+                                $cdr->tenancy_id,
+                                $adminId
+                            );
+
+                            $role = $resellerBalanceAsterisk['user_function'];
+
+                            $query = [
+                                'user_id'   => $adminId,
+                                'tenant_id' => $cdr->tenancy_id,
+                            ];
+
+                            $payload = [
+                                'user_id'        => $adminId,
+                                'tenant_id'      => $cdr->tenancy_id,
+                                'balance_admin'  => -$adminCost,
+                                'role'           => $role
+                            ];
+
+                            $asterisk = new AsteriskExtensionsSip();
+                            $asterisk->updateBalance($query, $payload);
+                        }
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'    => $cdr->user_id,
+                            'tenancy_id' => $cdr->tenancy_id,
+                            'amount'     => $adminCost,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($adminCost, 4, '.', '')
+                            )
+                        ]);
+                    }
+
+                } else {
+
+                    // =====================================================
+                    // 🔹 3️⃣ USUÁRIO NORMAL → debita apenas o user
+                    // =====================================================
+                    $userBalanceObj = BalanceSms::getBalanceSms(
+                        $cdr->user_id,
+                        $cdr->tenancy_id
+                    );
+
+                    if ($userBalanceObj) {
+
+                        $newUserBalance = max(
+                            0,
+                            $userBalanceObj->balance - $cdr->value
+                        );
+
+                        BalanceSms::updateBalance(
+                            $cdr->user_id,
+                            $cdr->tenancy_id,
+                            $userBalanceObj->plan_id ?? null,
+                            $newUserBalance
+                        );
+
+                        $resellerBalanceAsterisk = UserSearch::getUserById(
+                            $cdr->tenancy_id,
+                            $cdr->user_id
+                        );
+
+                        $role = $resellerBalanceAsterisk['user_function'];
+
+                        $query = [
+                            'user_id'   => $cdr->user_id,
+                            'tenant_id' => $cdr->tenancy_id,
+                        ];
+
+                        $payload = [
+                            'user_id'       => $cdr->user_id,
+                            'tenant_id'     => $cdr->tenancy_id,
+                            'balance_admin' => -$cdr->value,
+                            'role'          => $role
+                        ];
+
+                        $asterisk = new AsteriskExtensionsSip();
+                        $asterisk->updateBalance($query, $payload);
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'    => $cdr->user_id,
+                            'tenancy_id' => $cdr->tenancy_id,
+                            'amount'     => $cdr->value,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($cdr->value, 4, '.', '')
+                            )
+                        ]);
+                    }
+                }
+
+                // ===== 🔸 LOG SSE CONFIRMADO =====
+                echo "event: debug\n";
+                echo 'data: ' . json_encode([
+                        'mensagem' => "CDR gravado com sucesso",
+                        'canal'    => $cdr->channel_id,
+                        'numero'   => $cdr->number,
+                        'destino'  => $cdr->destination,
+                        'valor'    => $cdr->value,
+                        'duracao'  => $cdr->duration,
+                        'status'   => $cdr->dialstatus,
+                        'motivo'   => $cdr->cause_txt
+                    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+                ob_flush();
+                flush();
+            }
+
+        } catch (Exception $e) {
+
+            echo "event: debug\n";
+            echo 'data: ' . json_encode([
+                    'erro'     => true,
+                    'mensagem' => 'Erro ao gravar CDR',
+                    'detalhes' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+            ob_flush();
+            flush();
+        }
+    }*/
+
+
+    /*public static function processCdrFromRedis(): void
+    {
+        try {
+            // 🔹 Conexão com Redis
+            $redis = new RedisClient([
+                'scheme'   => 'tcp',
+                'host'     => '192.168.1.8',
+                'port'     => 6379,
+                'password' => 'mxx123'
+            ]);
+
+            while (true) {
+                $json = $redis->lpop('asterisk:tarifacoes');
+
+                // fila vazia: não encerra o worker; só aguarda
+                if (!$json) {
+                    usleep(200000); // 200ms
+                    break;
+                }
+
+                $tariff = json_decode($json, true);
+
+                if (!is_array($tariff) || empty($tariff['channel_id'])) {
+                    // payload inválido → ignora e segue
+                    continue;
+                }
+
+                // 🔹 Cria instância do modelo CdrVoice
+                $cdr = new CdrVoice();
+
+                $cdr->channel_id      = (string)($tariff['channel_id'] ?? '');
+                $cdr->job_id          = $tariff['job_id'] ?? null;
+                $cdr->campaign_id     = $tariff['campaign_id'] ?? null;
+                $cdr->campaign_type   = $tariff['campaign_type'] ?? null;
+                $cdr->tenancy_id      = $tariff['tenant_id'] ?? null;
+                $cdr->user_id         = $tariff['owner_id'] ?? null;
+                $cdr->channel_number  = $tariff['channelNumber'] ?? null;
+                $cdr->number          = $tariff['number'] ?? null;
+                $cdr->destination     = $tariff['destination'] ?? null;
+
+                // type pode vir ausente
+                $cdr->type            = strtolower((string)($tariff['type'] ?? 'normal'));
+                $cdr->taxa_of_service = round((float)($tariff['taxa_of_service'] ?? 0), 4);
+
+                $cdr->state           = $tariff['state'] ?? null;
+                $cdr->dialstatus      = $tariff['dialstatus'] ?? null;
+                $cdr->cause           = $tariff['cause'] ?? null;
+                $cdr->cause_txt       = $tariff['cause_txt'] ?? null;
+
+                $cdr->duration        = (int)($tariff['duration'] ?? 0);
+
+                // IMPORTANT: valor vindo do asterisk já vem como string "0.0250"
+                // float pode perder precisão (0.0249999). Vamos arredondar para 4 casas.
+                $cdr->value           = round((float)($tariff['value'] ?? 0), 4);
+
+                $cdr->role            = strtolower((string)($tariff['role'] ?? 'user'));
+
+                $cdr->started  = !empty($tariff['started'])  ? date('Y-m-d H:i:s', (int)$tariff['started'])  : null;
+                $cdr->answered = !empty($tariff['answered']) ? date('Y-m-d H:i:s', (int)$tariff['answered']) : null;
+                $cdr->ended    = !empty($tariff['ended'])    ? date('Y-m-d H:i:s', (int)$tariff['ended'])    : null;
+
+                // 🔹 Grava registro no banco
+                $cdr->insertCdr();
+
+                if (!empty($cdr->job_id)) {
+                    CampaignVoice::updateStatusByJob($cdr->job_id, 'f');
+                }
+
+                if (!empty($cdr->campaign_id) && !empty($cdr->dialstatus)) {
+                    CampaignVoice::incrementCampaignCounters(
+                        (int)$cdr->campaign_id,
+                        (string)$cdr->dialstatus
+                    );
+                }
+
+                // IGNORAR CDR DO RAMAL → tarifa sempre 0
+                if ($cdr->value <= 0) {
+                    continue;
+                }
+
+                // =====================================================
+                // 🔥 REGRAS DE DÉBITO BASEADAS EM $cdr->role E $cdr->type
+                // =====================================================
+
+                // 1️⃣ Buscar ADMIN PAI da tenancy
+                $adminId = RegisterTenancies::getTenancyOwnerUserId($cdr->tenancy_id);
+
+                if (!$adminId) {
+                    echo "event: debug\n";
+                    echo "data: " . json_encode([
+                            'skip'       => true,
+                            'reason'     => 'no_admin_for_tenancy',
+                            'tenancy_id' => $cdr->tenancy_id,
+                            'channel_id' => $cdr->channel_id,
+                            'user_id'    => $cdr->user_id,
+                            'value'      => $cdr->value,
+                        ], JSON_UNESCAPED_UNICODE) . "\n\n";
+                    @ob_flush(); @flush();
+                    continue;
+                }
+
+                // =====================================================
+                // 🔹 2️⃣ SE FOR RESELLER → debita reseller + admin
+                // =====================================================
+                if ($cdr->role === 'reseller') {
+
+                    // ✔ A) Debitar reseller_balance com valor vindo do Asterisk
+                    BalanceSms::decrementResellerBalance(
+                        $cdr->value,
+                        $cdr->user_id,
+                        $cdr->tenancy_id
+                    );
+
+                    $resellerBalanceAsterisk = UserSearch::getUserById(
+                        $cdr->tenancy_id,
+                        $cdr->user_id
+                    );
+
+                    $role = $resellerBalanceAsterisk['user_function'] ?? 'reseller';
+
+                    $query = [
+                        'user_id'   => $cdr->user_id,
+                        'tenant_id' => $cdr->tenancy_id,
+                    ];
+
+                    $payload = [
+                        'user_id'          => $cdr->user_id,
+                        'tenant_id'        => $cdr->tenancy_id,
+                        'balance_reseller' => -$cdr->value,
+                        'role'             => $role
+                    ];
+
+                    (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+
+                    // ✔ B) Buscar tarifas do ADMIN (tenancy_balance)
+                    $adminRatesObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+
+                    if ($adminRatesObj) {
+
+                        $voiceCost   = (float)$adminRatesObj->value_voice;
+                        $smsCost     = (float)$adminRatesObj->value_sms;
+                        $torpedoCost = (float)$adminRatesObj->value_torpedo;
+                        $whatsCost   = (float)$adminRatesObj->value_whatsapp;
+
+                        // ===== 🔥 CALCULAR IGUAL AO ASTERISK =====
+                        $adminCost = match ($cdr->type) {
+                            'normal',
+                            'voice',
+                            'outbound' => (float) self::calcNormal((float)$cdr->duration, $voiceCost),
+                            'torpedo'  => (float) self::calcTorpedo((float)$cdr->duration, $torpedoCost, $voiceCost),
+                            'sms'      => $smsCost,
+                            'whatsapp' => $whatsCost,
+                            default    => 0.0,
+                        };
+
+                        $adminCost = round($adminCost, 4);
+
+                        // Debitar ADMIN
+                        $adminBalanceObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+
+                        if ($adminBalanceObj) {
+
+                            $newAdminBalance = max(
+                                0,
+                                (float)$adminBalanceObj->balance - $adminCost
+                            );
+
+                            // mantém original: manda número
+                            BalanceSms::updateBalance(
+                                $adminId,
+                                $cdr->tenancy_id,
+                                $adminBalanceObj->plan_id ?? null,
+                                round($newAdminBalance, 4)
+                            );
+
+                            $adminAsterisk = UserSearch::getUserById($cdr->tenancy_id, $adminId);
+                            $adminRole = $adminAsterisk['user_function'] ?? 'admin';
+
+                            $query = [
+                                'user_id'   => $adminId,
+                                'tenant_id' => $cdr->tenancy_id,
+                            ];
+
+                            $payload = [
+                                'user_id'       => $adminId,
+                                'tenant_id'     => $cdr->tenancy_id,
+                                'balance_admin' => -$adminCost,
+                                'role'          => $adminRole
+                            ];
+
+                            (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+                        }
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'     => $cdr->user_id,
+                            'tenancy_id'  => $cdr->tenancy_id,
+                            'amount'      => $adminCost,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($adminCost, 4, '.', '')
+                            )
+                        ]);
+                    }
+
+                } else {
+
+                    // =====================================================
+                    // 🔹 3️⃣ USUÁRIO NORMAL → debita apenas o user
+                    // =====================================================
+                    $userBalanceObj = BalanceSms::getBalanceSms($cdr->user_id, $cdr->tenancy_id);
+
+                    if ($userBalanceObj) {
+
+                        $newUserBalance = max(
+                            0,
+                            (float)$userBalanceObj->balance - $cdr->value
+                        );
+
+                        BalanceSms::updateBalance(
+                            $cdr->user_id,
+                            $cdr->tenancy_id,
+                            $userBalanceObj->plan_id ?? null,
+                            round($newUserBalance, 4)
+                        );
+
+                        $userAsterisk = UserSearch::getUserById($cdr->tenancy_id, $cdr->user_id);
+                        $role = $userAsterisk['user_function'] ?? 'user';
+
+                        $query = [
+                            'user_id'   => $cdr->user_id,
+                            'tenant_id' => $cdr->tenancy_id,
+                        ];
+
+                        $payload = [
+                            'user_id'       => $cdr->user_id,
+                            'tenant_id'     => $cdr->tenancy_id,
+                            'balance_admin' => -$cdr->value,
+                            'role'          => $role
+                        ];
+
+                        (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'     => $cdr->user_id,
+                            'tenancy_id'  => $cdr->tenancy_id,
+                            'amount'      => $cdr->value,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($cdr->value, 4, '.', '')
+                            )
+                        ]);
+                    }
+                }
+
+                // ===== 🔸 LOG SSE CONFIRMADO =====
+                echo "event: debug\n";
+                echo 'data: ' . json_encode([
+                        'mensagem' => "CDR gravado com sucesso",
+                        'canal'    => $cdr->channel_id,
+                        'numero'   => $cdr->number,
+                        'destino'  => $cdr->destination,
+                        'valor'    => number_format($cdr->value, 4, '.', ''),
+                        'duracao'  => $cdr->duration,
+                        'status'   => $cdr->dialstatus,
+                        'motivo'   => $cdr->cause_txt
+                    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+                @ob_flush();
+                @flush();
+            }
+
+        } catch (Exception $e) {
+
+            echo "event: debug\n";
+            echo 'data: ' . json_encode([
+                    'erro'     => true,
+                    'mensagem' => 'Erro ao gravar CDR',
+                    'detalhes' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+            @ob_flush();
+            @flush();
+        }
+    }*/
+
+    private static function onlyDigits(?string $v): string
+    {
+        return preg_replace('/\D+/', '', (string)$v);
+    }
+
+    private static function normalizeDigits(string $digits): string
+    {
+        // remove zeros à esquerda, mas mantém "0" se for tudo zero
+        $n = ltrim($digits, '0');
+        return $n === '' ? '0' : $n;
+    }
+
+    private static function isExtension(string $digits): bool
+    {
+        $digits = self::normalizeDigits($digits);
+
+        if ($digits === '' || $digits === '0') return false;
+
+        $len = strlen($digits);
+        return ($len >= 3 && $len <= 8);
+    }
+
+
+
+    public static function isRamalCdr(?string $channelNumber, ?string $number, ?string $destination): bool
+    {
+        $ch = self::onlyDigits($channelNumber);
+        $nu = self::onlyDigits($number);
+        $ds = self::onlyDigits($destination);
+
+        if ($ch !== '' && self::isExtension($ch)) return true;
+
+        // comparação também normalizada (pra 01109739 == 1109739)
+        $nuN = $nu !== '' ? self::normalizeDigits($nu) : '';
+        $dsN = $ds !== '' ? self::normalizeDigits($ds) : '';
+
+        // fallback MAIS SEGURO: só considera ramal quando number == destination
+        if ($dsN !== '' && self::isExtension($ds) && $nuN !== '' && $nuN === $dsN) return true;
+
+        // remove este aqui se quiser mais segurança:
+        // if ($ds !== '' && self::isExtension($ds)) return true;
+
+        return false;
+    }
+
+
+
+    public static function processCdrFromRedis(): void
+    {
+        try {
+            // 🔹 Conexão com Redis
+            $redis = new RedisClient([
+                'scheme'   => 'tcp',
+                'host'     => '192.168.1.8',
+                'port'     => 6379,
+                'password' => 'mxx123'
+            ]);
+
+
+            /*<pre>Array
+            (
+                [channel_id] => 1771352401.38
+                [job_id] =>
+                [campaign_id] =>
+                [campaign_type] =>
+                [owner_id] => 1
+                [tenant_id] => 814f41f0-0039-4f01-8644-5e371ceb31bf
+                [number] => 5521975643710
+                [destination] => 1030905521975643710
+                [type] => outbound
+                [state] => failed
+                [dialstatus] => CONGESTION
+                [cause] => 34
+                [cause_txt] => Circuit/channel congestion
+                [duration] => 0
+                [value] => 0.0000
+                [taxa_of_service] => 0
+                [call_minute_cost] => 0
+                [sms_cost] => 0
+                [torpedo_cost] => 0
+                [started] => 1771352401
+                [ended] => 1771352401
+                [timestamp] => 2026-02-17 15:20:01
+                [application] => app-asterisk
+            )
+            </pre>*/
+
+
+            //$json = $redis->lpop('asterisk:tarifacoes');
+            //$tariff = json_decode($json, true);
+
+            //echo "<pre>";
+            //print_r($tariff);
+            //echo "</pre>";exit();
+
+
+
+            while (true) {
+                $json = $redis->lpop('asterisk:tarifacoes');
+
+                // fila vazia: não encerra o worker; só aguarda
+                if (!$json) {
+                    usleep(200000); // 200ms
+                    break;
+                }
+
+                $tariff = json_decode($json, true);
+
+                if (!is_array($tariff) || empty($tariff['channel_id'])) {
+                    // payload inválido → ignora e segue
+                    continue;
+                }
+
+                // 🔹 Cria instância do modelo CdrVoice
+                $cdr = new CdrVoice();
+
+                $cdr->channel_id      = (string)($tariff['channel_id'] ?? '');
+                $cdr->job_id          = $tariff['job_id'] ?? null;
+                $cdr->call_id         = $tariff['call_id'] ?? null;
+                $cdr->campaign_id     = $tariff['campaign_id'] ?? null;
+                $cdr->campaign_type   = $tariff['campaign_type'] ?? null;
+                $cdr->tenancy_id      = $tariff['tenant_id'] ?? null;
+                $cdr->user_id         = $tariff['owner_id'] ?? null;
+                $cdr->channel_number  = $tariff['channelNumber'] ?? null;
+                $cdr->number          = $tariff['number'] ?? null;
+                $cdr->destination = $tariff['destination'] ?? null;
+                $cdr->techprefix  = $tariff['techprefix'] ?? null;
+
+                if (
+                    !empty($cdr->destination) &&
+                    !empty($cdr->techprefix) &&
+                    str_starts_with($cdr->destination, $cdr->techprefix)
+                ) {
+                    $cdr->destination = substr(
+                        $cdr->destination,
+                        strlen($cdr->techprefix)
+                    );
+                }
+
+                // type pode vir ausente
+                $cdr->type            = strtolower((string)($tariff['type'] ?? 'normal'));
+                $cdr->taxa_of_service = round((float)($tariff['taxa_of_service'] ?? 0), 4);
+
+                $cdr->state           = $tariff['state'] ?? null;
+                $cdr->dialstatus      = $tariff['dialstatus'] ?? null;
+                $cdr->cause           = $tariff['cause'] ?? null;
+                $cdr->cause_txt       = $tariff['cause_txt'] ?? null;
+
+                $cdr->duration        = (int)($tariff['duration'] ?? 0);
+
+                $cdr->value           = round((float)($tariff['value'] ?? 0), 4);
+
+                $cdr->role            = strtolower((string)($tariff['role'] ?? 'user'));
+
+                $cdr->started  = !empty($tariff['started'])  ? date('Y-m-d H:i:s', (int)$tariff['started'])  : null;
+                $cdr->answered = !empty($tariff['answered']) ? date('Y-m-d H:i:s', (int)$tariff['answered']) : null;
+                $cdr->ended    = !empty($tariff['ended'])    ? date('Y-m-d H:i:s', (int)$tariff['ended'])    : null;
+
+                // 🔹 Grava registro no banco
+                $cdr->insertCdr();
+
+                if (!empty($cdr->job_id)) {
+                    CampaignVoice::updateStatusByJob($cdr->job_id, 'f');
+                }
+
+                if (!empty($cdr->campaign_id) && !empty($cdr->dialstatus)) {
+
+                    $isRamal = self::isRamalCdr(
+                        $cdr->channel_number,
+                        $cdr->number,
+                        $cdr->destination
+                    );
+
+                    if (!$isRamal) {
+                        CampaignVoice::incrementCampaignCounters(
+                            (int)$cdr->campaign_id,
+                            (string)$cdr->dialstatus
+                        );
+                    }
+                }
+
+
+                // =====================================================
+                // ✅ SERVICE_FEE (ramal nunca cobra)
+                // =====================================================
+                if ($cdr->type === 'service_fee') {
+
+                    // 1️⃣ Buscar ADMIN PAI da tenancy
+                    $adminId = RegisterTenancies::getTenancyOwnerUserId($cdr->tenancy_id);
+                    if (!$adminId) {
+                        continue;
+                    }
+
+                    // taxa já vem tratada:
+                    // - externo: > 0
+                    // - ramal: 0.0000  (ramal nunca cobra ninguém)
+                    $feeOwner = round((float)$cdr->taxa_of_service, 4);
+                    if ($feeOwner <= 0) {
+                        continue; // ✅ ramal nunca cobra
+                    }
+
+                    // =====================================================
+                    // A) Debitar OWNER (reseller) SOMENTE se a taxa pertence a ele
+                    // (se owner_id == adminId, não debita reseller)
+                    // =====================================================
+                    if ((int)$cdr->user_id !== (int)$adminId) {
+
+                        BalanceSms::decrementResellerBalance(
+                            $feeOwner,
+                            $cdr->user_id,
+                            $cdr->tenancy_id
+                        );
+
+                        $resellerAsterisk = UserSearch::getUserById($cdr->tenancy_id, $cdr->user_id);
+                        $roleReseller = $resellerAsterisk['user_function'] ?? 'reseller';
+
+                        (new AsteriskExtensionsSip())->updateBalance(
+                            [
+                                'user_id'   => $cdr->user_id,
+                                'tenant_id' => $cdr->tenancy_id,
+                            ],
+                            [
+                                'user_id'          => $cdr->user_id,
+                                'tenant_id'        => $cdr->tenancy_id,
+                                'balance_reseller' => -$feeOwner,
+                                'role'             => $roleReseller
+                            ]
+                        );
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'     => $cdr->user_id,
+                            'tenancy_id'  => $cdr->tenancy_id,
+                            'amount'      => $feeOwner,
+                            'description' => sprintf(
+                                "SERVICE_FEE_OWNER | channel_id:%s dst:%s status:%s fee:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->dialstatus,
+                                number_format($feeOwner, 4, '.', '')
+                            )
+                        ]);
+                    }
+
+                    // =====================================================
+                    // B) Debitar ADMIN via plano (service_fee)
+                    // =====================================================
+                    $adminRatesObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+                    if ($adminRatesObj) {
+
+                        $adminCost = round((float)($adminRatesObj->service_fee ?? 0), 4);
+
+                        if ($adminCost > 0) {
+
+                            $adminBalanceObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+                            if ($adminBalanceObj) {
+
+                                $newAdminBalance = max(0, (float)$adminBalanceObj->balance - $adminCost);
+
+                                BalanceSms::updateBalance(
+                                    $adminId,
+                                    $cdr->tenancy_id,
+                                    $adminBalanceObj->plan_id ?? null,
+                                    round($newAdminBalance, 4)
+                                );
+
+                                $adminAsterisk = UserSearch::getUserById($cdr->tenancy_id, $adminId);
+                                $adminRole = $adminAsterisk['user_function'] ?? 'admin';
+
+                                (new AsteriskExtensionsSip())->updateBalance(
+                                    [
+                                        'user_id'   => $adminId,
+                                        'tenant_id' => $cdr->tenancy_id,
+                                    ],
+                                    [
+                                        'user_id'       => $adminId,
+                                        'tenant_id'     => $cdr->tenancy_id,
+                                        'balance_admin' => -$adminCost,
+                                        'role'          => $adminRole
+                                    ]
+                                );
+
+                                // ✅ log no adminId (não no reseller)
+                                BalanceSms::insertBalanceLog([
+                                    'user_id'     => $adminId,
+                                    'tenancy_id'  => $cdr->tenancy_id,
+                                    'amount'      => $adminCost,
+                                    'description' => sprintf(
+                                        "SERVICE_FEE_ADMIN | channel_id:%s dst:%s status:%s fee:%s",
+                                        $cdr->channel_id,
+                                        $cdr->destination,
+                                        $cdr->dialstatus,
+                                        number_format($adminCost, 4, '.', '')
+                                    )
+                                ]);
+                            }
+                        }
+                    }
+
+                    // ✅ não cai na tarifação normal
+                    continue;
+                }
+
+                // IGNORAR CDR DO RAMAL → tarifa sempre 0 (para NORMAL/TORPEDO/etc)
+                if ($cdr->value <= 0) {
+                    continue;
+                }
+
+                // =====================================================
+                // 🔥 REGRAS DE DÉBITO BASEADAS EM $cdr->role E $cdr->type
+                // =====================================================
+
+                // 1️⃣ Buscar ADMIN PAI da tenancy
+                $adminId = RegisterTenancies::getTenancyOwnerUserId($cdr->tenancy_id);
+
+                if (!$adminId) {
+                    echo "event: debug\n";
+                    echo "data: " . json_encode([
+                            'skip'       => true,
+                            'reason'     => 'no_admin_for_tenancy',
+                            'tenancy_id' => $cdr->tenancy_id,
+                            'channel_id' => $cdr->channel_id,
+                            'user_id'    => $cdr->user_id,
+                            'value'      => $cdr->value,
+                        ], JSON_UNESCAPED_UNICODE) . "\n\n";
+                    @ob_flush(); @flush();
+                    continue;
+                }
+
+                // =====================================================
+                // 🔹 2️⃣ SE FOR RESELLER → debita reseller + admin
+                // =====================================================
+                if ($cdr->role === 'reseller') {
+
+                    // ✔ A) Debitar reseller_balance com valor vindo do Asterisk
+                    BalanceSms::decrementResellerBalance(
+                        $cdr->value,
+                        $cdr->user_id,
+                        $cdr->tenancy_id
+                    );
+
+                    $resellerBalanceAsterisk = UserSearch::getUserById(
+                        $cdr->tenancy_id,
+                        $cdr->user_id
+                    );
+
+                    $role = $resellerBalanceAsterisk['user_function'] ?? 'reseller';
+
+                    $query = [
+                        'user_id'   => $cdr->user_id,
+                        'tenant_id' => $cdr->tenancy_id,
+                    ];
+
+                    $payload = [
+                        'user_id'          => $cdr->user_id,
+                        'tenant_id'        => $cdr->tenancy_id,
+                        'balance_reseller' => -$cdr->value,
+                        'role'             => $role
+                    ];
+
+                    (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+
+                    // ✔ B) Buscar tarifas do ADMIN (tenancy_balance)
+                    $adminRatesObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+
+                    if ($adminRatesObj) {
+
+                        $voiceCost   = (float)$adminRatesObj->value_voice;
+                        $smsCost     = (float)$adminRatesObj->value_sms;
+                        $torpedoCost = (float)$adminRatesObj->value_torpedo;
+                        $whatsCost   = (float)$adminRatesObj->value_whatsapp;
+
+                        // ===== 🔥 CALCULAR IGUAL AO ASTERISK =====
+                        $adminCost = match ($cdr->type) {
+                            'normal',
+                            'voice',
+                            'outbound' => (float) self::calcNormal((float)$cdr->duration, $voiceCost),
+                            'torpedo'  => (float) self::calcTorpedo((float)$cdr->duration, $torpedoCost, $voiceCost),
+                            'sms'      => $smsCost,
+                            'whatsapp' => $whatsCost,
+                            default    => 0.0,
+                        };
+
+                        $adminCost = round($adminCost, 4);
+
+                        // Debitar ADMIN
+                        $adminBalanceObj = BalanceSms::getBalanceSms($adminId, $cdr->tenancy_id);
+
+                        if ($adminBalanceObj) {
+
+                            $newAdminBalance = max(
+                                0,
+                                (float)$adminBalanceObj->balance - $adminCost
+                            );
+
+                            BalanceSms::updateBalance(
+                                $adminId,
+                                $cdr->tenancy_id,
+                                $adminBalanceObj->plan_id ?? null,
+                                round($newAdminBalance, 4)
+                            );
+
+                            $adminAsterisk = UserSearch::getUserById($cdr->tenancy_id, $adminId);
+                            $adminRole = $adminAsterisk['user_function'] ?? 'admin';
+
+                            $query = [
+                                'user_id'   => $adminId,
+                                'tenant_id' => $cdr->tenancy_id,
+                            ];
+
+                            $payload = [
+                                'user_id'       => $adminId,
+                                'tenant_id'     => $cdr->tenancy_id,
+                                'balance_admin' => -$adminCost,
+                                'role'          => $adminRole
+                            ];
+
+                            (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+                        }
+
+                        // ✅ log do adminCost deve ser no adminId (correção)
+                        BalanceSms::insertBalanceLog([
+                            'user_id'     => $adminId,
+                            'tenancy_id'  => $cdr->tenancy_id,
+                            'amount'      => $adminCost,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($adminCost, 4, '.', '')
+                            )
+                        ]);
+                    }
+
+                } else {
+
+                    // =====================================================
+                    // 🔹 3️⃣ USUÁRIO NORMAL → debita apenas o user
+                    // =====================================================
+                    $userBalanceObj = BalanceSms::getBalanceSms($cdr->user_id, $cdr->tenancy_id);
+
+                    if ($userBalanceObj) {
+
+                        $newUserBalance = max(
+                            0,
+                            (float)$userBalanceObj->balance - $cdr->value
+                        );
+
+                        BalanceSms::updateBalance(
+                            $cdr->user_id,
+                            $cdr->tenancy_id,
+                            $userBalanceObj->plan_id ?? null,
+                            round($newUserBalance, 4)
+                        );
+
+                        $userAsterisk = UserSearch::getUserById($cdr->tenancy_id, $cdr->user_id);
+                        $role = $userAsterisk['user_function'] ?? 'user';
+
+                        $query = [
+                            'user_id'   => $cdr->user_id,
+                            'tenant_id' => $cdr->tenancy_id,
+                        ];
+
+                        $payload = [
+                            'user_id'       => $cdr->user_id,
+                            'tenant_id'     => $cdr->tenancy_id,
+                            'balance_admin' => -$cdr->value,
+                            'role'          => $role
+                        ];
+
+                        (new AsteriskExtensionsSip())->updateBalance($query, $payload);
+
+                        BalanceSms::insertBalanceLog([
+                            'user_id'     => $cdr->user_id,
+                            'tenancy_id'  => $cdr->tenancy_id,
+                            'amount'      => $cdr->value,
+                            'description' => sprintf(
+                                "VOICE | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                                $cdr->channel_id,
+                                $cdr->destination,
+                                $cdr->duration,
+                                $cdr->dialstatus,
+                                $cdr->type,
+                                number_format($cdr->value, 4, '.', '')
+                            )
+                        ]);
+                    }
+                }
+
+                // ===== 🔸 LOG SSE CONFIRMADO =====
+                echo "event: debug\n";
+                echo 'data: ' . json_encode([
+                        'mensagem' => "CDR gravado com sucesso",
+                        'canal'    => $cdr->channel_id,
+                        'numero'   => $cdr->number,
+                        'destino'  => $cdr->destination,
+                        'valor'    => number_format($cdr->value, 4, '.', ''),
+                        'duracao'  => $cdr->duration,
+                        'status'   => $cdr->dialstatus,
+                        'motivo'   => $cdr->cause_txt
+                    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+                @ob_flush();
+                @flush();
+            }
+
+        } catch (Exception $e) {
+
+            echo "event: debug\n";
+            echo 'data: ' . json_encode([
+                    'erro'     => true,
+                    'mensagem' => 'Erro ao gravar CDR',
+                    'detalhes' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
+
+            @ob_flush();
+            @flush();
+        }
+    }
+
+
+
+
+
+    public static function getListSipDevices(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // ⚙️ Parâmetros básicos
+        $query = [
+            'user_id' => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        // 🔗 Chama a API
+        $asterisk = new AsteriskExtensionsSip();
+        $result = $asterisk->listExtensions($query);
+
+        // ❌ Falha
+        if (empty($result['ok']) || !$result['ok']) {
+            return new Response(
+                $result['status'] ?: 500,
+                [
+                    'status' => $result['status'] ?: 500,
+                    'ok' => false,
+                    'error' => $result['error'] ?? 'Falha ao consultar dispositivos SIP',
+                    'info' => $result['info'] ?? null,
+                ],
+                'application/json'
+            );
+        }
+
+        // ✅ Corrige camada aninhada
+        $data = $result['data']['data'] ?? $result['data'] ?? [];
+
+        // 🧩 Filtro local por função do usuário
+        switch (strtolower($obUser['function'])) {
+            case 'super_admin':
+                // vê tudo
+                break;
+
+            case 'admin':
+                $data = array_filter($data, fn($sip) => isset($sip['tenant_id']) && $sip['tenant_id'] === $obUser['tenancy_id']
+                );
+                break;
+
+            case 'reseller':
+                $data = array_filter($data, fn($sip) => isset($sip['user_id']) && (int)$sip['user_id'] === (int)$obUser['id']
+                );
+                break;
+
+            default:
+                $data = array_filter($data, fn($sip) => isset($sip['user_id']) && (int)$sip['user_id'] === (int)$obUser['id']
+                );
+                break;
+        }
+
+        $data = array_values($data);
+
+        // ✅ Retorna formato puro (sem duplo JSON)
+        return new Response(200, [
+            'status' => 200,
+            'success' => true,
+            'message' => 'Ramais encontrados com sucesso.',
+            'total' => count($data),
+            'data' => $data,
+        ], 'application/json');
+    }
+
+    public static function setNewSipDevices(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, json_encode([
+                'status'  => 401,
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ]), 'application/json');
+        }
+
+        $inputData = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($inputData['username']) || empty($inputData['password'])) {
+            return new Response(400, json_encode([
+                'status'  => 400,
+                'success' => false,
+                'message' => 'Campos obrigatórios ausentes: username e password.'
+            ]), 'application/json');
+        }
+
+        // ✅ Ramal deve ser 8 dígitos numéricos
+        $ext = preg_replace('/\D+/', '', (string)$inputData['username']);
+        if (!preg_match('/^\d{8}$/', $ext)) {
+            return new Response(422, json_encode([
+                'success' => false,
+                'message' => 'O ramal (username) deve conter exatamente 8 dígitos.'
+            ]), 'application/json');
+        }
+        $inputData['username'] = $ext;
+
+        $userRole = strtolower($obUser['function'] ?? '');
+        $allowedRoles = ['super_admin', 'admin', 'reseller'];
+
+        if (!in_array($userRole, $allowedRoles, true)) {
+            return new Response(403, json_encode([
+                'success' => false,
+                'message' => 'Seu perfil não tem permissão para criar ramais SIP.'
+            ]), 'application/json');
+        }
+
+        $tenantId = (string)$obUser['tenancy_id'];
+        $userId   = (int)$obUser['id'];
+        $isReseller = ($userRole === 'reseller');
+
+        // =========================================================
+        // ✅ Admin owner do tenant (sempre)
+        // =========================================================
+        $adminId = RegisterTenancies::getTenancyOwnerUserId($tenantId);
+        if (!$adminId) {
+            return new Response(500, json_encode([
+                'success' => false,
+                'message' => 'Admin owner da tenancy não encontrado.'
+            ]), 'application/json');
+        }
+
+        $adminWallet      = BalanceSms::getBalanceSms($adminId, $tenantId);
+        $balanceAdmin     = (float)($adminWallet->balance ?? 0);
+        $adminVoiceRate   = (float)($adminWallet->value_voice ?? 0);
+        $adminServiceFee  = (float)($adminWallet->service_fee ?? 0);
+
+        // =========================================================
+        // ✅ Valores padrão (admin)
+        // =========================================================
+        $balanceReseller  = 0.0;
+        $callMinuteCost   = $adminVoiceRate;
+        $serviceFee       = $adminServiceFee;
+
+        // =========================================================
+        // ✅ Se for reseller
+        // =========================================================
+        if ($isReseller) {
+
+            $resellerWallet   = BalanceSms::getBalanceSms($userId, $tenantId);
+            $balanceReseller  = (float)($resellerWallet->balance ?? 0);
+
+            $ratesAllReseller = Rates::getActiveRatesByUser($tenantId, $userId);
+
+            $callMinuteCost   = (float)($ratesAllReseller['voice'] ?? 0);
+            $serviceFee       = (float)($ratesAllReseller['service_fee'] ?? 0);
+        }
+
+        try {
+            $query = [
+                'user_id'   => $userId,
+                'tenant_id' => $tenantId,
+            ];
+
+            $asterisk = new AsteriskExtensionsSip();
+
+            $payload = [
+                'extension'        => $inputData['username'],
+                'name'             => $inputData['name'] ?? $inputData['username'],
+                'password'         => $inputData['password'],
+                'caller_number'    => $inputData['caller_number'] ?? $inputData['username'],
+                'account_status'   => $inputData['account_status'] ?? 'active',
+
+                // ✅ campos do ps_endpoints
+                'balance_admin'    => $balanceAdmin,
+                'balance_reseller' => $balanceReseller,
+                'call_minute_cost' => $callMinuteCost,
+                'service_fee'      => $serviceFee,
+                'role'             => $userRole,
+                'tenant_id'        => $tenantId,
+                'user_id'          => $userId,
+            ];
+
+            $response = $asterisk->createExtension($query, $payload);
+
+            if (
+                (!empty($response['ok']) && $response['ok'] === true)
+                || (isset($response['status']) && (int)$response['status'] >= 200 && (int)$response['status'] < 300)
+            ) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => 'Ramal SIP criado com sucesso!',
+                    'data' => $response['data'] ?? $response,
+                ], 'application/json');
+            }
+
+            return new Response($response['status'] ?? 500, json_encode([
+                'success' => false,
+                'message' => $response['error'] ?? 'Falha ao criar ramal no Asterisk.',
+                'data'    => $response,
+            ]), 'application/json');
+
+        } catch (\Throwable $e) {
+            return new Response(500, json_encode([
+                'success' => false,
+                'message' => 'Erro ao criar Ramal SIP: ' . $e->getMessage()
+            ]), 'application/json');
+        }
+    }
+
+
+    public static function getEditSipDevices($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $query = [
+            'user_id' => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+        $response = $asterisk->getExtensionById($query, $id);
+
+        if (empty($response['ok'])) {
+            return new Response(404, [
+                'success' => false,
+                'message' => $response['error'] ?? "Ramal SIP #{$id} não encontrado.",
+            ], 'application/json');
+        }
+
+        $data = $response['data']['data'] ?? $response['data'] ?? [];
+
+        return new Response(200, [
+            'success' => true,
+            'message' => 'Ramal SIP encontrado.',
+            'data' => $data,
+        ], 'application/json');
+    }
+
+    public static function setEditSipDevices($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        // 🔒 Verifica autenticação
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 📥 Lê o corpo da requisição
+        $inputData = json_decode(file_get_contents('php://input'), true);
+
+        // 🧩 Valida campos obrigatórios
+        if (empty($inputData['password'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'O campo "password" é obrigatório.'
+            ], 'application/json');
+        }
+
+        try {
+            // ⚙️ Dados básicos do usuário logado
+            $query = [
+                'user_id' => $obUser['id'],
+                'tenant_id' => $obUser['tenancy_id'],
+            ];
+
+            // 🧱 Monta payload para atualização
+            $payload = [
+                'extension' => $id,
+                'password' => $inputData['password'],
+                'name' => $inputData['name'],
+                'caller_number' => $inputData['caller_number'] ?? $id,
+                'account_status' => $inputData['account_status'] ?? 'active',
+                'tenant_id' => $obUser['tenancy_id'],
+                'user_id' => $obUser['id'],
+            ];
+
+            // 🔗 Chama a API Asterisk (rota update_extension)
+            $asterisk = new AsteriskExtensionsSip();
+            $response = $asterisk->updateExtension($query, $payload);
+
+            // ✅ Sucesso
+            if (!empty($response['ok']) && $response['ok'] === true) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => 'Ramal SIP atualizado com sucesso!',
+                    'data' => $response['data'] ?? $response
+                ], 'application/json');
+            }
+
+            // ❌ Erro na API
+            return new Response($response['status'] ?? 500, [
+                'success' => false,
+                'message' => $response['error'] ?? 'Falha ao atualizar o Ramal SIP.',
+                'data' => $response
+            ], 'application/json');
+
+        } catch (\Throwable $e) {
+            // ❌ Erro interno
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro ao editar Ramal SIP: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+    public static function setDeleteSipDevices(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        // 🔒 Verifica autenticação
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 📥 Lê corpo JSON
+        $inputData = json_decode(file_get_contents('php://input'), true);
+
+        // 🧩 Valida o formato
+        if (empty($inputData['ids']) || !is_array($inputData['ids'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Nenhum ramal informado para exclusão.'
+            ], 'application/json');
+        }
+
+        // ⚙️ Parâmetros básicos do usuário logado
+        $query = [
+            'user_id' => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+        $deleted = [];
+        $failed = [];
+
+        foreach ($inputData['ids'] as $extensionId) {
+            try {
+                // 🔹 Monta payload individual
+                $payload = [
+                    'extension' => $extensionId,
+                    'tenant_id' => $obUser['tenancy_id'],
+                    'user_id' => $obUser['id'],
+                ];
+
+                // 🔹 Chama API de exclusão
+                $response = $asterisk->deleteExtension($query, $payload);
+
+                if (!empty($response['ok']) && $response['ok'] === true) {
+                    $deleted[] = $extensionId;
+                } else {
+                    $failed[] = [
+                        'id' => $extensionId,
+                        'error' => $response['error'] ?? 'Falha desconhecida ao excluir ramal.',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $failed[] = [
+                    'id' => $extensionId,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        //exit();
+
+        // ✅ Retorno final
+        $statusCode = empty($failed) ? 200 : 207; // 207 = Multi-Status
+        return new Response($statusCode, [
+            'success' => empty($failed),
+            'message' => empty($failed)
+                ? count($deleted) . ' ramal(is) excluído(s) com sucesso.'
+                : 'Alguns ramais não puderam ser excluídos.',
+            'deleted' => $deleted,
+            'failed' => $failed
+        ], 'application/json');
+    }
+
+
+    public static function setStatusSipDevices($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        // 🔒 Verifica autenticação
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 📥 Lê o corpo JSON enviado (contém o novo status)
+        $inputData = json_decode(file_get_contents('php://input'), true);
+        $newStatus = $inputData['account_status'] ?? null;
+
+        // ⚠️ Valida status
+        if (!in_array($newStatus, ['active', 'inactive'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Status inválido. Use "active" ou "inactive".'
+            ], 'application/json');
+        }
+
+        try {
+            // ⚙️ Query padrão com dados do usuário autenticado
+            $query = [
+                'user_id' => $obUser['id'],
+                'tenant_id' => $obUser['tenancy_id'],
+            ];
+
+            // 🧱 Payload enviado para o Asterisk
+            $payload = [
+                'extension' => $id,
+                'account_status' => $newStatus,
+                'tenant_id' => $obUser['tenancy_id'],
+                'user_id' => $obUser['id'],
+            ];
+
+            // 🔗 Chama a API do Asterisk
+            $asterisk = new AsteriskExtensionsSip();
+            $response = $asterisk->updateStatus($query, $payload);
+
+
+            // ✅ Se tudo deu certo
+            if (!empty($response['ok']) && $response['ok'] === true) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => "Status do ramal {$id} atualizado para '{$newStatus}'.",
+                    'data' => $response['data'] ?? []
+                ], 'application/json');
+            }
+
+            // ❌ Erro retornado pela API
+            return new Response($response['status'] ?? 500, [
+                'success' => false,
+                'message' => $response['error'] ?? 'Falha ao atualizar o status do ramal.',
+                'data' => $response
+            ], 'application/json');
+
+        } catch (\Throwable $e) {
+            // ❌ Erro interno
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro ao atualizar status: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+
+    public static function getVoiceTrunksView(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $role = strtolower((string)($obUser['function'] ?? ''));
+
+        // ⚙️ Query: super_admin vê tudo (não manda tenant/user)
+        $query = [
+            'role' => $role,
+        ];
+
+        if ($role !== 'super_admin') {
+            $query['tenant_id'] = $obUser['tenancy_id'];
+
+            // 🔥 NÃO manda user_id aqui, deixa o controller filtrar
+            // (senão a model restringe e pode voltar vazio pro reseller)
+            // $query['user_id'] = $obUser['id'];
+        }
+
+        $asterisk = new AsteriskExtensionsSip();
+        $result   = $asterisk->listTrunks($query);
+
+        if (empty($result['ok']) || !$result['ok']) {
+            return new Response(
+                $result['status'] ?? 500,
+                [
+                    'status'  => $result['status'] ?? 500,
+                    'success' => false,
+                    'error'   => $result['error'] ?? 'Falha ao consultar SIP Trunks',
+                    'info'    => $result['info'] ?? null,
+                ],
+                'application/json'
+            );
+        }
+
+        // 🧩 Normaliza retorno
+        $data = $result['data']['data'] ?? $result['data'] ?? [];
+
+        // 🔐 Filtro por perfil (com is_system liberado)
+        switch ($role) {
+
+            case 'super_admin':
+                // vê tudo
+                break;
+
+            case 'admin':
+                // ✅ system + tenant + trunks do próprio admin
+                $data = array_filter($data, fn($t) =>
+                    (int)($t['is_system'] ?? 0) === 1
+                    || (isset($t['tenant_id']) && $t['tenant_id'] === $obUser['tenancy_id'])
+                    || (isset($t['user_id']) && (int)$t['user_id'] === (int)$obUser['id'])
+                );
+                break;
+
+            case 'reseller':
+                // ✅ system + tenant + trunks do próprio reseller
+                $data = array_filter($data, fn($t) =>
+                    (int)($t['is_system'] ?? 0) === 1
+                    || (isset($t['tenant_id']) && $t['tenant_id'] === $obUser['tenancy_id'])
+                    || (isset($t['user_id']) && (int)$t['user_id'] === (int)$obUser['id'])
+                );
+                break;
+
+
+            default:
+                // user comum: só system (ou vazio, escolha sua regra)
+                $data = array_filter($data, fn($t) =>
+                    (int)($t['is_system'] ?? 0) === 1
+                );
+                break;
+        }
+
+        $data = array_values($data);
+
+        //echo "<pre>";
+        //print_r($data);
+        //echo "</pre>";exit();
+
+        return new Response(200, [
+            'status'  => 200,
+            'success' => true,
+            'message' => 'SIP Trunks encontrados com sucesso.',
+            'total'   => count($data),
+            'meta'    => [
+                'role' => strtolower((string)$obUser['function']),
+            ],
+            'data'    => $data,
+        ], 'application/json');
+    }
+
+
+
+
+    public static function setNewVoiceTrunks(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        //echo "<pre>";
+        //print_r($input);
+        //echo "</pre>";exit;
+
+        // 🔎 Validação mínima
+        if (empty($input['name']) || empty($input['host']) || empty($input['auth_type'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Campos obrigatórios: name, host, auth_type.'
+            ], 'application/json');
+        }
+
+        if ($input['auth_type'] === 'register' &&
+            (empty($input['username']) || empty($input['password']))) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'REGISTER exige username e password.'
+            ], 'application/json');
+        }
+
+        $userRole = strtolower($obUser['function']);
+
+        $allowedRoles = ['super_admin', 'admin', 'reseller'];
+
+        $serviceSee = 0.03;
+
+        if (!in_array($userRole, $allowedRoles, true)) {
+            return new Response(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para criar SIP Trunks.'
+            ], 'application/json');
+        }
+
+
+        try {
+
+            $query = [
+                'user_id'   => $obUser['id'],
+                'tenant_id' => $obUser['tenancy_id'],
+            ];
+
+            $asterisk = new AsteriskExtensionsSip();
+
+            // 🎯 PAYLOAD DE TRUNK
+            $payload = [
+                'name'       => $input['name'],
+                'host'       => $input['host'],
+                'auth_type'  => $input['auth_type'], // register | ip
+                'username'   => $input['username'] ?? null,
+                'password'   => $input['password'] ?? null,
+                'port'       => (int)($input['port'] ?? 5060),
+                'transport'  => $input['transport'] ?? 'udp',
+                'direction'  => $input['direction'] ?? 'both',
+                'cli_type'   => $input['cli_type']?? 'bina_inteligente',
+                'techprefix' => $input['techprefix'] ?? '',
+                'dial_prefix' => $input['dial_prefix'] ?? '',
+                'service_fee' => $serviceSee,
+                'status'     => $input['status'] ?? 'active',
+                'tenant_id'  => $obUser['tenancy_id'],
+                'user_id'    => $obUser['id'],
+            ];
+
+            // 🔥 CHAMADA CERTA (não é extension)
+            $response = $asterisk->createSipTrunk($query, $payload);
+
+            if (!empty($response['ok'])) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => 'SIP Trunk criado com sucesso!',
+                    'data'    => $response['data'] ?? []
+                ], 'application/json');
+            }
+
+            return new Response(500, [
+                'success' => false,
+                'message' => $response['error'] ?? 'Erro ao criar SIP Trunk.'
+            ], 'application/json');
+
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+    public static function setEditSipTrunks($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 📥 Lê o corpo da requisição
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+
+        // 🧩 validações básicas
+        $authType = strtolower(trim((string)($input['auth_type'] ?? 'register'))); // register | ip
+
+        if (empty($input['name'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'O campo "name" é obrigatório.'
+            ], 'application/json');
+        }
+
+        if (empty($input['host'])) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'O campo "host" é obrigatório.'
+            ], 'application/json');
+        }
+
+        // Se for register, normalmente precisa username e password
+        if ($authType === 'register') {
+            if (empty($input['username'])) {
+                return new Response(400, [
+                    'success' => false,
+                    'message' => 'O campo "username" é obrigatório quando auth_type = register.'
+                ], 'application/json');
+            }
+
+            if (!array_key_exists('password', $input) || $input['password'] === '') {
+                return new Response(400, [
+                    'success' => false,
+                    'message' => 'O campo "password" é obrigatório quando auth_type = register.'
+                ], 'application/json');
+            }
+        }
+
+        // Se for ip, não força username/password
+        if ($authType !== 'register' && $authType !== 'ip') {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'auth_type inválido. Use "register" ou "ip".'
+            ], 'application/json');
+        }
+
+        $query = [
+            'user_id'   => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+        $response = $asterisk->getTrunkById($query, $id);
+
+        $current = $response['data']['data'] ?? $response['data'] ?? null;
+        if (!$current || !is_array($current)) {
+            return new Response(404, [
+                'success' => false,
+                'message' => "SIP Trunk #{$id} não encontrado.",
+            ], 'application/json');
+        }
+
+        $role = strtolower((string)($obUser['function'] ?? ''));
+
+        // 🔒 1) trava trunk de sistema
+        if ((int)($current['is_system'] ?? 0) === 1 && $role !== 'super_admin') {
+            return new Response(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para editar este trunk.',
+            ], 'application/json');
+        }
+
+        // 🔒 2) autorização por perfil
+        if ($role === 'admin') {
+            if (($current['tenant_id'] ?? null) !== $obUser['tenancy_id']) {
+                return new Response(403, [
+                    'success' => false,
+                    'message' => 'Você não tem permissão para editar este trunk.',
+                ], 'application/json');
+            }
+        } elseif ($role === 'reseller') {
+            if ((int)($current['user_id'] ?? 0) !== (int)$obUser['id']) {
+                return new Response(403, [
+                    'success' => false,
+                    'message' => 'Você não tem permissão para editar este trunk.',
+                ], 'application/json');
+            }
+        } elseif ($role !== 'super_admin') {
+            return new Response(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para editar trunks.',
+            ], 'application/json');
+        }
+
+        $serviceSee = 0.03;
+
+
+        try {
+
+
+            // ✅ payload (trunk)
+            $payload = [
+                'id'         => (int)$id, // importante pro update
+                'trunk_id'  => (string)$input['trunk_id'],
+                'name'       => (string)$input['name'],
+                'host'       => (string)$input['host'],
+                'auth_type'  => $authType,
+                'username'   => $input['username'] ?? null,
+                'password'   => $input['password'] ?? null,
+                'port'       => (int)($input['port'] ?? 5060),
+                'transport'  => strtolower((string)($input['transport'] ?? 'udp')),
+                'direction'  => strtolower((string)($input['direction'] ?? 'outbound')),
+                'cli_type'   => $input['cli_type']?? 'bina_inteligente',
+                'techprefix' => (string)($input['techprefix'] ?? ''),
+                'dial_prefix' => $input['dial_prefix'] ?? '',
+                'service_fee' => $serviceSee,
+                'status'     => (string)($input['status'] ?? 'active'),
+                'tenant_id'  => (string)$obUser['tenancy_id'],
+                'user_id'    => (int)$obUser['id'],
+            ];
+
+            $response = $asterisk->updateSipTrunks($query, $payload);
+
+            if (!empty($response['ok']) && $response['ok'] === true) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => 'SIP Trunk atualizado com sucesso!',
+                    'data'    => $response['data'] ?? $response
+                ], 'application/json');
+            }
+
+            return new Response($response['status'] ?? 500, [
+                'success' => false,
+                'message' => $response['error'] ?? 'Falha ao atualizar o SIP Trunk.',
+                'data'    => $response
+            ], 'application/json');
+
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro ao editar SIP Trunk: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+    public static function setStatusSipTrunks($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $inputData = json_decode(file_get_contents('php://input'), true) ?: [];
+        $newStatus = $inputData['status'] ?? null;
+
+        if (!in_array($newStatus, ['active', 'inactive'], true)) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Status inválido. Use "active" ou "inactive".'
+            ], 'application/json');
+        }
+
+        try {
+            $query = [
+                'user_id'   => $obUser['id'],
+                'tenant_id' => $obUser['tenancy_id'],
+            ];
+
+            $asterisk = new AsteriskExtensionsSip();
+
+            // 1) Busca trunk
+            $check = $asterisk->getTrunkById($query, $id);
+
+            if (($check['ok'] ?? false) !== true) {
+                return new Response($check['status'] ?? 404, [
+                    'success' => false,
+                    'message' => $check['error'] ?? "SIP Trunk #{$id} não encontrado.",
+                    'data'    => $check
+                ], 'application/json');
+            }
+
+
+            // 2) Extrai trunk_id com fallback
+            $row = $check['data'] ?? [];
+            // se seu getTrunkById retornar { data: { trunk_id: ... } }:
+            if (isset($row['data']) && is_array($row['data'])) {
+                $row = $row['data'];
+            }
+
+            $trunkId = (string)($row['trunk_id'] ?? $row['id'] ?? '');
+
+            if ($trunkId === '') {
+                return new Response(500, [
+                    'success' => false,
+                    'message' => 'Falha ao obter trunk_id do trunk.',
+                    'data'    => $check
+                ], 'application/json');
+            }
+
+            // 3) Atualiza status
+            $payload = [
+                'trunk_id'  => $trunkId,
+                'status'    => $newStatus,
+                'tenant_id' => $obUser['tenancy_id'],
+                'user_id'   => $obUser['id'],
+            ];
+
+            $response = $asterisk->updateStatusSipTrunks($query, $payload);
+
+
+            if (!empty($response['ok']) && $response['ok'] === true) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => "Status do trunk {$trunkId} atualizado para '{$newStatus}'.",
+                    'data'    => $response['data'] ?? []
+                ], 'application/json');
+            }
+
+            return new Response($response['status'] ?? 500, [
+                'success' => false,
+                'message' => $response['error'] ?? 'Falha ao atualizar o status do trunk.',
+                'data'    => $response
+            ], 'application/json');
+
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro ao atualizar status: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
+
+
+    public static function setDeleteSipTrunks(): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        // 🔒 Verifica autenticação
+        if (!$obUser) {
+            return new Response(401, [
+                'status'  => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // 📥 Lê corpo JSON
+        $inputData = json_decode(file_get_contents('php://input'), true) ?: [];
+
+        // ✅ Aceita 1 id ou array
+        $idsRaw = $inputData['ids'] ?? null;
+
+        if (empty($idsRaw)) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Nenhum trunk informado para exclusão.'
+            ], 'application/json');
+        }
+
+        $ids = is_array($idsRaw) ? $idsRaw : [$idsRaw];
+
+        // ⚙️ Parâmetros básicos do usuário logado (vai no query string)
+        $query = [
+            'user_id'   => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+
+        $deleted = [];
+        $failed  = [];
+
+        // 🔍 Normaliza ids e remove duplicados
+        $normalizedIds = [];
+        foreach ($ids as $idRaw) {
+            $id = (int)$idRaw;
+
+            if ($id <= 0) {
+                $failed[] = [
+                    'id'    => $idRaw,
+                    'error' => 'id inválido.'
+                ];
+                continue;
+            }
+
+            $normalizedIds[] = $id;
+        }
+        $normalizedIds = array_values(array_unique($normalizedIds));
+
+        if (empty($normalizedIds)) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Nenhum id válido informado para exclusão.',
+                'deleted' => [],
+                'failed'  => $failed,
+            ], 'application/json');
+        }
+
+        // 🔁 Processa cada trunk
+        foreach ($normalizedIds as $id) {
+            try {
+                // 1) Confirma se existe pelo ID (int)
+                $check = $asterisk->getTrunkById($query, $id);
+
+                if (($check['ok'] ?? false) !== true || empty($check['data'])) {
+                    $failed[] = [
+                        'id'    => $id,
+                        'error' => $check['error'] ?? "SIP Trunk #{$id} não encontrado.",
+                    ];
+                    continue;
+                }
+
+                // 2) Pega trunk_id (string) para deletar de verdade
+                $body = $check['data'] ?? [];            // aqui vem: success/message/data
+                $row  = $body['data'] ?? [];             // aqui vem: id, trunk_id, name...
+
+                $trunkId = (string)($row['trunk_id'] ?? '');
+
+                if ($trunkId === '') {
+                    $failed[] = [
+                        'id'    => $id,
+                        'error' => 'Registro encontrado, mas trunk_id não veio no retorno (formato inesperado).',
+                    ];
+                    continue;
+                }
+
+                // 3) Chama delete (API espera trunk_id)
+                $payload = [
+                    'trunk_id'  => $trunkId,
+                    'tenant_id' => $obUser['tenancy_id'],
+                    'user_id'   => $obUser['id'],
+                ];
+
+                $resp = $asterisk->deleteSipTrunks($query, $payload);
+
+                $status = (int)($resp['status'] ?? 0);
+                $okHttp = $status >= 200 && $status < 300;
+
+                // sua request() parece retornar algo como ['status'=>..., 'data'=>..., 'error'=>...]
+                // então consideramos sucesso se HTTP 2xx ou se vier success=true no data
+                $okApp = (bool)($resp['data']['success'] ?? false);
+
+                if ($okHttp && ($okApp || empty($resp['data']) === false)) {
+                    // Marca como deletado pelo ID local (pra casar com o front)
+                    $deleted[] = $id;
+                } else {
+                    $failed[] = [
+                        'id'    => $id,
+                        'error' => $resp['data']['message'] ?? $resp['error'] ?? 'Falha desconhecida ao excluir trunk.',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $failed[] = [
+                    'id'    => $id,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        // ✅ Status code final
+        // 200: tudo ok
+        // 207: parcial
+        // 404: nenhum deletado (todos falharam / não encontrados)
+        if (!empty($deleted) && empty($failed)) {
+            $statusCode = 200;
+        } elseif (!empty($deleted) && !empty($failed)) {
+            $statusCode = 207;
+        } else {
+            $statusCode = 404;
+        }
+
+        return new Response($statusCode, [
+            'success' => !empty($deleted) && empty($failed),
+            'message' => !empty($deleted) && empty($failed)
+                ? count($deleted) . ' trunk(s) excluído(s) com sucesso.'
+                : (!empty($deleted)
+                    ? 'Alguns trunks não puderam ser excluídos.'
+                    : 'Nenhum trunk pôde ser excluído.'),
+            'deleted' => $deleted,
+            'failed'  => $failed
+        ], 'application/json');
+    }
+
+    public static function setActionVoiceCampaign($id, $action): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['status' => 401, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $action = strtolower((string)$action);
+
+        if (!in_array($action, ['pause', 'resume', 'resend'], true)) {
+            return new Response(400, ['status' => 400, 'message' => 'Ação inválida'], 'application/json');
+        }
+
+        $campaign = CampaignVoice::getById((int)$id);
+        if (!$campaign) {
+            return new Response(404, ['status' => 404, 'message' => 'Campanha não encontrada'], 'application/json');
+        }
+
+        // 🔒 Permissão (tenancy + opcional user_id p/ reseller/user)
+        $role = strtolower((string)($obUser['function'] ?? ''));
+        if ($role !== 'super_admin') {
+            if ((string)$campaign['tenancy_id'] !== (string)$obUser['tenancy_id']) {
+                return new Response(403, ['status' => 403, 'message' => 'Sem permissão'], 'application/json');
+            }
+
+            // opcional (recomendado): reseller/user só mexe nas próprias
+            if (in_array($role, ['reseller', 'user'], true)) {
+                if ((int)$campaign['user_id'] !== (int)$obUser['id']) {
+                    return new Response(403, ['status' => 403, 'message' => 'Sem permissão'], 'application/json');
+                }
+            }
+        }
+
+        $jobId = (string)($campaign['job_id'] ?? '');
+        if ($jobId === '') {
+            return new Response(400, ['status' => 400, 'message' => 'Campanha sem job_id'], 'application/json');
+        }
+
+        try {
+            $redis = new RedisClient([
+                'scheme'   => 'tcp',
+                'host'     => '192.168.1.8',
+                'password' => 'mxx123',
+                'port'     => 6379,
+            ]);
+        } catch (Throwable $e) {
+            return new Response(500, [
+                'status'  => 500,
+                'message' => 'Falha ao conectar no Redis.',
+                'details' => $e->getMessage()
+            ], 'application/json');
+        }
+
+        $pauseKey     = "campaign:pause:job:{$jobId}";
+        $jobHashKey   = "campaign:{$jobId}";
+        $pausedQueue  = "voice:paused:job:{$jobId}";
+        $dlqQueue     = "voice:dlq:job:{$jobId}";
+        $retryPrefix  = "campaign:{$jobId}:retry:"; // onde você grava retry por call_id
+
+        // ======================
+        // PAUSE
+        // ======================
+        if ($action === 'pause') {
+            $redis->set($pauseKey, '1');
+            $redis->expire($pauseKey, 86400);
+
+            $redis->hset($jobHashKey, 'status', 'paused');
+            $redis->expire($pausedQueue, 86400);
+
+            CampaignVoice::updateStatusByJob($jobId, 'n');
+
+            return new Response(200, ['ok' => true, 'status' => 'n'], 'application/json');
+        }
+
+        // ======================
+        // RESUME
+        // ======================
+        if ($action === 'resume') {
+            $redis->del($pauseKey);
+            $redis->hset($jobHashKey, 'status', 'pending');
+
+            CampaignVoice::updateStatusByJob($jobId, 'y');
+
+            // devolve payloads segurados
+            $max = 20000;
+            for ($i = 0; $i < $max; $i++) {
+                $p = $redis->lpop($pausedQueue);
+                if (!$p) break;
+                $redis->rpush('voice:queue', $p);
+            }
+
+            return new Response(200, ['ok' => true, 'status' => 'y'], 'application/json');
+        }
+
+        // ======================
+        // RESEND (DLQ -> QUEUE)
+        // ======================
+
+        if ($action === 'resend') {
+
+            $st = strtolower((string)($campaign['status'] ?? ''));
+            if ($st !== 'c') {
+                return new Response(400, [
+                    'status'  => 400,
+                    'message' => 'Somente campanhas canceladas podem ser reenviadas.'
+                ], 'application/json');
+            }
+
+            // =========================
+            // RESEND RATE LIMIT (5 tentativas / 60s)
+            // =========================
+            $limitKey = "campaign:{$jobId}:resend:attempts";
+            $blockKey = "campaign:{$jobId}:resend:blocked";
+
+            // se já estiver bloqueada
+            $blocked = (int)$redis->get($blockKey);
+            if ($blocked > 0) {
+                return new Response(429, [
+                    'status'  => 429,
+                    'message' => 'Reenvio temporariamente bloqueado. Tente novamente em 60s.',
+                    'blocked' => true,
+                    'retry_in'=> $blocked
+                ], 'application/json');
+            }
+
+            // incrementa tentativas
+            $attempts = (int)$redis->incr($limitKey);
+
+            // janela de contagem = 60s
+            if ($attempts === 1) {
+                $redis->expire($limitKey, 60);
+            }
+
+            // estourou limite
+            if ($attempts > 5) {
+
+                // bloqueia por 60s
+                $redis->setex($blockKey, 60, 60);
+
+                return new Response(429, [
+                    'status'  => 429,
+                    'message' => 'Você tentou reenviar muitas vezes. Aguarde 1 minuto.',
+                    'blocked' => true,
+                    'retry_in'=> 60
+                ], 'application/json');
+            }
+
+            $redis->del($pauseKey);
+
+            $redis->hset($jobHashKey, 'status', 'pending');
+            $redis->hset($jobHashKey, 'failed_calls', 0);
+
+            // limpa retry keys
+            $it = null;
+            $keysToDelete = [];
+            do {
+                $keys = $redis->scan($it, ['match' => $retryPrefix . '*', 'count' => 200]);
+                if (is_array($keys)) foreach ($keys as $k) if ($k) $keysToDelete[] = $k;
+            } while ($it !== 0 && $it !== null);
+
+            if (!empty($keysToDelete)) $redis->del(...$keysToDelete);
+
+            // =========================
+            // DLQ -> QUEUE (SEM CONSUMIR)
+            // =========================
+            $sources = [
+                $dlqQueue,   // voice:dlq:job:{jobId}
+                'voice:dlq', // fallback global
+            ];
+            $sources = array_values(array_unique(array_filter($sources)));
+
+            $moved = 0;
+            $invalid = 0;
+            $badjson = 0;
+
+            // dedupe durante ESTE resend (60s)
+            $seenSet = "campaign:{$jobId}:resend:seen";
+            $redis->del($seenSet);
+            $redis->expire($seenSet, 60);
+
+            foreach ($sources as $src) {
+
+                // pega snapshot do conteúdo sem consumir
+                $items = $redis->lrange($src, 0, -1);
+                if (!is_array($items) || count($items) === 0) continue;
+
+                foreach ($items as $p) {
+
+                    if (!is_string($p)) $p = (string)$p;
+
+                    $dlqItem = json_decode($p, true);
+                    if (!is_array($dlqItem)) { $invalid++; continue; }
+
+                    $raw = $dlqItem['raw'] ?? null;
+                    if (!is_string($raw) || $raw === '') { $invalid++; continue; }
+
+                    $data = json_decode($raw, true);
+                    if (!is_array($data)) { $badjson++; continue; }
+
+                    $callId = trim((string)($data['call_id'] ?? ''));
+                    if ($callId === '') $callId = sha1($raw);
+
+                    // evita duplicar dentro do mesmo clique
+                    if ($redis->sadd($seenSet, $callId) !== 1) continue;
+
+                    $redis->rpush('voice:queue', $raw);
+                    $moved++;
+                }
+
+                if ($moved > 0) break;
+            }
+
+            // ✅ agora NÃO É ERRO: só não tinha nada novo a reenviar
+            if ($moved <= 0) {
+                $lenJob = $redis->llen($dlqQueue);
+                $lenAll = $redis->llen('voice:dlq');
+
+                return new Response(200, [
+                    'ok'     => true,
+                    'status' => 'y',
+                    'moved'  => 0,
+                    'message'=> 'Nenhum item novo para reenviar. Campanha continua reenviável.',
+                    'meta'   => [
+                        'invalid_raw' => $invalid,
+                        'badjson'     => $badjson,
+                        'len_job'     => $lenJob,
+                        'len_global'  => $lenAll,
+                    ]
+                ], 'application/json');
+            }
+
+            // volta pra ativa
+            CampaignVoice::updateStatusByJob($jobId, 'y');
+
+            return new Response(200, [
+                'ok'     => true,
+                'status' => 'y',
+                'moved'  => $moved,
+            ], 'application/json');
+        }
+
+        // fallback (não deve cair aqui)
+        return new Response(400, ['status' => 400, 'message' => 'Ação inválida'], 'application/json');
+    }
+
+}
+

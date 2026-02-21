@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="pt-br" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr"
+  data-pc-theme="light">
+<!-- [Head] start -->
+
+<head>
+  <title>{{title}}</title>
+  <!-- [Meta] -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="description"
+    content="Maxx Solutions SMS é uma plataforma moderna para envio e gestão de mensagens SMS em massa, com painel intuitivo e recursos avançados." />
+  <meta name="keywords"
+    content="SMS em massa, plataforma SMS, painel SMS, marketing por SMS, envio de SMS, gestão de mensagens, Maxx Solutions" />
+  <meta name="author" content="Maxx Solutions" />
+
+  <meta name="base-url" content="{{URL}}">
+
+
+  <!-- [Favicon] icon -->
+  <link rel="icon" href="{{URL}}/resources/view/login/assets/images/favicon.ico" type="image/x-icon" />
+  <!-- [Font] Family -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <!-- [phosphor Icons] https://phosphoricons.com/ -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/phosphor/duotone/style.css" />
+  <!-- [Tabler Icons] https://tablericons.com -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css" />
+  <!-- [Feather Icons] https://feathericons.com -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/feather.css" />
+  <!-- [Font Awesome Icons] https://fontawesome.com/icons -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/fontawesome.css" />
+  <!-- [Material Icons] https://fonts.google.com/icons -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/material.css" />
+  <!-- [Template CSS Files] -->
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/style.css" id="main-style-link" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/notify.css" />
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.google.com/recaptcha/api.js?hl=pt-BR" async defer></script>
+
+</head>
+<!-- [Head] end -->
+<!-- [Body] Start -->
+
+<body>
+  <!-- [ Pre-loader ] start -->
+  <div class="loader-bg fixed inset-0 bg-white dark:bg-themedark-cardbg z-[1034]">
+    <div class="loader-track h-[5px] w-full inline-block absolute overflow-hidden top-0">
+      <div
+        class="loader-fill w-[300px] h-[5px] bg-primary-500 absolute top-0 left-0 animate-[hitZak_0.6s_ease-in-out_infinite_alternate]">
+      </div>
+    </div>
+  </div>
+  <!-- [ Pre-loader ] End -->
+
+  <div class="auth-main relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
+    <div class="auth-wrapper v1 flex items-center w-full h-full min-h-screen">
+      <div class="auth-form flex items-center justify-center grow flex-col min-h-screen relative p-6">
+        <div class="w-full max-w-[350px] relative">
+
+          <!-- Fundo animado com gradiente -->
+
+          <div class="auth-bg ">
+            <span class="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
+            <span class="absolute top-[150px] right-[-150px] w-5 h-5 block rounded-full bg-primary-500 animate-[floating_9s_infinite]"></span>
+            <span class="absolute left-[-150px] bottom-[150px] w-5 h-5 block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
+            <span class="absolute left-[-100px] bottom-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-2 animate-[floating_9s_infinite]"></span>
+          </div>
+
+
+
+
+          <!-- Card -->
+          <div class="card sm:my-12 w-full shadow-lg rounded-3xl bg-white/90 backdrop-blur-lg hover:shadow-2xl transition-all duration-500">
+            <div class="card-body !p-10">
+
+              <!-- Logo com leve animação pulsante -->
+              <div class="text-center mb-8 animate-bounce">
+                <a href="#"><img src="{{URL}}/resources/view/login/assets/images/12344.svg" alt="img" class="mx-auto auth-logo" /></a>
+              </div>
+
+              <!-- Formulário -->
+              <form method="post">
+                <h4 class="text-center text-3xl font-extrabold mb-6 text-primary-500 drop-shadow-md animate-fadeIn">
+                  Login
+                </h4>
+
+                <!-- Email -->
+                <div class="mb-3 relative">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 z-10">
+          <i class="ti ti-mail"></i>
+        </span>
+                  <input type="text" id="email" placeholder="E-mail ou Código"
+                         class="form-control pl-10 pr-4 py-3 w-full rounded-xl bg-white/80 border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg focus:-translate-y-0.5 focus:outline-none transition-all duration-300" />
+                </div>
+
+                <!-- Senha -->
+                <div class="mb-4 relative">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 z-10">
+          <i class="ti ti-lock"></i>
+        </span>
+                  <input type="password" id="password" placeholder="Senha"
+                         class="form-control pl-10 pr-4 py-3 w-full rounded-xl bg-white/80 border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg focus:-translate-y-0.5 focus:outline-none transition-all duration-300" />
+                </div>
+
+                <!-- reCAPTCHA v2 -->
+                <div class="g-recaptcha mb-4 flex justify-center" data-sitekey="6LdQtMIrAAAAAIuljlumdvPTmYFQoR4RnLC5RY6B"></div>
+
+                <!-- Lembrar-me e Esqueceu -->
+                <div class="flex mt-1 justify-between items-center flex-wrap">
+                  <div class="form-check">
+                    <input class="form-check-input input-primary" type="checkbox" id="remember" checked />
+                    <label class="form-check-label text-muted" for="remember">Manter-me conectado</label>
+                  </div>
+                  <h6 class="font-normal text-primary-500 mb-0">
+                    <a href="{{URL}}/reset-pass"> Esqueceu a Senha? </a>
+                  </h6>
+                </div>
+
+
+
+
+                <!-- Botão login -->
+                <div class="mt-4 text-center">
+                  <button id="btnLogin"
+                          class="btn btn-primary mx-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 active:translate-y-0.5 shadow-lg hover:shadow-2xl transition-all text-white font-semibold relative">
+                    <span class="btn-text">Entrar</span>
+                    <svg class="btn-spinner hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                         fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Criar conta -->
+                <div class="flex justify-between items-end flex-wrap mt-4">
+                  <h6 class="font-medium mb-0 text-gray-800">Não possui conta?</h6>
+                  <a href="{{URL}}/register" class="text-primary-500 hover:underline flex items-center gap-1">
+                    <i class="ti ti-user"></i>
+                    Criar conta
+                  </a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- [ Main Content ] end -->
+  <!-- Required Js -->
+  <script src="{{URL}}/resources/view/login/assets/js/plugins/simplebar.min.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/plugins/popper.min.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/icon/custom-icon.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/plugins/feather.min.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/component.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/theme.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/script.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
+
+
+
+  <div class="floting-button fixed bottom-[50px] right-[30px] z-[1030]">
+  </div>
+
+
+  <script>
+    layout_change('false');
+  </script>
+
+
+  <script>
+    layout_theme_sidebar_change('dark');
+  </script>
+
+
+  <script>
+    change_box_container('false');
+  </script>
+
+  <script>
+    layout_caption_change('true');
+  </script>
+
+  <script>
+    layout_rtl_change('false');
+  </script>
+
+  <script>
+    preset_change('preset-1');
+  </script>
+
+  <script>
+    main_layout_change('vertical');
+  </script>
+
+  <!-- ===== LOGIN SCRIPT ===== -->
+  <script>
+    const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+    const btnLogin = document.querySelector('#btnLogin');
+
+    btnLogin.addEventListener('click', async (event) => {
+      event.preventDefault();
+
+      const email = document.querySelector('#email').value.trim();
+      const password = document.querySelector('#password').value.trim();
+      const remember = document.querySelector('#remember')?.checked ? 'on' : ''; // Captura o checkbox Remember Me
+      const captcha = document.querySelector('[name="g-recaptcha-response"]').value;
+
+
+
+      const dataPost = new FormData();
+      dataPost.append('email', email);
+      dataPost.append('password', password);
+      dataPost.append('remember', remember); // Envia para o backend
+      dataPost.append('g-recaptcha-response', captcha);
+
+      const notyf = new Notyf({
+        duration: 5000,
+        position: { x: 'right', y: 'top' },
+      });
+
+      // Desabilita botão para evitar duplo envio
+      btnLogin.disabled = true;
+      btnLogin.querySelector('.btn-text').classList.add('hidden');
+      btnLogin.querySelector('.btn-spinner').classList.remove('hidden');
+
+      try {
+        const url = baseUrl + "/login";
+        const response = await fetch(url, {
+          method: "POST",
+          body: dataPost
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'OK') {
+          notyf.success('Login realizado com sucesso!');
+          //localStorage.setItem('loginSuccess', 'true');
+          localStorage.setItem('loginSuccess', data.message);
+          setTimeout(() => {
+            window.location.href = baseUrl + '/dashboard';
+          }, 1500);
+        } else {
+          notyf.error(data.message || 'Erro ao realizar login.');
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        notyf.error('Erro de conexão ou servidor.');
+      } finally {
+        btnLogin.disabled = false;
+        btnLogin.querySelector('.btn-text').classList.remove('hidden');
+        btnLogin.querySelector('.btn-spinner').classList.add('hidden');
+      }
+    });
+
+  </script>
+
+</body>
+<!-- [Body] end -->
+
+</html>

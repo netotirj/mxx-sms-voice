@@ -1,0 +1,23 @@
+<?php
+
+include __DIR__.'/login/authetication.php';
+include __DIR__.'/login/sessions.php';
+include __DIR__.'/login/register.php';
+include __DIR__.'/login/reset-pass.php';
+
+include __DIR__.'/dash/dashboard.php';
+include __DIR__.'/dash/campaign.php';
+include __DIR__.'/dash/notifications.php';
+include __DIR__.'/dash/refills.php';
+include __DIR__.'/dash/reports.php';
+include __DIR__.'/dash/users.php';
+include __DIR__.'/dash/permissions.php';
+include __DIR__.'/dash/rates.php';
+include __DIR__.'/dash/voice.php';
+include __DIR__.'/dash/whatsapp.php';
+include __DIR__.'/dash/movies.php';
+
+
+
+
+

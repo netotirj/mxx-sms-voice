@@ -1,0 +1,351 @@
+<div class="w-full px-6 py-6 mx-auto">
+
+    <!-- Conteúdo -->
+    <main class="flex-1 flex flex-col">
+        <div class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-soft-xl rounded-2xl p-6">
+        <!-- Botões de opções -->
+        <div class="p-4 bg-white border-b grid grid-cols-2 md:flex gap-3">
+            <!-- Grupo 1 -->
+            <div id="group1" class="flex flex-1 gap-2">
+                <!-- SHORT CODE -->
+                <div class="relative group flex-1">
+                    <button data-value="short"
+                            class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-blue-600 text-white text-sm font-medium">
+                        SHORT CODE <br><span class="text-xs">R$ {{value_sms}}</span>
+                    </button>
+                    <span
+                            class="absolute left-1/2 -translate-x-1/2 top-full mt-2
+                                       hidden group-hover:block bg-gray-800 text-white text-xs
+                                       rounded px-2 py-1 shadow-lg z-50">
+                                                <strong>Short Code</strong><br>
+                                Um número curto, com cinco dígitos, será o remetente das mensagens SMS que você enviar.<br>
+                                Exemplo: 29000
+                    </span>
+
+                </div>
+
+                <!-- SHORT MKT -->
+                <div class="relative group flex-1">
+                    <button data-value="mkt"
+                            class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-white hover:bg-gray-50 text-sm font-medium">
+                        SHORT MKT <br><span class="text-xs text-gray-500">R$ {{value_sms}}</span>
+                    </button>
+                    <span
+                            class="absolute left-1/2 -translate-x-1/2 top-full mt-2
+                                       hidden group-hover:block bg-gray-800 text-white text-xs
+                                       rounded px-2 py-1 shadow-lg z-50">
+                                        <strong>Short MKT</strong><br>
+                                        Serviço indicado para envio de campanhas de marketing, cobranças e informações!
+
+                    </span>
+                </div>
+            </div>
+
+            <!-- Grupo 2 -->
+            <div id="group2" class="flex flex-1 gap-2">
+                <!-- SEM ACENTUAÇÃO -->
+                <div class="relative group flex-1">
+                    <button data-value="0"
+                            class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-blue-600 text-white text-sm font-medium">
+                        SEM ACENTUAÇÃO <br><span class="text-xs">7-BIT</span>
+                    </button>
+                    <span
+                            class="absolute left-1/2 -translate-x-1/2 top-full mt-2
+                                       hidden group-hover:block bg-gray-800 text-white text-xs
+                                       rounded px-2 py-1 shadow-lg z-50">
+                        <strong>SMS sem acentuação (7-bit)</strong><br>
+                        Use esta opção para <strong> mensagens sem caracteres especiais.</strong>
+                       Para mensagens com até 160 caracteres.
+                        Não pode inserir Emojis
+            </span>
+                </div>
+
+                <!-- COM ACENTUAÇÃO -->
+                <div class="relative group flex-1">
+                    <button data-value="8"
+                            class="option-btn w-full px-4 py-3 border rounded-lg shadow-sm bg-white hover:bg-gray-50 text-sm font-medium">
+                        COM ACENTUAÇÃO <br><span class="text-xs">16-BIT</span>
+                    </button>
+                    <span
+                            class="absolute left-1/2 -translate-x-1/2 top-full mt-2
+                                       hidden group-hover:block bg-gray-800 text-white text-xs
+                                       rounded px-2 py-1 shadow-lg z-50">
+                                         <strong> SMS com acentuação (16-bit)</strong><br>
+                                        Use esta opção para mensagens com caracteres especiais.
+                                        Para mensagens com até 70 caracteres.
+                                        Pode inserir Emojis
+            </span>
+                </div>
+            </div>
+        </div>
+        </div>
+
+
+        <!-- Conteúdo principal -->
+        <div class="flex-1 p-4 md:p-6 flex flex-col md:flex-row gap-6 overflow-y-auto">
+
+            <!-- Formulário -->
+            <div class="flex-1 bg-white rounded-xl shadow p-4 md:p-6">
+                <label class="block mb-2 font-medium">Mensagem</label>
+                <!--<textarea id="messageInput" class="w-full border rounded-lg p-3 h-32 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite sua mensagem..."></textarea>-->
+                <div class="relative w-full">
+                    <textarea id="messageInput" name="messageInput" rows="3" placeholder="Digite sua mensagem..." required
+                              class="w-full border rounded-lg p-3 h-32 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"></textarea>
+
+                    <button id="emojiBtn" type="button" aria-label="Selecionar emoji"
+                            class="absolute bottom-3 right-3 text-2xl cursor-pointer">😊</button>
+                </div>
+
+                <p id="counter" class="text-xs text-gray-500 mt-1">
+                    SMS cobrados: 1 / Caracteres: 0
+                </p>
+                <p id="limitWarning" class="text-red-500 text-sm mt-1 hidden">
+                    ⚠️ Limite de caracteres atingido!
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 1">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 2">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 3">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 4">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 5">
+                    <input class="border p-2 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Telefone 6">
+                </div>
+
+                <label class="flex items-start mt-6 text-sm">
+                    <input type="checkbox" class="mr-2 mt-1">
+                    <span>Estou ciente que as mensagens com links serão consideradas spam pelas operadoras.</span>
+                </label>
+
+                <button id="sendBtnUnique" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 text-sm inline-flex items-center gap-2">
+                    <span class="icon-send">Disparar</span>
+                    <span class="icon-spinner hidden">
+                        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                        </svg>
+                    </span>
+                </button>
+
+            </div>
+
+            <!-- Preview (celular) -->
+            <div class="w-full md:w-80 bg-gray-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden border-4 border-black flex flex-col">
+
+                <!-- Barra superior com notch -->
+                <div class="bg-black h-6 flex items-center justify-center relative">
+                    <div class="w-20 h-4 bg-gray-800 rounded-full"></div>
+                    <span class="absolute left-4 text-white text-xs">9:41</span>
+                    <div class="absolute right-4 flex items-center space-x-1 text-white text-xs">
+                        <span>📶</span>
+                        <span>🔋</span>
+                    </div>
+                </div>
+
+                <!-- Tela -->
+                <div class="bg-gray-100 flex flex-col flex-1 h-[500px] overflow-y-auto p-4">
+                    <!-- Mensagem recebida -->
+                    <div class="flex justify-start mb-2">
+                        <p class="bg-gray-200 text-gray-800 rounded-lg px-3 py-2 text-sm max-w-[75%]">
+                            Oi! Tudo bem?
+                        </p>
+                    </div>
+                    <!-- Mensagem digitada -->
+                    <p id="messagePreview"
+                       class="bg-blue-500 text-white rounded-lg px-3 py-2 text-sm max-w-[75%] break-words whitespace-pre-line">
+                        Digite uma mensagem 😊
+                    </p>
+
+
+                </div>
+
+                <!-- Barra inferior -->
+                <div class="bg-white p-3 border-t flex items-center space-x-2">
+                    <div class="flex-1 bg-gray-200 rounded-full px-3 py-2 text-sm text-gray-500">
+                        Mensagem...
+                    </div>
+                    <button class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center">
+                        ➤
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+
+<script type="importmap">
+    {
+      "imports": {
+        "picmo": "https://cdn.jsdelivr.net/npm/picmo@5.8.1/dist/index.js"
+      }
+    }
+</script>
+<script type="module" src="{{URL}}/resources/assets/js/emoji.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        Inputmask({ mask: "55(99)99999-9999" }).mask(
+            document.querySelectorAll("input[placeholder^='Telefone']")
+        );
+    });
+</script>
+
+
+<script type="module">
+    // ===================== GRUPOS DE OPÇÃO =====================
+    function activateGroup(groupId) {
+        const buttons = document.querySelectorAll(`#${groupId} .option-btn`);
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                buttons.forEach(b => {
+                    b.classList.remove('bg-blue-600', 'text-white');
+                    b.classList.add('bg-white', 'hover:bg-gray-50', 'text-gray-700');
+                    b.dataset.active = "false";
+                });
+
+                btn.classList.add('bg-blue-600', 'text-white');
+                btn.classList.remove('bg-white', 'hover:bg-gray-50', 'text-gray-700');
+                btn.dataset.active = "true";
+
+                // Atualiza charsetLimit se for grupo2
+                if (groupId === "group2" && window.setCharsetLimit) {
+                    const limit = (btn.dataset.value === "0") ? 160 : 70;
+                    window.setCharsetLimit(limit);
+                }
+            });
+        });
+    }
+
+    activateGroup("group1");
+    activateGroup("group2");
+
+    // ===================== INPUT DE MENSAGEM =====================
+    const input = document.getElementById("messageInput");
+    const preview = document.getElementById("messagePreview");
+    const counter = document.getElementById("counter");
+    const warning = document.getElementById("limitWarning");
+
+    if (!input) throw new Error("Elemento messageInput não encontrado.");
+
+    let charsetLimit = 160; // padrão inicial
+
+    // Função global para atualizar limite de caracteres
+    window.setCharsetLimit = function(limit) {
+        charsetLimit = limit;
+        updateCounter();
+    };
+
+    function updateCounter() {
+        let value = input.value;
+        const arr = Array.from(value);
+
+        if (arr.length > charsetLimit) {
+            value = arr.slice(0, charsetLimit).join("");
+            input.value = value;
+        }
+
+        const length = Array.from(value).length;
+        const smsCount = Math.ceil(length / charsetLimit) || 1;
+
+        if (preview) preview.innerText = length > 0 ? value : "Digite uma mensagem 😊";
+        if (counter) counter.textContent = `SMS cobrados: ${smsCount} / Caracteres: ${length} (limite ${charsetLimit})`;
+
+        if (warning) {
+            if (length >= charsetLimit) {
+                warning.classList.remove("hidden");
+                input.classList.add("border", "border-red-500");
+            } else {
+                warning.classList.add("hidden");
+                input.classList.remove("border", "border-red-500");
+            }
+        }
+    }
+
+    input.addEventListener("input", updateCounter);
+    updateCounter();
+
+
+    // ===================== FUNÇÃO SPINNER BOTÃO =====================
+    function toggleButtonSpinner(button, show = true, minVisibleMs = 1000) {
+        const spinner = button.querySelector('.icon-spinner');
+        const others = button.querySelectorAll('[class^="icon-"]:not(.icon-spinner)');
+
+        if (show) {
+            button.disabled = true;
+            spinner.classList.remove('hidden');
+            others.forEach(el => el.classList.add('hidden'));
+
+            button.dataset.spinnerStart = Date.now();
+        } else {
+            const elapsed = Date.now() - (button.dataset.spinnerStart || 0);
+            const delay = Math.max(minVisibleMs - elapsed, 0);
+
+            setTimeout(() => {
+                button.disabled = false;
+                spinner.classList.add('hidden');
+                others.forEach(el => el.classList.remove('hidden'));
+            }, delay);
+        }
+    }
+
+    // ===================== BOTÃO ENVIAR =====================
+    const sendBtn = document.querySelector("#sendBtnUnique"); // usei id único no botão
+    if (sendBtn) {
+        sendBtn.addEventListener("click", async () => {
+            // mostra loading
+            toggleButtonSpinner(sendBtn, true);
+
+            const group1Active = document.querySelector("#group1 .option-btn[data-active='true']") ||
+                document.querySelector("#group1 .option-btn");
+            const group2Active = document.querySelector("#group2 .option-btn[data-active='true']") ||
+                document.querySelector("#group2 .option-btn");
+
+            const phones = Array.from(document.querySelectorAll("input[placeholder^='Telefone']"))
+                .map(i => i.value.trim().replace(/[()\-\s]/g, ""))
+                .filter(v => v !== "");
+
+            if (!input.value.trim() || phones.length === 0) {
+                notyf.error("Preencha a mensagem e pelo menos um telefone.");
+                toggleButtonSpinner(sendBtn, false);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("message", input.value.trim());
+            formData.append("optionGroup1", group1Active?.dataset.value || "");
+            formData.append("optionGroup2", group2Active?.dataset.value || "");
+
+            phones.forEach((phone, index) => {
+                formData.append(`phones[${index}]`, phone);
+            });
+
+            try {
+                const response = await fetch("{{URL}}/campaign/single-shot-send", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (data.status === 200) {
+                    notyf.success(data.message || "SMS(s) enviado(s) com sucesso!");
+                    setTimeout(() => {
+                        window.location.href = `${baseURL}/reports`;
+                    }, 4000);
+                } else {
+                    notyf.error(data.message || "Não foi possível enviar os SMS.");
+                }
+            } catch (err) {
+                console.error("Erro:", err);
+                notyf.error("Erro de conexão ao enviar os SMS.");
+            } finally {
+                // sempre esconde o spinner no final
+                toggleButtonSpinner(sendBtn, false);
+            }
+        });
+    }
+
+</script>
+
+

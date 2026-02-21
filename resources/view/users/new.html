@@ -1,0 +1,206 @@
+<div class="w-full px-6 py-4 mx-auto">
+    <div class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-soft-xl rounded-2xl p-6">
+
+        <!-- Cabeçalho -->
+        <div class="mb-6 pb-2 border-b border-gray-200">
+            <h4 class="text-xl font-bold text-slate-700">Criar Usuário</h4>
+        </div>
+
+        <!-- Formulário -->
+        <form id="userForm" class="space-y-6">
+
+            <!-- Nome e Sobrenome -->
+            <div class="grid gap-6 md:grid-cols-2">
+                <div class="relative">
+                    <label for="first_name" class="block mb-2 text-sm font-medium text-slate-700">Nome</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 10a4 4 0 100-8 4 4 0 000 8zm0 2c-5 0-8 2.5-8 5v1h16v-1c0-2.5-3-5-8-5z"/>
+                            </svg>
+                        </span>
+                        <input type="text" id="first_name" name="first_name" placeholder="Nome"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <label for="last_name" class="block mb-2 text-sm font-medium text-slate-700">Sobrenome</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 10a4 4 0 100-8 4 4 0 000 8zm0 2c-5 0-8 2.5-8 5v1h16v-1c0-2.5-3-5-8-5z"/>
+                            </svg>
+                        </span>
+                        <input type="text" id="last_name" name="last_name" placeholder="Sobrenome"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Company e Phone -->
+            <div class="grid gap-6 md:grid-cols-2">
+                <div class="relative">
+                    <label for="company" class="block mb-2 text-sm font-medium text-slate-700">Empresa</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 10a2 2 0 012-2h12a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6zM2 6a2 2 0 012-2h12a2 2 0 012 2v2H2V6z"/>
+                            </svg>
+                        </span>
+                        <input type="text" id="company" name="company" value="{{tenancy_name}}"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled />
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <label for="phone" class="block mb-2 text-sm font-medium text-slate-700">Telefone</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2.003 5.884l2-3a1 1 0 011.414-.142l2.5 1.75a1 1 0 01.333 1.307l-1.2 2a12.042 12.042 0 005.516 5.516l2-1.2a1 1 0 011.308.333l1.75 2a1 1 0 01-.142 1.414l-3 2A1 1 0 0113 18c-5.523 0-10-4.477-10-10a1 1 0 01.003-.116z"/>
+                            </svg>
+                        </span>
+                        <input type="tel" id="phone" name="phone" value="{{tenancy_phone}}"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="relative">
+                <label for="email" class="block mb-2 text-sm font-medium text-slate-700">E-mail</label>
+                <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M2.01 6.84L12 13.08l9.99-6.24A2 2 0 0019.99 5H4a2 2 0 00-1.99 1.84z"></path>
+                                <path d="M22 8.25l-10 6.25-10-6.25V18a2 2 0 002 2h16a2 2 0 002-2V8.25z"></path>
+                            </svg>
+                        </span>
+                    <input type="email" id="email" name="email" placeholder="Seu Email"
+                           class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+            </div>
+
+
+            <!-- Senha e Confirmação -->
+            <div class="grid gap-6 md:grid-cols-2">
+                <div class="relative">
+                    <label for="password" class="block mb-2 text-sm font-medium text-slate-700">Senha</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5 8V6a5 5 0 1110 0v2h1a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1v-8a1 1 0 011-1h1zm2-2a3 3 0 116 0v2H7V6z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="password" name="password"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <label for="confirm_password" class="block mb-2 text-sm font-medium text-slate-700">Confirmar Senha</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5 8V6a5 5 0 1110 0v2h1a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1v-8a1 1 0 011-1h1zm2-2a3 3 0 116 0v2H7V6z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="confirm_password" name="confirm_password"
+                               class="form-input mt-1 block w-full border border-gray-300 rounded-lg bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Função / Role -->
+            <!-- Função + Status -->
+            <div class="flex gap-4 items-end mb-6">
+                <!-- Campo Função -->
+                <div class="flex-1">
+                    <label for="role" class="block mb-2 text-sm font-medium text-slate-700">Função</label>
+                    <select id="role" name="role" required
+                            class="form-select mt-1 block w-full border border-gray-300 rounded-lg bg-white px-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione a função</option>
+                        <option value="reseller">Revenda</option>
+                        <option value="manager">Gerente</option>
+                        <option value="financial">Financeiro</option>
+                        <option value="operator">Operador</option>
+                    </select>
+                </div>
+
+                <!-- campo  de Status -->
+                <div class="flex-1">
+                    <label for="status" class="block mb-2 text-sm font-medium text-slate-700">Status</label>
+                    <select id="status" name="status" required
+                            class="form-select mt-1 block w-full border border-gray-300 rounded-lg bg-white px-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione o status</option>
+                        <option value="active">Ativo</option>
+                        <option value="inactive">Inativo</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Botão Criar Usuário -->
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="inline-flex items-center justify-center px-6 py-2 text-white text-sm font-bold uppercase rounded-lg bg-gradient-to-tl from-green-500 to-green-700 shadow-md hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
+                    Criar Usuário
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+
+    const form = document.getElementById('userForm');
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (form && submitButton) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Cria spinner dentro do botão
+            const spinner = document.createElement('span');
+            spinner.classList.add('loader', 'ml-2', 'border-t-2', 'border-b-2', 'border-white', 'rounded-full', 'w-4', 'h-4', 'animate-spin');
+            submitButton.appendChild(spinner);
+
+            // Desativa o botão
+            submitButton.disabled = true;
+
+            try {
+                const response = await fetch(`${baseUrl}/users/new`, {
+                    method: 'POST',
+                    body: new FormData(form)
+                });
+                const result = await response.json();
+
+                if (result.status === 200 || result.status === 'SUCCESS') {
+                    notyf.success(result.message || 'Usuário criado com sucesso!');
+                    setTimeout(() => window.location.href = `${baseUrl}/users`, 1500);
+                } else {
+                    notyf.error(result.message || 'Erro ao criar usuário.');
+                }
+            } catch (err) {
+                console.error(err);
+                notyf.error('Erro de conexão ao enviar o formulário.');
+            } finally {
+                // Remove spinner e reativa botão
+                spinner.remove();
+                submitButton.disabled = false;
+            }
+        });
+    }
+</script>
+
+<style>
+    /* Spinner para botão */
+    .loader {
+        border-left-color: transparent;
+        border-right-color: transparent;
+        border-top-color: white;
+        border-bottom-color: white;
+        display: inline-block;
+        vertical-align: middle;
+    }
+</style>

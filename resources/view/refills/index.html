@@ -1,0 +1,419 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="text-center mb-12">
+        <h2 class="text-4xl font-extrabold text-white sm:text-5xl">
+            Planos de SMS
+        </h2>
+        <p class="mt-4 text-xl text-purple-200">
+            Escolha um plano que se encaixe perfeitamente no seu estilo de negócio
+        </p>
+    </div>
+
+<!-- Tabs -->
+<div class="flex justify-center mt-10">
+    <div class="inline-flex bg-[#1d1f2b] p-1 rounded-full shadow-lg">
+
+        <button class="tab-btn tab-active px-6 py-2 rounded-full text-sm font-semibold text-white"
+                data-type="sms">SMS</button>
+
+        <button class="tab-btn px-6 py-2 rounded-full text-sm font-semibold text-gray-300 hover:text-white"
+                data-type="voice">Voice</button>
+
+        <button class="tab-btn px-6 py-2 rounded-full text-sm font-semibold text-gray-300 hover:text-white"
+                data-type="torpedo">Torpedo</button>
+
+        <button class="tab-btn px-6 py-2 rounded-full text-sm font-semibold text-gray-300 hover:text-white"
+                data-type="whatsapp">WhatsApp</button>
+
+    </div>
+</div>
+
+<!-- Container onde os cards serão carregados -->
+<div id="plansContainer" class="mt-16 flex flex-wrap justify-center gap-8 px-4"></div>
+</div>
+
+
+
+
+
+
+
+
+
+
+<!-- Modal Pix -->
+<!-- Modal Pix -->
+<div id="modalPix" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black bg-opacity-50 p-4">
+    <!-- Conteúdo do modal -->
+    <div id="modalPixContent" class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Pagamento via Pix</h2>
+            <button onclick="closePixModal()" aria-label="Fechar modal"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- QR Code -->
+        <img id="qr-code-image" src="" alt="QR Code"
+             class="w-40 h-40 mx-auto mb-6 rounded-lg shadow-md border border-slate-300 dark:border-slate-700" />
+
+        <!-- Valor -->
+        <div class="text-center text-2xl font-semibold text-slate-900 dark:text-slate-100 mb-4">
+            <span id="valuePix">R$ 0,00</span>
+        </div>
+
+        <!-- Instruções -->
+        <div class="mb-6 text-sm text-slate-700 dark:text-slate-300">
+            <ol class="list-decimal list-inside space-y-1">
+                <li>Acesse seu Internet Banking ou app de pagamentos.</li>
+                <li>Escolha pagar via Pix.</li>
+                <li>Escaneie o código acima ou copie o código abaixo.</li>
+            </ol>
+        </div>
+
+        <!-- Linha PIX -->
+        <div class="mb-4">
+            <h3 class="text-sm font-medium mb-2 text-slate-800 dark:text-slate-200">Ou copie este código:</h3>
+            <input id="pixLine" onclick="textCopy()" type="text" readonly
+                   class="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white p-3 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
+            <button onclick="textCopy()"
+                    class="w-full bg-gradient-to-r from-green-600 to-emerald-500 text-white font-semibold rounded-lg py-2 hover:from-green-700 hover:to-emerald-600 active:scale-95 transition transform">
+                Copiar código Pix
+            </button>
+        </div>
+
+        <!-- Contador -->
+        <div id="countdownWrapper" class="text-center text-sm text-slate-500 dark:text-slate-400 mt-5 select-none">
+            Expira em <span id="countdown" class="font-mono font-semibold text-red-500">10:00</span>
+        </div>
+
+
+        <!-- Footer -->
+        <footer
+                class="mt-6 p-4 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 text-center flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-600" fill="currentColor"
+                 viewBox="0 0 16 16">
+                <path
+                        d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM5 8h6a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+            </svg>
+            <span>Ambiente seguro</span>
+        </footer>
+    </div>
+</div>
+
+
+<style>
+    .tab-active {
+        background: linear-gradient(90deg, #6d28d9, #4f46e5);
+        color: white !important;
+        box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+    }
+
+    .pricing-card {
+        background: #1e1f2e;
+        border-radius: 1.2rem;
+        padding: 2rem;
+        max-width: 320px;
+        position: relative;
+        transition: 0.25s;
+        border: 2px solid;
+    }
+
+    .pricing-card.popular {
+        border: 3px solid #8b5cf6; /* Roxo vivo */
+        box-shadow:
+                0 0 12px rgba(139, 92, 246, 0.7),  /* glow forte */
+                0 0 25px rgba(139, 92, 246, 0.4);  /* glow suave */
+        transform: scale(1.03);
+    }
+
+
+    .pricing-card:hover {
+    transform: translateY(-5px);
+}
+
+.pricing-card {
+    @apply relative bg-[#1E2030] rounded-2xl p-8 shadow-lg border border-transparent transition transform;
+}
+
+.pricing-card.popular {
+    @apply border-purple-500 shadow-xl scale-[1.03] bg-[#26283B];
+}
+
+.pricing-card:hover {
+    @apply scale-[1.02];
+}
+
+.popular-badge {
+    @apply absolute top-4 right-4 px-3 py-1 text-xs font-semibold bg-purple-600 text-white rounded-full;
+}
+</style>
+
+
+
+<script>
+    function handleBuyClick(button, planId) {
+        // Adiciona estado de loading
+        button.disabled = true;
+        button.innerHTML = `
+        <svg class="animate-spin h-5 w-5 mr-2 inline-block text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        Carregando...
+    `;
+
+        // Chama a função original do modal
+        openPixModal(planId);
+    }
+</script>
+
+<script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll(".tab-btn");
+    const container = document.getElementById("plansContainer");
+
+    function setActiveTab(btn) {
+        tabs.forEach(t => t.classList.remove("tab-active"));
+        btn.classList.add("tab-active");
+    }
+
+    tabs.forEach(btn => {
+        btn.addEventListener("click", () => {
+            setActiveTab(btn);
+            loadPlans(btn.dataset.type);
+        });
+    });
+
+    // Skeleton enquanto carrega
+    function renderSkeleton() {
+        container.innerHTML = `
+        <div class="animate-pulse">
+            <div class="h-64 w-80 bg-[#27293d] rounded-xl"></div>
+        </div>
+        <div class="animate-pulse">
+            <div class="h-64 w-80 bg-[#27293d] rounded-xl"></div>
+        </div>
+        <div class="animate-pulse">
+            <div class="h-64 w-80 bg-[#27293d] rounded-xl"></div>
+        </div>
+    `;
+    }
+
+    async function loadPlans(type='sms') {
+        renderSkeleton();
+
+        const response = await fetch(`${baseURL}/refills/${type}/plans`);
+        const result = await response.json();
+        const plans = result.plans; // 👈 AQUI ESTÁ A CORREÇÃO
+
+        container.innerHTML = "";
+
+        plans.forEach((plan, index) => {
+            const popular = index === 1 ? "popular" : "";
+
+            const card = `
+                    <div class="pricing-card ${popular}">
+                        ${popular ? `
+                            <span class="absolute top-4 right-4 px-3 py-1 text-xs bg-purple-600 text-white rounded-full">
+                                Most popular
+                            </span>
+                        ` : ""}
+
+                        <h3 class="text-xl font-semibold text-white">${plan.title}</h3>
+                        <p class="text-gray-400 mt-2">${plan.description}</p>
+
+                        <div class="mt-6">
+                            <span class="text-4xl font-bold text-white">R$ ${plan.price}</span>
+                            <span class="text-sm text-gray-400"> / ${plan.unit}</span>
+                        </div>
+
+                        <ul class="mt-6 space-y-3 text-gray-300">
+                            ${plan.features.map(f => `
+                                <li class="flex items-center">
+
+                                    ${f.ok
+                                ? `<svg class="h-5 w-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                     d="M5 13l4 4L19 7" />
+                                           </svg>`
+                                : `<svg class="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                     d="M6 18L18 6M6 6l12 12" />
+                                           </svg>`
+                            }
+
+                                    ${f.text}
+                                </li>
+                            `).join("")}
+                        </ul>
+
+                        <button type="button"
+                            id="buyButton_${plan.id}"
+                            onclick="handleBuyClick(this, '${plan.id}')"
+                            class="mt-8 w-full py-3 rounded-md text-white font-semibold bg-gradient-to-r from-purple-600 to-indigo-700 hover:opacity-90 transition">
+                            Comprar
+                        </button>
+                    </div>
+                `;
+
+            container.innerHTML += card;
+        });
+    }
+
+    // Carrega SMS na abertura
+    loadPlans("sms");
+    });
+</script>
+
+
+
+
+
+
+
+<script>
+
+    async function openPixModal(id) {
+        const modal = document.getElementById('modalPix');
+        const qrCodeImage = document.getElementById('qr-code-image');
+        const valuePix = document.getElementById('valuePix');
+        const pixLine = document.getElementById('pixLine');
+
+        function handleBuyClick(button, planId) {
+            // Adiciona estado de loading
+            button.disabled = true;
+            button.innerHTML = `
+        <svg class="animate-spin h-5 w-5 mr-2 inline-block text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        Carregando...
+    `;
+            openPixModal(planId);
+        }
+
+        try {
+            const response = await fetch(`${baseURL}/refills/${id}/checkout-pix`);
+            const data = await response.json();
+
+            // Validação de resposta
+            if (!response.ok || !data || !data.data) {
+                throw new Error(`Erro ao buscar dados do PIX: ${response.status}`);
+            }
+
+            // Exibir imagem e payload
+            qrCodeImage.src = 'data:image/jpeg;base64,' + data.data.encodedImage;
+            valuePix.textContent = `R$ ${parseFloat(data.value || 0).toFixed(2)}`;
+            pixLine.value = data.data.payload;
+            modal.classList.remove('hidden');
+            startCountdown(600); // 10 minutos
+
+            const externalReference = data.data.externalReference;
+            const pixId = data.data.id;
+
+            // Limpa qualquer intervalo anterior
+            clearInterval(window.pixStatusInterval);
+
+            // Inicia verificação a cada 15 segundos
+            window.pixStatusInterval = setInterval(() => {
+                checkPixStatus(pixId, externalReference);
+            }, 10000);
+
+        } catch (error) {
+            //console.error('Erro ao abrir modal PIX:', error);
+            notyf.error('Erro ao carregar dados do pagamento PIX. Tente novamente.');
+        }
+    }
+
+    async function checkPixStatus(id, externalReference) {
+        try {
+            const response = await fetch(`${baseURL}/refills/${id}/status-pix`);
+            const result = await response.json();
+
+            if (result.status === 200 && result.data && result.data === 'RECEIVED') {
+                clearInterval(window.pixStatusInterval);
+                clearInterval(window.pixCountdownInterval);
+                notyf.success('Pagamento confirmado com sucesso!');
+
+                setTimeout(() => {
+                    const modal = document.getElementById('modalPix');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        modal.classList.add('hidden');
+                    }
+                    closePixModal(); // Fecha modal + restaura botões
+                }, 4000);
+
+            }
+
+        } catch (error) {
+            console.error('Erro ao verificar status do PIX:', error);
+        }
+    }
+
+    function closePixModal() {
+        const modal = document.getElementById('modalPix');
+        const modalContent = document.getElementById('modalPixContent');
+
+        modal.classList.add('hidden');
+        clearInterval(window.pixCountdownInterval);
+
+        const buttons = document.querySelectorAll('button[id^="buyButton_"]');
+        buttons.forEach(button => {
+            button.disabled = false;
+            button.innerHTML = 'Comprar';
+        });
+    }
+
+    function textCopy() {
+        const pixCopy = document.getElementById("pixLine");
+
+        navigator.clipboard.writeText(pixCopy.value).then(() => {
+            notyf.success('Linha do Pix copiada com sucesso!');
+        }).catch(() => {
+            notyf.error('Erro ao copiar a linha do Pix.');
+        });
+    }
+
+    function startCountdown(duration) {
+        const countdownElement = document.getElementById('countdown');
+        const countdownWrapper = document.getElementById('countdownWrapper');
+        const modal = document.getElementById('modalPix');
+        let timer = duration;
+
+        clearInterval(window.pixCountdownInterval);
+
+        const updateCountdownDisplay = () => {
+            const minutes = Math.floor(timer / 60);
+            const seconds = timer % 60;
+            countdownElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        };
+        const handleCountdownExpiration = () => {
+            countdownWrapper.innerHTML = `<span class="font-semibold text-red-500">Tempo Esgotado</span>`;
+            notyf.error('Tempo do pagamento expirado. Gere um novo QR Code.');
+            setTimeout(() => {
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                }
+            }, 4000);
+        };
+
+        window.pixCountdownInterval = setInterval(() => {
+            if (timer <= 0) {
+                clearInterval(window.pixCountdownInterval);
+                handleCountdownExpiration();
+            } else {
+                updateCountdownDisplay();
+                timer--;
+            }
+        }, 1000);
+    }
+
+</script>

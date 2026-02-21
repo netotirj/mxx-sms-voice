@@ -1,0 +1,655 @@
+<div class="relative w-full mx-auto">
+
+    <div class="relative flex flex-col flex-auto min-w-0 p-4 mx-6 overflow-hidden break-words bg-white border-0 dark:bg-slate-850 dark:shadow-dark-xl shadow-3xl rounded-2xl bg-clip-border">
+        <div class="flex flex-wrap -mx-3">
+            <div class="flex-none w-auto max-w-full px-3">
+                <div class="relative inline-flex items-center justify-center text-white transition-all duration-200 ease-in-out text-base h-19 w-19 rounded-xl">
+                    <img src="{{userAvatar}}" alt="profile_image" class="w-full shadow-2xl rounded-xl" />
+                </div>
+            </div>
+            <div class="flex-none w-auto max-w-full px-3 my-auto">
+                <div class="h-full">
+                    <h5 class="mb-1 dark:text-white">{{name}} {{lastname}}</h5>
+                    <p class="mb-0 font-semibold leading-normal dark:text-white dark:opacity-60 text-sm">{{function}}</p>
+                </div>
+            </div>
+            <!-- Botão -->
+            <div class="w-full max-w-full px-3 mx-auto mt-4 sm:my-auto sm:mr-0 md:w-1/2 md:flex-none lg:w-4/12">
+                <div class="flex justify-end">
+                    <button type="button"
+                            onclick="openModal()"
+                            class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+                        <i class="ni ni-settings-gear-65"></i>
+                        Editar Imagem
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SEÇÃO PRINCIPAL -->
+<div class="w-full p-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+
+        <!-- Card Edit Profile -->
+        <div class="w-full max-w-full px-3 shrink-0 md:w-8/12 md:flex-0">
+            <div class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-xl
+                  dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border h-full">
+                <div class="border-black/12.5 rounded-t-2xl border-b-0 border-solid p-6 pb-0">
+                    <div class="flex items-center">
+                        <p class="mb-0 dark:text-white/80">Editar Perfil</p>
+                        <button id="addressUp" type="button"
+                                class="inline-block px-8 py-2 mb-4 ml-auto font-bold leading-normal text-center text-white
+                     align-middle transition-all ease-in bg-blue-500 border-0 rounded-lg shadow-md cursor-pointer
+                     text-xs tracking-tight-rem hover:shadow-xs hover:-translate-y-px active:opacity-85">
+                            Configurações
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-auto p-6">
+                    <p class="leading-normal uppercase dark:text-white dark:opacity-60 text-sm">Informações do Usuário</p>
+                    <div class="flex flex-wrap -mx-3">
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-6/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="username" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Usuário</label>
+                                <input type="text" name="username" value="{{user}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-6/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="email" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">E-mail</label>
+                                <input type="email" name="email" value="{{email}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-6/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="first name" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Nome</label>
+                                <input type="text" name="first name" value="{{name}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-6/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="last name" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Sobrenome</label>
+                                <input type="text" name="last name" value="{{lastname}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="h-px mx-0 my-4 bg-transparent border-0 opacity-25 bg-gradient-to-r from-transparent via-black/40 to-transparent dark:bg-gradient-to-r dark:from-transparent dark:via-white dark:to-transparent " />
+
+                    <p class="leading-normal uppercase dark:text-white dark:opacity-60 text-sm">Informações de Contato</p>
+                    <div class="flex flex-wrap -mx-3">
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-full md:flex-0">
+                            <div class="mb-4">
+                                <label for="address" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Endereço</label>
+                                <input type="text" name="address1" value="{{address}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-4/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="city" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Cidade</label>
+                                <input type="text" name="city" value="{{city}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-4/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="country" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">Estado</label>
+                                <input type="text" name="country" value="{{state}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-full px-3 shrink-0 md:w-4/12 md:flex-0">
+                            <div class="mb-4">
+                                <label for="postal code" class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">CEP</label>
+                                <input type="text" name="postal code" value="{{zipcode}}" class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6 ease block w-full appearance-none rounded-lg border border-solid border-gray-300 bg-white bg-clip-padding px-3 py-2 font-normal text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" disabled/>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Redefinir Senha -->
+        <div class="w-full max-w-full px-3 mt-6 shrink-0 md:w-4/12 md:flex-0 md:mt-0">
+            <div
+                    class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border h-full">
+
+                <img class="w-full rounded-t-2xl" src="{{URL}}/resources/assets/img/bg-profile.jpg"
+                     alt="profile cover image">
+
+                <!-- Redefinir Senha -->
+                <div class="flex-auto p-6">
+                    <p class="leading-normal uppercase dark:text-white dark:opacity-60 text-sm mb-4">
+                        Redefinir Senha
+                    </p>
+
+                    <form id="resetPasswordForm" onsubmit="return handlePasswordReset(event)">
+
+                        <!-- Senha Atual -->
+                        <div class="mb-6 relative">
+                            <label for="current_password"
+                                   class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">
+                                Senha Atual
+                            </label>
+                            <div class="relative">
+                                <input type="password" id="current_password" name="current_password" placeholder="Digite sua senha atual"
+                                       class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6
+              block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 transition-all
+              placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" />
+                                <button type="button" onclick="togglePassword('current_password', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                    <i class="fa fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Nova Senha -->
+                        <div class="mb-6 relative">
+                            <label for="new_password"
+                                   class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">
+                                Nova Senha
+                            </label>
+                            <div class="relative">
+                                <input type="password" id="new_password" name="new_password" placeholder="Digite a nova senha"
+                                       class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6
+              block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 transition-all
+              placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" />
+                                <button type="button" onclick="togglePassword('new_password', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                    <i class="fa fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Confirmar Nova Senha -->
+                        <div class="mb-6 relative">
+                            <label for="confirm_password"
+                                   class="inline-block mb-2 ml-1 font-bold text-xs text-slate-700 dark:text-white/80">
+                                Confirmar Nova Senha
+                            </label>
+                            <div class="relative">
+                                <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirme a nova senha"
+                                       class="focus:shadow-primary-outline dark:bg-slate-850 dark:text-white text-sm leading-5.6
+              block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 transition-all
+              placeholder:text-gray-500 focus:border-blue-500 focus:outline-none" />
+                                <button type="button" onclick="togglePassword('confirm_password', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                    <i class="fa fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="text-center">
+                            <button id="resetButton" type="submit"
+                                    class="px-6 py-2 font-bold leading-normal text-center text-white align-middle
+               transition-all ease-in bg-blue-500 border-0 rounded-lg shadow-md cursor-pointer
+               text-sm tracking-tight-rem hover:shadow-xs hover:-translate-y-px active:opacity-85 inline-flex items-center justify-center">
+                                <span class="button-text">Redefinir Senha</span>
+                                <svg class="icon-spinner animate-spin h-5 w-5 ml-2 hidden text-white"
+                                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal de Upload -->
+<div id="uploadModalImage" class="fixed inset-0 z-50 hidden">
+    <!-- Fundo escurecido -->
+    <div id="uploadModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50"></div>
+
+    <div class="flex items-center justify-center min-h-screen p-4 text-center">
+        <div id="uploadModalContent"
+             class="relative bg-white dark:bg-slate-850 rounded-xl shadow-lg w-11/12 max-w-md p-6 transform scale-95 opacity-0 transition-all duration-200">
+
+            <!-- Botão fechar -->
+            <button onclick="closeModal()"
+                    class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">
+                ✕
+            </button>
+
+            <h2 class="text-lg font-bold mb-4 text-center text-slate-800 dark:text-white">
+                Upload de Imagem
+            </h2>
+
+            <input type="hidden" id="campaignId" name="campaignId" value="">
+
+            <!-- Preview -->
+            <div class="flex justify-center mb-4">
+                <img id="previewImage" src="" alt="Preview"
+                     class="hidden w-40 h-40 object-cover rounded-lg border">
+            </div>
+
+            <!-- Dropzone Input file -->
+            <label for="imageInput"
+                   class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition mb-4">
+                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                    <svg class="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/>
+                    </svg>
+                    <p class="text-sm text-gray-500"><span class="font-semibold">Clique para selecionar</span> ou arraste</p>
+                    <p class="text-xs text-gray-400">PNG, JPG ou JPEG</p>
+                </div>
+                <input id="imageInput" type="file" accept="image/*" class="hidden"/>
+            </label>
+
+            <!-- Barra de progresso -->
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-2 overflow-hidden">
+                <div id="uploadProgress"
+                     class="bg-blue-600 h-2"
+                     style="width: 0%"></div>
+            </div>
+            <p id="uploadPercent" class="text-right text-xs text-gray-500 mb-2">0%</p>
+
+            <!-- Botão salvar -->
+            <div class="mt-4 flex justify-end">
+                <button onclick="saveImage()"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
+                    Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal Tailwind CSS centralizado com animação -->
+<div id="addressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 transition-opacity duration-300 flex">
+    <div id="addressModalContent" class="relative w-full max-w-lg p-6 bg-white rounded-lg shadow-lg transform transition-all duration-300 scale-95 opacity-0">
+        <!-- Fechar modal -->
+        <button onclick="closeAddressModal()"
+                class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 font-bold text-lg">
+            ✕
+        </button>
+
+        <h3 class="text-center text-lg font-semibold text-emerald-500 mb-4">Atualizar Endereço</h3>
+
+        <form id="address-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="inputZip" class="block text-xs font-bold text-slate-700 mb-1">CEP</label>
+                    <input type="text" id="inputZip" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="inputAddress" class="block text-xs font-bold text-slate-700 mb-1">Endereço</label>
+                    <input type="text" id="inputAddress" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="inputNumber" class="block text-xs font-bold text-slate-700 mb-1">Número</label>
+                    <input type="text" id="inputNumber" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="inputComplement" class="block text-xs font-bold text-slate-700 mb-1">Complemento</label>
+                    <input type="text" id="inputComplement" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="neighBorHood" class="block text-xs font-bold text-slate-700 mb-1">Bairro</label>
+                    <input type="text" id="neighBorHood" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="inputCity" class="block text-xs font-bold text-slate-700 mb-1">Cidade</label>
+                    <input type="text" id="inputCity" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                    <label for="inputState" class="block text-xs font-bold text-slate-700 mb-1">Estado</label>
+                    <input type="text" id="inputState" data-input class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition">
+                    Salvar
+                </button>
+                <button type="button" onclick="closeAddressModal()"
+                        class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<script>
+    const addressUp = document.querySelector('#addressUp');
+    const addressForm = document.querySelector("#address-form");
+    const cepInput = document.querySelector("#inputZip");
+    const addressInput = document.querySelector("#inputAddress");
+    const complementInput = document.querySelector("#inputComplement");
+    const cityInput = document.querySelector("#inputCity");
+    const stateInput = document.querySelector("#inputState");
+    const formInputs = document.querySelectorAll("[data-input]");
+    const neighborhoodInput = document.querySelector("#neighBorHood")
+    const numberInput = document.querySelector("#inputNumber");
+
+    const addressModal = document.getElementById('addressModal');
+    const addressModalContent = document.getElementById('addressModalContent');
+
+    function openAddressModal() {
+        addressModal.classList.remove('hidden');
+        setTimeout(() => {
+            addressModalContent.classList.remove('scale-95', 'opacity-0');
+            addressModalContent.classList.add('scale-100', 'opacity-100');
+        }, 50);
+    }
+
+    function closeAddressModal() {
+        addressModalContent.classList.add('scale-95', 'opacity-0');
+        addressModalContent.classList.remove('scale-100', 'opacity-100');
+
+        setTimeout(() => {
+            addressModal.classList.add('hidden');
+            addressForm.reset();
+            toggleDisabled(true);
+        }, 300);
+    }
+
+    addressUp?.addEventListener('click', (event) => {
+        event.preventDefault();
+        openAddressModal();
+
+        cepInput?.addEventListener("keypress", (e) => {
+            const onlyNumbers = /[0-9]/;
+            const key = String.fromCharCode(e.keyCode);
+            if (!onlyNumbers.test(key)) e.preventDefault();
+        });
+
+        cepInput?.addEventListener("keyup", (e) => {
+            const inputValue = e.target.value;
+            if (inputValue.length === 8) getAddress(inputValue);
+        });
+
+        const getAddress = async (cep) => {
+            cepInput.blur();
+            const apiUrl = `https://viacep.com.br/ws/${cep}/json/`;
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+
+            if (data.erro === true) {
+                toggleDisabled(true);
+                addressForm.reset();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Cep Inválido',
+                    text: 'Por favor tente novamente!',
+                });
+                return;
+            }
+
+            if (addressInput.value === "") toggleDisabled(false);
+
+            addressInput.value = data.logradouro || '';
+            cityInput.value = data.localidade || '';
+            neighborhoodInput.value = data.bairro || '';
+            stateInput.value = data.uf || '';
+        };
+
+        const toggleDisabled = (disabled = false) => {
+            formInputs.forEach(input => {
+                if (disabled) input.setAttribute("disabled", "disabled");
+                else input.removeAttribute("disabled");
+            });
+        };
+
+        addressForm?.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const dataAddress = new FormData();
+            dataAddress.append('cep', cepInput.value);
+            dataAddress.append('address', addressInput.value);
+            dataAddress.append('complement', complementInput.value);
+            dataAddress.append('city', cityInput.value);
+            dataAddress.append('state', stateInput.value);
+            dataAddress.append('neighborhood', neighborhoodInput.value);
+            dataAddress.append('number', numberInput.value);
+
+            axios.post(baseUrl + '/profile/address', dataAddress)
+                .then(response => {
+                    let data = response.data;
+                    if (data.status === 200) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Maxx Informa',
+                            text: data.message,
+                        }).then(() => {
+                            addressForm.reset();
+                            toggleDisabled(true);
+                            closeAddressModal();
+                            window.location = baseUrl + '/profile/edit';
+                        });
+                    }
+                })
+                .catch(e => console.log(e));
+        });
+    });
+
+    // Fechar modal ao clicar fora
+    addressModal?.addEventListener('click', e => {
+        if (e.target === addressModal) closeAddressModal();
+    });
+
+    // Fechar modal com Escape
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeAddressModal();
+    });
+</script>
+
+
+<script>
+    // Mostrar/ocultar senha
+    function togglePassword(fieldId, el) {
+        const input = document.getElementById(fieldId);
+        const icon = el.querySelector("i");
+
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        } else {
+            input.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
+    }
+
+    function handlePasswordReset(event) {
+        event.preventDefault();
+
+        const current = document.getElementById("current_password").value;
+        const newPass = document.getElementById("new_password").value;
+        const confirmPass = document.getElementById("confirm_password").value;
+
+        /*if (newPass !== confirm) {
+            notyf.error('As senhas nao sao iguais!!')
+            return false;
+        }*/
+
+        // Criar FormData
+        const formData = new FormData();
+        formData.append("current_password", current);
+        formData.append("new_password", newPass);
+        formData.append("confirm_password", confirmPass);
+
+        // Opcional: mostrar spinner no botão
+        const button = $("#resetPasswordForm button[type='submit']");
+        toggleButtonSpinner(button, true);
+
+        fetch(baseUrl + "/users/profile/reset-pass", {
+            method: "POST",
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                toggleButtonSpinner(button, false); // remover spinner
+
+                if (data.success) {
+                    document.getElementById("resetPasswordForm").reset();
+                    notyf.success(data.message)
+                } else {
+                    notyf.error(data.message)
+
+                }
+            })
+            .catch(error => {
+                toggleButtonSpinner(button, false); // remover spinner
+                $.notify(
+                    {message: "Ocorreu um erro inesperado. Tente novamente."},
+                    {type: "danger", placement: {from: "top", align: "center"}}
+                );
+                console.error("Erro:", error);
+            });
+
+        return false;
+    }
+
+
+    /*Spinner dos botoes*/
+    function toggleButtonSpinner(button, show = true, minVisibleMs = 1000) {
+        const spinner = button.find('.icon-spinner');
+        const others = button.find('[class^="icon-"]:not(.icon-spinner)');
+
+        if (show) {
+            button.prop('disabled', true);
+            spinner.removeClass('hidden');
+            others.addClass('hidden');
+            // Marca o tempo de início
+            button.data('spinner-start', Date.now());
+        } else {
+            const elapsed = Date.now() - (button.data('spinner-start') || 0);
+            const delay = Math.max(minVisibleMs - elapsed, 0);
+            setTimeout(() => {
+                button.prop('disabled', false);
+                spinner.addClass('hidden');
+                others.removeClass('hidden');
+            }, delay);
+        }
+    }
+</script>
+
+
+
+
+<script>
+    const modal = document.getElementById('uploadModalImage');
+    const modalContent = document.getElementById('uploadModalContent');
+    const previewImage = document.getElementById('previewImage');
+    const imageInput = document.getElementById('imageInput');
+    const progressBar = document.getElementById('uploadProgress');
+    const percentText = document.getElementById('uploadPercent');
+    const uploadBackdrop = document.getElementById('uploadModalBackdrop');
+
+    // Abrir modal
+    function openModal() {
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modalContent.classList.remove('scale-95', 'opacity-0');
+            modalContent.classList.add('scale-100', 'opacity-100');
+        }, 50);
+    }
+
+    // Fechar modal
+    function closeModal() {
+        modalContent.classList.add('scale-95', 'opacity-0');
+        modalContent.classList.remove('scale-100', 'opacity-100');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            resetModal();
+        }, 200);
+    }
+
+    // Reset do modal
+    function resetModal() {
+        progressBar.style.width = '0%';
+        percentText.textContent = '0%';
+        imageInput.value = '';
+        previewImage.src = '';
+        previewImage.classList.add('hidden');
+    }
+
+    // Preview da imagem
+    imageInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            previewImage.src = URL.createObjectURL(file);
+            previewImage.classList.remove('hidden');
+        } else {
+            previewImage.src = '';
+            previewImage.classList.add('hidden');
+        }
+    });
+
+    // Fechar clicando fora do modal
+    uploadBackdrop.addEventListener('click', closeModal);
+
+    // Fechar com ESC
+    document.addEventListener('keydown', e => {
+        if (e.key === "Escape") closeModal();
+    });
+
+    // Upload real usando Fetch via XMLHttpRequest para progresso
+    function saveImage() {
+        const file = imageInput.files[0];
+        if (!file) {
+            alert("Selecione uma imagem primeiro!");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', baseURL + '/users/profile/upload-images'); // endpoint PHP
+        xhr.responseType = 'json';
+
+        /*xhr.upload.addEventListener('progress', e => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                percentText.textContent = percent + '%';
+            }
+        });*/
+
+        xhr.upload.addEventListener('progress', function (event) {
+            if (event.lengthComputable && progressBar) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+            }
+        });
+
+        xhr.onload = () => {
+            if (xhr.status === 200 && xhr.response.status === 200) {
+                notyf.success(xhr.response?.message || 'Imagem alterada com sucesso!');
+                closeModal();
+
+                setTimeout(() => {
+                    location.reload();
+                }, 500); // dá meio segundo para o modal fechar
+            } else {
+                notyf.error(xhr.response?.message || 'Erro no upload!');
+                progressBar.style.width = '0%';
+                percentText.textContent = '0%';
+            }
+        };
+
+        xhr.onerror = () => {
+            alert('Erro ao enviar o arquivo!');
+            progressBar.style.width = '0%';
+            percentText.textContent = '0%';
+        };
+
+        xhr.send(formData);
+    }
+
+</script>

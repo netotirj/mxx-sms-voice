@@ -1,0 +1,563 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <!-- table 1 -->
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 border-transparent border-solid shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border">
+
+                <!-- Cabeçalho -->
+                <div class="p-6 pb-0 mb-0 border-b-0 border-b-solid rounded-t-2xl border-b-transparent flex justify-between items-center">
+                    <h6 class="dark:text-white">Lista de Usuários</h6>
+                    <!-- Botão Adicionar Usuário -->
+                    <a href="{{URL}}/users/new"
+                       class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Criar Usuário
+                    </a>
+                </div>
+
+                <div class="px-6 py-4 flex justify-end">
+                    <!-- Wrapper com largura controlada -->
+                    <div class="relative w-[250px]">
+                        <!-- Ícone de lupa -->
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                            </svg>
+                        </div>
+
+                        <!-- Campo de busca -->
+                        <input type="text" id="searchInput"
+                               placeholder="Buscar Usuário..."
+                               class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Nome</th>
+                                <th class="px-6 py-3 pl-2 font-bold text-left uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Cargo/Função</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Saldo</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Status da Conta</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Criado em</th>
+                                <th class="px-6 py-3 font-semibold capitalize align-middle bg-transparent border-b border-collapse border-solid shadow-none dark:border-white/40 dark:text-white tracking-none whitespace-nowrap text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Paginação -->
+                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
+                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                            id="prevPage">Anterior
+                    </button>
+                    <span class="text-sm text-slate-600 dark:text-slate-300" id="pageInfo">Página 1 de 1</span>
+                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                            id="nextPage">Próxima
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="recarga-modal" tabindex="-1" aria-hidden="true"
+     class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full overflow-y-auto overflow-x-hidden bg-black/50 opacity-0 transition-opacity duration-300">
+    <div class="relative p-4 w-full max-w-lg max-h-full transform transition-all duration-300 scale-95">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between p-4 border-b rounded-t dark:border-gray-600 border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Fazer Recarga
+                </h3>
+                <button type="button"
+                        class="text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
+                        data-modal-hide="recarga-modal">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6">
+                <form id="form-recarga" class="space-y-4">
+
+                    <!-- Usuário -->
+                    <div>
+                        <label for="recarga_usuario" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Usuário</label>
+                        <input type="text" id="recarga_usuario" name="usuario_email"
+                               class="bg-gray-100 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                               readonly>
+                        <input type="hidden" id="recarga_usuario_id" name="usuario_id">
+                    </div>
+
+                    <!-- Saldo atual -->
+                    <div>
+                        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Saldo Atual</label>
+                        <input type="text" id="recarga_saldo"
+                               class="bg-gray-100 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                               readonly>
+                    </div>
+
+                    <!-- Valor da recarga -->
+                    <div>
+                        <label for="valor_recarga" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Valor da Recarga</label>
+                        <input type="number" step="0.01" id="valor_recarga" name="valor_recarga"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                               placeholder="0.00" required>
+                    </div>
+
+                    <!-- Anotação -->
+                    <div>
+                        <label for="anotacao" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Anotação</label>
+                        <textarea id="anotacao" name="anotacao"
+                                  class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                                  rows="3" placeholder="Digite uma observação opcional..."></textarea>
+                    </div>
+
+                    <!-- Botão -->
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm px-5 py-2.5 focus:outline-none focus:ring-4 focus:ring-emerald-300">
+                            Confirmar Recarga
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        const tbody = document.querySelector('table tbody');
+        const prevBtn = document.getElementById('prevPage');
+        const nextBtn = document.getElementById('nextPage');
+        const pageInfo = document.getElementById('pageInfo');
+        const searchInput = document.getElementById('searchInput');
+
+        let allRows = [];
+        let filteredRows = [];
+        let currentPage = 1;
+        const perPage = 5;
+
+        window.auth = window.auth || { role: "" };
+
+        window.canEditBalance = () =>
+            ["super_admin", "admin"].includes(String(window.auth.role || "").toLowerCase());
+
+        // Remove acentos
+        function removeDiacritics(str) {
+            return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+        }
+
+        // Aplica filtro de busca
+        function applySearch(query) {
+            const normalizedQuery = removeDiacritics(query.toLowerCase());
+
+            filteredRows = allRows.filter(row => removeDiacritics(row.toLowerCase()).includes(normalizedQuery));
+            currentPage = 1;
+            renderPage(currentPage);
+        }
+
+        // Renderiza página atual
+        function renderPage(page = 1) {
+            tbody.innerHTML = '';
+            const start = (page - 1) * perPage;
+            const end = start + perPage;
+            const rows = filteredRows.slice(start, end);
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="p-2 text-center text-slate-400 italic bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                        Nenhum usuário encontrado
+                    </td>
+                </tr>
+            `;
+            } else {
+                rows.forEach(row => tbody.insertAdjacentHTML('beforeend', row));
+            }
+
+            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
+            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages;
+
+            feather.replace(); // ícones
+        }
+
+        // Constrói as linhas da tabela
+        function buildRows(data) {
+            return data.map(user => {
+                return `<tr data-id="${user.id}">
+                <!-- Avatar e informações -->
+                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <div class="flex px-2 py-1">
+                        <div>
+                            <img src="${user.avatar}" class="inline-flex items-center justify-center mr-4 text-sm text-white transition-all duration-200 ease-in-out h-9 w-9 rounded-xl" alt="avatar" />
+                        </div>
+                        <div class="flex flex-col justify-center">
+                            <h6 class="mb-0 text-sm leading-normal dark:text-white">${user.nome}</h6>
+                            <p class="mb-0 text-xs leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.email}</p>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- Função e cargo -->
+                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <p class="mb-0 text-xs font-semibold leading-tight dark:text-white dark:opacity-80">${user.funcao ?? ''}</p>
+                    <p class="mb-0 text-xs leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.cargo ?? ''}</p>
+                </td>
+
+                <!-- Status atual -->
+                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white ${user.status === 'Online' ? 'bg-gradient-to-tl from-emerald-500 to-teal-400' : 'bg-gradient-to-tl from-red-500 to-pink-400'}">
+                        ${user.status}
+                    </span>
+                </td>
+
+                <!-- Saldo do Reseller -->
+                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    ${user.funcao === 'Revenda'
+                    ? `<span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white cursor-pointer ${
+                        Number(user.balance) === 0
+                            ? 'bg-gray-500'
+                            : Number(user.balance) < 10
+                                ? 'bg-red-500'
+                                : 'bg-blue-500'
+                    }"
+                          data-user-id="${user.id}"
+                          data-user-email="${user.email}"
+                          data-user-balance="${Number(user.balance).toFixed(2)}"
+                        >
+                          ${Number(user.balance).toFixed(2)}
+                    </span>`
+                    : '-'}
+                </td>
+
+                <!-- Status da conta -->
+                <!--<td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white ${
+                    user.status_account === 'active' ? 'bg-emerald-500' :
+                        user.status_account === 'inactive' ? 'bg-red-500' :
+                            user.status_account === 'suspended' ? 'bg-yellow-500 text-black' : 'bg-gray-400'
+                }">
+                        ${user.status_account}
+                    </span>
+                </td>-->
+                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                       <button
+                            onclick="handleStatusClick('${user.id}', this)"
+                            class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white
+                            ${user.status_account === 'active' ? 'bg-emerald-500' :
+                                        user.status_account === 'inactive' ? 'bg-red-500' :
+                                            user.status_account === 'suspended' ? 'bg-yellow-500 text-black' : 'bg-gray-400'}">
+                            ${user.status_account}
+                       </button>
+                </td>
+
+                <!-- Criado em -->
+                <td class="p-2 text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <span class="text-xs font-semibold leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.created}</span>
+                </td>
+
+                <!-- Ações -->
+                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
+                    <div class="flex justify-center gap-2">
+                        <button class="btn-edit-user bg-orange-300 px-2 py-1 rounded" data-id="${user.id}">
+                            <i data-feather="edit-2" class="w-4 h-4"></i>
+                        </button>
+                        <button class="btn-delete-user bg-red-300 px-2 py-1 rounded" data-id="${user.id}">
+                            <i data-feather="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+            });
+        }
+
+        // Busca usuários e monta tabela
+        fetch(`${baseUrl}/users/search`)
+            .then(response => response.json())
+            .then(result => {
+                if (!result.data || !Array.isArray(result.data)) {
+                    console.error('Formato inválido', result);
+                    return;
+                }
+
+                // ✅ vem do backend: result.meta.role
+                window.auth.role = String(result?.meta?.role || "").toLowerCase();
+
+                allRows = buildRows(result.data);
+                filteredRows = allRows;
+                renderPage(currentPage);
+            })
+            .catch(error => console.error('Erro ao buscar usuários:', error));
+
+        // Paginação
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredRows.length / perPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        // Busca
+        searchInput.addEventListener('input', e => applySearch(e.target.value));
+    });
+
+</script>
+
+<script>
+    const modal = document.getElementById("recarga-modal");
+    const modalContent = modal.querySelector(".transform");
+    const closeButtons = modal.querySelectorAll("[data-modal-hide='recarga-modal']");
+    const formRecarga = document.getElementById("form-recarga");
+
+    // Inputs
+    const inputUserId = document.getElementById("recarga_usuario_id");
+    const inputUserEmail = document.getElementById("recarga_usuario");
+    const inputUserBalance = document.getElementById("recarga_saldo");
+
+    // Função abrir
+    function openModal(userId, email, balance) {
+        inputUserId.value = userId;
+        inputUserEmail.value = email;
+        inputUserBalance.value = balance;
+
+        modal.classList.remove("hidden");
+        setTimeout(() => {
+            modal.classList.remove("opacity-0");
+            modal.classList.add("opacity-100");
+            modalContent.classList.remove("scale-95");
+            modalContent.classList.add("scale-100");
+        }, 10);
+    }
+
+    // Função fechar
+    function closeModal() {
+        modal.classList.remove("opacity-100");
+        modal.classList.add("opacity-0");
+        modalContent.classList.remove("scale-100");
+        modalContent.classList.add("scale-95");
+        setTimeout(() => {
+            modal.classList.add("hidden");
+        }, 300);
+    }
+
+    // Clicar no saldo (abre modal)
+    document.addEventListener("click", (e) => {
+        const span = e.target.closest("span[data-user-id]");
+        if (!span) return;
+
+        if (!window.canEditBalance || !window.canEditBalance()) {
+            notyf.error("Apenas Admin e Super Admin podem alterar saldo.");
+            return;
+        }
+
+        openModal(span.dataset.userId, span.dataset.userEmail, span.dataset.userBalance);
+    });
+
+    // Fechar nos botões
+    closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
+
+    // Fechar clicando fora
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    // Fechar com ESC
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+            closeModal();
+        }
+    });
+
+    // Submit com fetch
+    formRecarga.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(formRecarga);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch(`${baseUrl}/users/refills`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(data),
+            });
+
+            const result = await response.json();
+
+            if (result.status === 200) {
+                notyf.success("💰 Recarga realizada com sucesso!");
+                closeModal();
+                // Atualiza saldo na tabela sem reload (se quiser)
+                const span = document.querySelector(`span[data-user-id="${data.usuario_id}"]`);
+                if (span) {
+                    const novoSaldo = (parseFloat(data.valor_recarga) + parseFloat(span.dataset.userBalance)).toFixed(2);
+                    span.dataset.userBalance = novoSaldo;
+                    span.textContent = novoSaldo;
+                }
+            } else {
+                notyf.error("Erro: " + result.message);
+            }
+        } catch (error) {
+            console.error("Erro na requisição:", error);
+            notyf.error("⚠️ Falha na comunicação com o servidor.");
+        }
+    });
+</script>
+
+<script>
+    function handleStatusClick(userId, el) {
+        // Pega o status atual diretamente do texto do botão
+        let currentStatus = el.textContent.trim();
+
+        // Define o próximo status (rotaçao: active → inactive → suspended → active)
+        let newStatus = currentStatus === 'active' ? 'inactive' :
+            currentStatus === 'inactive' ? 'suspended' : 'active';
+
+        console.log(`Alterando usuário ${userId} de ${currentStatus} para ${newStatus}`);
+
+        // Cria os dados no FormData
+        let formData = new FormData();
+        formData.append("id", userId);
+        formData.append("status", newStatus);
+
+        // Requisição para atualizar no backend
+        fetch(`${baseUrl}/users/up-status`, {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 200) {
+                    // Atualiza o texto e a cor do botão sem reload
+                    el.textContent = newStatus;
+
+                    el.classList.remove("bg-emerald-500", "bg-red-500", "bg-yellow-500", "bg-gray-400", "text-black");
+
+                    if (newStatus === "active") {
+                        el.classList.add("bg-emerald-500", "text-white");
+                    } else if (newStatus === "inactive") {
+                        el.classList.add("bg-red-500", "text-white");
+                    } else if (newStatus === "suspended") {
+                        el.classList.add("bg-yellow-500", "text-black");
+                    } else {
+                        el.classList.add("bg-gray-400", "text-white");
+                    }
+
+                    // Notificação de sucesso
+                    notyf.success(data.message || `Status alterado para ${newStatus}`);
+                } else {
+                    // Notificação de erro
+                    notyf.error(data.message || 'Não foi possível atualizar o status.');
+                }
+            })
+            .catch((error) => {
+                console.error('Erro de rede:', error);
+                notyf.error('Falha na comunicação com o servidor.');
+            });
+    }
+</script>
+
+
+<script>
+
+    document.addEventListener('click', e => {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        if (e.target.closest('.btn-delete-user')) {
+            const id = e.target.closest('.btn-delete-user').dataset.id;
+
+            //console.log(id)
+            confirmDelete(id); // aqui chama o Swal + DELETE
+        }
+
+
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: "Essa ação não pode ser desfeita!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, deletar!',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#e3342f',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // 🔥 Chama seu backend
+                    fetch(`${baseUrl}/users/${id}/delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            //console.log('Resposta da API:', data);
+
+                            if (data.status === 200) {
+                                Swal.fire(
+                                    'Deletado!',
+                                    data.message || 'O registro foi removido com sucesso.',
+                                    'success'
+                                ).then(() => {
+                                    window.location.href = baseUrl + '/users';
+                                });
+                            } else {
+                                Swal.fire('Erro!', data.message || 'Não foi possível deletar.', 'error');
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Erro de rede:', error);
+                            Swal.fire('Erro!', 'Falha na comunicação com o servidor.', 'error');
+                        });
+
+                }
+            });
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Captura clique nos botões de editar usuário
+        document.addEventListener("click", (e) => {
+            const btnEdit = e.target.closest(".btn-edit-user");
+            if (!btnEdit) return;
+
+            const userId = btnEdit.dataset.id;
+
+            // Redireciona para a página de edição, passando o ID via query string
+            window.location.href = `${baseUrl}/users/${userId}/edit`;
+        });
+    });
+
+</script>
+
+

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="pt-BR" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr"
+      data-pc-theme="light">
+<head>
+    <title>Resetar Senha</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="description" content="Página para redefinição de senha"/>
+    <meta name="keywords" content="reset password, senha, recuperar senha"/>
+    <meta name="author" content="Maxx Solutions"/>
+    <meta name="base-url" content="{{URL}}">
+
+    <!-- Ícone -->
+    <link rel="icon" href="{{URL}}/resources/view/login/assets/images/favicon.svg" type="image/x-icon"/>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/phosphor/duotone/style.css"/>
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css"/>
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/feather.css"/>
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/fontawesome.css"/>
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/material.css"/>
+    <!-- Template CSS -->
+    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/style.css" id="main-style-link"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<div class="auth-main relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
+    <div class="auth-wrapper v1 flex items-center w-full h-full min-h-screen relative p-6">
+        <div class="auth-form flex items-center justify-center grow flex-col min-h-screen relative p-6">
+            <div class="w-full max-w-[350px] relative">
+
+                <div class="auth-bg ">
+                    <span class="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
+                    <span class="absolute top-[150px] right-[-150px] w-5 h-5 block rounded-full bg-primary-500 animate-[floating_9s_infinite]"></span>
+                    <span class="absolute left-[-150px] bottom-[150px] w-5 h-5 block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
+                    <span class="absolute left-[-100px] bottom-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-2 animate-[floating_9s_infinite]"></span>
+                </div>
+
+                <!-- Card -->
+                <div class="card sm:my-12 w-full shadow-lg rounded-3xl bg-white/90 backdrop-blur-xl hover:shadow-2xl transition-all duration-500">
+                    <div class="card-body !p-10">
+
+                        <!-- Logo -->
+                        <div class="text-center mb-8 animate-bounce">
+                            <a href="#"><img src="{{URL}}/resources/view/login/assets/images/logo-dark.svg" alt="logo"
+                                             class="mx-auto auth-logo"/></a>
+                        </div>
+
+                        <h4 class="text-center text-2xl font-extrabold mb-2 text-primary-500 drop-shadow-md">
+                            Defina a Nova Senha
+                        </h4>
+                        <!-- Campos para redefinição de senha -->
+                        <div class="mb-4 relative">
+                                <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
+                                    <i class="ti ti-lock"></i>
+                                </span>
+                            <input type="password" id="newPassword"
+                                   class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300"
+                                   placeholder="Nova senha">
+                        </div>
+
+                        <!-- Campos para redefinição de senha -->
+                        <div class="mb-4 relative">
+                                <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
+                                    <i class="ti ti-lock"></i>
+                                </span>
+                            <input type="password" id="confirmPassword"
+                                   class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300"
+                                   placeholder="Confirme a nova senha">
+                        </div>
+
+
+
+                        <button id="btnResetPassword"
+                                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                            <span class="btn-text">Redefinir Senha</span>
+                            <span class="btn-spinner hidden">
+                                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                                         fill="none"
+                                         viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                    </svg>
+                                </span>
+                        </button>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="{{URL}}/resources/view/login/assets/js/plugins/simplebar.min.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/plugins/popper.min.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/icon/custom-icon.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/plugins/feather.min.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/component.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/theme.js"></script>
+<script src="{{URL}}/resources/view/login/assets/js/script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+
+
+<script>
+    // Mostrar/ocultar senha (opcional, se quiser adicionar ícone de olho)
+    function togglePassword(fieldId, el) {
+        const input = document.getElementById(fieldId);
+        const icon = el.querySelector("i");
+
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        } else {
+            input.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
+    }
+
+    // Ação de redefinir senha
+    async function handlePasswordReset(event) {
+        event.preventDefault();
+
+        const notyf = new Notyf({
+            duration: 5000,
+            position: { x: 'right', y: 'top' },
+        });
+
+        const newPass = document.getElementById("newPassword").value.trim();
+        const confirmPass = document.getElementById("confirmPassword").value.trim();
+        const button = document.getElementById("btnResetPassword");
+
+        // Validações
+        if (!newPass || !confirmPass) {
+            notyf.error("Preencha todos os campos.");
+            return;
+        }
+        if (newPass.length < 6) {
+            notyf.error("A senha deve ter no mínimo 6 caracteres.");
+            return;
+        }
+        if (newPass !== confirmPass) {
+            notyf.error("As senhas não coincidem!");
+            return;
+        }
+
+        // Criar formData
+        const formData = new FormData();
+        formData.append("new_password", newPass);
+        formData.append("confirm_password", confirmPass);
+
+        // Ativar spinner
+        toggleButtonSpinner(button, true);
+
+        try {
+            const response = await fetch("{{URL}}/pass-confirmed-new", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+            toggleButtonSpinner(button, false);
+
+            if (data.success) {
+                document.getElementById("newPassword").value = "";
+                document.getElementById("confirmPassword").value = "";
+
+                notyf.success(data.message || "Senha redefinida com sucesso!");
+
+                setTimeout(() => {
+                    window.location.href = "{{URL}}/login";
+                }, 2000);
+            } else {
+                notyf.error(data.message || "Não foi possível redefinir a senha.");
+            }
+        } catch (error) {
+            toggleButtonSpinner(button, false);
+            notyf.error("Ocorreu um erro inesperado. Tente novamente.");
+            console.error("Erro:", error);
+        }
+    }
+
+    // Spinner nos botões
+    function toggleButtonSpinner(button, show = true, minVisibleMs = 800) {
+        const spinner = button.querySelector(".btn-spinner");
+        const text = button.querySelector(".btn-text");
+
+        if (show) {
+            button.disabled = true;
+            spinner.classList.remove("hidden");
+            text.classList.add("hidden");
+            button.dataset.spinnerStart = Date.now();
+        } else {
+            const elapsed = Date.now() - (button.dataset.spinnerStart || 0);
+            const delay = Math.max(minVisibleMs - elapsed, 0);
+            setTimeout(() => {
+                button.disabled = false;
+                spinner.classList.add("hidden");
+                text.classList.remove("hidden");
+            }, delay);
+        }
+    }
+
+    // Bind no botão
+    document.getElementById("btnResetPassword")
+        .addEventListener("click", handlePasswordReset);
+</script>
+
+
+</body>
+</html>

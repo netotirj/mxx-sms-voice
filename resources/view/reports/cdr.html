@@ -1,0 +1,824 @@
+<div class="w-full px-6 py-6 mx-auto">
+
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+
+                <!-- ===================== TOPO / HEADER ===================== -->
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+
+                    <!-- Título -->
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            📄
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">CDR Voice</h2>
+                            <p class="text-xs text-slate-400">Relatório consolidado de chamadas de voz</p>
+                        </div>
+                    </div>
+
+                    <!-- Ações principais -->
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <!-- Export CSV -->
+                        <button id="cdrExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <!-- Export Excel -->
+                        <button id="cdrExportXls"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-indigo-500 text-white hover:bg-indigo-600 transition shadow-sm">
+                            <span class="text-base">📊</span> Excel
+                        </button>
+
+                        <!-- Reload -->
+                        <button id="cdrReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <!-- Auto-reload switch -->
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="cdrAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <!-- Track -->
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                peer-checked:bg-emerald-500"></div>
+
+                                <!-- Knob -->
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+
+
+
+
+                            <select id="cdrReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="15000">15s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===================== FILTROS ===================== -->
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
+                        <!-- Mostrar -->
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="cdrRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <!-- Tipo -->
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Tipo</label>
+                            <select id="cdrTypeFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="normal">Normal</option>
+                                <option value="voice">Voice</option>
+                                <option value="service_fee">Taxa</option>
+                                <option value="torpedo">Torpedo</option>
+                                <option value="sms">SMS</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="local">Local</option>
+                            </select>
+                        </div>
+
+                        <!-- Status -->
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="cdrStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="ANSWER">Atendida</option>
+                                <option value="NOANSWER">Não atendida</option>
+                                <option value="BUSY">Ocupado</option>
+                                <option value="FAILED">Falhou</option>
+                                <option value="CANCEL">Cancelada</option>
+                                <option value="CONGESTION">Congestionamento</option>
+                                <option value="CHANUNAVAIL">Canal indisponível</option>
+                            </select>
+                        </div>
+
+                        <!-- Data de -->
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="cdrDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <!-- Data até -->
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="cdrDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <!-- Busca -->
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor"
+                                         viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                              d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="cdrSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                       placeholder="número, destino .....">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===================== TABELA ===================== -->
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="cdr-table"
+                               class="w-full text-sm text-slate-700 border-collapse">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Data</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">CID</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Destino</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">SipUser</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Tipo</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Taxa Serviço</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Conta</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Custo</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Duração (s)</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Status</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Causa</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Detalhes</th>
+                            </tr>
+                            </thead>
+                            <tbody id="cdrTableBody">
+                            <tr>
+                                <td colspan="7"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando registros...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ===================== ESTATÍSTICAS ===================== -->
+                <div id="cdrStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                    <!-- preenchido via JS -->
+                </div>
+
+                <!-- ===================== PAGINAÇÃO ===================== -->
+                <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+                    <button id="cdrPrevPage"
+                            class="px-3 py-1.5 text-xs font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        Anterior
+                    </button>
+
+                    <div class="flex flex-col items-center gap-1">
+                        <span id="cdrPageInfo" class="text-xs text-slate-500">Página 1 de 1</span>
+                        <div id="cdrPageNumbers" class="flex items-center gap-1"></div>
+                    </div>
+
+                    <button id="cdrNextPage"
+                            class="px-3 py-1.5 text-xs font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        Próxima
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MODAL DETALHES ===================== -->
+<div id="cdrDetailModal"
+     class="fixed inset-0 hidden z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 mx-4">
+        <h3 class="text-base font-semibold text-slate-800 mb-3 flex items-center gap-2">
+            <span class="text-lg">🔍</span> Detalhes da chamada
+        </h3>
+        <div id="cdrDetailContent" class="text-xs text-slate-700 space-y-1.5"></div>
+        <div class="mt-4 text-right">
+            <button onclick="closeCdrModal()"
+                    class="inline-flex items-center px-4 py-1.5 text-xs font-medium rounded-lg
+                           bg-slate-200 hover:bg-slate-300 text-slate-700">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const baseUrl        = document.querySelector('meta[name="base-url"]').content;
+        const tbody          = document.getElementById("cdrTableBody");
+        const search         = document.getElementById("cdrSearchInput");
+        const perPageSel     = document.getElementById("cdrRowsPerPage");
+        const prevBtn        = document.getElementById("cdrPrevPage");
+        const nextBtn        = document.getElementById("cdrNextPage");
+        const pageInfo       = document.getElementById("cdrPageInfo");
+        const pageNumbers    = document.getElementById("cdrPageNumbers");
+        const typeFilter     = document.getElementById("cdrTypeFilter");
+        const statusFilter   = document.getElementById("cdrStatusFilter");
+        const dateFromInp    = document.getElementById("cdrDateFrom");
+        const dateToInp      = document.getElementById("cdrDateTo");
+        const exportCsvBtn   = document.getElementById("cdrExportCsv");
+        const exportXlsBtn   = document.getElementById("cdrExportXls");
+        const statsBox       = document.getElementById("cdrStats");
+
+        const reloadBtn      = document.getElementById("cdrReloadBtn");
+        const autoReloadChk  = document.getElementById("cdrAutoReload");
+        const reloadInterval = document.getElementById("cdrReloadInterval");
+
+        let allItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        let perPage = Number(perPageSel.value || 10);
+        let autoReloadTimer = null;
+
+        // ========= Helpers de estilo =========
+
+        function cdrTypeBadge(type) {
+            type = (type || "").toLowerCase();
+
+            const map = {
+                normal:      { text: "normal",      icon: "📞", color: "bg-emerald-100 text-emerald-700" },
+                voice:       { text: "voice",       icon: "📞", color: "bg-emerald-100 text-emerald-700" },
+                torpedo:     { text: "torpedo",     icon: "✉️", color: "bg-fuchsia-100 text-fuchsia-700" },
+                sms:         { text: "sms",         icon: "💬", color: "bg-blue-100 text-blue-700" },
+                whatsapp:    { text: "whatsapp",    icon: "🟢", color: "bg-green-100 text-green-700" },
+                local:       { text: "local",       icon: "🏠", color: "bg-slate-200 text-slate-700" },
+                outbound:    { text: "outbound",    icon: "📤", color: "bg-orange-100 text-orange-700" },
+
+                // 💰 TAXA DE SERVIÇO
+                service_fee: { text: "taxa",        icon: "💰", color: "bg-yellow-100 text-yellow-700" }
+            };
+
+            const item = map[type] || {
+                text: type || "-",
+                icon: "❔",
+                color: "bg-gray-200 text-gray-600"
+            };
+
+            return `
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${item.color}">
+            ${item.icon} ${item.text}
+        </span>
+    `;
+        }
+
+
+        function translateStatus(status) {
+            const s = (status || "").toUpperCase();
+
+            const map = {
+                // sucesso
+                ANSWER:           "Atendida",
+                NORMAL_CLEARING:  "Atendida",
+
+                // não atendidas
+                NOANSWER:         "Não atendida",
+                NO_ANSWER:        "Não atendida",
+                NO_USER_RESPONDING:"Sem resposta",
+
+                // ocupado
+                BUSY:             "Ocupado",
+                USER_BUSY:        "Ocupado",
+                BUSY_HERE:        "Ocupado",
+
+                // cancelamentos
+                CANCEL:           "Cancelada",
+                CALL_REJECTED:    "Rejeitada",
+                DECLINE:          "Recusada",
+                REQUEST_TERMINATED:"Cancelada",
+
+                // falhas técnicas
+                FAILED:           "Falhou",
+                CONGESTION:       "Congestion",
+                TEMPORARY_FAILURE:"Falha temporária",
+                RESOURCE_UNAVAILABLE:"Recurso indisponível",
+                CHANUNAVAIL:      "Indisponível",
+                INVALID_NUMBER_FORMAT:"Número inválido",
+
+                // estados intermediários
+                RINGING:          "Chamando",
+                RING:             "Chamando",
+                PROGRESS:         "Em progresso",
+                EARLYMEDIA:       "Mídia antecipada",
+
+                UNKNOWN:          "Desconhecido"
+            };
+
+            return map[s] || status || "-";
+        }
+
+
+        function statusBadge(status) {
+            const raw   = (status || "").toUpperCase();
+            const label = translateStatus(raw);
+
+            const map = {
+                // sucesso
+                ANSWER:           "bg-emerald-100 text-emerald-700",
+                NORMAL_CLEARING:  "bg-emerald-100 text-emerald-700",
+
+                // não atendida
+                NOANSWER:         "bg-yellow-100 text-yellow-700",
+                NO_ANSWER:        "bg-yellow-100 text-yellow-700",
+
+                // ocupado
+                BUSY:             "bg-red-100 text-red-700",
+                USER_BUSY:        "bg-red-100 text-red-700",
+
+                // cancelamentos
+                CANCEL:           "bg-slate-100 text-slate-700",
+                CALL_REJECTED:    "bg-slate-100 text-slate-700",
+                DECLINE:          "bg-slate-100 text-slate-700",
+
+                // falhas técnicas
+                FAILED:           "bg-rose-100 text-rose-700",
+                CONGESTION:       "bg-orange-100 text-orange-700",
+                TEMPORARY_FAILURE:"bg-orange-100 text-orange-700",
+                RESOURCE_UNAVAILABLE:"bg-orange-100 text-orange-700",
+                CHANUNAVAIL:      "bg-gray-200 text-gray-700",
+                INVALID_NUMBER_FORMAT:"bg-gray-200 text-gray-700"
+            };
+
+            const cls = map[raw] || "bg-slate-100 text-slate-700";
+
+            return `
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${cls}">
+            ${label}
+        </span>
+    `;
+        }
+
+
+        function durationBadge(sec) {
+            const s = Number(sec) || 0;
+            let cls = "bg-slate-100 text-slate-700";
+            if (s <= 30) cls = "bg-slate-100 text-slate-700";
+            else if (s <= 60) cls = "bg-blue-100 text-blue-700";
+            else if (s <= 120) cls = "bg-emerald-100 text-emerald-700";
+            else if (s <= 300) cls = "bg-orange-100 text-orange-700";
+            else cls = "bg-red-100 text-red-700";
+            return `
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${cls}">
+                ${s}s
+            </span>
+        `;
+        }
+
+        function costBadge(value) {
+            const v = Number(value) || 0;
+            let cls = "bg-slate-100 text-slate-700";
+            if (v === 0) cls = "bg-slate-100 text-slate-500";
+            else if (v < 0.05) cls = "bg-emerald-100 text-emerald-700";
+            else if (v < 0.15) cls = "bg-yellow-100 text-yellow-800";
+            else cls = "bg-red-100 text-red-700";
+            return `
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${cls}">
+                R$ ${v.toFixed(4)}
+            </span>
+        `;
+        }
+
+        // ========= Template da linha =========
+        function rowTemplate(item) {
+            const typeHtml   = cdrTypeBadge(item.type);
+            const durHtml    = durationBadge(item.duration);
+            const costHtml   = costBadge(item.value);
+            const taxaHtml   = costBadge(item.taxa);
+            const statusHtml = statusBadge(item.dialstatus);
+            const started    = item.started || "-";
+            const dest       = item.destination || "-";
+            const channel       = item.channelNumber || "-";
+            const cause       = item.cause_txt || "-";
+
+            const payload    = encodeURIComponent(JSON.stringify(item));
+
+            return `
+            <tr class="hover:bg-slate-50 transition">
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${started}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${channel}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${dest}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">3952879394</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${typeHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${taxaHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">(Maxx)(6210646305)</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${costHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${durHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${statusHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${cause}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center">
+                    <button onclick='openCdrDetails(JSON.parse(decodeURIComponent("${payload}")))'
+                        class="px-2 py-1 text-[11px] bg-slate-600 text-white rounded-lg hover:bg-slate-700">
+                        Ver
+                    </button>
+                </td>
+            </tr>
+        `;
+        }
+
+        // ========= Estatísticas =========
+        function updateStats() {
+            if (!statsBox) return;
+
+            if (!filteredItems.length) {
+                statsBox.classList.add("hidden");
+                statsBox.innerHTML = "";
+                return;
+            }
+
+            const total = filteredItems.length;
+
+            // Contagem por status
+            const atendidas = filteredItems.filter(i => (i.dialstatus || "").toUpperCase() === "ANSWER").length;
+            const noanswer  = filteredItems.filter(i => (i.dialstatus || "").toUpperCase() === "NOANSWER").length;
+            const busy      = filteredItems.filter(i => (i.dialstatus || "").toUpperCase() === "BUSY").length;
+            const failed    = filteredItems.filter(i => (i.dialstatus || "").toUpperCase() === "FAILED").length;
+            const cancel    = filteredItems.filter(i => (i.dialstatus || "").toUpperCase() === "CANCEL").length;
+
+            // Percentuais
+            const pct = (v) => total > 0 ? ((v / total) * 100).toFixed(1) : "0.0";
+
+            const callSum  = filteredItems.reduce((acc, x) => acc + (Number(x.value) || 0), 0);
+            const taxaSum  = filteredItems.reduce((acc, x) => acc + (Number(x.taxa)  || 0), 0);
+            const totalSum = callSum + taxaSum;
+
+            statsBox.innerHTML = `
+                    <div class="flex flex-wrap gap-4 items-center text-[11px]">
+                        <span><strong>Total:</strong> ${total}</span>
+
+                        <span><strong>Atendidas:</strong>
+                            ${atendidas} (${pct(atendidas)}%)
+                        </span>
+
+                        <span><strong>Não atendidas:</strong>
+                            ${noanswer} (${pct(noanswer)}%)
+                        </span>
+
+                        <span><strong>Ocupadas:</strong>
+                            ${busy} (${pct(busy)}%)
+                        </span>
+
+                        <span><strong>Falhas:</strong>
+                            ${failed} (${pct(failed)}%)
+                        </span>
+
+                        <span><strong>Canceladas:</strong>
+                            ${cancel} (${pct(cancel)}%)
+                        </span>
+
+                        <span><strong>Custo chamadas:</strong> R$ ${callSum.toFixed(4)}</span>
+                        <span><strong>Taxas:</strong> R$ ${taxaSum.toFixed(4)}</span>
+                        <span><strong>Total:</strong> R$ ${totalSum.toFixed(4)}</span>
+                    </div>
+                `;
+
+            statsBox.classList.remove("hidden");
+        }
+
+
+        // ========= Render / Paginação =========
+        function renderPage() {
+            tbody.innerHTML = "";
+            const total      = filteredItems.length;
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            if (!total) {
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">
+                        Nenhum registro encontrado
+                    </td>
+                </tr>`;
+            } else {
+                const start = (currentPage - 1) * perPage;
+                const end   = start + perPage;
+                filteredItems.slice(start, end).forEach(item => {
+                    tbody.insertAdjacentHTML("beforeend", rowTemplate(item));
+                });
+            }
+
+            pageInfo.textContent = `Página ${currentPage} de ${Math.max(1, Math.ceil(total / perPage))}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages;
+
+            renderPageNumbers(totalPages);
+            updateStats();
+        }
+
+        function renderPageNumbers(totalPages) {
+            pageNumbers.innerHTML = "";
+            if (totalPages <= 1) return;
+
+            const makeBtn = (page, label = null) => {
+                const isActive = page === currentPage;
+                const text = label || page;
+                const btn = document.createElement("button");
+                btn.textContent = text;
+                btn.className =
+                    "min-w-[24px] px-2 py-1 text-[11px] rounded-lg border " +
+                    (isActive
+                        ? "bg-emerald-500 text-white border-emerald-500"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100");
+                btn.addEventListener("click", () => {
+                    currentPage = page;
+                    renderPage();
+                });
+                return btn;
+            };
+
+            const maxButtons = 5;
+            let start = Math.max(1, currentPage - 2);
+            let end   = Math.min(totalPages, start + maxButtons - 1);
+            if (end - start < maxButtons - 1) {
+                start = Math.max(1, end - maxButtons + 1);
+            }
+
+            if (start > 1) {
+                pageNumbers.appendChild(makeBtn(1));
+                if (start > 2) {
+                    const dots = document.createElement("span");
+                    dots.textContent = "...";
+                    dots.className = "text-[11px] text-slate-400 px-1";
+                    pageNumbers.appendChild(dots);
+                }
+            }
+
+            for (let p = start; p <= end; p++) {
+                pageNumbers.appendChild(makeBtn(p));
+            }
+
+            if (end < totalPages) {
+                if (end < totalPages - 1) {
+                    const dots2 = document.createElement("span");
+                    dots2.textContent = "...";
+                    dots2.className = "text-[11px] text-slate-400 px-1";
+                    pageNumbers.appendChild(dots2);
+                }
+                pageNumbers.appendChild(makeBtn(totalPages));
+            }
+        }
+
+        // ========= Filtros & busca =========
+        const normalize = str => (str || "").toString().toLowerCase();
+
+        function applyFilters() {
+            const q        = normalize(search.value);
+            const typeVal  = (typeFilter.value || "").toLowerCase();
+            const stVal    = (statusFilter.value || "").toUpperCase();
+            const dateFrom = dateFromInp.value ? new Date(dateFromInp.value + " 00:00:00") : null;
+            const dateTo   = dateToInp.value   ? new Date(dateToInp.value   + " 23:59:59") : null;
+
+            filteredItems = allItems.filter(item => {
+                if (typeVal && (item.type || "").toLowerCase() !== typeVal) return false;
+                if (stVal && (item.dialstatus || "").toUpperCase() !== stVal) return false;
+
+                if ((dateFrom || dateTo) && item.started) {
+                    const dt = new Date(item.started.replace(" ", "T"));
+                    if (dateFrom && dt < dateFrom) return false;
+                    if (dateTo && dt > dateTo) return false;
+                }
+
+                if (q) {
+                    const blob = [
+                        item.number,
+                        item.destination,
+                        item.channel_id,
+                        item.dialstatus,
+                        item.type,
+                        item.cause_txt,
+                        String(item.taxa ?? ""),
+                        String(item.value ?? "")
+                    ].map(normalize).join(" ");
+
+                    if (!blob.includes(q)) return false;
+                }
+                return true;
+            });
+
+            currentPage = 1;
+            renderPage();
+        }
+
+        // ========= Export =========
+        function exportCsv(isExcel = false) {
+            if (!filteredItems.length) {
+                alert("Nenhum registro para exportar.");
+                return;
+            }
+            const header = ["Data", "CID", "Destino", "Número", "Duração (s)", "Tipo", "Taxa", "Custo", "Total", "Status", "Causa"];
+            const rows = filteredItems.map(item => {
+                const taxa = (Number(item.taxa) || 0);
+                const custo = (Number(item.value) || 0);
+                const total = taxa + custo;
+
+                return [
+                    item.started || "",
+                    item.channelNumber || "",
+                    item.destination || "",
+                    item.number || "",
+                    item.duration || 0,
+                    item.type || "",
+                    taxa.toFixed(4),
+                    custo.toFixed(4),
+                    total.toFixed(4),
+                    translateStatus(item.dialstatus),
+                    item.cause || ""
+                ];
+            });
+
+
+            const csvLines = [
+                header.join(";"),
+                ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";"))
+            ];
+
+            const blob = new Blob([csvLines.join("\n")], {
+                type: isExcel
+                    ? "application/vnd.ms-excel;charset=utf-8;"
+                    : "text/csv;charset=utf-8;"
+            });
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = isExcel ? "cdr-report.xls" : "cdr-report.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ========= Auto-reload =========
+        function clearAutoReload() {
+            if (autoReloadTimer) {
+                clearInterval(autoReloadTimer);
+                autoReloadTimer = null;
+            }
+        }
+
+        function setupAutoReload() {
+            clearAutoReload();
+            if (!autoReloadChk.checked) return;
+            const intervalMs = Number(reloadInterval.value || 10000);
+            autoReloadTimer = setInterval(() => fetchCdrData(false), intervalMs);
+        }
+
+        // ========= Fetch de dados =========
+        let errorCount = 0;
+
+       async function fetchCdrData(showLoading = true) {
+            if (showLoading) {
+                tbody.innerHTML = `
+        <tr>
+            <td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">
+                Carregando registros...
+            </td>
+        </tr>`;
+            }
+
+          await  fetch(`${baseUrl}/reports/list-cdr`)
+                .then(r => r.json())
+                .then(result => {
+                    errorCount = 0; // reset erro
+                    allItems = Array.isArray(result.data) ? result.data : [];
+                    allItems = allItems.map(item => ({
+                        ...item,
+                        type: (item.type || "").toLowerCase(),
+                        value: Number(item.value) || 0,
+                        taxa: Number(item.taxa) || 0,
+                        duration: Number(item.duration) || 0
+                    }));
+                    applyFilters();
+                })
+                .catch(() => {
+                    errorCount++;
+
+                    // ⚠️ Só mostra erro se falhar 3 vezes seguidas
+                    if (errorCount >= 3) {
+                        tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-4 py-6 text-center text-red-500">
+                        Erro ao carregar CDR.
+                    </td>
+                </tr>`;
+                        statsBox && statsBox.classList.add("hidden");
+                    }
+                });
+        }
+
+        // ========= Eventos =========
+        perPageSel.addEventListener("change", () => {
+            perPage = Number(perPageSel.value || 10);
+            currentPage = 1;
+            renderPage();
+        });
+
+        prevBtn.addEventListener("click", () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        nextBtn.addEventListener("click", () => {
+            const totalPages = Math.max(1, Math.ceil(filteredItems.length / perPage));
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        search.addEventListener("input", applyFilters);
+        typeFilter.addEventListener("change", applyFilters);
+        statusFilter.addEventListener("change", applyFilters);
+        dateFromInp.addEventListener("change", applyFilters);
+        dateToInp.addEventListener("change", applyFilters);
+
+        exportCsvBtn.addEventListener("click", () => exportCsv(false));
+        exportXlsBtn.addEventListener("click", () => exportCsv(true));
+
+        reloadBtn.addEventListener("click", () => {
+            fetchCdrData(true);
+        });
+
+        autoReloadChk.addEventListener("change", () => {
+            setupAutoReload();
+        });
+
+        reloadInterval.addEventListener("change", () => {
+            if (autoReloadChk.checked) setupAutoReload();
+        });
+
+        // Inicial
+        fetchCdrData(true);
+        setupAutoReload();
+    });
+
+    // ======= Modal Detalhes =======
+    function openCdrDetails(item) {
+        const html = `
+        <p><strong>Data:</strong> ${item.started ?? "-"}</p>
+        <p><strong>Tipo:</strong> ${item.type ?? "-"}</p>
+        <p><strong>Número:</strong> ${item.number ?? "-"}</p>
+        <p><strong>Destino:</strong> ${item.destination ?? "-"}</p>
+        <p><strong>Duração:</strong> ${item.duration ?? 0} s</p>
+        <p><strong>Taxa:</strong> R$ ${(Number(item.taxa) || 0).toFixed(4)}</p>
+        <p><strong>Valor:</strong> R$ ${(Number(item.value) || 0).toFixed(4)}</p>
+        <p><strong>Status:</strong> ${item.dialstatus ?? "-"}</p>
+        <p><strong>Motivo:</strong> ${item.cause_txt ?? "-"}</p>
+        <p><strong>Canal:</strong> ${item.channel_id ?? "-"}</p>
+    `;
+        document.getElementById("cdrDetailContent").innerHTML = html;
+        document.getElementById("cdrDetailModal").classList.remove("hidden");
+        document.getElementById("cdrDetailModal").classList.add("flex");
+    }
+
+    function closeCdrModal() {
+        const modal = document.getElementById("cdrDetailModal");
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+    }
+</script>

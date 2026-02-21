@@ -1,0 +1,373 @@
+<!--<dialog id="confirmDeleteModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
+    <div class="relative w-full max-w-md mx-auto mt-24 bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-lg font-semibold mb-4">Excluir Campanha</h2>
+        <p id="confirmDeleteMessage" class="mb-6 text-sm text-gray-700">
+            Tem certeza que deseja excluir esta campanha? Essa ação é irreversível.
+        </p>
+        <div class="flex justify-end gap-3">
+            <button id="cancelDeleteBtn" type="button" class="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400">
+                Cancelar
+            </button>
+            <button id="confirmDeleteBtn" type="button" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">
+                Excluir
+            </button>
+        </div>
+    </div>
+</dialog>-->
+
+
+<!-- Modal de Upload -->
+<div>
+    <div id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="relative z-10 hidden">
+        <!-- Fundo escurecido -->
+        <div aria-hidden="true" class="fixed inset-0 bg-gray-700 opacity-50 transition-opacity"></div>
+
+        <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4 text-center sm:items-center sm:p-0">
+                <div id="uploadModalContent"
+                     class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg scale-95 opacity-0 duration-200">
+                    <form id="uploadForm">
+                        <div class="bg-white px-6 pt-6 pb-4 sm:p-6 sm:pb-4">
+                            <!--<h3 id="dialog-title" class="text-lg font-medium text-gray-700 mb-4">Upload de Arquivo</h3>-->
+                            <h3 id="dialog-title" class="text-base font-semibold text-emerald-500 mb-2">Upload de
+                                Arquivo</h3>
+
+                            <input type="hidden" id="campaignId" name="campaignId" value="">
+
+                            <label for="fileInput" class="block mb-3 text-sm text-gray-500">Selecione um
+                                arquivo:</label>
+                            <input type="file" id="fileInput" name="fileInput"
+                                   class="w-full border border-gray-500 p-2 rounded-md mb-4 focus:ring-2 focus:ring-blue-500"/>
+
+                            <div class="w-full bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
+                                <div
+                                        id="uploadProgressBar"
+                                        class="bg-blue-500 h-2 text-white text-xs text-center leading-4"
+                                        style="width: 0"
+                                >0%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <button type="submit"
+                                    class="inline-flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-blue-500 sm:ml-3 sm:w-auto">
+                                Enviar
+                            </button>
+                            <button type="button" onclick="closeUploadModal()"
+                                    class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-600 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-100 sm:mt-0 sm:w-auto">
+                                Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
+
+                <!-- Cabeçalho -->
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                        Campanhas
+                    </h6>
+                    <a href="{{URL}}/campaign/new"
+                       class="inline-flex items-center gap-2 bg-gradient-to-tr from-green-800 to-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Criar Campanha
+                    </a>
+                </div>
+
+                <!-- Tabela -->
+                <div class="p-6 overflow-x-auto">
+                    <table id="sorting-table" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 ">ID</th>
+                            <th class="px-4 py-3 ">Nome</th>
+                            <th class="px-4 py-3 ">Mensagem</th>
+                            <th class="px-4 py-3 ">Qtd</th>
+                            <th class="px-4 py-3 ">Status</th>
+                            <th class="px-4 py-3 ">Data</th>
+                            <th class="px-4 py-3 ">Ações</th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
+                        <!-- DataTables irá preencher -->
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<style>
+    /* Alinha menu e busca lado a lado */
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .dataTables_wrapper .dataTables_length {
+        float: left;
+    }
+
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+    }
+
+    .dataTables_wrapper .dataTables_length select,
+    .dataTables_wrapper .dataTables_filter input {
+        margin-left: 0.5rem;
+    }
+
+    /* Remove margin lateral padrão */
+    #table-sms_wrapper {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    /* Reduz fontes e padding do info abaixo */
+    .dataTables_wrapper .dataTables_info {
+        font-size: 0.75rem;
+        color: #475569; /* slate-600 */
+        padding-top: 0.5rem;
+    }
+
+    /* Remove float no responsivo */
+    @media (max-width: 640px) {
+        .dataTables_wrapper .dataTables_length,
+        .dataTables_wrapper .dataTables_filter {
+            float: none;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+    }
+
+    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
+    .break-message {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    /* Permite que a largura da célula se ajuste automaticamente */
+    .auto-width-message {
+        display: inline-block;
+        max-width: 100%;
+        width: auto;
+        min-width: 150px;
+    }
+</style>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const table = $('#sorting-table').DataTable({
+            responsive: true,
+            pageLength: 10,
+            autoWidth: false,
+            ajax: 'campaign/realtime',
+            language: {
+                decimal: ",",
+                thousands: ".",
+                info: "Exibindo _START_ - _END_ de _TOTAL_ registros",
+                infoEmpty: "Nenhum registro encontrado",
+                infoFiltered: "(filtrado de _MAX_ registros)",
+                lengthMenu: "_MENU_ por página",
+                loadingRecords: "Carregando...",
+                processing: "Processando...",
+                search: "🔍",
+                zeroRecords: "Nada encontrado",
+                paginate: {
+                    first: "«",
+                    last: "»",
+                    next: "›",
+                    previous: "‹"
+                },
+            },
+            columnDefs: [
+                { targets: 5, type: 'datetime' } // Força a coluna 5 a ser tratada como data
+            ],
+
+            columns: [
+                {
+                    data: 'id',
+                    className: "dt-head-center dt-body-center",
+                    render: data => `#${data}`
+                },
+                {
+                    data: 'name',
+                    className: "dt-head-center dt-body-center",
+                    render: data => `${data}`
+                },
+                {
+                    data: 'message',
+                    //className: "dt-head-center dt-body-left break-message",
+                    className: "dt-head-center dt-body-center",
+                    render: data => {
+                        // Se nulo ou vazio
+                        if (!data) return '';
+
+                        // Quebra a cada 60 caracteres
+                        const wrapped = data.match(/.{1,30}/g)?.join('<br>') ?? data;
+
+                        return `
+                            <div class="auto-width-message">
+                            ${wrapped}
+                            </div>
+                                `;
+                    }
+                },
+                {
+                    data: 'qtdRows',
+                    className: "dt-head-center dt-body-center",
+                    render: data => `${data}`
+                },
+                {
+                    data: 'statusCamp',
+                    className: "dt-head-center dt-body-center",
+                    render: data => {
+                        let badgeClass = 'bg-slate-500';
+                        let label = 'Desconhecido';
+
+                        if (data === 'y' || data === 'Ativa') {
+                            badgeClass = 'bg-gradient-to-r from-emerald-700 to-teal-400';
+                            label = 'Ativa';
+                        } else if (data === 'n' || data === 'Inativa') {
+                            badgeClass = 'bg-gradient-to-r from-orange-700 to-rose-400';
+                            label = 'Inativa';
+                        } else if (data === 'f' || data === 'Finalizada') {
+                            badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-400';
+                            label = 'Finalizada';
+                        }
+
+                        return `
+                    <span class="text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${badgeClass}">
+                        ${label}
+                    </span>
+                    `;
+                    }
+                },
+                {
+                    data: 'created',
+                    className: "dt-head-center dt-body-center",
+                    render: data => {
+                        if (!data) return `<span class="italic text-slate-400">-</span>`;
+
+                        const date = new Date(data);
+                        if (isNaN(date)) return `<span class="italic text-slate-400">-</span>`;
+
+                        const iso = date.toISOString(); // formato seguro para ordenar
+                        const formatted = `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}`;
+
+                        return `<span class="font-medium" data-order="${iso}">${formatted}</span>`;
+                    }
+                },
+                {
+                    defaultContent: '',
+                    className: "dt-head-center dt-body-center",
+                    render: (data, type, row) => {
+                        const isFinalized = row.statusCamp === 'f' || row.statusCamp === 'Finalizada';
+                        const disabledAttr = isFinalized ? 'disabled' : '';
+                        const disabledClass = isFinalized ? 'opacity-50 cursor-not-allowed hover:bg-none' : '';
+
+                        return `
+            <!-- Disparar SMS -->
+            <button
+                class="btn-send inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
+                data-id="${row.id}"
+                title="Enviar"
+                ${disabledAttr}>
+                <span class="icon-send">
+                    <i data-feather="send" class="w-4 h-4"></i>
+                </span>
+                <span class="icon-spinner hidden">
+                    <svg class="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                </span>
+            </button>
+
+            <!-- Editar -->
+            <button
+                class="btn-edit inline-flex items-center gap-1 bg-orange-100 text-orange-700 hover:bg-orange-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
+                data-id="${row.id}"
+                title="Editar"
+                ${disabledAttr}>
+                <span class="icon-edit">
+                    <i data-feather="edit-2" class="w-4 h-4"></i>
+                </span>
+                <span class="icon-spinner hidden">
+                    <svg class="animate-spin h-4 w-4 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                </span>
+            </button>
+
+            <!-- Upload -->
+            <button
+                class="btn-upload inline-flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
+                data-id="${row.id}"
+                title="Subir Nomes"
+                ${disabledAttr}>
+                <span class="icon-upload">
+                    <i data-feather="upload" class="w-4 h-4"></i>
+                </span>
+                <span class="icon-spinner hidden">
+                    <svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                </span>
+            </button>
+
+            <!-- Deletar -->
+            <button
+                class="btn-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-2 py-1 rounded"
+                data-id="${row.id}"
+                data-name="${row.name}"
+                title="Apagar">
+                <span class="icon-delete">
+                    <i data-feather="trash" class="w-4 h-4"></i>
+                </span>
+                <span class="icon-spinner hidden">
+                    <svg class="animate-spin h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                </span>
+            </button>
+        `;
+                    }
+                }
+
+
+            ],
+            order: [[5, 'desc']],
+            drawCallback: function () {
+                feather.replace();
+            },
+        });
+    });
+
+
+</script>

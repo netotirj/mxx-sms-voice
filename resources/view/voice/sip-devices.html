@@ -1,0 +1,732 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div
+                    class="relative flex flex-col bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl"
+            >
+                <!-- Cabeçalho -->
+                <div class="p-6 pb-0 mb-0 flex justify-between items-center">
+                    <h6 class="dark:text-white font-semibold text-lg">SIP Devices</h6>
+                    <div class="flex gap-3">
+                        <button
+                                id="deleteSelected"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-red-500 to-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition opacity-60 cursor-not-allowed"
+                                disabled
+                        >
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                            >
+                                <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                            </svg>
+                            Excluir Selecionados
+                        </button>
+
+                        <button
+                                id="createSip"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition"
+                        >
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                            >
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Busca -->
+                <div class="px-6 py-4 flex justify-end">
+                    <div class="relative w-[250px]">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                                    class="w-5 h-5 text-slate-400"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                            >
+                                <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"
+                                />
+                            </svg>
+                        </div>
+                        <input
+                                type="text"
+                                id="searchInput"
+                                placeholder="Buscar dispositivo..."
+                                class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700"
+                        />
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-center border-collapse text-slate-500 dark:text-white">
+                            <thead class="bg-gray-50 dark:bg-slate-800">
+                            <tr>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">
+                                    <input
+                                            type="checkbox"
+                                            id="selectAll"
+                                            class="accent-emerald-500 w-4 h-4 cursor-pointer"
+                                    />
+                                </th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">UserName</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Nome</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Senha</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">IP</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">User Agent</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Caller Number</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Status</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Criado</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Modificado</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Status Sip</th>
+
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Paginação -->
+                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
+                    <button
+                            id="prevPage"
+                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                    >
+                        Anterior
+                    </button>
+                    <span id="pageInfo" class="text-sm text-slate-600 dark:text-slate-300"
+                    >Página 1 de 1</span
+                    >
+                    <button
+                            id="nextPage"
+                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                    >
+                        Próxima
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adicionar SIP -->
+<div
+        id="createModal"
+        class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50"
+>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6">
+        <h3 class="text-lg font-semibold text-slate-700 dark:text-white mb-4">
+            Adicionar SIP Device
+        </h3>
+
+        <form id="createSipForm" class="space-y-3">
+            <!-- Username -->
+            <div class="relative">
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Username (Ramal)
+                </label>
+                <div class="flex items-center">
+                    <input
+                            type="text"
+                            name="username"
+                            id="username"
+                            readonly
+                            required
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <button
+                            type="button"
+                            id="regenUser"
+                            class="ml-2 p-2 rounded-lg bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 transition"
+                            title="Gerar novo número de ramal"
+                    >
+                        🔄
+                    </button>
+                </div>
+            </div>
+
+            <!-- Nome -->
+            <div class="relative">
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Nome do Dispositivo
+                </label>
+                <input
+                        type="text"
+                        name="name"
+                        id="name"
+                        required
+                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                />
+            </div>
+
+
+            <!-- Password -->
+            <div class="relative">
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Password
+                </label>
+                <div class="flex items-center">
+                    <input
+                            type="text"
+                            name="password"
+                            id="password"
+                            readonly
+                            required
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <button
+                            type="button"
+                            id="regenPass"
+                            class="ml-2 p-2 rounded-lg bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 transition"
+                            title="Gerar nova senha"
+                    >
+                        🔄
+                    </button>
+                </div>
+            </div>
+
+            <!-- Caller Number -->
+            <div>
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Caller Number
+                </label>
+                <input
+                        type="text"
+                        name="caller_number"
+                        id="caller_number"
+                        readonly
+                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                />
+            </div>
+
+            <!-- Status -->
+            <div>
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Status da Conta
+                </label>
+                <select
+                        name="account_status"
+                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4">
+                <button
+                        type="button"
+                        id="cancelCreate"
+                        class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-slate-700 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-600 transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                        type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-tr from-emerald-500 to-emerald-600 hover:shadow-md transition"
+                >
+                    Criar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute("content");
+        const tbody = document.querySelector("table tbody");
+        const selectAll = document.getElementById("selectAll");
+        const deleteSelected = document.getElementById("deleteSelected");
+        const prevBtn = document.getElementById("prevPage");
+        const nextBtn = document.getElementById("nextPage");
+        const pageInfo = document.getElementById("pageInfo");
+        const searchInput = document.getElementById("searchInput");
+        const createBtn = document.getElementById("createSip");
+        const modal = document.getElementById("createModal");
+        const cancelBtn = document.getElementById("cancelCreate");
+        const form = document.getElementById("createSipForm");
+        const modalTitle = modal.querySelector("h3");
+        const submitButton = form.querySelector('button[type="submit"]');
+
+        let allRows = [];
+        let filteredRows = [];
+        let currentPage = 1;
+        const perPage = 10;
+        let editMode = false;
+        let editingId = null;
+
+        const removeDiacritics = (str) => str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+
+        function formatDateBR(dateStr) {
+            if (!dateStr) return "-";
+            const date = new Date(dateStr);
+            if (isNaN(date)) return "-";
+            return date.toLocaleString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            }).replace(",", "");
+        }
+
+        // 🔢 Função para gerar ramal aleatório (8 dígitos)
+        function gerarRamal(qtd = 8) {
+            let ramal = "";
+            for (let i = 0; i < qtd; i++) ramal += Math.floor(Math.random() * 10);
+            return ramal;
+        }
+
+
+        // 🔐 Função para gerar senha aleatória (8 caracteres)
+        function gerarSenha() {
+             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?";
+            let senha = "";
+            for (let i = 0; i < 8; i++) {
+                senha += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return senha;
+        }
+
+        // 🔄 Preencher automaticamente os campos ao abrir modal
+        function preencherCamposAuto() {
+            const username = form.querySelector('[name="username"]');
+            const password = form.querySelector('[name="password"]');
+            const caller = form.querySelector('[name="caller_number"]');
+            username.value = gerarRamal();
+            password.value = gerarSenha();
+            caller.value = username.value;
+        }
+
+        prevBtn?.addEventListener("click", () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+                selectAll.checked = false;
+            }
+        });
+
+        nextBtn?.addEventListener("click", () => {
+            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+                selectAll.checked = false;
+            }
+        });
+
+
+        // 🧩 Construção das linhas
+        function buildRows(data) {
+            return data.map((sip) => {
+                const isOnline = sip.status?.toLowerCase() === "online";
+                const statusClass = isOnline
+                    ? "bg-gradient-to-tl from-emerald-500 to-teal-400"
+                    : "bg-gradient-to-tl from-red-500 to-pink-400";
+
+                return `
+      <tr data-id="${sip.id}" class="hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <td class="p-2 text-center">
+          <input type="checkbox" class="row-checkbox accent-emerald-500 w-4 h-4 cursor-pointer" value="${sip.id}">
+        </td>
+        <td class="p-2 text-center">
+          <a href="javascript:void(0)" class="username-link text-sm font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition" data-id="${sip.id}">
+            ${sip.username || "-"}
+          </a>
+        </td>
+        <td class="p-2 text-center text-xs text-slate-400 cursor-pointer hover:text-emerald-500 transition copy-password" title="Clique para copiar">
+          ${sip.name || "-"}
+        </td>
+        <td class="p-2 text-center text-xs text-slate-400 cursor-pointer hover:text-emerald-500 transition copy-password" title="Clique para copiar">
+          ${sip.password || "-"}
+        </td>
+
+        <td class="p-2 text-center text-xs text-slate-400">${sip.ip || "-"}</td>
+        <td class="p-2 text-center text-xs text-slate-400">${sip.user_agent || "-"}</td>
+        <td class="p-2 text-center text-xs text-slate-400">${sip.callerid || "-"}</td>
+        <td class="p-2 text-center">
+          <span class="px-2.5 text-xs rounded py-1 inline-block font-bold uppercase text-white ${statusClass}">
+            ${isOnline ? "Online" : "Offline"}
+          </span>
+        </td>
+        <td class="p-2 text-center text-xs text-slate-400">${formatDateBR(sip.created_at)}</td>
+        <td class="p-2 text-center text-xs text-slate-400">${formatDateBR(sip.updated_at)}</td>
+        <td class="px-6 py-2 text-center">
+          <label class="inline-flex relative items-center cursor-pointer">
+            <input
+              type="checkbox"
+              class="sr-only peer account-toggle"
+              data-sip-id="${sip.id}"
+              ${sip.account_status === "active" ? "checked" : ""}
+            >
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-emerald-500 peer-focus:ring-2 peer-focus:ring-emerald-300 transition-all"></div>
+            <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-full"></div>
+          </label>
+        </td>
+      </tr>`;
+            });
+        }
+
+        // 🧩 Renderização
+        function renderPage(page = 1) {
+            tbody.innerHTML = "";
+
+            const TOTAL_COLS = 11; // mantenha igual ao seu header (th)
+            const start = (page - 1) * perPage;
+            const end   = start + perPage;
+            const rows  = filteredRows.slice(start, end);
+
+            // 🔹 Empty state igual ao trunks
+            if (rows.length === 0) {
+                //const hasFilter = !!document.getElementById("searchSipInput")?.value?.trim(); // ajuste o id se for outro
+
+                const hasFilter = !!searchInput?.value?.trim();
+
+                tbody.innerHTML = `
+      <tr>
+        <td colspan="${TOTAL_COLS}" class="py-14 text-center">
+          <div class="flex flex-col items-center gap-2 text-slate-400">
+            <div class="text-4xl">${hasFilter ? "🔍" : "📭"}</div>
+
+            <div class="text-sm font-semibold text-slate-500">
+              ${hasFilter
+                    ? "Nenhum ramal corresponde à sua busca"
+                    : "Nenhum Ramal SIP cadastrado"}
+            </div>
+
+            <div class="text-xs text-slate-400">
+              ${hasFilter
+                    ? "Tente ajustar o termo de pesquisa."
+                    : "Cadastre um novo ramal para começar."}
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+
+            } else {
+                rows.forEach((r) => tbody.insertAdjacentHTML("beforeend", r));
+            }
+
+            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
+            pageInfo.textContent = `Página ${page} de ${totalPages}`;
+            prevBtn.disabled = page === 1;
+            nextBtn.disabled = page === totalPages;
+            updateDeleteButtonState();
+        }
+
+
+        // 🔍 Filtro de busca em tempo real
+        searchInput.addEventListener("input", (e) => {
+            const termo = removeDiacritics(e.target.value.toLowerCase().trim());
+
+            // Filtra as linhas geradas (allRows é um array de strings HTML)
+            if (!termo) {
+                filteredRows = allRows;
+            } else {
+                filteredRows = allRows.filter((rowHtml) => {
+                    const plain = removeDiacritics(rowHtml.toLowerCase());
+                    return plain.includes(termo);
+                });
+            }
+
+            currentPage = 1;
+            renderPage(currentPage);
+        });
+
+
+        // 🗑️ Controle do botão Excluir
+        function updateDeleteButtonState() {
+            const checked = document.querySelectorAll(".row-checkbox:checked");
+            if (checked.length > 0) {
+                deleteSelected.disabled = false;
+                deleteSelected.classList.remove("opacity-60", "cursor-not-allowed");
+            } else {
+                deleteSelected.disabled = true;
+                deleteSelected.classList.add("opacity-60", "cursor-not-allowed");
+            }
+        }
+
+        // ✅ Selecionar todos
+        selectAll.addEventListener("change", () => {
+            const checkboxes = document.querySelectorAll(".row-checkbox");
+            checkboxes.forEach((cb) => (cb.checked = selectAll.checked));
+            updateDeleteButtonState();
+        });
+
+        tbody.addEventListener("change", (e) => {
+            if (e.target.classList.contains("row-checkbox")) updateDeleteButtonState();
+        });
+
+        // 📋 Copiar senha ao clicar na célula
+        tbody.addEventListener("click", (e) => {
+            if (e.target.classList.contains("copy-password")) {
+                const senha = e.target.textContent.trim();
+                if (!senha || senha === "-") return;
+
+                navigator.clipboard.writeText(senha).then(() => {
+                    // Notificação visual (pode usar notyf ou fallback)
+                    if (typeof notyf !== "undefined") {
+                        notyf.success("🔑 Senha copiada!");
+                    } else {
+                        const original = e.target.textContent;
+                        e.target.textContent = "✅ Copiado!";
+                        setTimeout(() => (e.target.textContent = original), 1000);
+                    }
+                }).catch(() => {
+                    if (typeof notyf !== "undefined") {
+                        notyf.error("Erro ao copiar senha!");
+                    }
+                });
+            }
+        });
+
+
+        // 🗑️ Excluir selecionados
+        deleteSelected.addEventListener("click", () => {
+            // 🟢 Pega todos os checkboxes marcados e extrai os IDs
+            const selectedRows = Array.from(document.querySelectorAll(".row-checkbox:checked"));
+
+            if (selectedRows.length === 0) return;
+
+            // 🧩 Pega o username de cada linha selecionada
+            const selectedNames = selectedRows.map(cb => {
+                const row = cb.closest("tr");
+                const usernameCell = row.querySelector(".username-link");
+                return usernameCell ? usernameCell.textContent.trim() : cb.value;
+            });
+
+            // 🔠 Monta texto bonito pro SweetAlert
+            const usernamesText =
+                selectedNames.length === 1
+                    ? `Ramal: <strong>${selectedNames[0]}</strong>`
+                    : selectedNames.length <= 5
+                        ? `Ramais: <strong>${selectedNames.join(", ")}</strong>`
+                        : `Foram selecionados <strong>${selectedNames.length}</strong> ramais.`;
+
+            Swal.fire({
+                title: "Excluir dispositivos?",
+                html: `Deseja realmente remover ${usernamesText}?`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sim, remover",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#e3342f",
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const selectedIds = selectedRows.map(cb => cb.value);
+
+                    fetch(`${baseUrl}/campaign/voice/sip-devices/delete`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ids: selectedIds }),
+                    })
+                        .then((res) => res.json())
+                        .then((result) => {
+                            if (result.success) {
+                                notyf.success(`🗑️ ${selectedNames.length} dispositivo(s) removido(s)!`);
+                                setTimeout(() => location.reload(), 800);
+                            } else {
+                                notyf.error(result.message || "Erro ao excluir dispositivos.");
+                            }
+                        })
+                        .catch(() => notyf.error("Falha ao comunicar com o servidor."));
+                }
+            });
+        });
+
+
+        // 🔁 Alternar status de conta
+        tbody.addEventListener("change", (e) => {
+            if (e.target.classList.contains("account-toggle")) {
+                const sipId = e.target.getAttribute("data-sip-id");
+                const username = e.target.closest("tr").querySelector(".username-link").textContent.trim();
+                const newStatus = e.target.checked ? "active" : "inactive";
+
+                fetch(`${baseUrl}/campaign/voice/sip-devices/${sipId}/status`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ account_status: newStatus }),
+                })
+                    .then((res) => res.json())
+                    .then((result) => {
+                        if (result.success) {
+                            notyf.success(`✅ Ramal ${username} ${newStatus === "active" ? "ativo" : "inativo"}.`);
+                        } else {
+                            notyf.error(result.message || "Erro ao atualizar status.");
+                            e.target.checked = !e.target.checked;
+                        }
+                    })
+                    .catch(() => {
+                        notyf.error("Falha na comunicação com o servidor.");
+                        e.target.checked = !e.target.checked;
+                    });
+            }
+        });
+
+
+
+        // ✏️ Editar SIP
+
+        tbody.addEventListener("click", (e) => {
+            if (e.target.classList.contains("username-link")) {
+                const sipId = e.target.getAttribute("data-id");
+                editMode = true;
+                editingId = sipId;
+
+                fetch(`${baseUrl}/campaign/voice/sip-devices/${sipId}/edit/`)
+                    .then((res) => res.json())
+                    .then((result) => {
+                        if (result.success) {
+                            const sip = result.data;
+
+                            modalTitle.textContent = "✏️ Editar SIP Device";
+                            submitButton.textContent = "Atualizar";
+                            modal.classList.remove("hidden");
+
+                            const usernameInput = form.querySelector('[name="username"]');
+                            const nameInput = form.querySelector('[name="name"]');
+                            const passwordInput = form.querySelector('[name="password"]');
+                            const callerInput = form.querySelector('[name="caller_number"]');
+                            const accountSelect = form.querySelector('[name="account_status"]');
+                            const regenUserBtn = document.getElementById("regenUser");
+                            const regenPassBtn = document.getElementById("regenPass");
+
+                            // 🧩 Preenche campos com dados do SIP
+                            usernameInput.value = sip.username || "";
+                            nameInput.value = sip.name || "";
+                            passwordInput.value = sip.password || "";
+                            callerInput.value = sip.callerid || "";
+                            accountSelect.value = sip.account_status || "active";
+
+                            // 🚫 Impede edição do Username (Ramal)
+                            usernameInput.readOnly = true;
+                            usernameInput.classList.add("cursor-not-allowed", "bg-gray-100");
+
+                            // 🚫 Desativa botão de regenerar username
+                            if (regenUserBtn) {
+                                regenUserBtn.disabled = true;
+                                regenUserBtn.classList.add("opacity-60", "cursor-not-allowed");
+                            }
+
+                            // ✅ Permite editar senha e caller number e Name
+                            passwordInput.readOnly = false;
+                            passwordInput.classList.remove("cursor-not-allowed", "bg-gray-100");
+                            nameInput.readOnly = false;
+                            nameInput.classList.remove("cursor-not-allowed", "bg-gray-100");
+                            callerInput.readOnly = false;
+                            callerInput.classList.remove("cursor-not-allowed", "bg-gray-100");
+
+                            // ✅ Mantém o botão de regenerar senha ativo
+                            if (regenPassBtn) {
+                                regenPassBtn.disabled = false;
+                                regenPassBtn.classList.remove("opacity-60", "cursor-not-allowed");
+                            }
+
+                        } else {
+                            notyf.error("Erro ao carregar dados do Ramal SIP.");
+                        }
+                    })
+                    .catch(() => notyf.error("Falha ao carregar dados do Ramal SIP."));
+            }
+        });
+
+
+        // ➕ Criar SIP
+        createBtn.addEventListener("click", () => {
+            editMode = false;
+            editingId = null;
+            modalTitle.textContent = "➕ Adicionar Ramal Sip";
+            submitButton.textContent = "Criar";
+            form.reset();
+            preencherCamposAuto(); // <<<<< GERA AUTOMATICAMENTE
+            modal.classList.remove("hidden");
+        });
+
+        // Fechar modal
+        cancelBtn.addEventListener("click", () => modal.classList.add("hidden"));
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) modal.classList.add("hidden");
+        });
+
+        // 💾 Submeter (criar ou editar)
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const formData = Object.fromEntries(new FormData(form));
+            formData.account_status =
+                formData.account_status?.toLowerCase() === "inactive" ? "inactive" : "active";
+
+            const url = editMode
+                ? `${baseUrl}/campaign/voice/sip-devices/${editingId}/update`
+                : `${baseUrl}/campaign/voice/sip-devices/create`;
+
+            fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData),
+            })
+                .then((res) => res.json())
+                .then((result) => {
+                    if (result.success) {
+                        notyf.success(editMode ? "✏️ Ramal Sip atualizado!" : "✅ Ramal Sip criado!");
+                        modal.classList.add("hidden");
+                        form.reset();
+                        setTimeout(() => location.reload(), 800);
+                    } else {
+                        notyf.error(result.message || "Erro ao salvar Ramal Sip.");
+                    }
+                })
+                .catch(() => notyf.error("Falha ao comunicar com o servidor."));
+        });
+
+        // 🔄 Carregar lista inicial
+        fetch(`${baseUrl}/campaign/voice/sip-devices`)
+            .then((r) => r.json())
+            .then((result) => {
+                const devices = Array.isArray(result.data) ? result.data : result.data?.data || [];
+                console.log(devices)
+
+                allRows = buildRows(devices);
+                filteredRows = allRows;
+                renderPage(currentPage);
+            });
+
+        // Eventos dos botões de recarregar (caso existam no HTML)
+        document.getElementById("regenUser")?.addEventListener("click", () => {
+            form.querySelector('[name="username"]').value = gerarRamal();
+            form.querySelector('[name="caller_number"]').value = form.querySelector('[name="username"]').value;
+        });
+
+        document.getElementById("regenPass")?.addEventListener("click", () => {
+            form.querySelector('[name="password"]').value = gerarSenha();
+        });
+    });
+</script>
+
+
+

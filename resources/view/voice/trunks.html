@@ -1,0 +1,798 @@
+<div class="w-full px-6 py-6 mx-auto">
+
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div
+                    class="relative flex flex-col bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl"
+            >
+                <!-- Cabeçalho -->
+                <div class="p-6 pb-0 mb-0 flex justify-between items-center">
+                    <h6 class="dark:text-white font-semibold text-lg">SIP Trunks</h6>
+                    <div class="flex gap-3">
+                        <button
+                                id="deleteTrunkSelected"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-red-500 to-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition opacity-60 cursor-not-allowed"
+                                disabled
+                        >
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                            >
+                                <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                            </svg>
+                            Excluir Selecionados
+                        </button>
+
+                        <button
+                                id="createTrunk"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition"
+                        >
+                            <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                            >
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Busca -->
+                <div class="px-6 py-4 flex justify-end">
+                    <div class="relative w-[250px]">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                                    class="w-5 h-5 text-slate-400"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                            >
+                                <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"
+                                />
+                            </svg>
+                        </div>
+                        <input
+                                type="text"
+                                id="searchTrunkInput"
+                                placeholder="Buscar Trunks..."
+                                class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700"
+                        />
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-center border-collapse text-slate-500 dark:text-white">
+                            <thead class="bg-gray-50 dark:bg-slate-800">
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
+                                <th class="px-4 py-3 text-xs font-bold uppercase">
+                                    <input type="checkbox" id="selectAll" class="accent-emerald-500 w-4 h-4 cursor-pointer" />
+                                </th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Nome</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Host</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Usuário</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Porta</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Transporte</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">TechPrefix</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Direção</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Dial Prefix</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Tipo</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Criado</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Modificado</th>
+                                <th class="px-4 py-3 text-xs font-bold uppercase">Status</th>
+                            </tr>
+                            </thead>
+
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Paginação -->
+                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
+                    <button
+                            id="prevPage"
+                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                    >
+                        Anterior
+                    </button>
+                    <span id="pageInfo" class="text-sm text-slate-600 dark:text-slate-300"
+                    >Página 1 de 1</span
+                    >
+                    <button
+                            id="nextPage"
+                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
+                    >
+                        Próxima
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Trunk -->
+    <div id="trunkModal"
+         class="fixed inset-0 z-50 hidden
+            bg-black bg-opacity-50
+            flex items-start justify-center
+            p-4">
+
+    <div
+                class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl
+         w-full max-w-md
+         max-h-[90vh]
+         overflow-y-auto
+         scrollbar-thin scrollbar-thumb-slate-300
+         p-6"
+        >
+
+        <h3 id="trunkModalTitle"
+                class="text-lg font-semibold text-slate-700 dark:text-white mb-4">
+                ➕ Adicionar SIP Trunk
+            </h3>
+
+            <form id="trunkForm" class="space-y-3">
+
+                <input type="hidden" name="trunk_id">
+
+                <!-- Nome -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Nome do Trunk</label>
+                    <input name="name" required
+                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <!-- Tipo Auth -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Autenticação</label>
+                    <select name="auth_type" id="auth_type"
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="register">REGISTER (Usuário/Senha)</option>
+                        <option value="ip">IP AUTH (Sem senha)</option>
+                    </select>
+                </div>
+
+                <!-- Host / IP -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Host / IP</label>
+                    <input name="host" required
+                           placeholder="sip.operadora.com ou 200.200.200.200"
+                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <!-- REGISTER Fields -->
+                <div id="authFields" class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Username</label>
+                        <input name="username"
+                               class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Password</label>
+                        <input name="password"
+                               class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Porta -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Porta</label>
+                    <input name="port" value="5060"
+                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <!-- Transporte -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Transporte</label>
+                    <select name="transport"
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="udp">UDP</option>
+                        <option value="tcp">TCP</option>
+                        <option value="tls">TLS</option>
+                    </select>
+                </div>
+
+                <!-- Direção -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Direção</label>
+                    <select name="direction"
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="outbound">Outbound</option>
+                        <option value="inbound">Inbound</option>
+                        <option value="both">Both</option>
+                    </select>
+                </div>
+
+                <!-- cli_type -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Tipo</label>
+                    <select id="cli_type" name="cli_type"
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="cli_aberta">Cli-Aberta</option>
+                        <option value="bina_inteligente">Bina</option>
+                        <option value="cli_fechada">Cli-Fechada</option>
+                    </select>
+                </div>
+
+
+                <!-- Tech Prefix -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Tech Prefix</label>
+                    <input name="techprefix" placeholder="Ex: 5555, 0"
+                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">Dial Prefix</label>
+                    <input name="dial_prefix" placeholder="Ex: 55, 65"
+                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="block text-sm font-medium mb-1">Status</label>
+                    <select name="status"
+                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="active">Ativo</option>
+                        <option value="inactive">Inativo</option>
+                    </select>
+                </div>
+
+                <!-- Botões -->
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" id="cancelTrunk"
+                            class="px-4 py-2 text-sm rounded-lg bg-gray-200 dark:bg-slate-700">
+                        Cancelar
+                    </button>
+
+                    <button type="submit"
+                            class="px-4 py-2 text-sm text-white rounded-lg bg-emerald-600">
+                        Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+
+        /* =====================================================
+         * CONFIG
+         * ===================================================== */
+        const API = {
+            list:   `${baseUrl}/campaign/voice/sip-trunks/view`,
+            create: `${baseUrl}/campaign/voice/sip-trunks/new`,
+            update: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
+            delete: `${baseUrl}/campaign/voice/sip-trunks/delete`,
+            status: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/status`
+        };
+
+        const state = {
+            trunks: [],
+            filtered: [],
+            page: 1,
+            perPage: 10,
+            editMode: false,
+            editingId: null
+        };
+
+        /* =====================================================
+         * ELEMENTOS
+         * ===================================================== */
+        const tbody        = document.querySelector("tbody");
+        const searchInput  = document.getElementById("searchTrunkInput");
+        const selectAll    = document.getElementById("selectAll");
+        const deleteBtn    = document.getElementById("deleteTrunkSelected");
+
+        const prevBtn      = document.getElementById("prevPage");
+        const nextBtn      = document.getElementById("nextPage");
+        const pageInfo     = document.getElementById("pageInfo");
+
+        const modal        = document.getElementById("trunkModal");
+        const modalTitle   = document.getElementById("trunkModalTitle");
+        const form         = document.getElementById("trunkForm");
+
+        const createBtn    = document.getElementById("createTrunk");
+        const cancelBtn    = document.getElementById("cancelTrunk");
+
+        const authTypeSel  = document.getElementById("auth_type");
+        const authFields   = document.getElementById("authFields");
+
+        /* =====================================================
+         * PERMISSÕES
+         * ===================================================== */
+        const isSuperAdmin = () => auth.role === "super_admin";
+        const isSystemLocked = (trunk) => Number(trunk?.is_system ?? 0) === 1 && !isSuperAdmin();
+
+
+
+        console.log(isSuperAdmin)
+
+
+
+        /* =====================================================
+         * UTIL
+         * ===================================================== */
+        const formatDate = d => new Date(d).toLocaleDateString("pt-BR");
+
+        const selectedIds = () =>
+            [...tbody.querySelectorAll(".row-checkbox:checked:not(:disabled)")]
+                .map(cb => cb.value);
+
+        /* =====================================================
+         * MODAL
+         * ===================================================== */
+        const openModal = () => {
+            document.body.classList.add("overflow-hidden");
+            modal.classList.remove("hidden");
+        };
+
+        const closeModal = () => {
+            document.body.classList.remove("overflow-hidden");
+            modal.classList.add("hidden");
+            state.editMode = false;
+            state.editingId = null;
+            form.reset();
+        };
+
+        modal.addEventListener("click", e => {
+            if (e.target === modal) closeModal();
+        });
+
+        /* =====================================================
+         * API
+         * ===================================================== */
+
+        const auth = { role: "" };
+        async function fetchTrunks() {
+            const res = await fetch(API.list);
+            const json = await res.json();
+            auth.role = String(json?.meta?.role || "").toLowerCase();
+            state.trunks = json.data || [];
+            applyFilter();
+            renderTable();
+        }
+
+        async function saveTrunk(data) {
+            const isEdit = state.editMode && state.editingId;
+
+            const url = isEdit
+                ? API.update(state.editingId)
+                : API.create;
+
+            const res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(payload?.message || "Erro ao salvar");
+
+            await fetchTrunks();
+        }
+
+        async function deleteTrunks(ids) {
+            const res = await fetch(API.delete, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids })
+            });
+
+            if (!res.ok) throw new Error();
+            await fetchTrunks();
+        }
+
+        async function toggleStatus(id, status) {
+            const res = await fetch(API.status(id), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status })
+            });
+
+            if (!res.ok) throw new Error();
+        }
+
+        /* =====================================================
+         * RENDER
+         * ===================================================== */
+        function renderTable() {
+            tbody.innerHTML = "";
+
+            const TOTAL_COLS = 13;
+
+            // 🔹 garante que a página atual não fique inválida após filtro
+            const total = state.filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / state.perPage));
+            if (state.page > totalPages) state.page = totalPages;
+
+            const start = (state.page - 1) * state.perPage;
+            const rows = state.filtered.slice(start, start + state.perPage);
+
+            // 🔹 Empty state
+            if (rows.length === 0) {
+                const hasFilter = !!searchInput?.value?.trim();
+
+                tbody.innerHTML = `
+                <tr>
+                  <td colspan="${TOTAL_COLS}" class="py-14 text-center">
+                    <div class="flex flex-col items-center gap-2 text-slate-400">
+                      <div class="text-4xl">${hasFilter ? "🔍" : "📭"}</div>
+
+                      <div class="text-sm font-semibold text-slate-500">
+                        ${hasFilter ? "Nenhum trunk encontrado para esta busca" : "Nenhum SIP Trunk cadastrado"}
+                      </div>
+
+                      <div class="text-xs text-slate-400">
+                        ${hasFilter ? "Tente ajustar o termo de pesquisa." : "Clique em “Create” para adicionar um novo trunk."}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+            `;
+
+                updatePagination();
+                updateDeleteButton();
+                return;
+            }
+
+            rows.forEach(trunk => {
+                const locked = isSystemLocked(trunk);
+
+                const editCell = locked
+                    ? `<span class="text-slate-300 text-xs font-semibold cursor-not-allowed"
+             title="Apenas Super Admin pode editar trunk de sistema">
+             ${trunk.name}
+           </span>`
+                    : `<a href="javascript:void(0)"
+             class="edit-link text-emerald-400 font-semibold text-xs"
+             data-id="${trunk.id}">
+             ${trunk.name}
+           </a>`;
+
+                const checkboxCell = `
+        <input
+          type="checkbox"
+          value="${trunk.id}"
+          class="row-checkbox accent-emerald-500 w-4 h-4 cursor-pointer"
+          ${locked ? "disabled" : ""}
+        >
+    `;
+
+                const toggleCell = `
+        <label class="inline-flex relative items-center ${locked ? "cursor-not-allowed" : "cursor-pointer"}">
+          <input
+            type="checkbox"
+            class="peer sr-only status-toggle"
+            data-id="${trunk.id}"
+            ${trunk.status === "active" ? "checked" : ""}
+            ${locked ? "disabled" : ""}
+          >
+          <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-emerald-500 peer-focus:ring-2 peer-focus:ring-emerald-300 transition-colors ${locked ? "opacity-50" : ""}"></div>
+          <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5 ${locked ? "opacity-80" : ""}"></div>
+        </label>
+    `;
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+        <!-- Checkbox -->
+        <td class="px-4 py-3">${checkboxCell}</td>
+
+        <!-- Nome + Status -->
+        <td>
+      <div class="flex items-center gap-2 justify-start group relative">
+        <span class="w-2.5 h-2.5 rounded-full ${
+                    trunk.sip_status === 'OK'
+                        ? 'bg-emerald-600 animate-pulse'
+                        : trunk.sip_status === 'WARN'
+                            ? 'bg-yellow-600 animate-pulse'
+                            : trunk.sip_status === 'DOWN'
+                                ? 'bg-red-600'
+                                : 'bg-slate-600'
+                }"></span>
+
+            <span class="truncate max-w-[160px] inline-block">
+              ${editCell}
+            </span>
+
+            <!-- Tooltip -->
+            <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block
+                        bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-lg z-50
+                        whitespace-nowrap">
+              ${trunk.sip_status}
+              ${trunk.sip_detail ? ' — ' + trunk.sip_detail : ''}
+            </div>
+          </div>
+        </td>
+
+
+
+        <!-- Host -->
+        <td class="text-xs text-slate-400 whitespace-nowrap text-center"
+            title="${trunk.sip_detail ?? ''}">
+          ${trunk.host}
+        </td>
+
+        <!-- Usuário -->
+        <td class="font-semibold text-xs">${trunk.username || "-"}</td>
+
+        <!-- Porta -->
+        <td class="font-semibold text-xs">${trunk.port}</td>
+
+        <!-- Transporte -->
+        <td class="font-semibold text-xs">${String(trunk.transport || '').toUpperCase()}</td>
+
+        <!-- TechPrefix -->
+        <td class="font-semibold text-xs text-slate-400">
+          ${trunk.techprefix || '—'}
+        </td>
+
+        <!-- Direção -->
+        <td class="text-center">
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold
+            ${trunk.direction === 'inbound'
+                    ? 'bg-blue-100 text-blue-700'
+                    : trunk.direction === 'outbound'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-purple-100 text-purple-700'}">
+            ${trunk.direction === 'inbound'
+                    ? '⬅ Inbound'
+                    : trunk.direction === 'outbound'
+                        ? '➡ Outbound'
+                        : '🔁 Both'}
+          </span>
+        </td>
+
+        <td class="font-semibold text-xs text-slate-400">
+          ${trunk.dial_prefix || '—'}
+        </td>
+
+        <!-- Tipo -->
+        <td class="text-center">
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold
+            ${trunk.cli_type === 'cli_aberta'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : trunk.cli_type === 'bina_inteligente'
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : trunk.cli_type === 'cli_fechada'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-slate-100 text-slate-500'}">
+            ${trunk.cli_type === 'cli_aberta'
+                    ? 'CLI Aberta'
+                    : trunk.cli_type === 'bina_inteligente'
+                        ? 'BINA Inteligente'
+                        : trunk.cli_type === 'cli_fechada'
+                            ? 'CLI Fechada'
+                            : '—'}
+          </span>
+        </td>
+
+        <!-- Criado -->
+        <td class="text-xs text-slate-400 whitespace-nowrap">
+          ${formatDate(trunk.created_at)}
+        </td>
+
+        <!-- Modificado -->
+        <td class="text-xs text-slate-400 whitespace-nowrap">
+          ${formatDate(trunk.updated_at)}
+        </td>
+
+        <!-- Status -->
+        <td class="px-6 py-2 text-center">${toggleCell}</td>
+    `;
+
+                tbody.appendChild(tr);
+            });
+
+
+
+
+            updatePagination();
+            updateDeleteButton();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.perPage));
+            pageInfo.textContent = `Página ${state.page} de ${totalPages}`;
+            prevBtn.disabled = state.page === 1;
+            nextBtn.disabled = state.page === totalPages;
+        }
+
+        function updateDeleteButton() {
+            // ✅ ignora checkboxes travados (disabled)
+            const checkboxes = [...tbody.querySelectorAll(".row-checkbox:not(:disabled)")];
+            const checked    = checkboxes.filter(cb => cb.checked);
+
+            const hasSelection = checked.length > 0;
+            deleteBtn.disabled = !hasSelection;
+            deleteBtn.classList.toggle("opacity-60", !hasSelection);
+            deleteBtn.classList.toggle("cursor-not-allowed", !hasSelection);
+
+            if (!checkboxes.length) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+                return;
+            }
+
+            selectAll.checked = checked.length === checkboxes.length;
+            selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+        }
+
+        /* =====================================================
+         * FILTER
+         * ===================================================== */
+        function applyFilter() {
+            const q = searchInput.value.toLowerCase();
+            state.filtered = state.trunks.filter(t =>
+                String(t.name || "").toLowerCase().includes(q) ||
+                String(t.host || "").toLowerCase().includes(q) ||
+                String(t.cli_type || "").toLowerCase().includes(q)
+            );
+            state.page = 1;
+            renderTable();
+        }
+
+        /* =====================================================
+         * EVENTS
+         * ===================================================== */
+        searchInput.addEventListener("input", applyFilter);
+
+        selectAll.addEventListener("change", e => {
+            // ✅ marca só os não disabled
+            tbody
+                .querySelectorAll(".row-checkbox:not(:disabled)")
+                .forEach(cb => cb.checked = e.target.checked);
+
+            updateDeleteButton();
+        });
+
+        tbody.addEventListener("change", async (e) => {
+
+            if (e.target.classList.contains("status-toggle")) {
+                const id = e.target.dataset.id;
+                const trunk = state.trunks.find(t => String(t.id) === String(id));
+
+                // 🔒 trava system para não-super-admin
+                if (trunk && isSystemLocked(trunk)) {
+                    e.preventDefault();
+                    e.target.checked = (trunk.status === "active");
+                    notyf.error("Apenas o Super Admin pode alterar o status deste trunk");
+                    return;
+                }
+
+                const status = e.target.checked ? "active" : "inactive";
+
+                e.target.disabled = true;
+
+                try {
+                    await toggleStatus(id, status);
+                    if (trunk) trunk.status = status;
+                    notyf.success("Status atualizado");
+                } catch {
+                    e.target.checked = !e.target.checked;
+                    notyf.error("Erro ao atualizar status");
+                } finally {
+                    e.target.disabled = false;
+                }
+
+                return;
+            }
+
+            if (e.target.classList.contains("row-checkbox")) {
+                updateDeleteButton();
+            }
+        });
+
+        tbody.addEventListener("click", (e) => {
+            const link = e.target.closest(".edit-link");
+            if (!link) return;
+
+            e.preventDefault();
+
+            const id = link.dataset.id;
+            const trunk = state.trunks.find(t => String(t.id) === String(id));
+            if (!trunk) return;
+
+            // 🔒 trava system para não-super-admin
+            if (isSystemLocked(trunk)) {
+                notyf.error("Apenas o Super Admin pode editar trunks de sistema");
+                return;
+            }
+
+            state.editMode  = true;
+            state.editingId = id;
+            modalTitle.textContent = "✏️ Editar SIP Trunk";
+
+            Object.entries(trunk).forEach(([k, v]) => {
+                if (form.elements[k]) form.elements[k].value = v ?? "";
+            });
+
+            authFields.classList.toggle("hidden", trunk.auth_type === "ip");
+            openModal();
+        });
+
+        prevBtn.addEventListener("click", () => { state.page--; renderTable(); });
+        nextBtn.addEventListener("click", () => { state.page++; renderTable(); });
+
+        deleteBtn.addEventListener("click", async () => {
+            const ids = selectedIds();
+            if (!ids.length) return;
+
+            const confirm = await Swal.fire({
+                title: "Excluir trunks?",
+                text: `Deseja remover ${ids.length} registro(s)?`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#e3342f",
+                confirmButtonText: "Excluir"
+            });
+
+            if (confirm.isConfirmed) {
+                await deleteTrunks(ids);
+                notyf.success("Trunks removidos");
+            }
+        });
+
+        createBtn.addEventListener("click", () => {
+            modalTitle.textContent = "➕ Adicionar SIP Trunk";
+            authFields.classList.remove("hidden");
+            openModal();
+        });
+
+        cancelBtn.addEventListener("click", closeModal);
+
+        authTypeSel.addEventListener("change", () => {
+            authFields.classList.toggle("hidden", authTypeSel.value === "ip");
+        });
+
+        form.addEventListener("submit", async e => {
+            e.preventDefault();
+
+            const data = Object.fromEntries(new FormData(form));
+
+            if (data.auth_type === "ip") {
+                delete data.username;
+                delete data.password;
+            }
+
+            data.port = Number(data.port || 5060);
+
+            try {
+                await saveTrunk(data);
+                notyf.success(state.editMode ? "Trunk atualizado" : "Trunk criado");
+                closeModal();
+            } catch (err) {
+                notyf.error(err.message);
+            }
+        });
+
+        /* =====================================================
+         * INIT
+         * ===================================================== */
+        fetchTrunks();
+    });
+</script>

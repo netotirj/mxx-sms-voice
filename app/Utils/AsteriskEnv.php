@@ -38,7 +38,7 @@ class AsteriskEnv
 
     public static function host(): string
     {
-        return self::env('SERVERASTERISK', '13.58.78.167');
+        return self::env('SERVERASTERISK', '52.14.17.210');
     }
 
     public static function apiBaseUrl(): string

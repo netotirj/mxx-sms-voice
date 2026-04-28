@@ -167,8 +167,8 @@
                 </h6>
                 <hr class="my-3 opacity-10">
                 <div class="flex justify-between items-center mb-2">
-                    <span id="card-whatsapp-label" class="text-xs font-semibold opacity-70">Campanhas / Consumo</span>
-                    <span class="text-sm font-bold text-emerald-500"><span id="card-whatsapp-primary" data-count-value="0" data-decimals="int">0</span> | <span id="card-whatsapp-secondary">R$ 0,00</span></span>
+                    <span id="card-whatsapp-label" class="text-xs font-semibold opacity-70">Conversas / Não lidas</span>
+                    <span class="text-sm font-bold text-emerald-500"><span id="card-whatsapp-primary" data-count-value="0" data-decimals="int">0</span> | <span id="card-whatsapp-secondary">0 não lidas</span></span>
                 </div>
                 <div class="w-full bg-gray-100 rounded-full h-1.5 dark:bg-gray-700">
                     <div id="card-whatsapp-bar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 8%"></div>
@@ -796,12 +796,12 @@
             const bar = document.getElementById(`card-${prefix}-bar`);
             const cardEl = document.getElementById(`card-${prefix}`);
             const iconMap = {
-                voip: '📞',
-                sms: '💬',
-                whatsapp: '🟢'
+                voip: '<i class="fa fa-phone"></i>',
+                sms: '<i class="fa fa-comment-sms"></i>',
+                whatsapp: '<i class="fa-brands fa-whatsapp"></i>'
             };
 
-            if (title) title.innerHTML = `<span class="mr-2">${iconMap[prefix] || '•'}</span> ${card.title}`;
+            if (title) title.innerHTML = `<span class="service-icon ${prefix === 'voip' ? 'bg-indigo-500' : (prefix === 'sms' ? 'bg-amber-500' : 'bg-emerald-500')}">${iconMap[prefix] || '•'}</span> ${card.title}`;
             if (label) label.textContent = card.metric_label || '--';
 
             const primary = document.getElementById(`card-${prefix}-primary`);
@@ -1028,15 +1028,15 @@
             if (service === 'whatsapp') {
                 return {
                     title: 'Graficos do Servico: WhatsApp',
-                    subtitle: `Painel WhatsApp por ${whatsPeriod.labels.title.toLowerCase()}, pronto para receber os dados quando forem liberados.`,
+                    subtitle: `Mensagens WhatsApp por ${whatsPeriod.labels.title.toLowerCase()}, leitura por status e movimento da central.`,
                     tag: 'WHATSAPP',
                     color: '#10b981',
                     today: whatsPeriod.current,
-                    todayLabel: `Eventos - ${whatsPeriod.labels.current}`,
+                    todayLabel: `Mensagens - ${whatsPeriod.labels.current}`,
                     month: whatsPeriod.previous,
-                    monthLabel: `Eventos - ${whatsPeriod.labels.previous}`,
+                    monthLabel: `Mensagens - ${whatsPeriod.labels.previous}`,
                     previous: getPeriodContextValue('Whats'),
-                    previousLabel: selectedPeriod === 'month' ? 'Eventos hoje' : 'Eventos no mes',
+                    previousLabel: selectedPeriod === 'month' ? 'Mensagens hoje' : 'Mensagens no mes',
                     line: whatsPeriod.status,
                     doughnut: whatsPeriod.status,
                     secondary: {
@@ -1052,9 +1052,9 @@
                         color: ['#10b981', '#0ea5e9', '#8b5cf6']
                     },
                     details: [
-                        ['Campanhas', document.getElementById('card-whatsapp-primary')?.textContent || '0'],
-                        ['Consumo', document.getElementById('card-whatsapp-secondary')?.textContent || 'R$ 0,00'],
-                        ['Integracao', 'Aguardando dados'],
+                        ['Conversas', document.getElementById('card-whatsapp-primary')?.textContent || '0'],
+                        ['Não lidas', String(cardsPayload?.whatsappNaoLidas ?? 0)],
+                        ['Enviadas', String(cardsPayload?.whatsappEnviados ?? 0)],
                         ['Ultima atualizacao', health.last_check || '--:--:--']
                     ]
                 };

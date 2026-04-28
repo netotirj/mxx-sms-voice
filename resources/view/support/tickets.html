@@ -1,0 +1,389 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-200 text-lg">
+                            <i class="fa fa-life-ring"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Tickets de Suporte</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Acompanhe os atendimentos abertos pela Lívia</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="loadSupportTickets()" class="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm uppercase transition-all hover:bg-slate-50">
+                            <i class="fa fa-rotate-right text-sm"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+                    <div class="min-w-0">
+                        <button type="button" onclick="setTicketStatusFilter('open')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-emerald-50 dark:bg-slate-800 border border-emerald-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-emerald-700 dark:text-white dark:opacity-60">Abertos</p>
+                                    <h5 id="openTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center text-white"><i class="fa fa-inbox"></i></div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <button type="button" onclick="setTicketStatusFilter('pending')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-amber-50 dark:bg-slate-800 border border-amber-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-amber-700 dark:text-white dark:opacity-60">Aguardando</p>
+                                    <h5 id="pendingTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-amber-500 to-orange-400 flex items-center justify-center text-white"><i class="fa fa-clock"></i></div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <button type="button" onclick="setTicketStatusFilter('closed')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-slate-500 dark:text-white dark:opacity-60">Finalizados</p>
+                                    <h5 id="closedTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-slate-700 to-slate-500 flex items-center justify-center text-white"><i class="fa fa-check"></i></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="ticketRowsPerPage" onchange="ticketCurrentPage=1; renderSupportTicketsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="ticketStatusFilter" onchange="ticketCurrentPage=1; renderSupportTicketsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="">Todos</option>
+                                <option value="open">Abertos</option>
+                                <option value="pending">Aguardando</option>
+                                <option value="closed">Finalizados</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Departamento</label>
+                            <select id="ticketDepartmentFilter" onchange="ticketCurrentPage=1; renderSupportTicketsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="">Todos</option>
+                                <option value="support">Suporte</option>
+                                <option value="commercial">Comercial</option>
+                                <option value="sales">Vendas</option>
+                                <option value="finance">Financeiro</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-5">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar</label>
+                                <button type="button" onclick="resetSupportTicketFilters()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="ticketSearchInput" oninput="ticketCurrentPage=1; renderSupportTicketsTable();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none" placeholder="Buscar por ticket, telefone, assunto ou mensagem...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Ticket</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Solicitante</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Mensagem</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Atualizado</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="supportTicketsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="ticketPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="ticketPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="ticketPageNumbers" class="flex gap-1"></div>
+                        <button id="ticketNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ticketDetailsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-down">
+        <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg"><i class="fa fa-life-ring text-xl"></i></div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" id="ticketModalTitle">Ticket</h3>
+                    <p class="text-xs text-slate-400" id="ticketModalSubtitle">Detalhes do atendimento</p>
+                </div>
+            </div>
+            <button onclick="closeTicketDetailsModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
+        </div>
+        <div class="p-6">
+            <div id="ticketMessagesList" class="space-y-3 max-h-96 overflow-y-auto"></div>
+        </div>
+        <div class="px-6 py-4 flex justify-end gap-3 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30">
+            <button type="button" onclick="closeTicketDetailsModal()" class="text-xs font-bold text-slate-400 uppercase">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const supportBaseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+    let supportTicketsRaw = [];
+    let supportTicketsFiltered = [];
+    let ticketCurrentPage = 1;
+
+    const ticketStatusLabels = {
+        open: 'Aberto',
+        pending: 'Aguardando',
+        closed: 'Finalizado'
+    };
+
+    const ticketDepartmentLabels = {
+        support: 'Suporte',
+        commercial: 'Comercial',
+        sales: 'Vendas',
+        finance: 'Financeiro'
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSupportTickets();
+
+        document.getElementById('ticketPrevPage')?.addEventListener('click', () => {
+            if (ticketCurrentPage > 1) {
+                ticketCurrentPage--;
+                renderSupportTicketsTable();
+            }
+        });
+
+        document.getElementById('ticketNextPage')?.addEventListener('click', () => {
+            ticketCurrentPage++;
+            renderSupportTicketsTable();
+        });
+    });
+
+    function escapeTicketHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
+    function formatTicketDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function loadSupportTickets() {
+        const tbody = document.getElementById('supportTicketsTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-6 italic text-slate-400">Buscando tickets...</td></tr>';
+        }
+
+        fetch(`${supportBaseUrl}/support/tickets`)
+            .then(res => res.json())
+            .then(result => {
+                supportTicketsRaw = result.data || [];
+                ticketCurrentPage = 1;
+                updateTicketCards();
+                renderSupportTicketsTable();
+            })
+            .catch(() => {
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-red-500">Falha ao carregar tickets.</td></tr>';
+                }
+            });
+    }
+
+    function updateTicketCards() {
+        const counts = supportTicketsRaw.reduce((acc, ticket) => {
+            acc[ticket.status] = (acc[ticket.status] || 0) + 1;
+            return acc;
+        }, {});
+
+        document.getElementById('openTicketsCount').textContent = counts.open || 0;
+        document.getElementById('pendingTicketsCount').textContent = counts.pending || 0;
+        document.getElementById('closedTicketsCount').textContent = counts.closed || 0;
+    }
+
+    function renderSupportTicketsTable() {
+        const tbody = document.getElementById('supportTicketsTableBody');
+        if (!tbody) return;
+
+        const rowsPerPage = parseInt(document.getElementById('ticketRowsPerPage')?.value || 10);
+        const status = document.getElementById('ticketStatusFilter')?.value || '';
+        const department = document.getElementById('ticketDepartmentFilter')?.value || '';
+        const search = document.getElementById('ticketSearchInput')?.value.toLowerCase().trim() || '';
+
+        supportTicketsFiltered = supportTicketsRaw.filter(ticket => {
+            if (status && ticket.status !== status) return false;
+            if (department && ticket.department !== department) return false;
+            if (!search) return true;
+
+            return JSON.stringify(ticket).toLowerCase().includes(search);
+        });
+
+        const total = supportTicketsFiltered.length;
+        const totalPages = Math.ceil(total / rowsPerPage) || 1;
+        if (ticketCurrentPage > totalPages) ticketCurrentPage = totalPages;
+
+        const slice = supportTicketsFiltered.slice((ticketCurrentPage - 1) * rowsPerPage, ticketCurrentPage * rowsPerPage);
+
+        tbody.innerHTML = total === 0 ? '<tr><td colspan="6" class="text-center p-8 text-slate-400">Nenhum ticket encontrado</td></tr>' :
+            slice.map(ticket => `
+                <tr class="hover:bg-slate-50 border-b dark:border-slate-700">
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-700 dark:text-white">#${ticket.id}</span>
+                            <span class="text-xs text-slate-400">${ticketDepartmentLabels[ticket.department] || 'Suporte'}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-semibold text-slate-700 dark:text-white">${escapeTicketHtml(ticket.requester_name || 'Cliente')}</span>
+                            <span class="text-xs text-slate-400">${escapeTicketHtml(ticket.requester_phone || '-')}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 min-w-72">
+                        <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">${escapeTicketHtml(ticket.last_message || ticket.subject || '-')}</p>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        ${ticketStatusBadge(ticket.status)}
+                    </td>
+                    <td class="px-6 py-4 text-center text-xs text-slate-400">
+                        ${formatTicketDate(ticket.last_message_at || ticket.updated_at || ticket.created_at)}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="openTicketDetails(${ticket.id})" class="p-2 text-blue-500" title="Ver detalhes"><i class="fa fa-eye"></i></button>
+                        ${ticket.status === 'closed'
+                            ? `<button onclick="changeTicketStatus(${ticket.id}, 'open')" class="p-2 text-emerald-500" title="Reabrir"><i class="fa fa-rotate-left"></i></button>`
+                            : `<button onclick="changeTicketStatus(${ticket.id}, 'closed')" class="p-2 text-slate-500" title="Finalizar"><i class="fa fa-check"></i></button>`
+                        }
+                    </td>
+                </tr>
+            `).join('');
+
+        updateSupportTicketPagination(totalPages);
+    }
+
+    function ticketStatusBadge(status) {
+        const classes = {
+            open: 'bg-emerald-100 text-emerald-700',
+            pending: 'bg-amber-100 text-amber-700',
+            closed: 'bg-slate-100 text-slate-600'
+        };
+
+        return `<span class="inline-flex px-2.5 py-1 rounded-full text-xxs font-bold uppercase ${classes[status] || classes.open}">${ticketStatusLabels[status] || status}</span>`;
+    }
+
+    function updateSupportTicketPagination(totalPages) {
+        document.getElementById('ticketPageInfo').textContent = `Página ${ticketCurrentPage} de ${totalPages}`;
+        document.getElementById('ticketPrevPage').disabled = ticketCurrentPage === 1;
+        document.getElementById('ticketNextPage').disabled = ticketCurrentPage >= totalPages;
+
+        const numbers = document.getElementById('ticketPageNumbers');
+        numbers.innerHTML = '';
+
+        for (let p = 1; p <= totalPages; p++) {
+            if (p > ticketCurrentPage + 2 || p < ticketCurrentPage - 2) continue;
+            numbers.insertAdjacentHTML('beforeend', `
+                <button onclick="ticketCurrentPage=${p}; renderSupportTicketsTable();" class="px-3 py-1 text-xs font-bold border rounded-lg ${p === ticketCurrentPage ? 'bg-emerald-600 text-white' : 'dark:text-white'}">${p}</button>
+            `);
+        }
+    }
+
+    function setTicketStatusFilter(status) {
+        document.getElementById('ticketStatusFilter').value = status;
+        ticketCurrentPage = 1;
+        renderSupportTicketsTable();
+    }
+
+    function resetSupportTicketFilters() {
+        document.getElementById('ticketStatusFilter').value = '';
+        document.getElementById('ticketDepartmentFilter').value = '';
+        document.getElementById('ticketSearchInput').value = '';
+        ticketCurrentPage = 1;
+        renderSupportTicketsTable();
+    }
+
+    function openTicketDetails(ticketId) {
+        const ticket = supportTicketsRaw.find(item => Number(item.id) === Number(ticketId));
+        document.getElementById('ticketModalTitle').textContent = ticket ? `Ticket #${ticket.id}` : 'Ticket';
+        document.getElementById('ticketModalSubtitle').textContent = ticket
+            ? `${ticketDepartmentLabels[ticket.department] || 'Suporte'} - ${ticketStatusLabels[ticket.status] || ticket.status}`
+            : 'Detalhes do atendimento';
+        document.getElementById('ticketMessagesList').innerHTML = '<p class="text-center p-6 italic text-slate-400">Carregando mensagens...</p>';
+        document.getElementById('ticketDetailsModal').classList.replace('hidden', 'flex');
+
+        fetch(`${supportBaseUrl}/support/tickets/${ticketId}/messages`)
+            .then(res => res.json())
+            .then(result => {
+                const messages = result.data || [];
+                document.getElementById('ticketMessagesList').innerHTML = messages.length === 0
+                    ? '<p class="text-center p-6 text-slate-400">Nenhuma mensagem registrada.</p>'
+                    : messages.map(message => `
+                        <div class="rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold uppercase text-slate-500">${escapeTicketHtml(message.sender_type || 'customer')}</span>
+                                <span class="text-xs text-slate-400">${formatTicketDate(message.created_at)}</span>
+                            </div>
+                            <p class="text-sm text-slate-700 dark:text-slate-200">${escapeTicketHtml(message.body)}</p>
+                        </div>
+                    `).join('');
+            });
+    }
+
+    function closeTicketDetailsModal() {
+        document.getElementById('ticketDetailsModal').classList.replace('flex', 'hidden');
+    }
+
+    function changeTicketStatus(ticketId, status) {
+        fetch(`${supportBaseUrl}/support/tickets/${ticketId}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ status })
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.message || 'Falha ao atualizar ticket.');
+                loadSupportTickets();
+                if (typeof notyf !== 'undefined') notyf.success('Ticket atualizado.');
+            })
+            .catch(error => {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao atualizar ticket.');
+            });
+    }
+</script>

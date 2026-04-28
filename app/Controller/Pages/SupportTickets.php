@@ -1,0 +1,374 @@
+<?php
+
+namespace App\Controller\Pages;
+
+use App\Config\TelephonyConfig;
+use App\Http\Response;
+use App\Model\Entity\SupportTicket;
+use App\RedisConn;
+use App\Session\User as SessionUser;
+use App\Utils\View;
+use GuzzleHttp\Client;
+
+class SupportTickets extends ViewComponents
+{
+    public static function getComponentsSupportTickets(): Response|string
+    {
+        $user = SessionUser::getLogged();
+        if (!$user) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $content = View::render('/support/tickets', []);
+        return parent::getComponentsUsers('Maxx Solutions - Tickets de Suporte', $content);
+    }
+
+    public static function createTicket(): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $input = self::jsonInput();
+        $message = trim((string)($input['message'] ?? ''));
+        $phone = preg_replace('/\D+/', '', (string)($input['requester_phone'] ?? ''));
+
+        if (strlen($phone) < 8 || strlen($phone) > 15) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe seu WhatsApp com DDI e DDD.',
+            ]);
+        }
+
+        if ($message === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Conte rapidamente o que você precisa.',
+            ]);
+        }
+
+        try {
+            $id = SupportTicket::create($user, [
+                'department' => $input['department'] ?? 'support',
+                'requester_phone' => $phone,
+                'message' => $message,
+            ]);
+
+            return self::json(201, [
+                'success' => true,
+                'message' => 'Ticket aberto com sucesso.',
+                'id' => $id,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(500, [
+                'success' => false,
+                'message' => 'Falha ao abrir ticket de suporte.',
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function listTickets($request): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $query = $request->getQueryParams();
+        $status = isset($query['status']) ? (string)$query['status'] : null;
+
+        return self::json(200, [
+            'success' => true,
+            'data' => SupportTicket::listForUser($user, $status),
+        ]);
+    }
+
+    public static function listMessages($request, int|string $id): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $ticket = SupportTicket::getForUser((int)$id, $user);
+        if (!$ticket) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Ticket não encontrado.',
+            ]);
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'ticket' => $ticket,
+            'data' => SupportTicket::listMessagesForUser((int)$id, $user),
+        ]);
+    }
+
+    public static function addMessage($request, int|string $id): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $ticket = SupportTicket::getForUser((int)$id, $user);
+        if (!$ticket) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Ticket não encontrado.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $message = trim((string)($input['message'] ?? ''));
+        if ($message === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Digite a mensagem.',
+            ]);
+        }
+
+        $messageId = SupportTicket::addMessage((int)$id, $user, 'customer', $message);
+
+        return self::json(201, [
+            'success' => true,
+            'message' => 'Mensagem registrada.',
+            'id' => $messageId,
+        ]);
+    }
+
+    public static function updateStatus($request, int|string $id): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $ticket = SupportTicket::getForUser((int)$id, $user);
+        if (!$ticket) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Ticket não encontrado.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        SupportTicket::updateStatus((int)$id, (string)($input['status'] ?? 'open'));
+
+        return self::json(200, [
+            'success' => true,
+            'message' => 'Status atualizado.',
+        ]);
+    }
+
+    public static function diagnostics(): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $startedAt = microtime(true);
+        $redis = self::checkRedis();
+        $asterisk = self::checkAsterisk();
+        $trunks = self::checkTrunks($user);
+        $serverLatencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+
+        return self::json(200, [
+            'success' => true,
+            'checked_at' => date('H:i:s'),
+            'summary' => self::buildDiagnosticsSummary($redis, $asterisk, $trunks, $serverLatencyMs),
+            'data' => [
+                'server' => [
+                    'ok' => true,
+                    'label' => 'Servidor do painel',
+                    'latency_ms' => $serverLatencyMs,
+                    'detail' => $serverLatencyMs . ' ms',
+                ],
+                'redis' => $redis,
+                'asterisk' => $asterisk,
+                'trunks' => $trunks,
+            ],
+        ]);
+    }
+
+    private static function checkRedis(): array
+    {
+        $startedAt = microtime(true);
+
+        try {
+            $redis = RedisConn::get();
+            $redis->ping();
+            $latencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+
+            return [
+                'ok' => true,
+                'label' => 'Redis',
+                'latency_ms' => $latencyMs,
+                'detail' => $latencyMs . ' ms',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'Redis',
+                'latency_ms' => null,
+                'detail' => 'Offline ou sem resposta',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function checkAsterisk(): array
+    {
+        $startedAt = microtime(true);
+
+        try {
+            $client = new Client([
+                'base_uri' => 'http://' . TelephonyConfig::ariHost() . ':' . TelephonyConfig::ariPort() . '/',
+                'timeout' => 1.5,
+                'connect_timeout' => 1.0,
+                'http_errors' => false,
+            ]);
+
+            $response = $client->get('ari/asterisk/info', [
+                'auth' => [TelephonyConfig::ariUser(), TelephonyConfig::ariPass()],
+                'query' => ['only' => 'system'],
+                'headers' => ['Accept' => 'application/json'],
+            ]);
+
+            $latencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+            $status = $response->getStatusCode();
+            $ok = $status >= 200 && $status < 500;
+
+            return [
+                'ok' => $ok,
+                'label' => 'Asterisk / ARI',
+                'latency_ms' => $latencyMs,
+                'detail' => $ok ? $latencyMs . ' ms' : 'HTTP ' . $status,
+                'http_status' => $status,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'Asterisk / ARI',
+                'latency_ms' => null,
+                'detail' => 'Offline ou sem resposta',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function checkTrunks(array $user): array
+    {
+        $startedAt = microtime(true);
+        $role = strtolower((string)($user['function'] ?? ''));
+        $query = ['role' => $role];
+
+        if ($role !== 'super_admin') {
+            $query['tenant_id'] = $user['tenancy_id'] ?? null;
+        }
+
+        try {
+            $result = (new AsteriskExtensionsSip())->listTrunks($query);
+            $latencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+            $rows = $result['data']['data'] ?? $result['data'] ?? [];
+            $online = 0;
+
+            foreach ($rows as $trunk) {
+                if (is_array($trunk) && self::isTrunkOnline($trunk)) {
+                    $online++;
+                }
+            }
+
+            $total = count(is_array($rows) ? $rows : []);
+
+            return [
+                'ok' => !empty($result['ok']) && $online > 0,
+                'label' => 'Troncos',
+                'latency_ms' => $latencyMs,
+                'online' => $online,
+                'total' => $total,
+                'detail' => $total > 0
+                    ? $online . '/' . $total . ' online - ' . $latencyMs . ' ms'
+                    : 'Nenhum tronco cadastrado - ' . $latencyMs . ' ms',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'Troncos',
+                'latency_ms' => null,
+                'online' => 0,
+                'total' => 0,
+                'detail' => 'Falha ao consultar troncos',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function isTrunkOnline(array $trunk): bool
+    {
+        foreach (['online', 'is_online', 'asterisk_up'] as $field) {
+            if (isset($trunk[$field]) && filter_var($trunk[$field], FILTER_VALIDATE_BOOLEAN)) {
+                return true;
+            }
+        }
+
+        $status = strtoupper((string)($trunk['sip_status'] ?? $trunk['sip_status_text'] ?? ''));
+        return in_array($status, ['OK', 'ONLINE', 'UP', 'REGISTERED'], true);
+    }
+
+    private static function buildDiagnosticsSummary(array $redis, array $asterisk, array $trunks, int $serverLatencyMs): string
+    {
+        $issues = [];
+
+        if (!$asterisk['ok']) {
+            $issues[] = 'Asterisk sem resposta';
+        }
+
+        if (!$redis['ok']) {
+            $issues[] = 'Redis sem resposta';
+        }
+
+        if (!$trunks['ok']) {
+            $issues[] = 'sem tronco online';
+        }
+
+        if ($issues === []) {
+            return 'Tudo parece OK. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . '.';
+        }
+
+        return 'Encontrei alerta: ' . implode(', ', $issues) . '. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . '.';
+    }
+
+    private static function requireUser(): array|Response
+    {
+        $user = SessionUser::getLogged();
+        if (!$user) {
+            return self::json(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.',
+            ]);
+        }
+
+        return $user;
+    }
+
+    private static function json(int $status, array $payload): Response
+    {
+        return new Response($status, $payload, 'application/json');
+    }
+
+    private static function jsonInput(): array
+    {
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw ?: '', true);
+
+        return is_array($data) ? $data : ($_POST ?: []);
+    }
+}

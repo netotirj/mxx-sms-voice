@@ -86,10 +86,37 @@ class Dashboard extends ViewComponents
         }
 
         $calls = is_array($activeData['chamadas'] ?? null) ? $activeData['chamadas'] : [];
+        $uniqueCalls = [];
 
-        return count(array_filter($calls, static function ($call) {
-            return is_array($call) && empty($call['ended']);
-        }));
+        foreach ($calls as $call) {
+            if (!is_array($call) || !empty($call['ended'])) {
+                continue;
+            }
+
+            $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
+            $logicalId = trim((string)(
+                $call['call_id']
+                ?? $vars['CALL_ID']
+                ?? $vars['__CALL_ID']
+                ?? ''
+            ));
+
+            if ($logicalId === '') {
+                $logicalId = trim(implode('|', array_filter([
+                    (string)($call['caller'] ?? ''),
+                    (string)($call['destination'] ?? $call['number'] ?? ''),
+                    (string)($call['started'] ?? ''),
+                ], static fn($value) => $value !== '')));
+            }
+
+            if ($logicalId === '') {
+                $logicalId = (string)($call['id'] ?? spl_object_id((object)$call));
+            }
+
+            $uniqueCalls[$logicalId] = true;
+        }
+
+        return count($uniqueCalls);
     }
 
     private static function measureAsteriskLatencyMs(): ?int
@@ -182,13 +209,22 @@ class Dashboard extends ViewComponents
 
     private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser): array
     {
+        $whatsappSummary = self::buildDashboardWhatsAppSummary($obUser);
+        $data['whatsappEnviados'] = $whatsappSummary['sent_messages'];
+        $data['whatsappConversas'] = $whatsappSummary['conversations'];
+        $data['whatsappNaoLidas'] = $whatsappSummary['unread'];
+        $data['whatsappCampanhas'] = $whatsappSummary['campaigns'];
+        $data['whatsappContas'] = $whatsappSummary['accounts'];
+        $data['consumoWhats'] = $data['consumoWhats'] ?? '0,00';
+
         $totalVoice = max(0, (int)($cdr->total ?? 0));
         $answeredVoice = max(0, (int)($cdr->answer ?? 0));
         $asr = $totalVoice > 0 ? round(($answeredVoice / $totalVoice) * 100, 1) : 0;
         $acd = $answeredVoice > 0 ? intdiv((int)($cdr->duration_total ?? 0), $answeredVoice) : 0;
 
         $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
-        $whatsTotal = max(0, (int)($data['whatsappEnviados'] ?? 0));
+        $whatsTotal = max(0, (int)($data['whatsappConversas'] ?? 0));
+        $whatsUnread = max(0, (int)($data['whatsappNaoLidas'] ?? 0));
 
         $data['health'] = self::buildDashboardHealth($filters, $cdr, $obUser);
         $data['operational_cards'] = [
@@ -209,16 +245,228 @@ class Dashboard extends ViewComponents
                 'status' => $smsTotal > 0 ? 'ok' : 'warning'
             ],
             'whatsapp' => [
-                'title' => 'WhatsApp',
-                'metric_label' => 'Campanhas / Consumo',
+                'title' => 'WhatsApp Central',
+                'metric_label' => 'Conversas / Não lidas',
                 'primary_value' => $whatsTotal,
-                'secondary_text' => 'R$ ' . ($data['consumoWhats'] ?? '0,00'),
-                'progress' => min(100, $whatsTotal),
-                'status' => $whatsTotal > 0 ? 'ok' : 'warning'
+                'secondary_text' => $whatsUnread . ' não lidas',
+                'progress' => min(100, $whatsTotal > 0 ? (($whatsTotal - $whatsUnread) / max(1, $whatsTotal)) * 100 : 0),
+                'status' => $whatsappSummary['accounts'] > 0 ? ($whatsUnread > 0 ? 'warning' : 'ok') : 'critical'
             ]
         ];
 
         return $data;
+    }
+
+    private static function buildWhatsAppScopeWhere(array $obUser, string $alias = 'wc'): array
+    {
+        $role = strtolower((string)($obUser['function'] ?? ''));
+        $params = [];
+
+        if ($role === 'super_admin') {
+            return ['1=1', $params];
+        }
+
+        $where = "{$alias}.tenancy_id = :wa_tenancy_id";
+        $params[':wa_tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+
+        if ($role !== 'admin') {
+            $where .= " AND {$alias}.user_id = :wa_user_id";
+            $params[':wa_user_id'] = (int)($obUser['id'] ?? 0);
+        }
+
+        return [$where, $params];
+    }
+
+    private static function dashboardScalar(string $sql, array $params = []): int
+    {
+        $row = (new Database())->execute($sql, $params)->fetch(\PDO::FETCH_ASSOC);
+        return (int)($row['total'] ?? 0);
+    }
+
+    private static function whatsappTablesReady(): bool
+    {
+        foreach (['whatsapp_accounts', 'whatsapp_campaigns', 'whatsapp_conversations', 'whatsapp_messages'] as $table) {
+            $row = (new Database())->execute(
+                'SELECT COUNT(*) AS total
+                 FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = :table',
+                [':table' => $table]
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            if ((int)($row['total'] ?? 0) === 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function buildDashboardWhatsAppSummary(array $obUser): array
+    {
+        try {
+            if (!self::whatsappTablesReady()) {
+                throw new \RuntimeException('WhatsApp tables not ready');
+            }
+
+            [$conversationWhere, $conversationParams] = self::buildWhatsAppScopeWhere($obUser, 'wc');
+            [$campaignWhere, $campaignParams] = self::buildWhatsAppScopeWhere($obUser, 'wcamp');
+            [$accountWhere, $accountParams] = self::buildWhatsAppScopeWhere($obUser, 'wa');
+
+            $sentMessages = self::dashboardScalar(
+                "SELECT COUNT(*) AS total
+                 FROM whatsapp_messages wm
+                 INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+                 WHERE {$conversationWhere}
+                   AND wm.direction = 'outbound'
+                   AND wm.status IN ('sent', 'delivered', 'read')",
+                $conversationParams
+            );
+
+            $conversations = self::dashboardScalar(
+                "SELECT COUNT(*) AS total FROM whatsapp_conversations wc WHERE {$conversationWhere}",
+                $conversationParams
+            );
+
+            $unread = self::dashboardScalar(
+                "SELECT COALESCE(SUM(wc.unread_count), 0) AS total FROM whatsapp_conversations wc WHERE {$conversationWhere}",
+                $conversationParams
+            );
+
+            $campaigns = self::dashboardScalar(
+                "SELECT COUNT(*) AS total FROM whatsapp_campaigns wcamp WHERE {$campaignWhere}",
+                $campaignParams
+            );
+
+            $accounts = self::dashboardScalar(
+                "SELECT COUNT(*) AS total FROM whatsapp_accounts wa WHERE {$accountWhere} AND wa.status = 'active'",
+                $accountParams
+            );
+
+            return [
+                'sent_messages' => $sentMessages,
+                'conversations' => $conversations,
+                'unread' => $unread,
+                'campaigns' => $campaigns,
+                'accounts' => $accounts,
+            ];
+        } catch (\Throwable) {
+            return [
+                'sent_messages' => 0,
+                'conversations' => 0,
+                'unread' => 0,
+                'campaigns' => 0,
+                'accounts' => 0,
+            ];
+        }
+    }
+
+    private static function whatsPeriodCondition(string $period, string $mode, string $field = 'wm.created_at'): string
+    {
+        if ($period === 'week') {
+            return $mode === 'current'
+                ? "YEARWEEK({$field}, 1) = YEARWEEK(CURDATE(), 1)"
+                : "YEARWEEK({$field}, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1)";
+        }
+
+        if ($period === 'month') {
+            return $mode === 'current'
+                ? "DATE_FORMAT({$field}, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+                : "DATE_FORMAT({$field}, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')";
+        }
+
+        return $mode === 'current'
+            ? "DATE({$field}) = CURDATE()"
+            : "DATE({$field}) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+    }
+
+    private static function whatsStatusLabel(string $direction, string $status): string
+    {
+        if ($status === 'failed') return 'Falhas';
+        if ($status === 'pending') return 'Pendentes';
+        if ($direction === 'inbound' && $status === 'received') return 'Recebidas';
+        if ($status === 'delivered') return 'Entregues';
+        if ($status === 'read') return 'Lidas';
+        return $direction === 'outbound' ? 'Enviadas' : 'Recebidas';
+    }
+
+    private static function countWhatsAppMessagesForPeriod(array $obUser, string $period, string $mode): int
+    {
+        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wc');
+        $periodWhere = self::whatsPeriodCondition($period, $mode);
+
+        return self::dashboardScalar(
+            "SELECT COUNT(*) AS total
+             FROM whatsapp_messages wm
+             INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+             WHERE {$where} AND {$periodWhere}",
+            $params
+        );
+    }
+
+    private static function statusMapWhatsAppForPeriod(array $obUser, string $period): array
+    {
+        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wc');
+        $periodWhere = self::whatsPeriodCondition($period, 'current');
+
+        $rows = (new Database())->execute(
+            "SELECT wm.direction, wm.status, COUNT(*) AS total
+             FROM whatsapp_messages wm
+             INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+             WHERE {$where} AND {$periodWhere}
+             GROUP BY wm.direction, wm.status
+             ORDER BY total DESC",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $map = [];
+        foreach ($rows as $row) {
+            $direction = (string)($row['direction'] ?? '');
+            $status = (string)($row['status'] ?? '');
+            $label = self::whatsStatusLabel($direction, $status);
+            $series = $direction === 'outbound' ? 'Enviadas' : 'Recebidas';
+
+            if (!isset($map[$label])) {
+                $map[$label] = [];
+            }
+
+            $map[$label][$series] = (int)($map[$label][$series] ?? 0) + (int)($row['total'] ?? 0);
+        }
+
+        return $map;
+    }
+
+    private static function buildDashboardWhatsAppCharts(array $obUser): array
+    {
+        try {
+            if (!self::whatsappTablesReady()) {
+                throw new \RuntimeException('WhatsApp tables not ready');
+            }
+
+            return [
+                'statusMapDiaWhats' => self::statusMapWhatsAppForPeriod($obUser, 'day'),
+                'statusMapSemanaWhats' => self::statusMapWhatsAppForPeriod($obUser, 'week'),
+                'statusMapMesWhats' => self::statusMapWhatsAppForPeriod($obUser, 'month'),
+                'totalDiaAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'day', 'current'),
+                'totalDiaAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'day', 'previous'),
+                'totalSemanaAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'week', 'current'),
+                'totalSemanaAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'week', 'previous'),
+                'totalMesAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'month', 'current'),
+                'totalMesAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'month', 'previous'),
+            ];
+        } catch (\Throwable) {
+            return [
+                'statusMapDiaWhats' => [],
+                'statusMapSemanaWhats' => [],
+                'statusMapMesWhats' => [],
+                'totalDiaAtualWhats' => 0,
+                'totalDiaAnteriorWhats' => 0,
+                'totalSemanaAtualWhats' => 0,
+                'totalSemanaAnteriorWhats' => 0,
+                'totalMesAtualWhats' => 0,
+                'totalMesAnteriorWhats' => 0,
+            ];
+        }
     }
 
     private static function buildTrunkNameMap(array $obUser): array
@@ -745,9 +993,9 @@ class Dashboard extends ViewComponents
             // ======================================================
             if ($isSuperAdmin) {
                 $data = CallbackSms::fetchStatusCountsWithDay(null, null, null);
-                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus(null, null, null);
-                $dataOperatorDay = $dataOperatorMonth;
-                $dataOperatorWeek = $dataOperatorMonth;
+                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'month');
+                $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'day');
+                $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'week');
                 $dataValuesPix = PixSearch::getValuesPixCurrentMonth(null, null);
                 $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, null);
                 $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay(null, null, null);
@@ -761,9 +1009,9 @@ class Dashboard extends ViewComponents
             // ======================================================
             elseif ($isAdmin) {
                 $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, null);
-                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null);
-                $dataOperatorDay = $dataOperatorMonth;
-                $dataOperatorWeek = $dataOperatorMonth;
+                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'month');
+                $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'day');
+                $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'week');
                 $dataValuesPix = PixSearch::getValuesPixCurrentMonth($userId, $tenancyId);
                 $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, $tenancyId);
 
@@ -780,9 +1028,9 @@ class Dashboard extends ViewComponents
             else {
                 if ($isReseller) {
                     $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, $userId);
-                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null);
-                    $dataOperatorDay = $dataOperatorMonth;
-                    $dataOperatorWeek = $dataOperatorMonth;
+                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'month');
+                    $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'day');
+                    $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'week');
                     $dataValuesPix = RefillsResellers::getValuesRefillCurrentMonth($userId, $tenancyId);
 
                     // 🔥 Filtro RESELLER: Trava no ID dele para ver ele + clientes dele
@@ -815,6 +1063,7 @@ class Dashboard extends ViewComponents
             $trunkCountsDay = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'day'), $trunkNameMap);
             $trunkCountsWeek = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'week'), $trunkNameMap);
             $trunkCountsMonth = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'month'), $trunkNameMap);
+            $whatsappCharts = self::buildDashboardWhatsAppCharts($obUser);
 
             $response = [
                 'statusMapMes'           => $data['statusMes'],
@@ -836,6 +1085,16 @@ class Dashboard extends ViewComponents
                 'totalDiaAnteriorVoice'  => $dataVoice['totalDiaAnterior'],
                 'totalSemanaAtualVoice'  => $dataVoice['totalSemanaAtual'] ?? $dataVoice['totalDiaAtual'],
                 'totalSemanaAnteriorVoice'=> $dataVoice['totalSemanaAnterior'] ?? $dataVoice['totalDiaAnterior'],
+
+                'statusMapMesWhats'       => $whatsappCharts['statusMapMesWhats'],
+                'statusMapDiaWhats'       => $whatsappCharts['statusMapDiaWhats'],
+                'statusMapSemanaWhats'    => $whatsappCharts['statusMapSemanaWhats'],
+                'totalMesAtualWhats'      => $whatsappCharts['totalMesAtualWhats'],
+                'totalMesAnteriorWhats'   => $whatsappCharts['totalMesAnteriorWhats'],
+                'totalDiaAtualWhats'      => $whatsappCharts['totalDiaAtualWhats'],
+                'totalDiaAnteriorWhats'   => $whatsappCharts['totalDiaAnteriorWhats'],
+                'totalSemanaAtualWhats'   => $whatsappCharts['totalSemanaAtualWhats'],
+                'totalSemanaAnteriorWhats'=> $whatsappCharts['totalSemanaAnteriorWhats'],
 
                 'sipCodeCountsDay'        => $sipCodesDay,
                 'sipCodeCountsWeek'       => $sipCodesWeek,

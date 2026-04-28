@@ -364,19 +364,25 @@ class CdrVoice
 
         // Filtros de data (Garantindo que o campo started seja filtrado)
         $statusMes = $getStatusData("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE())");
+        $statusSemana = $getStatusData("YEARWEEK(started, 1) = YEARWEEK(CURDATE(), 1)");
         $statusDia = $getStatusData("DATE(started) = CURDATE()");
 
         // Totais agregados com o filtro de segurança
         $totalMesAtual = (int)$db->select("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE()) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
         $totalMesAnterior = (int)$db->select("MONTH(started) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(started) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalSemanaAtual = (int)$db->select("YEARWEEK(started, 1) = YEARWEEK(CURDATE(), 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalSemanaAnterior = (int)$db->select("YEARWEEK(started, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
         $totalDiaAtual = (int)$db->select("DATE(started) = CURDATE() $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
         $totalDiaAnterior = (int)$db->select("DATE(started) = CURDATE() - INTERVAL 1 DAY $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
 
         return [
             'statusMes'        => $statusMes,
+            'statusSemana'     => $statusSemana,
             'statusDia'        => $statusDia,
             'totalMesAtual'    => $totalMesAtual,
             'totalMesAnterior' => $totalMesAnterior,
+            'totalSemanaAtual' => $totalSemanaAtual,
+            'totalSemanaAnterior' => $totalSemanaAnterior,
             'totalDiaAtual'    => $totalDiaAtual,
             'totalDiaAnterior' => $totalDiaAnterior,
         ];

@@ -253,8 +253,9 @@ class CallbackSms
             return $result;
         };
 
-        // 🔹 Consulta mensal e diária
+        // 🔹 Consulta mensal, semanal e diária
         $statusMes = $getStatusData("MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())");
+        $statusSemana = $getStatusData("YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)");
         $statusDia = $getStatusData("DATE(date_send) = CURDATE()");
 
         // 🔹 Totais agregados
@@ -268,6 +269,22 @@ class CallbackSms
 
         $totalMesAnterior = (int)$db->select(
             "MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition",
+            $params,
+            null,
+            null,
+            'COUNT(*) as total'
+        )->fetchColumn();
+
+        $totalSemanaAtual = (int)$db->select(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1) $extraCondition",
+            $params,
+            null,
+            null,
+            'COUNT(*) as total'
+        )->fetchColumn();
+
+        $totalSemanaAnterior = (int)$db->select(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition",
             $params,
             null,
             null,
@@ -292,16 +309,19 @@ class CallbackSms
 
         return [
             'statusMes' => $statusMes,
+            'statusSemana' => $statusSemana,
             'statusDia' => $statusDia,
             'totalMesAtual' => $totalMesAtual,
             'totalMesAnterior' => $totalMesAnterior,
+            'totalSemanaAtual' => $totalSemanaAtual,
+            'totalSemanaAnterior' => $totalSemanaAnterior,
             'totalDiaAtual' => $totalDiaAtual,
             'totalDiaAnterior' => $totalDiaAnterior,
         ];
     }
 
 
-    public static function countGroupedByOperatorAllStatus(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): array
+    public static function countGroupedByOperatorAllStatus(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
     {
         $conditions = [];
         $params = [];
@@ -322,6 +342,15 @@ class CallbackSms
         if (!is_null($resellerId)) {
             $conditions[] = 'reseller_id = :reseller_id';
             $params[':reseller_id'] = $resellerId;
+        }
+
+        $period = strtolower((string)$period);
+        if ($period === 'day') {
+            $conditions[] = 'DATE(date_send) = CURDATE()';
+        } elseif ($period === 'week') {
+            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)';
+        } elseif ($period === 'month') {
+            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())';
         }
 
         // 🔹 Monta o WHERE dinamicamente

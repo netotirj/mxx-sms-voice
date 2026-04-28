@@ -958,6 +958,7 @@
         let currentPage = 1;
         let perPage = Number(perPageSel.value || 10);
         let autoReloadTimer = null;
+        let isFetchingData = false;
         let errorCount = 0;
 
         // ===== HELPERS =====
@@ -1653,11 +1654,25 @@
         }
 
         // ===== AUTO RELOAD =====
+        function setReloadLoading(loading) {
+            if (!reloadBtn) return;
+
+            reloadBtn.disabled = loading;
+            reloadBtn.classList.toggle("opacity-60", loading);
+            reloadBtn.classList.toggle("cursor-not-allowed", loading);
+            reloadBtn.classList.toggle("hover:bg-blue-700", !loading);
+            reloadBtn.innerHTML = loading
+                ? `<i class="fa fa-spinner fa-spin"></i> Atualizando`
+                : `🔄 Atualizar`;
+        }
+
         function setupAutoReload() {
             if (autoReloadTimer) clearInterval(autoReloadTimer);
             if (!autoReloadChk.checked) return;
 
-            autoReloadTimer = setInterval(fetchData, Number(reloadInterval.value || 10000));
+            autoReloadTimer = setInterval(() => {
+                if (!isFetchingData) fetchData();
+            }, Number(reloadInterval.value || 10000));
         }
 
         const monitorThrottle = new Map(); // key -> lastShownMs
@@ -1673,25 +1688,32 @@
 
         // ===== FETCH =====
         async function fetchData() {
-            await fetch(`${baseUrl}/campaign/voice/view`)
-                .then(r => r.json())
-                .then(r => {
-                    errorCount = 0;
-                    handleMonitor(r.monitor || null); // 🔔 primeiro o sistema
-                    allItems = r.data || [];
-                    applyFilters();
-                })
+            if (isFetchingData) return;
 
-                .catch(() => {
-                    if (++errorCount >= 3) {
-                        tbody.innerHTML = `
+            isFetchingData = true;
+            setReloadLoading(true);
+
+            try {
+                const res = await fetch(`${baseUrl}/campaign/voice/view`);
+                const r = await res.json();
+
+                errorCount = 0;
+                handleMonitor(r.monitor || null); // 🔔 primeiro o sistema
+                allItems = r.data || [];
+                applyFilters();
+            } catch {
+                if (++errorCount >= 3) {
+                    tbody.innerHTML = `
                     <tr>
                         <td colspan="8" class="text-center text-red-500 py-6">
                             Erro ao carregar campanhas
                         </td>
                     </tr>`;
-                    }
-                });
+                }
+            } finally {
+                isFetchingData = false;
+                setReloadLoading(false);
+            }
         }
 
         function ariHumanError(http, err) {

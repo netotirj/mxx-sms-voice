@@ -12,6 +12,11 @@
             {{planSwitcherHtml}}
 
             <div class="relative w-max ml-auto flex items-center self-center">
+                <a href="javascript:void(0);" id="supportTicketsButton" class="relative flex items-center justify-center cursor-pointer mr-6" title="Tickets de suporte">
+                    <i class="fa fa-question-circle text-xl text-white"></i>
+                    <span id="supportTicketsBadge" class="absolute -top-2 -right-2 hidden min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-xxs font-bold leading-4 text-center">0</span>
+                </a>
+
                 <a href="javascript:void(0);" id="notificationBell" class="relative flex items-center justify-center cursor-pointer mr-6">
                     <i class="fa fa-bell text-xl text-white"></i>
                     <svg id="badgeT" class="absolute -top-1 -right-1 h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
@@ -26,6 +31,30 @@
                 </a>
 
                 <div style="display: none;" sidenav-close></div>
+
+                <div id="supportTicketsMenu"
+                     class="absolute right-14 mt-2 w-96 max-h-100 overflow-y-auto rounded-xl bg-white shadow-2xl opacity-0 pointer-events-none transition-all duration-200 border border-slate-100"
+                     style="z-index:9999; top: 100%;">
+                    <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm text-slate-800 font-bold leading-tight">Suporte</p>
+                                <p id="supportTicketsSummary" class="text-xs text-slate-500 mt-0.5">Acompanhando seus tickets abertos</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="{{URL}}/support" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-emerald-600 border border-slate-200 hover:bg-emerald-50" title="Abrir painel de suporte">
+                                    <i class="fa fa-arrow-up-right-from-square text-xs"></i>
+                                </a>
+                                <button id="supportTicketsRefresh" type="button" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-blue-600 border border-slate-200 hover:bg-blue-50" title="Atualizar tickets">
+                                    <i class="fa fa-rotate-right text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="supportTicketsList" class="p-3">
+                        <div class="text-center text-gray-500 p-4">Carregando tickets...</div>
+                    </div>
+                </div>
 
                 <div id="dropdownMenu"
                      class="absolute right-0 mt-2 w-100 max-h-100 overflow-y-auto rounded-lg bg-white shadow-lg opacity-0 pointer-events-none transition-all duration-200"
@@ -147,6 +176,13 @@
         const badgeCount = document.getElementById('badgeCount');
         const badgePulse = document.getElementById('badgePulse');
         const dropdown = document.getElementById('dropdownMenu');
+        const supportTicketsButton = document.getElementById('supportTicketsButton');
+        const supportTicketsMenu = document.getElementById('supportTicketsMenu');
+        const supportTicketsList = document.getElementById('supportTicketsList');
+        const supportTicketsBadge = document.getElementById('supportTicketsBadge');
+        const supportTicketsRefresh = document.getElementById('supportTicketsRefresh');
+        const supportTicketsSummary = document.getElementById('supportTicketsSummary');
+        const headerBaseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
 
         // Barra de ações
         const clearAll = document.getElementById('clearAll');
@@ -211,6 +247,89 @@
             });
         }
 
+        function departmentLabel(department) {
+            const labels = {
+                support: 'Suporte',
+                commercial: 'Comercial',
+                sales: 'Vendas',
+                finance: 'Financeiro'
+            };
+
+            return labels[department] || 'Suporte';
+        }
+
+        function statusLabel(status) {
+            const labels = {
+                open: 'Aberto',
+                pending: 'Pendente',
+                closed: 'Fechado'
+            };
+
+            return labels[status] || status;
+        }
+
+        function renderSupportTickets(tickets) {
+            if (!supportTicketsList) return;
+
+            const openCount = Array.isArray(tickets) ? tickets.filter(ticket => ticket.status !== 'closed').length : 0;
+            if (supportTicketsSummary) {
+                supportTicketsSummary.textContent = openCount === 1
+                    ? '1 ticket aberto aguardando acompanhamento'
+                    : `${openCount} tickets abertos aguardando acompanhamento`;
+            }
+
+            if (supportTicketsBadge) {
+                supportTicketsBadge.textContent = String(openCount);
+                supportTicketsBadge.classList.toggle('hidden', openCount === 0);
+            }
+
+            if (!tickets || !tickets.length) {
+                supportTicketsList.innerHTML = `
+                    <div class="text-center p-5">
+                        <div class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 mb-3">
+                            <i class="fa fa-check text-lg"></i>
+                        </div>
+                        <p class="text-sm font-bold text-slate-700">Tudo em dia por aqui</p>
+                        <p class="text-xs text-slate-500 mt-1">Quando a Lívia abrir um ticket, ele aparece nesta lista.</p>
+                    </div>`;
+                return;
+            }
+
+            supportTicketsList.innerHTML = `
+                <ul class="space-y-2">
+                    ${tickets.map(ticket => `
+                        <li class="p-3 rounded-xl bg-white border border-slate-100 shadow-sm hover:border-emerald-200 hover:bg-emerald-50/40 transition-colors">
+                            <div class="flex items-start gap-3">
+                                <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                                    <i class="fa fa-life-ring text-sm"></i>
+                                </span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h6 class="text-sm font-bold text-slate-800 truncate">#${ticket.id} - ${departmentLabel(ticket.department)}</h6>
+                                        <span class="text-xxs font-bold text-emerald-700 bg-emerald-100 rounded-full px-2 py-1">${statusLabel(ticket.status)}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 mt-1 leading-snug">${ticket.last_message || ticket.subject || 'Sem mensagem'}</p>
+                                    <div class="mt-2 flex items-center justify-between text-xxs text-slate-400">
+                                        <span>${ticket.requester_phone || 'Sem telefone'}</span>
+                                        <span>${ticket.last_message_at ? formatDate(ticket.last_message_at) : formatDate(ticket.created_at)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>`;
+        }
+
+        function loadSupportTickets() {
+            if (!supportTicketsList || typeof axios === 'undefined') return;
+
+            axios.get(`${headerBaseUrl}/support/tickets?status=open`)
+                .then(response => renderSupportTickets(response.data?.data || []))
+                .catch(() => {
+                    supportTicketsList.innerHTML = `<div class="text-center text-red-500 p-3">Falha ao carregar tickets.</div>`;
+                });
+        }
+
         // --- AÇÃO: APAGAR TODAS (SEM CONFIRMAÇÃO) ---
         if (clearAll) {
             clearAll.addEventListener('click', (e) => {
@@ -272,19 +391,53 @@
             event.preventDefault();
             event.stopPropagation();
             if (!dropdown) return;
+            supportTicketsMenu?.classList.add('opacity-0', 'pointer-events-none');
             dropdown.classList.toggle('opacity-0');
             dropdown.classList.toggle('pointer-events-none');
         }
 
+        function toggleSupportTickets(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!supportTicketsMenu) return;
+
+            dropdown?.classList.add('opacity-0', 'pointer-events-none');
+            supportTicketsMenu.classList.toggle('opacity-0');
+            supportTicketsMenu.classList.toggle('pointer-events-none');
+
+            if (!supportTicketsMenu.classList.contains('opacity-0')) {
+                loadSupportTickets();
+            }
+        }
+
         if (bell) bell.addEventListener('click', toggleDropdown);
         if (badgeT) badgeT.addEventListener('click', toggleDropdown);
+        supportTicketsButton?.addEventListener('click', toggleSupportTickets);
+        supportTicketsRefresh?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            loadSupportTickets();
+        });
 
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target) && !(bell && bell.contains(e.target)) && !(badgeT && badgeT.contains(e.target))) {
                 dropdown.classList.add('opacity-0');
                 dropdown.classList.add('pointer-events-none');
             }
+
+            if (
+                supportTicketsMenu &&
+                !supportTicketsMenu.contains(e.target) &&
+                !(supportTicketsButton && supportTicketsButton.contains(e.target))
+            ) {
+                supportTicketsMenu.classList.add('opacity-0');
+                supportTicketsMenu.classList.add('pointer-events-none');
+            }
         });
+
+        loadSupportTickets();
+        document.addEventListener('support:tickets-updated', loadSupportTickets);
+        window.setInterval(loadSupportTickets, 60000);
 
         // --- SSE PARA NOTIFICAÇÕES EM TEMPO REAL ---
         if (typeof(EventSource) !== 'undefined') {
@@ -354,7 +507,3 @@
         });
     });
 </script>
-
-
-
-

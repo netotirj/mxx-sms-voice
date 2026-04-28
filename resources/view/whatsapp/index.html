@@ -2,74 +2,242 @@
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
             <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100 overflow-hidden" style="min-height: 650px;">
-                
-                <div id="wa-login-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100 mx-4 text-center">
-                        <div id="step-1">
-                            <div class="bg-emerald-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                                <span class="text-white text-2xl font-bold">WA</span>
+                <div id="wa-account-modal" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-5">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Meta WhatsApp Business</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-1 uppercase">Conectar número</h6>
+                                <p class="text-xs text-slate-400 mb-0">Cadastre o Phone Number ID e o token permanente da Cloud API.</p>
                             </div>
-                            <h6 class="text-slate-700 text-lg font-bold mb-2 uppercase">Conectar Aparelho</h6>
-                            <p class="text-xs text-slate-400 mb-6">Digite seu número para gerar o QR Code.</p>
-                            <input type="text" id="wa-client-number" placeholder="Ex: 5521999999999" 
-                                   class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-center mb-4 text-slate-700">
-                            <button onclick="gerarQRCode()" class="w-full px-8 py-3 text-xs font-bold text-white bg-gradient-to-tl from-emerald-600 to-teal-400 rounded-xl shadow-md hover:scale-[1.02] transition-all uppercase">
-                                Gerar QR Code
-                            </button>
+                            <button id="wa-account-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
                         </div>
 
-                        <div id="step-qr" class="hidden text-center">
-                            <h6 class="text-slate-700 text-lg font-bold mb-2 uppercase">Escaneie o Código</h6>
-                            <div class="bg-slate-100 p-4 rounded-2xl inline-block mb-4 border-2 border-dashed border-slate-200">
-                                <img id="qrcode-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=MAXX_SOLUTIONS_DEMO" class="w-[180px] h-[180px]">
-                            </div>
-                            <p class="text-[10px] text-emerald-500 animate-pulse font-bold">AGUARDANDO LEITURA...</p>
-                            <button onclick="voltarPasso1()" class="mt-4 text-xxs font-bold text-slate-400 uppercase underline block mx-auto">Cancelar</button>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label class="wa-field">
+                                <span>Apelido</span>
+                                <input id="wa-account-label" type="text" placeholder="Ex: Suporte Matriz">
+                            </label>
+                            <label class="wa-field">
+                                <span>Número exibido</span>
+                                <input id="wa-account-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                            </label>
+                            <label class="wa-field">
+                                <span>Phone Number ID</span>
+                                <input id="wa-account-phone-id" type="text" placeholder="ID do número na Meta">
+                            </label>
+                            <label class="wa-field">
+                                <span>WABA ID</span>
+                                <input id="wa-account-waba-id" type="text" placeholder="Opcional">
+                            </label>
+                            <label class="wa-field md:col-span-2">
+                                <span>Access Token</span>
+                                <textarea id="wa-account-token" rows="3" placeholder="Token permanente da Meta"></textarea>
+                            </label>
+                        </div>
+
+                        <p id="wa-account-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button id="wa-account-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Cancelar</button>
+                            <button id="wa-account-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar número</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4 border-b border-slate-50">
-                    <div class="flex items-center gap-2">
-                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 text-lg">🟢</span>
+                <div id="wa-new-chat-modal" class="absolute inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-4">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Nova conversa</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-0 uppercase">Enviar mensagem</h6>
+                            </div>
+                            <button id="wa-new-chat-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <label class="wa-field">
+                            <span>Nome</span>
+                            <input id="wa-new-chat-name" type="text" placeholder="Opcional">
+                        </label>
+                        <label class="wa-field">
+                            <span>WhatsApp</span>
+                            <input id="wa-new-chat-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                        </label>
+                        <label class="wa-field">
+                            <span>Tipo de envio</span>
+                            <select id="wa-new-chat-type">
+                                <option value="template" selected>Template aprovado</option>
+                                <option value="text">Texto livre</option>
+                            </select>
+                        </label>
+                        <div id="wa-new-chat-template-fields" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label class="wa-field md:col-span-2">
+                                <span>Usar template salvo</span>
+                                <select id="wa-new-chat-template-select">
+                                    <option value="">Selecionar template salvo...</option>
+                                </select>
+                            </label>
+                            <label class="wa-field">
+                                <span>Template</span>
+                                <input id="wa-new-chat-template-name" type="text" value="hello_world" placeholder="Ex: hello_world">
+                            </label>
+                            <label class="wa-field">
+                                <span>Idioma</span>
+                                <input id="wa-new-chat-template-language" type="text" value="en_US" placeholder="Ex: en_US">
+                            </label>
+                            <label class="wa-field md:col-span-2">
+                                <span>Componentes</span>
+                                <textarea id="wa-new-chat-template-components" rows="2" placeholder='Opcional: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                            </label>
+                        </div>
+                        <label id="wa-new-chat-message-field" class="wa-field hidden">
+                            <span>Mensagem</span>
+                            <textarea id="wa-new-chat-message" rows="4" placeholder="Digite a mensagem"></textarea>
+                        </label>
+
+                        <p id="wa-new-chat-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button id="wa-new-chat-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Cancelar</button>
+                            <button id="wa-new-chat-send" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wa-template-modal" class="absolute inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-4">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Campanhas WhatsApp</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-0 uppercase">Templates salvos</h6>
+                                <p class="text-xs text-slate-400 mb-0">Salve os templates aprovados na Meta para reutilizar nos disparos.</p>
+                            </div>
+                            <button id="wa-template-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+                            <label class="wa-field md:col-span-2">
+                                <span>Nome na Meta</span>
+                                <input id="wa-template-name" type="text" placeholder="Ex: hello_world">
+                            </label>
+                            <label class="wa-field">
+                                <span>Idioma</span>
+                                <input id="wa-template-language" type="text" value="pt_BR">
+                            </label>
+                            <label class="wa-field">
+                                <span>Categoria</span>
+                                <select id="wa-template-category">
+                                    <option value="MARKETING">Marketing</option>
+                                    <option value="UTILITY">Utilidade</option>
+                                    <option value="AUTHENTICATION">Autenticação</option>
+                                </select>
+                            </label>
+                            <label class="wa-field">
+                                <span>Status</span>
+                                <select id="wa-template-status">
+                                    <option value="approved">Aprovado</option>
+                                    <option value="pending">Pendente</option>
+                                    <option value="draft">Rascunho</option>
+                                    <option value="rejected">Rejeitado</option>
+                                </select>
+                            </label>
+                            <label class="wa-field md:col-span-5">
+                                <span>Texto de referência</span>
+                                <textarea id="wa-template-body" rows="3" placeholder="Ex: Olá {{1}}, sua oferta está disponível até {{2}}."></textarea>
+                            </label>
+                            <label class="wa-field md:col-span-5">
+                                <span>Componentes JSON opcional</span>
+                                <textarea id="wa-template-components" rows="3" placeholder='Ex: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                            </label>
+                        </div>
+
+                        <p id="wa-template-feedback" class="text-xs font-bold mt-2 mb-3 min-h-4"></p>
+                        <div class="flex justify-end gap-2 mb-4">
+                            <button id="wa-template-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar template</button>
+                        </div>
+                        <div id="wa-template-list" class="max-h-64 overflow-y-auto border border-slate-100 rounded-2xl p-2">
+                            <div class="text-center text-slate-400 text-xs italic p-4">Carregando templates...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wa-central-header">
+                    <div class="wa-central-title">
+                        <span class="wa-central-icon">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </span>
                         <div>
-                            <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Operações</h6>
-                            <p class="text-xs text-slate-400 mb-0">Visualizando: <span id="current-filter-label" class="font-bold">Tudo</span></p>
+                            <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Central</h6>
+                            <p class="text-xs text-slate-400 mb-0">Conta: <span id="wa-current-account-label" class="font-bold">Carregando</span></p>
                         </div>
                     </div>
-                    <div class="flex bg-slate-100 p-1 rounded-xl shadow-inner">
-                        <button onclick="filtrarLayout('tudo')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-slate-700 shadow-sm transition-all uppercase">Tudo</button>
-                        <button onclick="filtrarLayout('conversa')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-700 transition-all uppercase">Conversas</button>
-                        <button onclick="filtrarLayout('grupo')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-700 transition-all uppercase">Grupos</button>
+
+                    <div class="wa-toolbar">
+                        <select id="wa-account-select" class="wa-account-picker"></select>
+                        <div class="wa-actions-menu">
+                            <button id="wa-actions-toggle" type="button" class="wa-toolbar-btn wa-toolbar-btn--light" title="Configurações">
+                                <i class="fa fa-sliders"></i>
+                                <span>Configurar</span>
+                            </button>
+                            <div id="wa-actions-dropdown" class="wa-actions-dropdown hidden">
+                                <button id="wa-test-account" type="button"><i class="fa fa-plug"></i> Testar conexão</button>
+                                <button id="wa-add-account" type="button"><i class="fa fa-plus"></i> Conectar número</button>
+                                <button id="wa-open-templates" type="button"><i class="fa fa-file-lines"></i> Templates</button>
+                            </div>
+                        </div>
+                        <button id="wa-refresh-conversations" type="button" class="wa-toolbar-btn wa-toolbar-btn--dark" title="Atualizar">
+                            <i class="fa fa-rotate-right"></i>
+                            <span>Atualizar</span>
+                        </button>
+                        <button id="wa-new-chat" type="button" class="wa-toolbar-btn wa-toolbar-btn--primary">
+                            <i class="fa fa-paper-plane"></i>
+                            <span>Nova conversa</span>
+                        </button>
                     </div>
                 </div>
 
-                <div class="flex flex-col lg:flex-row" style="height: 550px;">
+                <div class="flex flex-col lg:flex-row" style="height: 590px;">
                     <div class="w-full lg:w-4/12 border-r border-slate-100 flex flex-col bg-slate-50/20">
-                        <div id="wa-chat-list" class="flex-1 overflow-y-auto pt-2 custom-scrollbar"></div>
+                        <div class="px-4 py-3 border-b border-slate-100">
+                            <input id="wa-chat-search" type="text" placeholder="Buscar conversa..."
+                                   class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20">
+                        </div>
+                        <div id="wa-chat-list" class="flex-1 overflow-y-auto pt-2 custom-scrollbar">
+                            <div class="text-center text-slate-400 text-xs italic mt-8">Carregando conversas...</div>
+                        </div>
                     </div>
 
                     <div class="flex-1 flex flex-col bg-white">
                         <div class="p-4 border-b border-slate-100 flex items-center gap-3">
                             <div id="chat-avatar" class="w-10 h-10 rounded-full bg-slate-200 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase"></div>
-                            <div>
+                            <div class="min-w-0 flex-1">
                                 <h6 id="chat-name" class="text-sm font-bold text-slate-700 mb-0">Selecione um chat</h6>
-                                <span class="text-xxs font-bold text-slate-400 uppercase">Aguardando interação</span>
+                                <span id="chat-status" class="text-xxs font-bold text-slate-400 uppercase">Aguardando interação</span>
                             </div>
+                            <div class="wa-read-actions">
+                                <button id="wa-mark-read" type="button" disabled class="wa-read-action wa-read-action--read" title="Marcar como lida">
+                                    <span class="wa-message-status wa-message-status--read"><span>✓</span><span>✓</span></span>
+                                    Lida
+                                </button>
+                                <button id="wa-mark-unread" type="button" disabled class="wa-read-action wa-read-action--unread" title="Marcar como não lida">
+                                    <span class="wa-read-dot"></span>
+                                    Não lida
+                                </button>
+                            </div>
+                            <button id="wa-delete-conversation" type="button" disabled class="w-9 h-9 rounded-xl bg-red-50 text-red-500 text-sm disabled:opacity-30" title="Excluir conversa">
+                                <i class="fa fa-trash"></i>
+                            </button>
                         </div>
+
                         <div id="chat-messages-area" class="flex-1 p-6 overflow-y-auto space-y-4" style="background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #f8fafc;">
                             <div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>
                         </div>
 
                         <div class="p-4 bg-white border-t border-slate-100">
                             <div class="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
-                                <button class="text-slate-400 hover:text-slate-600 ml-2" disabled>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-                                </button>
-                                
-                                <input type="text" id="wa-msg-input" placeholder="Escreva uma mensagem..." 
-                                    class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-slate-700 disabled:opacity-50" disabled>
-                                
+                                <input type="text" id="wa-msg-input" placeholder="Escreva uma mensagem..."
+                                       class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-slate-700 disabled:opacity-50" disabled>
+
                                 <button id="wa-btn-send" disabled
                                         class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-300 text-white rounded-full shadow-md transition-all outline-none border-none">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: translate(1px, 0px);">
@@ -78,6 +246,7 @@
                                     </svg>
                                 </button>
                             </div>
+                            <p id="wa-send-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
                         </div>
                     </div>
                 </div>
@@ -87,134 +256,985 @@
 </div>
 
 <script>
-    // Dados de exemplo com lógica de remetente e leitura
-    const chatsExemplo = [
-        { id: 1, nome: "Maurinho (Suporte)", msg: "O alinhamento do botão ficou top!", time: "14:05", tipo: "conversa", avatar: "MA", cor: "bg-blue-500", status: "online", eu: false, lido: true },
-        { id: 2, nome: "Grupo de Vendas Maxx", msg: "João: Nova venda via PIX", time: "13:50", tipo: "grupo", avatar: "GV", cor: "bg-emerald-500", status: "32 membros", eu: false, lido: false },
-        { id: 3, nome: "Ana Paula Silva", msg: "Pode me enviar o arquivo?", time: "12:10", tipo: "conversa", avatar: "AS", cor: "bg-fuchsia-500", status: "visto por último às 12:15", eu: true, lido: true },
-        { id: 4, nome: "Dev Team Infra", msg: "Sérgio: Servidor atualizado", time: "10:30", tipo: "grupo", avatar: "DT", cor: "bg-slate-700", status: "5 membros", eu: true, lido: false },
-        { id: 5, nome: "Suporte Técnico", msg: "Aguardando seu retorno", time: "Ontem", tipo: "conversa", avatar: "ST", cor: "bg-orange-500", status: "online", eu: false, lido: true }
-    ];
+    document.addEventListener('DOMContentLoaded', () => {
+        const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+        const accountModal = document.getElementById('wa-account-modal');
+        const newChatModal = document.getElementById('wa-new-chat-modal');
+        const templateModal = document.getElementById('wa-template-modal');
+        const accountSelect = document.getElementById('wa-account-select');
+        const accountLabel = document.getElementById('wa-current-account-label');
+        const chatList = document.getElementById('wa-chat-list');
+        const messagesArea = document.getElementById('chat-messages-area');
+        const chatName = document.getElementById('chat-name');
+        const chatStatus = document.getElementById('chat-status');
+        const chatAvatar = document.getElementById('chat-avatar');
+        const msgInput = document.getElementById('wa-msg-input');
+        const sendBtn = document.getElementById('wa-btn-send');
+        const sendFeedback = document.getElementById('wa-send-feedback');
+        const searchInput = document.getElementById('wa-chat-search');
+        const refreshConversationsBtn = document.getElementById('wa-refresh-conversations');
+        const deleteConversationBtn = document.getElementById('wa-delete-conversation');
+        const markReadBtn = document.getElementById('wa-mark-read');
+        const markUnreadBtn = document.getElementById('wa-mark-unread');
+        const actionsToggle = document.getElementById('wa-actions-toggle');
+        const actionsDropdown = document.getElementById('wa-actions-dropdown');
+        const newChatType = document.getElementById('wa-new-chat-type');
+        const newChatTemplateFields = document.getElementById('wa-new-chat-template-fields');
+        const newChatMessageField = document.getElementById('wa-new-chat-message-field');
+        const newChatTemplateSelect = document.getElementById('wa-new-chat-template-select');
+        const templateList = document.getElementById('wa-template-list');
 
-    // Ícone de Check Duplo (Lido) em SVG
-    const svgCheckLido = `<svg class="text-sky-400 mr-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"></path><path d="m22 10-7.5 7.5L13 16"></path></svg>`;
-    // Ícone de Check Simples (Entregue) em SVG
-    const svgCheckEntregue = `<svg class="text-slate-300 mr-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>`;
+        let accounts = [];
+        let conversations = [];
+        let templates = [];
+        let selectedAccountId = Number(localStorage.getItem('wa_selected_account_id') || 0);
+        let selectedConversation = null;
+        let conversationsSignature = '';
+        let messagesSignature = '';
 
-    function renderizarLista(filtro = 'tudo') {
-        const container = document.getElementById('wa-chat-list');
-        if (!container) return;
+        const notify = (type, message) => {
+            if (typeof notyf !== 'undefined' && notyf && typeof notyf[type] === 'function') {
+                notyf[type](message);
+            }
+        };
 
-        container.innerHTML = '';
-        const label = document.getElementById('current-filter-label');
-        if(label) label.innerText = filtro.charAt(0).toUpperCase() + filtro.slice(1);
+        const digits = (value) => String(value || '').replace(/\D+/g, '');
+        const initials = (name, phone) => {
+            const label = String(name || phone || 'WA')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .trim();
+            const parts = label.split(/\s+/).filter(Boolean);
+            const value = parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+            return value || String(phone || 'WA').slice(-2).toUpperCase() || 'WA';
+        };
 
-        const filtrados = chatsExemplo.filter(c => filtro === 'tudo' || c.tipo === filtro);
+        function setTextFeedback(el, message, ok = null) {
+            if (!el) return;
+            el.textContent = message || '';
+            el.className = `text-xs font-bold mt-2 mb-0 min-h-4 ${ok === true ? 'text-emerald-600' : ok === false ? 'text-red-600' : 'text-slate-400'}`;
+        }
 
-        filtrados.forEach(chat => {
-            let checkHTML = '';
-            if (chat.eu) {
-                checkHTML = chat.lido ? svgCheckLido : svgCheckEntregue;
+        function modal(el, show) {
+            el?.classList.toggle('hidden', !show);
+            el?.classList.toggle('flex', show);
+        }
+
+        async function api(path, options = {}) {
+            const response = await fetch(`${baseUrl}${path}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                    ...(options.headers || {})
+                },
+                ...options
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Falha na requisição.');
+            }
+            return data;
+        }
+
+        async function loadAccounts() {
+            accountSelect.innerHTML = '<option value="">Carregando...</option>';
+
+            try {
+                const result = await api('/campaign/whatsapp/accounts');
+                accounts = Array.isArray(result.data) ? result.data : [];
+
+                if (!accounts.length) {
+                    accountSelect.innerHTML = '<option value="">Nenhuma conta cadastrada</option>';
+                    accountLabel.textContent = 'Nenhuma conta';
+                    modal(accountModal, true);
+                    renderConversations([]);
+                    return;
+                }
+
+                if (!accounts.some((account) => Number(account.id) === selectedAccountId)) {
+                    selectedAccountId = Number(accounts[0].id);
+                }
+
+                accountSelect.innerHTML = '';
+                accounts.forEach((account) => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = `${account.label} (${account.display_phone_number})`;
+                    accountSelect.appendChild(option);
+                });
+                accountSelect.value = String(selectedAccountId);
+                localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
+                updateAccountLabel();
+                await loadConversations();
+            } catch (error) {
+                accountSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                accountLabel.textContent = 'Erro';
+                renderConversations([]);
+                notify('error', error.message);
+            }
+        }
+
+        function updateAccountLabel() {
+            const account = accounts.find((item) => Number(item.id) === selectedAccountId);
+            accountLabel.textContent = account ? `${account.label} (${account.display_phone_number})` : 'Selecione';
+        }
+
+        function processSupportPrefill() {
+            const params = new URLSearchParams(window.location.search);
+            const phone = digits(params.get('support_phone') || '');
+            const message = (params.get('support_message') || '').trim();
+            const department = params.get('support_department') || '';
+
+            if (!phone && !message) return;
+
+            const nameMap = {
+                support: 'Suporte',
+                commercial: 'Comercial',
+                sales: 'Vendas',
+                finance: 'Financeiro'
+            };
+
+            document.getElementById('wa-new-chat-phone').value = phone;
+            document.getElementById('wa-new-chat-name').value = nameMap[department] ? `Atendimento ${nameMap[department]}` : '';
+            document.getElementById('wa-new-chat-message').value = message;
+            if (newChatType) {
+                newChatType.value = 'text';
+            }
+            toggleNewChatType();
+            modal(newChatModal, true);
+
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        async function loadTemplates() {
+            try {
+                const result = await api('/campaign/whatsapp/templates');
+                templates = Array.isArray(result.data) ? result.data : [];
+                renderTemplates();
+                fillTemplateSelect();
+            } catch (error) {
+                if (templateList) {
+                    templateList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+                }
+            }
+        }
+
+        function renderTemplates() {
+            if (!templateList) return;
+
+            if (!templates.length) {
+                templateList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum template salvo ainda.</div>';
+                return;
             }
 
-            const html = `
-                <div onclick="abrirConversa(${chat.id})" class="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer border-l-4 ${chat.tipo === 'grupo' ? 'border-blue-400' : 'border-emerald-500'} bg-white transition-all mb-1 shadow-sm mx-2 rounded-lg group animate-fade-in">
-                    <div class="w-10 h-10 rounded-full ${chat.cor} flex-shrink-0 flex items-center justify-center text-white text-xs font-bold group-hover:scale-105 transition-transform">
-                        ${chat.avatar}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex justify-between items-center mb-0.5">
-                            <h6 class="text-xs font-bold text-slate-700 truncate mb-0">${chat.nome}</h6>
-                            <span class="text-[9px] font-bold text-slate-400">${chat.time}</span>
+            templateList.innerHTML = templates.map((template) => `
+                <div class="flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 mb-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(template.name)}</h6>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(template.language)}</span>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(template.category)}</span>
                         </div>
-                        <p class="text-[11px] text-slate-500 truncate mb-0 flex items-center">
-                            ${checkHTML} ${chat.msg}
-                        </p>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-0 line-clamp-2">${escapeHtml(template.body || 'Sem texto de referência')}</p>
                     </div>
+                    <button type="button" data-template-delete="${template.id}" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 shrink-0" title="Excluir template">
+                        <i class="fa fa-trash text-xs"></i>
+                    </button>
                 </div>
-            `;
-            container.insertAdjacentHTML('beforeend', html);
-        });
-    }
+            `).join('');
+        }
 
-    function gerarQRCode() {
-        const num = document.getElementById('wa-client-number').value;
-        if(num.length < 8) return; 
+        function fillTemplateSelect() {
+            if (!newChatTemplateSelect) return;
+            newChatTemplateSelect.innerHTML = '<option value="">Selecionar template salvo...</option>';
+            templates.forEach((template) => {
+                const option = document.createElement('option');
+                option.value = String(template.id);
+                option.textContent = `${template.name} (${template.language})`;
+                newChatTemplateSelect.appendChild(option);
+            });
+        }
 
-        document.getElementById('step-1').classList.add('hidden');
-        document.getElementById('step-qr').classList.remove('hidden');
+        async function saveTemplate() {
+            const feedback = document.getElementById('wa-template-feedback');
+            setTextFeedback(feedback, 'Salvando...', null);
 
-        setTimeout(() => {
-            document.getElementById('wa-login-modal').classList.add('hidden');
-            const labelEl = document.getElementById('current-filter-label');
-            if(labelEl) labelEl.parentElement.innerHTML = `Visualizando: <span id="current-filter-label" class="font-bold">Tudo</span> (Conectado: ${num})`;
-            renderizarLista('tudo'); 
-        }, 3000);
-    }
+            try {
+                const result = await api('/campaign/whatsapp/templates', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: document.getElementById('wa-template-name')?.value || '',
+                        language: document.getElementById('wa-template-language')?.value || 'pt_BR',
+                        category: document.getElementById('wa-template-category')?.value || 'MARKETING',
+                        status: document.getElementById('wa-template-status')?.value || 'approved',
+                        body: document.getElementById('wa-template-body')?.value || '',
+                        components: document.getElementById('wa-template-components')?.value || ''
+                    })
+                });
 
-    function abrirConversa(id) {
-        const chat = chatsExemplo.find(c => c.id === id);
-        if(!chat) return;
+                setTextFeedback(feedback, result.message || 'Template salvo.', true);
+                document.getElementById('wa-template-name').value = '';
+                document.getElementById('wa-template-body').value = '';
+                document.getElementById('wa-template-components').value = '';
+                await loadTemplates();
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
+            }
+        }
 
-        document.getElementById('chat-name').innerText = chat.nome;
-        const statusSpan = document.querySelector('#chat-name + span');
-        statusSpan.innerText = chat.status;
-        statusSpan.className = `text-xxs font-bold uppercase ${chat.status === 'online' ? 'text-emerald-500' : 'text-slate-400'}`;
-        
-        const avatar = document.getElementById('chat-avatar');
-        avatar.className = `w-10 h-10 rounded-full ${chat.cor} flex items-center justify-center text-white text-xs font-bold`;
-        avatar.innerText = chat.avatar;
+        async function deleteTemplate(id) {
+            if (!window.confirm('Excluir este template salvo?')) return;
 
-        document.getElementById('chat-messages-area').innerHTML = `
-            <div class="flex justify-start">
-                <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[80%] border border-slate-100">
-                    <p class="text-sm text-slate-700 mb-0">${chat.msg}</p>
-                    <span class="block text-[9px] text-slate-400 text-right mt-1 font-bold">${chat.time}</span>
-                </div>
-            </div>
-            <div class="flex justify-end">
-                <div class="bg-gradient-to-tl from-emerald-600 to-teal-400 text-white p-3 rounded-2xl rounded-tr-none shadow-md max-w-[80%]">
-                    <p class="text-sm mb-0 text-white">Mensagem visualizada com sucesso!</p>
-                    <div class="flex items-center justify-end gap-1 mt-1">
-                        <span class="text-[9px] text-emerald-100 font-bold uppercase">14:10</span>
-                        ${svgCheckLido.replace('text-sky-400', 'text-sky-200')}
+            try {
+                await api(`/campaign/whatsapp/templates/${id}/delete`, { method: 'POST' });
+                await loadTemplates();
+                notify('success', 'Template excluído.');
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        function applySavedTemplate(templateId) {
+            const template = templates.find((item) => Number(item.id) === Number(templateId));
+            if (!template) return;
+
+            document.getElementById('wa-new-chat-template-name').value = template.name || '';
+            document.getElementById('wa-new-chat-template-language').value = template.language || 'pt_BR';
+            document.getElementById('wa-new-chat-template-components').value = template.components || '';
+        }
+
+        async function saveAccount() {
+            const feedback = document.getElementById('wa-account-feedback');
+            setTextFeedback(feedback, 'Salvando...', null);
+
+            try {
+                await api('/campaign/whatsapp/accounts', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        label: document.getElementById('wa-account-label')?.value || '',
+                        display_phone_number: document.getElementById('wa-account-display-phone')?.value || '',
+                        phone_number_id: document.getElementById('wa-account-phone-id')?.value || '',
+                        waba_id: document.getElementById('wa-account-waba-id')?.value || '',
+                        access_token: document.getElementById('wa-account-token')?.value || ''
+                    })
+                });
+
+                setTextFeedback(feedback, 'Número cadastrado.', true);
+                modal(accountModal, false);
+                await loadAccounts();
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
+            }
+        }
+
+        async function testAccount() {
+            if (!selectedAccountId) return notify('error', 'Selecione uma conta.');
+
+            try {
+                const result = await api(`/campaign/whatsapp/accounts/${selectedAccountId}/test`, { method: 'POST' });
+                notify('success', result.message || 'Conexão validada.');
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        function signature(data) {
+            return JSON.stringify(data || []);
+        }
+
+        async function loadConversations(showLoading = true, forceRender = false) {
+            if (!selectedAccountId) {
+                renderConversations([]);
+                return;
+            }
+
+            if (showLoading) {
+                chatList.innerHTML = '<div class="text-center text-slate-400 text-xs italic mt-8">Carregando conversas...</div>';
+            }
+
+            try {
+                const result = await api(`/campaign/whatsapp/conversations?account_id=${encodeURIComponent(selectedAccountId)}`);
+                const nextConversations = Array.isArray(result.data) ? result.data : [];
+                const nextSignature = signature(nextConversations);
+                if (!forceRender && nextSignature === conversationsSignature) {
+                    return;
+                }
+
+                conversations = nextConversations;
+                conversationsSignature = nextSignature;
+                if (selectedConversation) {
+                    selectedConversation = conversations.find((item) => Number(item.id) === Number(selectedConversation.id)) || selectedConversation;
+                }
+                renderConversations();
+                updateReadActions();
+            } catch (error) {
+                renderConversations([]);
+                notify('error', error.message);
+            }
+        }
+
+        async function refreshCurrentConversation() {
+            if (!selectedConversation) return;
+
+            try {
+                const result = await api(`/campaign/whatsapp/conversations/${selectedConversation.id}/messages`);
+                const nextMessages = Array.isArray(result.data) ? result.data : [];
+                const nextSignature = signature(nextMessages);
+                if (nextSignature === messagesSignature) {
+                    return;
+                }
+
+                messagesSignature = nextSignature;
+                renderMessages(nextMessages);
+            } catch (error) {
+                setTextFeedback(sendFeedback, error.message, false);
+            }
+        }
+
+        function renderConversations(source = conversations) {
+            const term = String(searchInput?.value || '').toLowerCase();
+            const items = source.filter((item) => {
+                const haystack = `${item.contact_name || ''} ${item.contact_phone || ''} ${item.last_message || ''}`.toLowerCase();
+                return haystack.includes(term);
+            });
+
+            if (!items.length) {
+                chatList.innerHTML = '<div class="text-center text-slate-400 text-xs italic mt-8">Nenhuma conversa por enquanto.</div>';
+                return;
+            }
+
+            Array.from(chatList.children).forEach((node) => {
+                if (!node.matches('[data-conversation-id]')) {
+                    node.remove();
+                }
+            });
+
+            const seen = new Set();
+            items.forEach((chat) => {
+                seen.add(String(chat.id));
+                const active = selectedConversation && Number(selectedConversation.id) === Number(chat.id);
+                const label = chat.contact_name || chat.contact_phone;
+                const unread = Number(chat.unread_count || 0);
+                const direction = chat.last_direction === 'outbound' ? 'Você: ' : '';
+                const listStatus = chat.last_direction === 'outbound'
+                    ? renderWhatsAppStatus(chat.last_message_status || chat.last_outbound_status, 'list')
+                    : renderWhatsAppStatus(unread ? 'received' : 'read', 'list');
+                const html = `
+                    <button type="button" data-conversation-id="${chat.id}" class="wa-chat-item w-[calc(100%-1rem)] mx-2 mb-1 px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 cursor-pointer border-l-4 ${active ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'} transition-all shadow-sm rounded-lg group animate-fade-in">
+                        <div class="w-10 h-10 rounded-full bg-emerald-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold group-hover:scale-105 transition-transform">
+                            ${initials(label, chat.contact_phone)}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-center mb-0.5">
+                                <h6 class="text-xs font-bold text-slate-700 truncate mb-0">${escapeHtml(label)}</h6>
+                                <span class="text-[9px] font-bold text-slate-400">${formatTime(chat.last_message_at)}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 truncate mb-0 flex items-center gap-1">
+                                ${listStatus}
+                                <span class="truncate">${escapeHtml(direction + (chat.last_message || 'Sem mensagens'))}</span>
+                            </p>
+                        </div>
+                        ${unread ? `<span class="min-w-[1.25rem] h-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center">${unread}</span>` : ''}
+                    </button>
+                `;
+                const current = chatList.querySelector(`[data-conversation-id="${chat.id}"]`);
+                if (current) {
+                    const nextSignature = signature(chat);
+                    if (current.dataset.signature !== nextSignature) {
+                        current.outerHTML = html;
+                        const updated = chatList.querySelector(`[data-conversation-id="${chat.id}"]`);
+                        if (updated) updated.dataset.signature = nextSignature;
+                    }
+                } else {
+                    chatList.insertAdjacentHTML('beforeend', html);
+                    const inserted = chatList.querySelector(`[data-conversation-id="${chat.id}"]`);
+                    if (inserted) inserted.dataset.signature = signature(chat);
+                }
+            });
+
+            chatList.querySelectorAll('[data-conversation-id]').forEach((item) => {
+                if (!seen.has(String(item.dataset.conversationId))) {
+                    item.remove();
+                }
+            });
+        }
+
+        async function openConversation(id) {
+            selectedConversation = conversations.find((item) => Number(item.id) === Number(id)) || null;
+            if (!selectedConversation) return;
+
+            const label = selectedConversation.contact_name || selectedConversation.contact_phone;
+            chatName.textContent = label;
+            chatStatus.textContent = selectedConversation.contact_phone;
+            chatAvatar.className = 'w-10 h-10 rounded-full bg-emerald-500 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase';
+            chatAvatar.textContent = initials(label, selectedConversation.contact_phone);
+            msgInput.disabled = false;
+            sendBtn.disabled = false;
+            deleteConversationBtn.disabled = false;
+            markReadBtn.disabled = false;
+            markUnreadBtn.disabled = false;
+            sendBtn.className = 'w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-full shadow-md transition-all outline-none border-none';
+            messagesArea.innerHTML = '<div class="text-center text-slate-400 text-xs italic mt-10">Carregando mensagens...</div>';
+            updateReadActions();
+            renderConversations();
+
+            try {
+                const result = await api(`/campaign/whatsapp/conversations/${id}/messages`);
+                const nextMessages = Array.isArray(result.data) ? result.data : [];
+                messagesSignature = signature(nextMessages);
+                renderMessages(nextMessages);
+                await loadConversations(false, true);
+                updateReadActions();
+            } catch (error) {
+                messagesArea.innerHTML = `<div class="text-center text-red-500 text-xs italic mt-10">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderMessages(messages) {
+            if (!messages.length) {
+                messagesArea.innerHTML = '<div class="text-center text-slate-400 text-xs italic mt-10">Sem mensagens nesta conversa.</div>';
+                return;
+            }
+
+            messagesArea.innerHTML = '';
+            messages.forEach((message) => {
+                const outbound = message.direction === 'outbound';
+                const meta = renderWhatsAppStatus(message.status, outbound ? 'bubble-outbound' : 'bubble-inbound');
+                const html = `
+                    <div class="flex ${outbound ? 'justify-end' : 'justify-start'}">
+                        <div class="${outbound ? 'bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'} p-3 rounded-2xl shadow-sm max-w-[80%]">
+                            <p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">${escapeHtml(message.body || '')}</p>
+                            <span class="flex items-center justify-end gap-1 text-[9px] ${outbound ? 'text-emerald-100' : 'text-slate-400'} text-right mt-1 font-bold uppercase">
+                                <span>${formatTime(message.created_at)}</span>
+                                ${meta}
+                            </span>
+                            ${message.error_message ? `<p class="mt-1 text-[10px] font-bold text-red-200">${escapeHtml(message.error_message)}</p>` : ''}
+                        </div>
                     </div>
-                </div>
-            </div>
-        `;
+                `;
+                messagesArea.insertAdjacentHTML('beforeend', html);
+            });
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
 
-        const input = document.getElementById('wa-msg-input');
-        const btn = document.getElementById('wa-btn-send');
-        input.disabled = false;
-        btn.disabled = false;
-        btn.classList.replace('bg-slate-300', 'bg-gradient-to-tl');
-        btn.classList.add('from-emerald-600', 'to-teal-400');
-    }
+        function renderWhatsAppStatus(status, context = 'bubble') {
+            const contextClass = context === 'list' ? 'wa-message-status--list' : (context === 'bubble-inbound' ? 'wa-message-status--inbound' : '');
 
-    function filtrarLayout(tipo) {
-        const btns = document.querySelectorAll('.wa-filter-btn');
-        btns.forEach(b => {
-            b.classList.remove('bg-white', 'text-slate-700', 'shadow-sm');
-            b.classList.add('text-slate-500');
+            if (status === 'failed') {
+                return `<span class="wa-message-status ${contextClass} wa-message-status--failed" title="Falhou">!</span>`;
+            }
+
+            if (status === 'pending') {
+                return `<span class="wa-message-status ${contextClass} wa-message-status--pending" title="Pendente"><i class="fa fa-clock"></i></span>`;
+            }
+
+            if (status === 'delivered') {
+                return `<span class="wa-message-status ${contextClass}" title="Entregue"><span>✓</span><span>✓</span></span>`;
+            }
+
+            if (status === 'read') {
+                return `<span class="wa-message-status ${contextClass} wa-message-status--read" title="Lida"><span>✓</span><span>✓</span></span>`;
+            }
+
+            if (status === 'received') {
+                return `<span class="wa-message-status ${contextClass}" title="Recebida, ainda não lida"><span>✓</span></span>`;
+            }
+
+            return `<span class="wa-message-status ${contextClass}" title="Enviada"><span>✓</span></span>`;
+        }
+
+        function updateReadActions() {
+            const hasConversation = Boolean(selectedConversation);
+            const unread = Number(selectedConversation?.unread_count || 0) > 0;
+
+            if (markReadBtn) {
+                markReadBtn.disabled = !hasConversation || !unread;
+                markReadBtn.classList.toggle('is-active', hasConversation && !unread);
+            }
+
+            if (markUnreadBtn) {
+                markUnreadBtn.disabled = !hasConversation || unread;
+                markUnreadBtn.classList.toggle('is-active', hasConversation && unread);
+            }
+        }
+
+        async function setSelectedConversationReadState(read) {
+            if (!selectedConversation) return;
+
+            try {
+                const endpoint = read ? 'read' : 'unread';
+                await api(`/campaign/whatsapp/conversations/${selectedConversation.id}/${endpoint}`, { method: 'POST' });
+                selectedConversation.unread_count = read ? 0 : 1;
+                await loadConversations(false, true);
+                updateReadActions();
+                if (read) {
+                    await refreshCurrentConversation();
+                }
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        async function sendCurrentMessage() {
+            const message = msgInput.value.trim();
+            if (!selectedConversation || !message) return;
+
+            setTextFeedback(sendFeedback, 'Enviando...', null);
+            sendBtn.disabled = true;
+
+            try {
+                const result = await api('/campaign/whatsapp/messages/send', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        account_id: selectedAccountId,
+                        to: selectedConversation.contact_phone,
+                        name: selectedConversation.contact_name,
+                        message
+                    })
+                });
+
+                msgInput.value = '';
+                setTextFeedback(sendFeedback, result.message || 'Enviado.', true);
+                await loadConversations(false, true);
+                await openConversation(result.conversation_id || selectedConversation.id);
+            } catch (error) {
+                setTextFeedback(sendFeedback, error.message, false);
+                await openConversation(selectedConversation.id);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function startNewConversation() {
+            const feedback = document.getElementById('wa-new-chat-feedback');
+            const phone = digits(document.getElementById('wa-new-chat-phone')?.value || '');
+            const name = document.getElementById('wa-new-chat-name')?.value || '';
+            const message = document.getElementById('wa-new-chat-message')?.value || '';
+            const messageType = document.getElementById('wa-new-chat-type')?.value || 'template';
+            const templateName = document.getElementById('wa-new-chat-template-name')?.value || 'hello_world';
+            const templateLanguage = document.getElementById('wa-new-chat-template-language')?.value || 'en_US';
+            const templateComponents = document.getElementById('wa-new-chat-template-components')?.value || '';
+
+            setTextFeedback(feedback, 'Enviando...', null);
+
+            try {
+                const result = await api('/campaign/whatsapp/messages/send', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        account_id: selectedAccountId,
+                        to: phone,
+                        name,
+                        message_type: messageType,
+                        message,
+                        template_name: templateName,
+                        template_language: templateLanguage,
+                        template_components: templateComponents
+                    })
+                });
+
+                setTextFeedback(feedback, result.message || 'Enviado.', true);
+                modal(newChatModal, false);
+                await loadConversations(false, true);
+                await openConversation(result.conversation_id);
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
+            }
+        }
+
+        function formatTime(value) {
+            if (!value) return '--:--';
+            const date = new Date(String(value).replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) return String(value).slice(11, 16) || '--:--';
+            return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function toggleNewChatType() {
+            const isTemplate = (newChatType?.value || 'template') === 'template';
+            newChatTemplateFields?.classList.toggle('hidden', !isTemplate);
+            newChatMessageField?.classList.toggle('hidden', isTemplate);
+        }
+
+        async function deleteSelectedConversation() {
+            if (!selectedConversation) return;
+            const label = selectedConversation.contact_name || selectedConversation.contact_phone || 'esta conversa';
+            if (!window.confirm(`Excluir a conversa com ${label}?`)) return;
+
+            try {
+                await api(`/campaign/whatsapp/conversations/${selectedConversation.id}/delete`, { method: 'POST' });
+                selectedConversation = null;
+                messagesSignature = '';
+                msgInput.disabled = true;
+                sendBtn.disabled = true;
+                deleteConversationBtn.disabled = true;
+                chatName.textContent = 'Selecione um chat';
+                chatStatus.textContent = 'Aguardando interação';
+                chatAvatar.className = 'w-10 h-10 rounded-full bg-slate-200 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase';
+                chatAvatar.textContent = '';
+                messagesArea.innerHTML = '<div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>';
+                conversationsSignature = '';
+                await loadConversations(true, true);
+                notify('success', 'Conversa excluída.');
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        accountSelect.addEventListener('change', async () => {
+            selectedAccountId = Number(accountSelect.value || 0);
+            localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
+            selectedConversation = null;
+            updateAccountLabel();
+            updateReadActions();
+            await loadConversations();
+            messagesArea.innerHTML = '<div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>';
         });
-        event.currentTarget.classList.remove('text-slate-500');
-        event.currentTarget.classList.add('bg-white', 'text-slate-700', 'shadow-sm');
-        renderizarLista(tipo);
-    }
+        document.getElementById('wa-add-account')?.addEventListener('click', () => {
+            actionsDropdown?.classList.add('hidden');
+            modal(accountModal, true);
+        });
+        document.getElementById('wa-account-close')?.addEventListener('click', () => modal(accountModal, false));
+        document.getElementById('wa-account-cancel')?.addEventListener('click', () => modal(accountModal, false));
+        document.getElementById('wa-account-save')?.addEventListener('click', saveAccount);
+        document.getElementById('wa-test-account')?.addEventListener('click', () => {
+            actionsDropdown?.classList.add('hidden');
+            testAccount();
+        });
+        document.getElementById('wa-open-templates')?.addEventListener('click', async () => {
+            actionsDropdown?.classList.add('hidden');
+            await loadTemplates();
+            modal(templateModal, true);
+        });
+        document.getElementById('wa-template-close')?.addEventListener('click', () => modal(templateModal, false));
+        document.getElementById('wa-template-save')?.addEventListener('click', saveTemplate);
+        templateList?.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-template-delete]');
+            if (btn) deleteTemplate(btn.dataset.templateDelete);
+        });
+        refreshConversationsBtn?.addEventListener('click', async () => {
+            conversationsSignature = '';
+            await loadConversations(true, true);
+            await refreshCurrentConversation();
+            notify('success', 'Conversas atualizadas.');
+        });
+        markReadBtn?.addEventListener('click', () => setSelectedConversationReadState(true));
+        markUnreadBtn?.addEventListener('click', () => setSelectedConversationReadState(false));
+        deleteConversationBtn?.addEventListener('click', deleteSelectedConversation);
+        actionsToggle?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            actionsDropdown?.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (event) => {
+            if (!actionsDropdown || !actionsToggle) return;
+            if (!actionsDropdown.contains(event.target) && !actionsToggle.contains(event.target)) {
+                actionsDropdown.classList.add('hidden');
+            }
+        });
+        document.getElementById('wa-new-chat')?.addEventListener('click', () => {
+            toggleNewChatType();
+            modal(newChatModal, true);
+        });
+        document.getElementById('wa-new-chat-close')?.addEventListener('click', () => modal(newChatModal, false));
+        document.getElementById('wa-new-chat-cancel')?.addEventListener('click', () => modal(newChatModal, false));
+        document.getElementById('wa-new-chat-send')?.addEventListener('click', startNewConversation);
+        newChatType?.addEventListener('change', toggleNewChatType);
+        newChatTemplateSelect?.addEventListener('change', () => applySavedTemplate(newChatTemplateSelect.value));
+        chatList.addEventListener('click', (event) => {
+            const item = event.target.closest('[data-conversation-id]');
+            if (item) openConversation(item.dataset.conversationId);
+        });
+        searchInput.addEventListener('input', () => renderConversations());
+        sendBtn.addEventListener('click', sendCurrentMessage);
+        msgInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendCurrentMessage();
+            }
+        });
 
-    function voltarPasso1() {
-        document.getElementById('step-qr').classList.add('hidden');
-        document.getElementById('step-1').classList.remove('hidden');
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        renderizarLista('tudo'); 
+        loadAccounts().then(processSupportPrefill);
+        loadTemplates();
+        window.setInterval(async () => {
+            if (!selectedAccountId || document.hidden) return;
+            await loadConversations(false);
+            await refreshCurrentConversation();
+        }, 15000);
     });
 </script>
 
 <style>
+    .text-xxs { font-size: 0.65rem; }
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     .animate-fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .wa-central-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.5rem 1.5rem 1rem;
+        border-bottom: 1px solid #f8fafc;
+    }
+    .wa-central-title {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 13rem;
+    }
+    .wa-central-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.8rem;
+        background: #d1fae5;
+        color: #047857;
+        font-size: 1.1rem;
+        flex: 0 0 auto;
+    }
+    .wa-toolbar {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.45rem;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .wa-account-picker {
+        min-width: 13rem;
+        max-width: 17rem;
+        height: 2.55rem;
+        padding: 0 0.8rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.8rem;
+        background: #ffffff;
+        color: #1e293b;
+        font-size: 0.78rem;
+        outline: none;
+    }
+    .wa-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        height: 2.55rem;
+        padding: 0 0.9rem;
+        border: 0;
+        border-radius: 0.8rem;
+        color: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        white-space: nowrap;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+    }
+    .wa-toolbar-btn--light {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #334155;
+        box-shadow: none;
+    }
+    .wa-toolbar-btn--dark {
+        background: #1e293b;
+    }
+    .wa-toolbar-btn--primary {
+        background: #2563eb;
+    }
+    .wa-actions-menu {
+        position: relative;
+    }
+    .wa-actions-dropdown {
+        position: absolute;
+        top: calc(100% + 0.45rem);
+        right: 0;
+        z-index: 30;
+        width: 13.5rem;
+        padding: 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.9rem;
+        background: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    }
+    .wa-actions-dropdown button {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        width: 100%;
+        padding: 0.65rem 0.7rem;
+        border: 0;
+        border-radius: 0.65rem;
+        background: transparent;
+        color: #334155;
+        font-size: 0.76rem;
+        font-weight: 800;
+        text-align: left;
+    }
+    .wa-actions-dropdown button:hover {
+        background: #f8fafc;
+    }
+    .wa-field {
+        display: block;
+    }
+    .wa-field.hidden {
+        display: none;
+    }
+    .wa-field span {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .wa-field input,
+    .wa-field select,
+    .wa-field textarea {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.8rem;
+        padding: 0.7rem 0.8rem;
+        color: #0f172a;
+        font-size: 0.84rem;
+        outline: none;
+    }
+    .wa-field input:focus,
+    .wa-field select:focus,
+    .wa-field textarea:focus {
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+    }
+    .wa-message-status {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        min-width: 0.9rem;
+        height: 0.7rem;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 0.74rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .wa-message-status--list {
+        flex: 0 0 auto;
+        color: #94a3b8;
+        font-size: 0.68rem;
+    }
+    .wa-message-status--inbound {
+        color: #94a3b8;
+    }
+    .wa-message-status span + span {
+        margin-left: -0.34rem;
+    }
+    .wa-message-status--read {
+        color: #53bdeb;
+    }
+    .wa-message-status--pending {
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 0.58rem;
+    }
+    .wa-message-status--failed {
+        align-items: center;
+        justify-content: center;
+        width: 0.78rem;
+        height: 0.78rem;
+        border-radius: 999px;
+        background: rgba(239, 68, 68, 0.95);
+        color: #ffffff;
+        font-size: 0.62rem;
+    }
+    .wa-read-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .wa-read-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        height: 2.35rem;
+        padding: 0 0.75rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.8rem;
+        background: #ffffff;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+    }
+    .wa-read-action:hover:not(:disabled) {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+    .wa-read-action:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+    }
+    .wa-read-action.is-active {
+        opacity: 1;
+    }
+    .wa-read-action--read.is-active {
+        border-color: #d1fae5;
+        background: #ecfdf5;
+        color: #047857;
+    }
+    .wa-read-action--unread.is-active {
+        border-color: #fed7aa;
+        background: #fff7ed;
+        color: #c2410c;
+    }
+    .wa-read-dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+        background: #f97316;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 1180px) {
+        .wa-central-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .wa-toolbar {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+        .wa-account-picker {
+            flex: 1 1 13rem;
+            max-width: none;
+        }
+    }
+    @media (max-width: 640px) {
+        .wa-toolbar-btn span {
+            display: none;
+        }
+        .wa-toolbar-btn {
+            width: 2.55rem;
+            padding: 0;
+        }
+        .wa-account-picker {
+            flex-basis: 100%;
+        }
+    }
 </style>

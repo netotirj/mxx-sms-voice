@@ -12,7 +12,7 @@ class AutoLogoutInactiveMiddleware
      * Tempo máximo de inatividade permitido em segundos.
      * Ajuste conforme desejado (ex: 3600 = 1 hora).
      */
-    private const SESSION_EXPIRATION = 3600;
+    private const int SESSION_EXPIRATION = 3600;
 
     /**
      * Executa o middleware.
@@ -21,7 +21,7 @@ class AutoLogoutInactiveMiddleware
      * @param Closure $next
      * @return mixed
      */
-    public function handle($request, Closure $next)
+    public function handle($request, Closure $next): mixed
     {
         if (SessionLogin::isLogged()) {
             $userData = SessionLogin::getLogged();

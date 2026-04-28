@@ -55,7 +55,15 @@ class Response
 
         switch ($this->contentType) {
             case 'application/json':
+
+                // 🔥 evita double encode automaticamente
+                if (is_string($this->content)) {
+                    echo $this->content;
+                    break;
+                }
+
                 $json = json_encode($this->content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
                 if ($json === false) {
                     http_response_code(500);
                     echo json_encode(['error' => 'Erro ao gerar JSON: ' . json_last_error_msg()]);

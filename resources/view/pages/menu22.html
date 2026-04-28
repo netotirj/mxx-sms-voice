@@ -1,0 +1,344 @@
+<aside class="fixed inset-y-0 block w-full max-w-64 p-0 my-4 overflow-y-auto transition-transform duration-200 bg-white border-0 shadow-xl dark:bg-slate-850 xl:ml-6 xl:left-0 xl:translate-x-0 -translate-x-full rounded-2xl antialiased ease-nav-brand z-[990]" aria-expanded="true">
+  <!-- Header -->
+  <div class="h-19 relative">
+    <i class="absolute top-0 right-0 p-4 cursor-pointer opacity-50 fas fa-times text-slate-400 dark:text-white xl:hidden" sidenav-close></i>
+    <a class="block px-8 py-6 m-0 text-sm whitespace-nowrap text-slate-700 dark:text-white" href="{{URL}}/dashboard">
+      <img src="{{URL}}/resources/assets/img/logo-ct-dark.png" class="inline max-h-8 h-full max-w-full transition-all duration-200 ease-nav-brand dark:hidden" alt="main_logo"/>
+      <img src="{{URL}}/resources/assets/img/logo-ct.png" class="hidden max-h-8 h-full max-w-full transition-all duration-200 ease-nav-brand dark:inline" alt="main_logo"/>
+      <span class="ml-1 font-semibold transition-all duration-200 ease-nav-brand">Maxx Solutions - SMS</span>
+    </a>
+  </div>
+
+  <hr class="h-px mt-0 bg-transparent dark:bg-gradient-to-r bg-gradient-to-r from-transparent via-black/40 to-transparent dark:from-transparent dark:via-white dark:to-transparent"/>
+
+  <!-- Conteúdo -->
+  <div class="block w-auto h-sidenav max-h-screen grow basis-full">
+    <ul class="flex flex-col pl-0 mb-0">
+      <!-- Dashboard -->
+      <li class="w-full mt-0.5">
+        <a class="nav-link relative flex items-center px-4 py-2.5 mx-2 my-0 text-sm transition-colors ease-nav-brand whitespace-nowrap dark:text-white dark:opacity-80" href="{{URL}}/dashboard">
+          <div class="mr-2 flex h-8 w-8 items-center justify-center rounded-lg text-center xl:p-2.5">
+            <i class="relative top-0 text-sm leading-normal text-blue-500 ni ni-tv-2"></i>
+          </div>
+          <span class="ml-1 duration-300 ease opacity-100 pointer-events-none">Dashboard</span>
+        </a>
+      </li>
+
+      <!-- Submenu: Campanhas -->
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm transition-colors ease-nav-brand whitespace-nowrap dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center rounded-lg xl:p-2.5">
+              <i class="text-orange-500 ni ni-archive-2"></i>
+            </div>
+            <span>Campanhas SMS</span>
+          </div>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+          <li><a href="{{URL}}/campaign" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-blue-500 ni ni-bullet-list-67"></i></div><span>Listar Campanhas</span></a></li>
+          <li><a href="{{URL}}/campaign/new" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-emerald-500 ni ni-fat-add"></i></div><span>Criar Campanha</span></a></li>
+          <li><a href="{{URL}}/reports" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-cyan-500 ni ni-chart-bar-32"></i></div><span>Status Sms</span></a></li>
+        </ul>
+      </li>
+
+      <li class="w-full mt-0.5">
+        <a href="{{URL}}/campaign/single-shot" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+          <div class="mr-2 flex h-8 w-8 items-center justify-center"><i class="text-indigo-900 ni ni-send"></i></div>
+          <span>Disparo Simples Sms</span>
+        </a>
+      </li>
+
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm transition-colors ease-nav-brand whitespace-nowrap dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center rounded-lg xl:p-2.5">
+              <i class="text-yellow-500 ni ni-headphones"></i>
+            </div>
+            <span>Campanhas Voz</span>
+          </div>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+
+          <li>
+            <a href="{{URL}}/campaign/voice" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-fuchsia-700 ni ni-send"></i>
+              </div>
+              <span>Disparo de Voz</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/campaign/voice/list" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-blue-500 ni ni-bullet-list-67"></i>
+              </div>
+              <span>Listas</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/campaign/voice/audios" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-emerald-500 ni ni-note-03"></i>
+              </div>
+              <span>Áudios</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/campaign/voice/calls-view" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-blue-500 ni ni-tv-2"></i>
+              </div>
+              <span>Live Calls</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/campaign/voice/trunks" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-purple-500 ni ni-world"></i>
+              </div>
+              <span>Trunks</span>
+            </a>
+          </li>
+
+
+          <li>
+            <a href="{{URL}}/campaign/voice/sip" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-orange-500 ni ni-mobile-button"></i>
+              </div>
+              <span>SIP Devices</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm transition-colors ease-nav-brand whitespace-nowrap dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center rounded-lg xl:p-2.5">
+              <i class="text-blue-600 ni ni-support-16"></i>
+            </div>
+            <span>Call Center</span>
+          </div>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+
+          <li>
+            <a href="{{URL}}/callcenter/agents" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-cyan-500 ni ni-single-02"></i>
+              </div>
+              <span>Agentes</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/callcenter/queues" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-orange-500 ni ni-bullet-list-67"></i>
+              </div>
+              <span>Filas de Espera</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/callcenter/breaks" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-red-500 ni ni-button-pause"></i>
+              </div>
+              <span>Gerenciar Pausas</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/callcenter/monitoring" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-emerald-500 ni ni-tv-2"></i>
+              </div>
+              <span>Monitoramento</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/callcenter/reports" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-purple-500 ni ni-folder-17"></i>
+              </div>
+              <span>Relatórios</span>
+            </a>
+          </li>
+
+        </ul>
+      </li>
+
+
+      <li class="w-full mt-0.5">
+        <a href="{{URL}}/campaign/whatsapp" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+          <div class="mr-2 flex h-8 w-8 items-center justify-center">
+            <i class="text-green-500 fa-brands fa-whatsapp text-5"></i>
+          </div>
+          <span>Campanhas WhatsApp</span>
+        </a>
+      </li>
+
+
+      <li class="w-full mt-0.5">
+        <a href="{{URL}}/refills" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+          <div class="mr-2 flex h-8 w-8 items-center justify-center"><i class="text-cyan-500 ni ni-credit-card"></i></div>
+          <span>Planos e Recargas</span>
+        </a>
+      </li>
+
+      <!-- Submenu: Usuários -->
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center xl:p-2.5">
+              <i class="text-indigo-500 ni ni-single-02"></i>
+            </div>
+            <span>Usuários</span>
+          </div>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+          <li><a href="{{URL}}/users" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-blue-500 ni ni-circle-08"></i></div><span>Lista de Usuários</span></a></li>
+          <li><a href="{{URL}}/users/new" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-emerald-500 ni ni-fat-add"></i></div><span>Adicionar Usuário</span></a></li>
+          <li><a href="{{URL}}/rates" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-yellow-500 ni ni-money-coins"></i></div><span>Tarifas</span></a></li>
+          <li><a href="{{URL}}/permissions" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-cyan-500 ni ni-key-25"></i></div><span>Permissões</span></a></li>
+        </ul>
+      </li>
+
+      <!-- Submenu: Relatórios -->
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center xl:p-2.5">
+              <i class="text-red-500 ni ni-chart-bar-32"></i>
+            </div>
+            <span>Relatórios</span>
+          </div>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+          <li>
+            <a href="{{URL}}/reports/sms-view" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-pink-600 ni ni-archive-2"></i>
+              </div>
+              <span>Sms</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/reports/transactions" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-emerald-500 fa-brands fa-pix"></i>
+              </div>
+              <span>Pix</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/reports/notifications" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-yellow-500 ni ni-notification-70"></i>
+              </div>
+              <span>Notificações</span>
+            </a>
+          </li>
+
+          <li>
+            <a href="{{URL}}/reports/recharge-transactions" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-violet-600 ni ni-credit-card"></i>
+              </div>
+              <span>Recargas</span>
+            </a>
+          </li>
+
+          <!-- 🔹 Novo item para CDR -->
+          <li>
+            <a href="{{URL}}/reports/cdr" class="nav-link relative flex items-center px-4 py-2 text-sm dark:text-white dark:opacity-80">
+              <div class="mr-2 flex h-6 w-6 items-center justify-center">
+                <i class="text-xs text-cyan-500 ni ni-collection"></i>
+              </div>
+              <span>CDR</span>
+            </a>
+          </li>
+        </ul>
+
+      </li>
+
+    </ul>
+  </div>
+</aside>
+
+<!-- Script para active state e submenu -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentPath = window.location.pathname.replace(/\/$/, '');
+    const navLinks = document.querySelectorAll('a.nav-link');
+
+    navLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href) return;
+      const hrefPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
+
+      if (currentPath === hrefPath) {
+        // Estilo 'Active' do Argon
+        link.classList.add('bg-blue-500/10', 'font-semibold', 'rounded-lg');
+
+        if (!link.querySelector('.active-dot')) {
+          const dot = document.createElement('span');
+
+          // Lógica de alinhamento para Argon Dashboard
+          const isSubmenu = link.closest('.submenu-items');
+
+          if (isSubmenu) {
+            // No Argon, o pl-12 (3rem) do submenu pede um left-5 para a bolinha
+            dot.className = 'active-dot absolute left-5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 shadow-md';
+          } else {
+            // Itens principais (Dashboard) usam o left-3 padrão do framework
+            dot.className = 'active-dot absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 shadow-md';
+          }
+
+          link.appendChild(dot);
+        }
+
+        // Abre o grupo pai (Collapse)
+        const parentSubmenu = link.closest('.submenu');
+        if (parentSubmenu) {
+          parentSubmenu.classList.add('open');
+          const content = parentSubmenu.querySelector('.submenu-items');
+          content.style.maxHeight = content.scrollHeight + "px";
+          const arrow = parentSubmenu.querySelector('.submenu-toggle');
+          if(arrow) arrow.classList.add('rotate-180');
+        }
+      }
+    });
+  });
+</script>

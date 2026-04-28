@@ -2,18 +2,15 @@
 
 namespace App\Controller\Pages;
 
-use App\Http\Response;
-use App\Model\Entity\BalanceSms;
-use App\Model\Entity\Notifications;
-use App\Model\Entity\UserPlans;
 use App\Utils\View;
 use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\RegisterTenancies;
-use App\Controller\Pages\Recaptcha;
+use App\Model\Entity\BalanceSms;
+use App\Model\Entity\Notifications;
+use App\Model\Entity\UserPlans;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
-
 
 class RegisterUsers extends ViewComponents
 {
@@ -24,27 +21,22 @@ class RegisterUsers extends ViewComponents
     }
 
     /**
+     * Gera account_code único
      * @throws RandomException
      */
     public static function generateUniqueAccountCode(int $attempts = 30): string
     {
         for ($i = 0; $i < $attempts; $i++) {
-
-            // 10 dígitos, não começa com 0
             $code = (string) random_int(1000000000, 9999999999);
-
             if (!RegisterTenancies::accountCodeExists($code)) {
                 return $code;
             }
         }
-
-        throw new \RuntimeException(
-            "Falha ao gerar account_code único após {$attempts} tentativas."
-        );
+        throw new \RuntimeException("Falha ao gerar account_code único.");
     }
 
-
     /**
+     * Realiza o registro do novo Tenancy e Usuário Admin
      * @throws RandomException
      */
     public static function setRegister($request): void
@@ -52,23 +44,21 @@ class RegisterUsers extends ViewComponents
         header('Content-Type: application/json; charset=utf-8');
 
         $postVars = $request->getPostVars();
-
-        $name = trim($postVars['name'] ?? '');
+        $name     = trim($postVars['name'] ?? '');
         $lastname = trim($postVars['lastname'] ?? '');
-        $phone = trim($postVars['phone'] ?? '');
-        // 🔹 Remove tudo que não for número (espaços, +, (), - etc.)
-        $phone = preg_replace('/\D/', '', $phone);
-        // 🔹 Se não começa com 55, adiciona
-        if (!str_starts_with($phone, '55')) {
-            $phone = '55' . $phone;
+        $email    = strtolower(trim($postVars['email'] ?? ''));
+        $password = trim($postVars['password'] ?? '');
+        $phone    = preg_replace('/\D/', '', trim($postVars['phone'] ?? ''));
+        $acceptTerms = isset($postVars['accept_terms']) && $postVars['accept_terms'] === 'on';
+        $captcha = trim($postVars['cf-turnstile-response'] ?? '');
+
+        if (!str_starts_with($phone, '55')) $phone = '55' . $phone;
+
+        if (Recaptcha::isTurnstileEnabled() && !Recaptcha::verifyTurnstile($captcha)) {
+            self::jsonResponse(['status' => 'ERROR', 'message' => 'Verificação de segurança inválida.']);
         }
 
-        $email = strtolower(trim($postVars['email'] ?? ''));
-        $password = trim($postVars['password'] ?? '');
-        $captcha = trim($postVars['g-recaptcha-response'] ?? '');
-        $acceptTerms = isset($postVars['accept_terms']) && $postVars['accept_terms'] === 'on';
-
-        // Validações básicas
+        // Validações
         if ($name === '' || $lastname === '' || $phone === '' || $email === '' || $password === '') {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'Todos os campos são obrigatórios.']);
         }
@@ -77,109 +67,137 @@ class RegisterUsers extends ViewComponents
             self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail inválido.']);
         }
 
-        /*if (!Recaptcha::verify($captcha, $_SERVER['REMOTE_ADDR'] ?? null)) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Falha na verificação do reCAPTCHA!']);
-        }*/
-
         if (!$acceptTerms) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'Você deve aceitar os Termos e Condições.']);
         }
 
-        // Verifica se e-mail já está cadastrado
         if (UserAuthentication::getUserByEmail($email) instanceof UserAuthentication) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail já cadastrado.']);
         }
 
-        // Gera tenancy_id único
-        $tenancyId = Uuid::uuid4()->toString();
+        $result = self::createAccount([
+            'name' => $name,
+            'lastname' => $lastname,
+            'email' => $email,
+            'phone' => $phone,
+            'password' => $password,
+        ]);
 
-        // ✅ gera account_code único (10 dígitos)
+        if (($result['status'] ?? 'ERROR') === 'OK') {
+            self::jsonResponse(['status' => 'OK', 'message' => 'Usuário cadastrado com sucesso.']);
+        }
+
+        self::jsonResponse(['status' => 'ERROR', 'message' => $result['message'] ?? 'Erro ao finalizar cadastro.']);
+    }
+
+    public static function createAccount(array $data): array
+    {
+        $name = trim((string)($data['name'] ?? ''));
+        $lastname = trim((string)($data['lastname'] ?? ''));
+        $email = strtolower(trim((string)($data['email'] ?? '')));
+        $password = trim((string)($data['password'] ?? ''));
+        $phone = preg_replace('/\D/', '', trim((string)($data['phone'] ?? '')));
+
+        if ($name === '' || $email === '' || $password === '') {
+            return ['status' => 'ERROR', 'message' => 'Nome, e-mail e senha são obrigatórios.'];
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['status' => 'ERROR', 'message' => 'E-mail inválido.'];
+        }
+
+        if (UserAuthentication::getUserByEmail($email) instanceof UserAuthentication) {
+            return ['status' => 'ERROR', 'message' => 'E-mail já cadastrado.'];
+        }
+
+        if ($phone !== '' && !str_starts_with($phone, '55')) {
+            $phone = '55' . $phone;
+        }
+
+        // 1️⃣ Criar Tenancy
+        $tenancyId   = Uuid::uuid4()->toString();
         $accountCode = self::generateUniqueAccountCode();
 
-        // 1️⃣ Criar tenancy
         $obTenancy = new RegisterTenancies();
         $obTenancy->id = $tenancyId;
         $obTenancy->name = $name . ' ' . $lastname;
         $obTenancy->tenancy_phone = $phone;
-        $obTenancy->account_code = $accountCode; // ✅ NOVO
+        $obTenancy->account_code = $accountCode;
         $obTenancy->status = 'active';
         $obTenancy->created_at = date('Y-m-d H:i:s');
         $obTenancy->updated_at = date('Y-m-d H:i:s');
 
-        $newTenancyId = $obTenancy->insertUserTenancy();
-
-        if (!$newTenancyId) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Erro ao criar tenancy.']);
+        if (!$obTenancy->insertUserTenancy()) {
+            return ['status' => 'ERROR', 'message' => 'Erro ao criar tenancy.'];
         }
 
+        // 2️⃣ CRIAR PAPEL ADMIN E LIBERAR ROTAS GLOBAIS (NOVO SISTEMA)
+        // 1. Nome interno, 2. Label/Descrição, 3. Status, 4. Tenancy ID
+        $roleId = PermissionsRules::registerRole(
+            'admin',
+            'Administrador',
+            'y',
+            $tenancyId,
+            null,
+            null
+        );
 
-        // 2️⃣ Cria roles padrão e associa todas as permissões existentes ao admin
-        PermissionsRules::createDefaultRolesAndPermissions($tenancyId);
+        //echo "<pre>";
+        //print_r($roleId);
+        //echo "</pre>";exit();
 
-        // Cria usuário
+        // Libera todas as rotas da sys_routes para este novo Admin
+        PermissionsRules::initAdminPermissions($tenancyId, $roleId);
+
+        // 3️⃣ Criar Usuário
         $obUser = new UserAuthentication();
         $obUser->name = $name;
+        $obUser->account_code = $accountCode;
         $obUser->last_name = $lastname;
         $obUser->email = $email;
         $obUser->password = password_hash($password, PASSWORD_DEFAULT);
         $obUser->status = 'n';
         $obUser->tenancy_id = $tenancyId;
         $obUser->user_function = 'admin';
+        $obUser->role_id = $roleId;
         $obUser->createdAt = date('Y-m-d H:i:s');
         $obUser->updatedAt = date('Y-m-d H:i:s');
-        $obUser->last_activity = date('Y-m-d H:i:s');
 
         if ($newUserId = $obUser->RegisterUsers()) {
 
-            // 4️⃣ Pega a role admin do tenancy
-            $roleId = PermissionsRules::getAdminRoleId($tenancyId);
+            // 4️⃣ Vincula o usuário ao papel de admin criado no passo 2
+            PermissionsRules::assignRoleToUser($newUserId, $tenancyId, $roleId);
 
-            if ($roleId) {
-                PermissionsRules::assignRoleToUser($newUserId, $tenancyId, $roleId);
-            }
-
-            // 5️⃣ Cria plano padrão para o usuário
+            // 5️⃣ Configurações de Plano e Saldo (SMS)
             $userPlanId = UserPlans::createUserPlan([
                 'user_id'    => $newUserId,
-                'plan_id'    => 4, // Plano inicial
+                'plan_id'    => 1,
                 'tenancy_id' => $tenancyId,
                 'status'     => 'confirmed'
             ]);
 
-            // 🔹 Gerar invoiceNumber aleatório (9 dígitos)
             $invoiceNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
-
-            // 6️⃣ Inserir créditos iniciais (R$ 3,00)
-            BalanceSms::insertBalance(
-                $newUserId,
-                4,
-                $tenancyId,
-                3,
-                0.30,
-                0.05,
-                0.10,
-                $invoiceNumber
-            );
-
-            // 7️⃣ Atualizar plano ativo do tenancy
+            BalanceSms::insertBalance($newUserId, 1, $tenancyId, 3, 0.30, 0.20, 0.10, $invoiceNumber);
             RegisterTenancies::updateActivePlan($tenancyId, 1);
 
-            // 8️⃣ Notificação de boas-vindas
+            // 6️⃣ Notificação
             Notifications::insertNotifications(
                 $tenancyId,
                 $newUserId,
                 "🎉 Bem-vindo(a)!",
-                "Sua conta foi criada com sucesso! Você recebeu <b>R$ 3,00 de crédito</b> para testar o envio de SMS.<br>
-         Fatura gerada: <b>#{$invoiceNumber}</b>",
+                "Conta criada! Você recebeu R$ 3,00 de crédito inicial.",
                 'notice'
             );
 
-            self::jsonResponse(['status' => 'OK', 'message' => 'Usuário cadastrado com sucesso.']);
-        } else {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Erro ao cadastrar usuário.']);
+            $obUser->id = (int)$newUserId;
+
+            return [
+                'status' => 'OK',
+                'message' => 'Usuário cadastrado com sucesso.',
+                'user' => $obUser,
+            ];
         }
 
+        return ['status' => 'ERROR', 'message' => 'Erro ao finalizar cadastro.'];
     }
-
-
 }

@@ -1,76 +1,174 @@
 <div class="w-full px-6 py-6 mx-auto">
+
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
 
-                <!-- Cabeçalho -->
-                <div class="p-6 pb-0 mb-0 flex justify-between items-center border-b border-b-transparent rounded-t-2xl">
-                    <h6 class="dark:text-white text-lg font-semibold">Listas de Voz</h6>
-                    <button type="button"
-                            onclick="openVoiceModal()"
-                            class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Criar Lista de Voz
-                    </button>
-                </div>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
 
-                <!-- Campo de busca -->
-                <div class="px-6 py-4 flex justify-end">
-                    <div class="relative w-[250px]">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                 viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
-                            </svg>
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            📁
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Listas de Voz</h2>
+                            <p class="text-xs text-slate-400">Gerenciamento centralizado de contatos e listas</p>
                         </div>
-                        <input type="text" id="searchInput"
-                               placeholder="Buscar lista..."
-                               class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <button id="voiceExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <button id="voiceReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <button onclick="openVoiceModal()"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg
+                       bg-gradient-to-tl from-emerald-600 to-teal-400 text-white hover:opacity-85 transition shadow-sm uppercase">
+                            <span class="text-base">➕</span> Nova Lista
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="voiceAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                                        peer-checked:bg-emerald-500"></div>
+
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                                        transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+                            <select id="voiceReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Tabela -->
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="voiceRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="voiceStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="Ativa">Ativa</option>
+                                <option value="Inativa">Inativa</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Origem</label>
+                            <select id="voiceOriginFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todas</option>
+                                <option value="csv">Arquivo CSV</option>
+                                <option value="manual">Manual</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="voiceDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="voiceDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="voiceSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                       placeholder="Nome da lista...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex-auto px-0 pt-0 pb-2">
                     <div class="p-0 overflow-x-auto">
-                        <table class="items-center w-full mb-0 border-collapse dark:border-white/40 text-slate-500">
-                            <thead class="align-bottom">
+                        <table id="voice-table"
+                               class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
                             <tr>
-                                <th class="px-6 py-3 font-bold text-left uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Nome da Lista
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Nº de Contatos
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Status
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Criado em
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Ações
-                                </th>
+                                <th class="px-4 py-2 border border-slate-100">Criação</th>
+                                <th class="px-4 py-2 border border-slate-100 text-left">Nome da Lista</th>
+                                <th class="px-4 py-2 border border-slate-100">Contatos</th>
+                                <th class="px-4 py-2 border border-slate-100">Origem</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                                <th class="px-4 py-2 border border-slate-100">Ações</th>
                             </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody id="voiceTableBody">
+                            <tr>
+                                <td colspan="6"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando listas...
+                                </td>
+                            </tr>
+                            </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Paginação -->
-                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
-                    <button id="prevPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        Anterior
-                    </button>
-                    <span id="pageInfo" class="text-sm text-slate-600 dark:text-slate-300">Página 1 de 1</span>
-                    <button id="nextPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        Próxima
-                    </button>
+                <div id="voiceStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="voicePageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="voicePrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="voicePageNumbers" class="flex gap-1"></div>
+                        <button id="voiceNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
 
             </div>
@@ -79,248 +177,252 @@
 </div>
 
 <!-- Modal Voice -->
-<div id="uploadModalVoice" class="fixed inset-0 left-[260px] z-40 hidden">
-    <div id="uploadModalVoiceBackdrop" class="fixed inset-0 left-[260px] bg-black bg-opacity-40"></div>
+<div id="uploadModalVoice" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div id="uploadModalVoiceBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"></div>
 
-    <div id="uploadModalVoiceContent"
-         class="relative bg-white dark:bg-slate-850 rounded-xl shadow-lg
-                w-full max-w-full sm:max-w-[600px] md:max-w-[800px] lg:max-w-[1000px]
-                transition-all duration-200 mx-auto mt-10
-                max-h-[90vh] flex flex-col overflow-hidden">
+    <div class="flex min-h-full items-center justify-center p-4 lg:pl-[280px]">
+        <div id="uploadModalVoiceContent"
+             class="relative bg-white dark:bg-slate-850 rounded-2xl shadow-2xl
+                    w-full max-w-4xl transition-all duration-200
+                    max-h-[90vh] flex flex-col overflow-hidden mx-auto">
 
-        <!-- Botão de fechar -->
-        <button onclick="closeVoiceModal()"
-                class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-xl font-bold">✕</button>
-
-        <!-- Conteúdo com rolagem -->
-        <div class="px-6 pt-6 overflow-y-auto flex-1">
-            <h2 class="text-lg font-bold mb-4 text-center text-slate-800 dark:text-white">
-                Upload de Arquivo para Voice List (CSV ou Excel)
-            </h2>
-
-            <!-- Input para nome da lista -->
-            <div class="mb-4">
-                <label for="voiceListName" class="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Nome da Lista
-                </label>
-                <input type="text" id="voiceListName" name="voiceListName"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring focus:ring-emerald-500"
-                       placeholder="Digite o nome da lista de voz">
-            </div>
-
-            <input type="hidden" id="voiceListId" name="voiceListId" value="">
-
-            <!-- Upload input -->
-            <label for="voiceCsvInput"
-                   class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition mb-4">
-                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                    <svg class="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/>
-                    </svg>
-                    <p class="text-sm text-gray-600"><span class="font-semibold">Clique para selecionar</span> ou arraste</p>
-                    <p class="text-xs text-gray-400">Arquivos aceitos: CSV, XLSX, XLS</p>
+            <div class="flex items-center justify-between p-6 border-b dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                        <i class="fas fa-cloud-upload-alt text-lg"></i>
+                    </div>
+                    <div>
+                        <h5 class="text-lg font-bold text-slate-800 dark:text-white mb-0">Importar Lista de Voz</h5>
+                        <p class="text-xs text-slate-400 mb-0">Formatos aceitos: CSV, XLSX ou XLS</p>
+                    </div>
                 </div>
-                <input id="voiceCsvInput" type="file" accept=".csv, .xlsx, .xls" class="hidden"/>
-            </label>
-
-            <!-- Barra de progresso -->
-            <div class="w-full bg-gray-200 rounded-full h-2 mb-2 overflow-hidden">
-                <div id="voiceUploadProgress" class="bg-blue-600 h-2 transition-all duration-200" style="width: 0%"></div>
-            </div>
-            <p id="voiceUploadPercent" class="text-right text-xs text-gray-500 mb-2">0%</p>
-
-            <!-- Prévia da Tabela -->
-            <div id="voicePreviewContainer" class="hidden mt-4 border rounded-lg overflow-auto max-h-[280px] bg-gray-50">
-                <table class="w-full table-auto text-sm text-left text-gray-700">
-                    <thead class="bg-gray-200 text-gray-700 font-semibold" id="voiceHeader"></thead>
-                    <tbody id="voiceBody"></tbody>
-                </table>
-            </div>
-
-
-        </div>
-
-        <!-- Rodapé fixo -->
-        <div class="bg-white dark:bg-slate-850 px-6 py-4 border-t sticky bottom-0 z-10 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.1)]">
-            <p id="voiceCount" class="text-sm text-red-600 mb-2 text-center whitespace-nowrap hidden"></p>
-            <div class="flex justify-end">
-                <button id="saveVoiceButton" onclick="createVoiceListAndUpload()"
-                        class="px-5 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
-                    Salvar Lista
+                <button onclick="closeVoiceModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-        </div>
 
+            <div class="p-6 overflow-y-auto flex-1">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="flex flex-col">
+                        <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Nome da Lista</label>
+                        <input type="text" id="voiceListName" name="voiceListName"
+                               class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                               placeholder="Ex: Campanha Abril 2026">
+                    </div>
+
+                    <div class="flex flex-col">
+                        <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Arquivo</label>
+                        <label for="voiceCsvInput"
+                               class="flex items-center justify-center w-full h-[42px] border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 transition-all">
+                            <div class="flex items-center gap-2 text-slate-500">
+                                <i class="fas fa-file-excel"></i>
+                                <p class="text-xs font-medium mb-0">Selecionar arquivo...</p>
+                            </div>
+                            <input id="voiceCsvInput" type="file" accept=".csv, .xlsx, .xls" class="hidden"/>
+                        </label>
+                    </div>
+                </div>
+
+                <input type="hidden" id="voiceListId" name="voiceListId" value="">
+
+                <div id="progressArea" class="mb-4">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">Status do Upload</span>
+                        <span id="voiceUploadPercent" class="text-xs font-bold text-emerald-500">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                        <div id="voiceUploadProgress" class="bg-emerald-500 h-1.5 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="voicePreviewContainer" class="hidden border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-inner">
+                    <div class="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 border-b dark:border-slate-700">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase">Prévia dos dados</span>
+                    </div>
+                    <div class="overflow-auto max-h-[350px]">
+                        <table class="w-full text-xs text-left text-slate-600 dark:text-slate-300">
+                            <thead class="sticky top-0 bg-slate-100 dark:bg-slate-900 font-bold uppercase text-[9px] text-slate-500">
+                            <tr id="voiceHeader" class="border-b dark:border-slate-700"></tr>
+                            </thead>
+                            <tbody id="voiceBody" class="divide-y divide-slate-100 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 border-t dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p id="voiceCount" class="text-xs font-bold text-emerald-600 mb-0 hidden"></p>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button onclick="closeVoiceModal()" class="flex-1 sm:flex-none px-6 py-2.5 text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">
+                        Cancelar
+                    </button>
+                    <button id="saveVoiceButton" onclick="createVoiceListAndUpload()"
+                            class="flex-1 sm:flex-none px-8 py-2.5 text-xs font-bold text-white bg-gradient-to-tl from-emerald-600 to-teal-400 rounded-xl shadow-md hover:scale-[1.02] active:opacity-85 transition-all uppercase">
+                        Salvar Lista
+                    </button>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 
-
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-
-
-
-
-<!-- Script -->
 <script>
+    // --- PARTE 1: GESTÃO DA TABELA E FILTROS ---
+    // Mantemos dentro do DOMContentLoaded para garantir que os elementos existam ao carregar
     document.addEventListener('DOMContentLoaded', function () {
         const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
-        const tbody = document.querySelector('table tbody');
-        const prevBtn = document.getElementById('prevPage');
-        const nextBtn = document.getElementById('nextPage');
-        const pageInfo = document.getElementById('pageInfo');
-        const searchInput = document.getElementById('searchInput');
+        const tbody = document.getElementById('voiceTableBody');
+        const prevBtn = document.getElementById('voicePrevPage');
+        const nextBtn = document.getElementById('voiceNextPage');
+        const pageInfo = document.getElementById('voicePageInfo');
+
+        // Filtros
+        const searchInput = document.getElementById('voiceSearchInput');
+        const statusFilter = document.getElementById('voiceStatusFilter');
+        const dateFrom = document.getElementById('voiceDateFrom');
+        const dateTo = document.getElementById('voiceDateTo');
+        const rowsPerPageSelect = document.getElementById('voiceRowsPerPage');
 
         let allRows = [];
         let filteredRows = [];
         let currentPage = 1;
-        const perPage = 5;
+        let reloadIntervalTimer = null;
 
-        // 🔹 Remove acentos
-        function removeDiacritics(str) {
-            return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+        function manageAutoReload() {
+            const checkbox = document.getElementById('voiceAutoReload');
+            const intervalSelect = document.getElementById('voiceReloadInterval');
+
+            // Limpa qualquer timer rodando
+            if (reloadIntervalTimer) clearInterval(reloadIntervalTimer);
+
+            if (checkbox && checkbox.checked) {
+                const time = parseInt(intervalSelect.value) || 10000;
+                reloadIntervalTimer = setInterval(() => {
+                    // Chama a função de busca inicial (que você já tem no script)
+                    fetch(`${baseUrl}/campaign/voice/search`).then(r => r.json()).then(res => {
+                        allRows = res.data || [];
+                        applyFilters(); // Re-aplica filtros e renderiza
+                    });
+                }, time);
+            }
         }
 
-        // 🔹 Filtro de busca
-        function applySearch(query) {
-            const normalizedQuery = removeDiacritics(query.toLowerCase());
-            filteredRows = allRows.filter(row =>
-                removeDiacritics(row.nome_lista.toLowerCase()).includes(normalizedQuery)
-            );
-            currentPage = 1;
-            renderPage();
-        }
+        // Listeners para o Auto-Reload
+        document.getElementById('voiceAutoReload').addEventListener('change', manageAutoReload);
+        document.getElementById('voiceReloadInterval').addEventListener('change', manageAutoReload);
 
-        // 🔹 Renderização paginada
-        function renderPage() {
-            tbody.innerHTML = '';
-            const start = (currentPage - 1) * perPage;
-            const end = start + perPage;
-            const rows = filteredRows.slice(start, end);
-
-            if (rows.length === 0) {
-                tbody.innerHTML = `
-        <tr>
-          <td colspan="5" class="p-3 text-center text-slate-400 italic">
-            Nenhuma lista encontrada
-          </td>
-        </tr>`;
-            } else {
-                rows.forEach(list => {
-                    const statusBadge =
-                        list.status === 'Ativa'
-                            ? `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                 <i data-feather="check-circle" class="w-4 h-4"></i> Ativa
-               </span>`
-                            : `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                 <i data-feather="x-circle" class="w-4 h-4"></i> Inativa
-               </span>`;
-
-                    const rowHTML = `
-          <tr class="hover:bg-gray-50 transition" data-id="${list.id}">
-            <!-- Nome -->
-            <td class="p-3 align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              <div class="flex items-center gap-2">
-                <i data-feather="list" class="w-4 h-4 text-emerald-500"></i>
-                <h6 class="mb-0 text-sm font-medium text-gray-800">${list.nome_lista}</h6>
-              </div>
-            </td>
-
-            <!-- Contatos -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap text-sm text-slate-600">
-              ${list.num_contatos ?? 0}
-            </td>
-
-            <!-- Status -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              ${statusBadge}
-            </td>
-
-            <!-- Criado em -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap text-sm text-slate-600">
-              ${list.created ?? '--/--/---- --:--'}
-            </td>
-
-            <!-- Ações -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              <div class="flex justify-center gap-2">
-                <button class="btn-delete-list inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-3 py-1 rounded transition" data-id="${list.id}" data-name="${list.nome_lista}"">
-                  <i data-feather="trash-2" class="w-4 h-4"></i> Excluir
-                </button>
-              </div>
-            </td>
-          </tr>`;
-                    tbody.insertAdjacentHTML('beforeend', rowHTML);
-                });
+        document.getElementById('voiceExportCsv').addEventListener('click', function() {
+            if (filteredRows.length === 0) {
+                return notyf.error("Não há dados para exportar.");
             }
 
+            const headers = ["Data", "Nome da Lista", "Contatos", "Origem", "Status"];
+            const rows = filteredRows.map(r => [
+                r.created ?? '',
+                r.nome_lista ?? '',
+                r.num_contatos ?? '0',
+                r.origem ?? 'CSV',
+                r.status ?? ''
+            ]);
+
+            let csvContent = "data:text/csv;charset=utf-8,"
+                + headers.join(";") + "\n"
+                + rows.map(e => e.join(";")).join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "listas_de_voz.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+
+        function renderPage() {
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const perPage = parseInt(rowsPerPageSelect.value);
+            const start = (currentPage - 1) * perPage;
+            const rows = filteredRows.slice(start, start + perPage);
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400 italic">Nenhuma lista encontrada</td></tr>`;
+            } else {
+                rows.forEach(list => {
+                    const statusBadge = list.status === 'Ativa'
+                        ? `<span class="bg-emerald-500 px-2 py-1 text-[9px] rounded-lg font-bold uppercase text-white">Ativa</span>`
+                        : `<span class="bg-slate-400 px-2 py-1 text-[9px] rounded-lg font-bold uppercase text-white">Inativa</span>`;
+
+                    tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                        <td class="px-4 py-3 text-xs text-slate-500">${list.created ?? '--/--/----'}</td>
+                        <td class="px-4 py-3 text-left font-bold text-slate-700">${list.nome_lista}</td>
+                        <td class="px-4 py-3 text-xs font-bold">${list.num_contatos ?? 0}</td>
+                        <td class="px-4 py-3 text-xs text-slate-500">${list.origem || 'CSV'}</td>
+                        <td class="px-4 py-3 text-center">${statusBadge}</td>
+                        <td class="px-4 py-3 text-center text-sm">
+                             <button onclick="deleteItem(${list.id}, '${list.nome_lista}')" class="text-slate-400 hover:text-red-500 transition-all">
+                                <i class="fa fa-trash-alt"></i>
+                             </button>
+                        </td>
+                    </tr>`);
+                });
+            }
             const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
             pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
             prevBtn.disabled = currentPage === 1;
             nextBtn.disabled = currentPage === totalPages;
-            feather.replace();
         }
 
-        // 🔹 Paginação
-        prevBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderPage();
-            }
-        });
+        function applyFilters() {
+            const query = searchInput.value.toLowerCase().trim();
+            const status = statusFilter.value;
+            const dFrom = dateFrom.value;
+            const dTo = dateTo.value;
 
-        nextBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(filteredRows.length / perPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderPage();
-            }
-        });
-
-        // 🔹 Busca em tempo real
-        searchInput.addEventListener('input', e => applySearch(e.target.value));
-
-        // 🔹 Carrega listas do backend
-        fetch(`${baseUrl}/campaign/voice/search`)
-            .then(response => response.json())
-            .then(result => {
-                if (!result.data || !Array.isArray(result.data)) {
-                    console.error('Formato inválido:', result);
-                    return;
+            filteredRows = allRows.filter(row => {
+                const mName = !query || row.nome_lista.toLowerCase().includes(query);
+                const mStatus = !status || row.status === status;
+                let mDate = true;
+                if (row.created) {
+                    if (dFrom && row.created < dFrom) mDate = false;
+                    if (dTo && row.created > dTo) mDate = false;
                 }
-                allRows = result.data;
-                filteredRows = allRows;
-                renderPage();
-            })
-            .catch(error => {
-                console.error('Erro ao buscar listas:', error);
-                tbody.innerHTML = `
-        <tr>
-          <td colspan="5" class="p-3 text-center text-red-400 italic">
-            Erro ao carregar listas.
-          </td>
-        </tr>`;
+                return mName && mStatus && mDate;
             });
+            currentPage = 1;
+            renderPage();
+        }
+
+        // Listeners dos Filtros
+        [searchInput, statusFilter, dateFrom, dateTo, rowsPerPageSelect].forEach(el => {
+            if(el) el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', applyFilters);
+        });
+
+        prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderPage(); } });
+        nextBtn.addEventListener('click', () => { if (currentPage < Math.ceil(filteredRows.length / parseInt(rowsPerPageSelect.value))) { currentPage++; renderPage(); } });
+
+        // Carga Inicial
+        fetch(`${baseUrl}/campaign/voice/search`).then(r => r.json()).then(res => {
+            allRows = res.data || [];
+            filteredRows = allRows;
+            renderPage();
+        });
     });
-</script>
 
-
-<script>
+    // --- PARTE 2: GESTÃO DO MODAL E UPLOAD (ESCOPO GLOBAL) ---
+    // Estas funções ficam fora do DOMContentLoaded para o HTML (onclick) conseguir chamar
     const voiceModal = document.getElementById('uploadModalVoice');
     const voiceContent = document.getElementById('uploadModalVoiceContent');
     const voiceInput = document.getElementById('voiceCsvInput');
     const progressBar = document.getElementById('voiceUploadProgress');
     const percentText = document.getElementById('voiceUploadPercent');
-    const voiceBackdrop = document.getElementById('uploadModalVoiceBackdrop');
-    const voicePreviewContainer = document.getElementById('voicePreviewContainer');
-    const voiceHeader = document.getElementById('voiceHeader');
-    const voiceBody = document.getElementById('voiceBody');
-    const voiceCount = document.getElementById('voiceCount');
-    const voiceListIdInput = document.getElementById('voiceListId');
 
     function openVoiceModal(listId = null) {
-        if (listId) voiceListIdInput.value = listId;
+        if (listId) document.getElementById('voiceListId').value = listId;
         voiceModal.classList.remove('hidden');
         setTimeout(() => {
             voiceContent.classList.remove('scale-95', 'opacity-0');
@@ -330,7 +432,6 @@
 
     function closeVoiceModal() {
         voiceContent.classList.add('scale-95', 'opacity-0');
-        voiceContent.classList.remove('scale-100', 'opacity-100');
         setTimeout(() => {
             voiceModal.classList.add('hidden');
             resetVoiceModal();
@@ -338,189 +439,105 @@
     }
 
     function resetVoiceModal() {
-        progressBar.style.width = '0%';
-        percentText.textContent = '0%';
-        voiceInput.value = '';
-        voiceHeader.innerHTML = '';
-        voiceBody.innerHTML = '';
-        voicePreviewContainer.classList.add('hidden');
-        voiceCount.classList.add('hidden');
+        if(progressBar) progressBar.style.width = '0%';
+        if(percentText) percentText.textContent = '0%';
+        if(voiceInput) voiceInput.value = '';
+        document.getElementById('voiceHeader').innerHTML = '';
+        document.getElementById('voiceBody').innerHTML = '';
+        document.getElementById('voicePreviewContainer').classList.add('hidden');
+        document.getElementById('voiceCount').classList.add('hidden');
     }
 
-    voiceInput.addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (ext === 'csv') readCsvFile(file, 'voice');
-        else if (ext === 'xlsx' || ext === 'xls') readExcelFile(file, 'voice');
-        else notyf.error('Formato inválido. Use CSV ou Excel (.xlsx, .xls)');
-    });
-
-    function readCsvFile(file, type) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const text = e.target.result;
-            const delimiter = text.includes(';') ? ';' : ',';
-            const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (!lines.length) return notyf.error('Arquivo CSV vazio!');
-            const headers = lines[0].split(delimiter).map(h => h.trim());
-            const rows = lines.slice(1).map(line => line.split(delimiter));
-            renderPreview(headers, rows, type);
-        };
-        reader.readAsText(file, 'utf-8');
+    // Preview de Arquivo
+    if(voiceInput) {
+        voiceInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext === 'csv') {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const text = ev.target.result;
+                    const delimiter = text.includes(';') ? ';' : ',';
+                    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+                    const headers = lines[0].split(delimiter).map(h => h.trim());
+                    const rows = lines.slice(1).map(line => line.split(delimiter));
+                    renderPreview(headers, rows);
+                };
+                reader.readAsText(file, 'utf-8');
+            } else if (['xlsx', 'xls'].includes(ext)) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const data = new Uint8Array(ev.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+                    renderPreview(sheet[0], sheet.slice(1));
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
     }
 
-    function readExcelFile(file, type) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            const sheetName = workbook.SheetNames[0];
-            const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header: 1});
-            if (!sheet.length) return notyf.error('Planilha vazia!');
-            const headers = sheet[0];
-            const rows = sheet.slice(1);
-            renderPreview(headers, rows, type);
-        };
-        reader.readAsArrayBuffer(file);
+    function renderPreview(headers, rows) {
+        document.getElementById('voiceHeader').innerHTML = '<tr>' + headers.map(h => `<th class="px-3 py-2 border-b">${h}</th>`).join('') + '</tr>';
+        document.getElementById('voiceBody').innerHTML = rows.map(r => `<tr>${r.map(c => `<td class="px-3 py-2 border-b break-words">${c ?? ''}</td>`).join('')}</tr>`).join('');
+        document.getElementById('voicePreviewContainer').classList.remove('hidden');
+        document.getElementById('voiceCount').textContent = `Total de registros: ${rows.length}`;
+        document.getElementById('voiceCount').classList.remove('hidden');
     }
 
-    function renderPreview(headers, rows, type) {
-        const headerEl = type === 'voice' ? voiceHeader : null;
-        const bodyEl = type === 'voice' ? voiceBody : null;
-        const previewEl = type === 'voice' ? voicePreviewContainer : null;
-        const countEl = type === 'voice' ? voiceCount : null;
-        const saveBtn = type === 'voice' ? document.getElementById('saveVoiceButton') : null;
-
-        if (!headerEl || !bodyEl || !previewEl || !countEl || !saveBtn) return;
-
-        headerEl.innerHTML = '<tr>' + headers.map(h => `<th class="px-3 py-2 border-b">${h}</th>`).join('') + '</tr>';
-        bodyEl.innerHTML = rows.map(r => `<tr>${r.map(c => `<td class="px-3 py-2 border-b break-words">${c ?? ''}</td>`).join('')}</tr>`).join('');
-
-        previewEl.classList.remove('hidden');
-        countEl.textContent = `Total de registros: ${rows.length}`;
-        countEl.classList.remove('hidden');
-
-    }
-
-
-    voiceBackdrop.addEventListener('click', closeVoiceModal);
-    document.addEventListener('keydown', e => {
-        if (e.key === "Escape") closeVoiceModal();
-    });
-
+    // SALVAR / UPLOAD REAL
     async function createVoiceListAndUpload() {
         const saveButton = document.getElementById('saveVoiceButton');
         const listName = document.getElementById('voiceListName').value.trim();
         const file = voiceInput.files[0];
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
 
         if (!listName) return notyf.error("Informe o nome da lista!");
         if (!file) return notyf.error("Selecione um arquivo!");
 
-        // Desabilita o botão e adiciona spinner
         saveButton.disabled = true;
-        saveButton.innerHTML = `
-        <svg class="animate-spin h-5 w-5 text-white inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l5-5-5-5v4a8 8 0 00-8 8z"></path>
-        </svg> Enviando...
-    `;
+        saveButton.innerHTML = `<i class="fa fa-spinner fa-spin mr-2"></i> Enviando...`;
 
-        try {
-            const formData = new FormData();
-            formData.append("fileInput", file);
-            formData.append("listName", listName);
+        const formData = new FormData();
+        formData.append("fileInput", file);
+        formData.append("listName", listName);
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', baseURL + '/campaign/voice/upload');
-            xhr.responseType = 'json';
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', baseUrl + '/campaign/voice/upload');
+        xhr.responseType = 'json';
 
-            // Progresso do upload
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    progressBar.style.width = percent + '%';
-                    percentText.textContent = percent + '%';
-                }
-            });
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                percentText.textContent = percent + '%';
+            }
+        });
 
-            // Sucesso na requisição
-            xhr.onload = () => {
-                saveButton.disabled = false;
-                saveButton.innerHTML = 'Salvar Lista';
-
-                let response;
-                try {
-                    response = typeof xhr.response === 'string'
-                        ? JSON.parse(xhr.response)
-                        : xhr.response;
-                } catch (e) {
-                    return notyf.error('Resposta inválida do servidor.');
-                }
-
-                if (!response) {
-                    return notyf.error('Resposta inválida do servidor.');
-                }
-
-                switch (xhr.status) {
-                    case 200:
-                        if (response.status === 200) {
-                            notyf.success(response.message || 'Lista criada com sucesso!');
-                            closeVoiceModal();
-                            setTimeout(() => location.reload(), 1000);
-                        } else {
-                            notyf.error(response.message || 'Erro no upload!');
-                        }
-                        break;
-
-                    case 422:
-                        notyf.error(response.message || 'Dados inválidos!');
-                        break;
-
-                    case 401:
-                        notyf.error(response.message || 'Usuário não autenticado!');
-                        break;
-
-                    case 500:
-                    default:
-                        notyf.error(response.message || 'Erro interno do servidor!');
-                        break;
-                }
-            };
-
-
-            // Erro de rede ou CORS
-            xhr.onerror = () => {
-                saveButton.disabled = false;
-                saveButton.innerHTML = 'Salvar Lista';
-                notyf.error('Erro ao enviar o arquivo! Verifique sua conexão ou permissões do servidor.');
-            };
-
-            // Enviar a requisição
-            saveButton.disabled = true;
-            saveButton.innerHTML = 'Enviando...';
-            xhr.send(formData);
-
-        } catch (err) {
-            console.error('Erro inesperado:', err);
+        xhr.onload = () => {
             saveButton.disabled = false;
             saveButton.innerHTML = 'Salvar Lista';
-            notyf.error(err.message || 'Erro inesperado ao enviar o arquivo.');
-        }
+            if (xhr.status === 200 && xhr.response.status === 200) {
+                notyf.success(xhr.response.message || 'Sucesso!');
+                closeVoiceModal();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                notyf.error(xhr.response.message || 'Erro no upload');
+            }
+        };
 
+        xhr.onerror = () => {
+            saveButton.disabled = false;
+            saveButton.innerHTML = 'Salvar Lista';
+            notyf.error("Erro de conexão.");
+        };
 
+        xhr.send(formData);
     }
 
-    document.addEventListener("click", async function (e) {
-        const btn = e.target.closest(".btn-delete-list");
-        if (!btn) return;
-
-        //console.log(btn)
-
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-
-        if (!id) return;
+    async function deleteItem(id, name) {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
 
         Swal.fire({
             title: "Excluir lista?",
@@ -534,7 +551,7 @@
             if (!result.isConfirmed) return;
 
             try {
-                const res = await fetch(`${baseURL}/campaign/voice/list-delete`, {
+                const res = await fetch(`${baseUrl}/campaign/voice/list-delete`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ ids: [id] }),
@@ -542,47 +559,17 @@
 
                 const json = await res.json();
 
-                // ============ 🛑 Tratamento de status HTTP ============
-                if (res.status === 401) {
-                    return notyf.error(json.message || "Usuário não autenticado.");
-                }
-
-                if (res.status === 400) {
-                    return notyf.error(json.message || "Requisição inválida.");
-                }
-
-                if (res.status >= 500) {
-                    return notyf.error(json.message || "Erro interno no servidor.");
-                }
-
-                // ============ ✅ Sucesso ============
-                if (json.success) {
-
-                    const qtd = json.deleted ?? 1;
-
-                    notyf.success(json.message || `${qtd} lista(s) excluída(s)!`);
-
-                    // Remove visualmente sem reload
-                    const row = btn.closest("tr");
-                    if (row) row.remove();
+                if (json.success || res.status === 200) {
+                    notyf.success(json.message || "Lista excluída com sucesso!");
+                    // Recarrega a tabela ou remove a linha
                     setTimeout(() => location.reload(), 1000);
-
                 } else {
                     notyf.error(json.message || "Erro ao excluir lista.");
                 }
-
             } catch (error) {
-                console.error(error);
                 notyf.error("Falha ao comunicar com o servidor.");
             }
-
-
         });
-    });
-
-
-
-
+    }
 </script>
-
 

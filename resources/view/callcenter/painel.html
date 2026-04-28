@@ -1,0 +1,2879 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3 justify-center">
+        <div class="w-full max-w-4xl px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div id="authContainer" class="p-8 mx-auto w-full max-w-sm animate-in fade-in duration-500">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tl from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg mx-auto mb-4">
+                            <i class="ni ni-key-25 text-2xl"></i>
+                        </div>
+                        <h4 class="font-black text-slate-800 dark:text-white uppercase tracking-tight">Check-in do Agente</h4>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">Identifique-se para iniciar</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xxs font-black uppercase text-slate-500 ml-1">Ramal de Atendimento</label>
+                            <input type="text" id="authRamal" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold" placeholder="Ex: 597150">
+                        </div>
+                        <div>
+                            <label class="text-xxs font-black uppercase text-slate-500 ml-1">Senha de Acesso</label>
+                            <input type="password" id="authPass" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold" placeholder="******">
+                        </div>
+                        <button onclick="fazerCheckin()" class="w-full py-4 bg-gradient-to-tl from-blue-600 to-cyan-400 text-white rounded-xl font-black uppercase text-xs shadow-md hover:scale-[1.02] active:opacity-85 transition-all">
+                            Iniciar Jornada
+                        </button>
+                    </div>
+                </div>
+
+                <div id="mainPanelContainer" class="hidden animate-in zoom-in duration-500">
+                    <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 rounded-t-2xl">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-tl from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg">
+                                <i class="ni ni-single-02 text-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0 font-bold dark:text-white" id="nomeAgente">Carregando...</h5>
+                                <p class="text-xs text-slate-400 font-bold uppercase mb-0">Ramal: <span id="ramalAgente">--</span></p>
+                            </div>
+                        </div>
+                        <div id="statusBadge" class="bg-slate-400 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm transition-all duration-500">
+                            DESCONECTADO
+                        </div>
+                    </div>
+
+                    <div id="activeCallContainer" class="hidden animate-in slide-in-from-top duration-500">
+                        <div class="p-6 border-b border-dashed border-slate-200 dark:border-slate-700 bg-blue-50/30 dark:bg-blue-900/10">
+                            <div class="flex flex-wrap items-center justify-between gap-4">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-200 border-4 border-white dark:border-slate-800 shadow-md">
+                                        <i class="fa fa-user text-2xl"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="mb-0 font-black text-blue-600 dark:text-blue-400 uppercase tracking-tight" id="clienteNome">NOME DO CLIENTE</h4>
+                                        <p class="mb-0 text-sm font-bold text-slate-500" id="clienteNumero">(00) 00000-0000</p>
+                                        <span class="inline-block mt-1 px-2 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold uppercase" id="campanhaNome">Campanha: Ativo Vendas</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btnAtender" onclick="atenderChamada()" class="hidden p-3 bg-emerald-500 text-white rounded-xl shadow-md hover:bg-emerald-600 transition-all">
+                                        <i class="fa fa-phone mr-2"></i> Atender
+                                    </button>
+
+                                    <button id="btnMaisDetalhes"
+                                            class="hidden p-3 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all"
+                                            onclick="abrirMaisDetalhesCliente()">
+                                        <i class="fa fa-table mr-2"></i> Ver Dados
+                                    </button>
+
+                                    <button id="btnDesligarCard" class="p-3 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all" onclick="hangupCurrentCall()">
+                                        <i class="fa fa-phone-slash mr-2"></i> Desligar
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="boxBuscaManual" class="px-6 mb-4">
+                                <div class="flex gap-2 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-blue-100 dark:border-blue-900 shadow-sm">
+                                    <div class="relative flex-1">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                        <i class="fa fa-search text-xs"></i>
+                                    </span>
+                                        <input type="text" id="inputBuscaManual"
+                                               class="w-full pl-9 pr-3 py-2 border border-slate-100 rounded-xl text-xs dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                                               placeholder="Buscar por Nome, CPF ou Telefone...">
+                                    </div>
+                                    <button onclick="buscarDadosPagos()"
+                                            id="btnBuscaManual"
+                                            class="bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase hover:bg-blue-700 transition-all flex items-center gap-2">
+                                        <i class="fa fa-sync-alt"></i> Buscar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="clienteDetalhesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="py-10 text-center relative overflow-hidden">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1" id="timerLabel">Duração no Status</p>
+                        <h1 class="text-8xl font-black text-slate-800 dark:text-white tracking-tighter dynamic-timer transition-all" id="meuTimer" data-seconds="0">
+                            00:00:00
+                        </h1>
+                    </div>
+
+                    <div class="px-6 pb-8">
+                        <div id="gridAcoesAgente" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <button onclick="mudarStatus('disponivel')" id="btn-disponivel" class="p-5 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-all hover:scale-[1.02] active:scale-95 group shadow-sm">
+                                <i class="ni ni-check-bold block text-2xl mb-2 group-hover:scale-110"></i>
+                                <span class="text-[10px] font-black uppercase">Ficar Livre</span>
+                            </button>
+
+                            <button onclick="resetCheckin()" id="btn-offline" class="p-5 rounded-2xl border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 transition-all hover:scale-[1.02] shadow-sm">
+                                <i class="ni ni-button-power block text-2xl mb-2"></i>
+                                <span class="text-[10px] font-black uppercase">Logoff</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="px-6 pb-6 animate-in fade-in duration-700">
+                        <div class="p-4 border-t border-slate-100 dark:border-slate-700">
+                            <div class="flex justify-between items-center mb-4">
+                                <h6 class="mb-0 font-black text-slate-700 dark:text-white uppercase text-[10px] tracking-widest">
+                                    <i class="fa fa-history mr-1 text-blue-500"></i> Últimas Chamadas
+                                </h6>
+                            </div>
+
+                            <div id="historyList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <p class="col-span-full text-[10px] text-center font-bold text-slate-400 uppercase py-4">
+                                    Nenhuma chamada registrada hoje
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl border-t border-slate-100 dark:border-slate-700 text-center">
+                    <small class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <i class="fa fa-shield-alt mr-1"></i> Painel Autenticado - Maxx Solutions
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="floating-actions" class="hidden fixed right-8 top-1/2 -translate-y-1/2 flex-col gap-5 z-[70] transition-all duration-500">
+
+    <button onclick="toggleTeclado()" title="Abrir Teclado"
+            class="w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-[0_15px_30px_-5px_rgba(37,99,235,0.4)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center border-2 border-white dark:border-slate-800">
+        <i class="fa fa-th text-xl text-white"></i>
+    </button>
+
+    <button onclick="toggleAudios()" title="Biblioteca de Áudios"
+            class="w-14 h-14 bg-emerald-500 text-white rounded-2xl shadow-[0_15px_30px_-5px_rgba(16,185,129,0.4)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center border-2 border-white dark:border-slate-800">
+        <i class="fa fa-music text-xl text-white"></i>
+    </button>
+</div>
+
+<div id="drawer-teclado" class="hidden fixed top-0 right-0 h-full w-80 bg-white dark:bg-slate-900 shadow-[-10px_0_30px_rgba(0,0,0,0.1)] z-[80] translate-x-full transition-transform duration-500 border-l border-slate-200 dark:border-slate-800 p-6 flex flex-col">
+    <div class="flex justify-between items-center mb-6 shrink-0">
+        <div>
+            <h3 class="font-black text-slate-800 dark:text-white uppercase text-[10px] tracking-widest">Painel de Voz</h3>
+            <div id="webrtc-status-badge" class="flex items-center gap-1.5 mt-1">
+                <span class="relative flex h-2 w-2">
+                    <span id="status-ping" class="absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                    <span id="status-dot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                </span>
+                <span id="status-text" class="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Desconectado</span>
+            </div>
+        </div>
+    </div>
+
+    <button onclick="toggleTeclado()" class="absolute -left-6 top-1/2 -translate-y-1/2 w-6 h-16 bg-white dark:bg-slate-900 border-l border-t border-b border-slate-200 dark:border-slate-800 rounded-l-xl flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all">
+        <i class="fa fa-chevron-right text-xs"></i>
+    </button>
+
+    <div class="relative mb-4 bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 border-2 border-slate-100 dark:border-slate-800 shadow-inner overflow-hidden min-h-[160px] flex flex-col justify-center shrink-0">
+        <input type="text" id="numDiscar" readonly class="w-full text-3xl font-black text-center bg-transparent dark:text-white outline-none tracking-widest block">
+
+        <button onclick="limparNumero()"
+                class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 transition-colors z-10">
+            <i class="fas fa-backspace text-xl"></i>
+        </button>
+        <div id="visor-chamada" class="hidden absolute inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center animate-fade-in z-10 p-4">
+
+            <div id="info-audio-executando" class="hidden flex items-center gap-2 mb-2 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-800">
+                <i id="icone-audio" class="fas fa-volume-up text-blue-500 text-[10px] animate-pulse"></i>
+                <span id="nome-audio-visor" class="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest"></span>
+            </div>
+            <p id="visor-numero" class="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-1"></p>
+            <p id="progresso-texto" class="text-[10px] font-bold text-blue-500 uppercase tracking-tight mb-2 text-center"></p>
+            <p id="cronometro-visor" class="text-4xl font-black text-slate-800 dark:text-white tabular-nums leading-none">00:00</p>
+        </div>
+    </div>
+
+    <div id="controles-alternancia" class="hidden flex justify-center mb-4 shrink-0">
+        <button onclick="alternarInterfaceChamada()" class="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-4 py-2 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+            <i class="fa fa-exchange-alt mr-2"></i>
+            <span id="txt-alternar">Ver Áudios</span>
+        </button>
+    </div>
+
+    <div id="area-interacao" class="relative flex-1 min-h-0 overflow-hidden">
+        <div id="grid-numerico" class="grid grid-cols-3 gap-3 transition-all duration-300 content-start">
+            <button onclick="addNumero('1')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">1</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">---</span>
+            </button>
+
+            <button onclick="addNumero('2')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">2</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">ABC</span>
+            </button>
+
+            <button onclick="addNumero('3')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">3</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">DEF</span>
+            </button>
+
+            <button onclick="addNumero('4')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">4</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">GHI</span>
+            </button>
+
+            <button onclick="addNumero('5')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">5</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">JKL</span>
+            </button>
+
+            <button onclick="addNumero('6')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">6</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">MNO</span>
+            </button>
+
+            <button onclick="addNumero('7')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">7</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">PQRS</span>
+            </button>
+
+            <button onclick="addNumero('8')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">8</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">TUV</span>
+            </button>
+
+            <button onclick="addNumero('9')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">9</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">WXYZ</span>
+            </button>
+
+            <button onclick="addNumero('*')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm active:scale-95">
+                <span class="font-black text-2xl leading-none mt-2">*</span>
+            </button>
+
+            <button onclick="addNumero('0')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 group">
+                <span class="font-black text-xl leading-none">0</span>
+                <span class="text-[8px] font-bold uppercase opacity-50 group-hover:opacity-100">+</span>
+            </button>
+
+            <button onclick="addNumero('#')" class="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm active:scale-95">
+                <span class="font-black text-xl leading-none">#</span>
+            </button>
+        </div>
+
+        <div id="lista-audios-chamada" class="hidden absolute inset-0 bg-white dark:bg-slate-900 overflow-hidden z-20 rounded-2xl">
+            <div class="h-full flex flex-col">
+                <h6 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center border-b border-slate-100 dark:border-slate-800 pb-2 shrink-0">
+                    Scripts de Voz
+                </h6>
+
+                <div id="container-audios-atalho" class="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
+                    <p class="text-[10px] text-center text-slate-400 uppercase font-black py-10">
+                        Aguardando carregamento...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 border-t border-slate-100 dark:border-slate-800/50 pt-4 bg-white dark:bg-slate-900 shrink-0">
+        <div id="controles-chamada" class="hidden grid grid-cols-2 gap-3 mb-4">
+            <button onclick="toggleMute()" id="btn-mute" class="h-14 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-2 border-2 border-white dark:border-slate-700 shadow-md active:scale-95">
+                <i class="fa fa-microphone"></i>
+                <span class="text-[10px] font-black uppercase">Mudo</span>
+            </button>
+
+            <button onclick="prepararTransferencia()" class="h-14 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl flex items-center justify-center gap-2 border-2 border-white dark:border-slate-700 shadow-md active:scale-95">
+                <i class="fa fa-exchange-alt"></i>
+                <span class="text-[10px] font-black uppercase">Transf.</span>
+            </button>
+        </div>
+
+        <button id="btn-acao-chamada" onclick="acaoChamadaManual()" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-white rounded-2xl font-black uppercase shadow-lg flex items-center justify-center gap-3 transition-all">
+            <i id="icon-status" class="fa fa-phone"></i>
+            <span id="label-status">Iniciar Chamada</span>
+        </button>
+    </div>
+</div>
+
+<div id="drawer-audios" class="hidden fixed top-0 right-0 h-full w-80 bg-white dark:bg-slate-900 shadow-[-10px_0_30px_rgba(0,0,0,0.1)] z-[80] translate-x-full transition-transform duration-500 border-l border-slate-200 dark:border-slate-800 p-6 flex flex-col">
+    <button onclick="toggleAudios()" class="absolute -left-6 top-1/2 -translate-y-1/2 w-6 h-16 bg-white dark:bg-slate-900 border-l border-t border-b border-slate-200 dark:border-slate-800 rounded-l-xl flex items-center justify-center text-slate-400 hover:text-emerald-500 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all">
+        <i class="fa fa-chevron-right text-xs"></i>
+    </button>
+
+    <div class="flex justify-between items-center mb-8 shrink-0">
+        <h3 class="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">Sons & Scripts</h3>
+        <button onclick="toggleAudios()" class="text-slate-400 hover:text-red-500 transition-colors">
+            <i class="fa fa-times text-lg text-slate-400"></i>
+        </button>
+    </div>
+
+    <div id="container-biblioteca-audios" class="space-y-3 overflow-y-auto pr-2 flex-1 min-h-0 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] dark:[scrollbar-color:#475569_transparent]">
+        <p class="text-[10px] text-center text-slate-400 uppercase font-black py-10">
+            Aguardando carregamento...
+        </p>
+    </div>
+</div>
+
+<div id="drawerClienteOverlay" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[120] opacity-0 transition-all duration-300">
+</div>
+
+<div id="drawerClienteDetalhes" class="hidden fixed top-0 right-0 h-full w-full max-w-3xl bg-white dark:bg-slate-900 shadow-[-12px_0_35px_rgba(0,0,0,0.18)] z-[121] translate-x-full transition-transform duration-300 border-l border-slate-200 dark:border-slate-800 flex flex-col">
+
+    <button onclick="toggleDrawerClienteDetalhes(false)"
+            class="absolute -left-6 top-1/2 -translate-y-1/2 w-6 h-16 bg-white dark:bg-slate-900 border-l border-t border-b border-slate-200 dark:border-slate-800 rounded-l-xl flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all">
+        <i class="fa fa-chevron-right text-xs"></i>
+    </button>
+
+    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 shrink-0">
+        <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+                <p class="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">
+                    Ficha do Cliente
+                </p>
+
+                <h3 id="drawerClienteNome"
+                    class="text-lg font-black text-slate-800 dark:text-white uppercase truncate">
+                    CLIENTE NÃO IDENTIFICADO
+                </h3>
+
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-300">
+                    <span id="drawerClienteCpf"
+                          class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                        CPF: ---
+                    </span>
+
+                    <span id="drawerClienteTelefone"
+                          class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                        TEL: ---
+                    </span>
+                </div>
+            </div>
+
+            <button onclick="toggleDrawerClienteDetalhes(false)"
+                    class="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:border-red-200 transition-all shrink-0">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <span id="badgeQtdTelefones"
+                  class="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                0 Telefones
+            </span>
+
+            <span id="badgeQtdEnderecos"
+                  class="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                0 Endereços
+            </span>
+
+            <span id="badgeQtdEmails"
+                  class="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                0 E-mails
+            </span>
+        </div>
+    </div>
+
+    <div id="drawerClienteBody"
+         class="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] dark:[scrollbar-color:#475569_transparent]">
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Resumo
+                </h4>
+            </div>
+
+            <div id="secaoResumoCliente"
+                 class="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Telefones
+                </h4>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[620px] text-sm">
+                    <thead>
+                    <tr class="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Número</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Tipo</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Classificação</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Informação</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tabelaTelefonesCliente" class="divide-y divide-slate-100 dark:divide-slate-800">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Endereços
+                </h4>
+            </div>
+
+            <div id="listaEnderecosCliente"
+                 class="p-4 space-y-3">
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    E-mails
+                </h4>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[720px] text-sm">
+                    <thead>
+                    <tr class="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">E-mail</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Score</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Estrutura</th>
+                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase text-slate-400">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tabelaEmailsCliente" class="divide-y divide-slate-100 dark:divide-slate-800">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Score e Perfil
+                </h4>
+            </div>
+
+            <div id="secaoScoreCliente"
+                 class="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Vínculos e Documentos
+                </h4>
+            </div>
+
+            <div id="secaoVinculosCliente"
+                 class="p-4 space-y-3">
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Outras Bases
+                </h4>
+            </div>
+
+            <div id="secaoOutrasBasesCliente"
+                 class="p-4 space-y-4">
+            </div>
+        </div>
+    </div>
+</div>
+
+<audio id="remoteAudio" autoplay playsinline></audio>
+
+<div id="balao-dtmf-container" class="fixed inset-x-0 top-12 z-[9999] flex justify-center pointer-events-none"></div>
+
+
+
+
+<script>
+    // --- VARIÁVEIS DE CONTROLE ---
+    let ramalLogado = null;
+    let timersStarted = false;
+    let currentCallId = null;
+    let currentAnswerChannelId = null;
+    let sseSource = null;
+    let travaCliqueStatus = false;
+    let callHistory = JSON.parse(localStorage.getItem('agente_historico')) || [];
+    let memoriaSequenciaDtmf = "";
+    let timerCronometroChamada = null;
+    let timerEsconderAudio = null;
+    let detalhesClienteManual = null;
+    let clienteManualAtual = null;
+    let incomingWebrtcMeta = null;
+    let incomingAnswerInFlight = false;
+    let chamadaWebRTCAceita = false;
+    let timerAnswerWatchdog = null;
+    let ultimoHistoricoRegistrado = null;
+    let ultimoDadosPlanilhaKey = null;
+
+
+    // --- VARIÁVEIS DE ESTADO WEBRTC ---
+    let ua = null;
+    let sessaoVoz = null;
+    let timerVisor = null;
+    let segsChamada = 0;
+    let audioAtual = null;
+    let botaoAtual = null;
+    let previewAudioLocal = null;
+    let localMediaStream = null;
+    let cachePrefixo = null;
+    const servidor = '{{ASTERISK_WS_HOST}}';
+    const portaWebrtc = '{{ASTERISK_WS_PORT}}';
+    const rtcConfig = {
+        iceServers: [
+            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        ],
+        iceTransportPolicy: 'all',
+        rtcpMuxPolicy: 'require'
+    };
+    const DEBUG_WEBRTC = false;
+
+    try {
+        if (!DEBUG_WEBRTC && window.JsSIP?.debug?.disable) {
+            JsSIP.debug.disable();
+        }
+
+        if (!DEBUG_WEBRTC && window.localStorage) {
+            const debugConfig = localStorage.getItem('debug') || '';
+            if (debugConfig.includes('JsSIP')) {
+                localStorage.removeItem('debug');
+            }
+        }
+    } catch (e) { /* Debug cleanup best-effort */ }
+
+    function logWebRTC(...args) {
+        if (DEBUG_WEBRTC) console.log(...args);
+    }
+
+    function warnWebRTC(...args) {
+        if (DEBUG_WEBRTC) console.warn(...args);
+    }
+
+    function obterOpcoesMidia(stream = null) {
+        const options = {
+            mediaConstraints: { audio: true, video: false },
+            pcConfig: rtcConfig
+        };
+
+        if (stream) {
+            options.mediaStream = stream;
+        }
+
+        return options;
+    }
+
+    function resumirSdpAudio(sdp = '') {
+        const linhas = String(sdp || '').split(/\r?\n/);
+        return {
+            temAudio: linhas.some(l => l.startsWith('m=audio ')),
+            codecs: linhas.filter(l => /^a=rtpmap:\d+ /.test(l)),
+            setup: linhas.find(l => l.startsWith('a=setup:')) || null,
+            fingerprint: linhas.find(l => l.startsWith('a=fingerprint:')) || null,
+            iceUfrag: linhas.find(l => l.startsWith('a=ice-ufrag:')) || null,
+            direction: linhas.find(l => /^a=(sendrecv|sendonly|recvonly|inactive)$/.test(l)) || null
+        };
+    }
+
+    function descreverFalhaMidia(erro) {
+        const causa = erro?.cause || erro?.message || erro?.name || 'Erro';
+
+        if (causa === 'User Denied Media Access' || erro?.name === 'NotAllowedError') {
+            return 'Microfone bloqueado no navegador';
+        }
+
+        if (erro?.name === 'NotFoundError' || erro?.name === 'DevicesNotFoundError') {
+            return 'Nenhum microfone encontrado';
+        }
+
+        return causa;
+    }
+
+    function obterSessaoIncomingPendente() {
+        if (!sessaoVoz || sessaoVoz.direction !== 'incoming') {
+            return null;
+        }
+
+        const encerrada = typeof sessaoVoz.isEnded === 'function' && sessaoVoz.isEnded();
+        const estabelecida = typeof sessaoVoz.isEstablished === 'function' && sessaoVoz.isEstablished();
+
+        if (encerrada || estabelecida) {
+            return null;
+        }
+
+        return sessaoVoz;
+    }
+
+    function limparWatchdogAtendimento() {
+        if (timerAnswerWatchdog) {
+            clearTimeout(timerAnswerWatchdog);
+            timerAnswerWatchdog = null;
+        }
+    }
+
+    function resetarBotaoAtenderWebRTC() {
+        const btnAtender = document.getElementById('btnAtender');
+        if (!btnAtender) return;
+
+        btnAtender.disabled = false;
+        btnAtender.innerHTML = '<i class="fa fa-phone mr-2"></i> Atender';
+        btnAtender.classList.add('hidden');
+    }
+
+    function finalizarUiAtendimentoWebRTC() {
+        incomingAnswerInFlight = false;
+        chamadaWebRTCAceita = true;
+        limparWatchdogAtendimento();
+        resetarBotaoAtenderWebRTC();
+        manterCardChamadaAtiva();
+
+        const btnPrincipal = document.getElementById('btn-acao-chamada');
+        if (btnPrincipal) btnPrincipal.disabled = false;
+    }
+
+    function existeChamadaWebRTCAtiva() {
+        if (!sessaoVoz) return false;
+
+        const encerrada = typeof sessaoVoz.isEnded === 'function' && sessaoVoz.isEnded();
+        if (encerrada) return false;
+
+        const estabelecida = typeof sessaoVoz.isEstablished === 'function' && sessaoVoz.isEstablished();
+        return estabelecida || incomingAnswerInFlight || chamadaWebRTCAceita;
+    }
+
+    function manterCardChamadaAtiva() {
+        const activeCallContainer = document.getElementById('activeCallContainer');
+        if (activeCallContainer) activeCallContainer.classList.remove('hidden');
+
+        const btnDesligar = document.getElementById('btnDesligarCard');
+        if (btnDesligar) btnDesligar.classList.remove('hidden');
+
+        const btnMaisDetalhes = document.getElementById('btnMaisDetalhes');
+        if (btnMaisDetalhes && detalhesClienteManual) btnMaisDetalhes.classList.remove('hidden');
+
+        if (!detalhesClienteManual) {
+            mostrarBuscaManual();
+            const boxBusca = document.getElementById('boxBuscaManual');
+            boxBusca?.querySelectorAll('button').forEach(button => button.classList.remove('hidden'));
+        }
+    }
+
+    function consolidarAtendimentoWebRTC(session, origem = 'accepted') {
+        if (!session || session !== sessaoVoz) return false;
+
+        const encerrada = typeof session.isEnded === 'function' && session.isEnded();
+        if (encerrada) return false;
+
+        const estabelecida = typeof session.isEstablished === 'function' && session.isEstablished();
+        const origemEventoSip = origem === 'accepted' || origem === 'confirmed';
+        if (!estabelecida && !origemEventoSip) return false;
+
+        finalizarUiAtendimentoWebRTC();
+        tentarAnexarAudioRemotoDaSessao(session, origem);
+
+        if (previewAudioLocal) {
+            previewAudioLocal.pause();
+            previewAudioLocal = null;
+            document.querySelectorAll('.fa-pause').forEach(icon => {
+                icon.className = "fa fa-play text-blue-500";
+            });
+        }
+
+        gerenciarVisor('timer', 'Em Linha');
+        atualizarVisualChamada('accepted');
+        mostrarControlesAlternancia();
+        mostrarTecladoNumerico();
+
+        const input = document.getElementById('numDiscar');
+        if (input) {
+            input.value = "";
+            atualizarEscalaFonte(input);
+        }
+
+        try {
+            window.channelIdParaARI = session.request.getHeader('X-Asterisk-Uniqueid') || session.id;
+        } catch (e) { /* Erro UniqueID */ }
+
+        return true;
+    }
+
+    async function obterStreamLocal(forceRefresh = false) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return null;
+        }
+
+        if (forceRefresh && localMediaStream) {
+            try {
+                localMediaStream.getTracks().forEach(track => track.stop());
+            } catch (e) {}
+            localMediaStream = null;
+        }
+
+        const hasLiveTrack = !!localMediaStream
+            && localMediaStream.getAudioTracks().some(track => track.readyState === 'live');
+
+        if (hasLiveTrack) {
+            return localMediaStream;
+        }
+
+        localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        logWebRTC('[WebRTC] Stream local adquirido', {
+            tracks: localMediaStream.getTracks().map(t => ({
+                kind: t.kind,
+                enabled: t.enabled,
+                readyState: t.readyState,
+                muted: t.muted
+            }))
+        });
+
+        return localMediaStream;
+    }
+
+    async function garantirMicrofoneLiberado() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return true;
+        }
+
+        try {
+            await obterStreamLocal();
+            return true;
+        } catch (erro) {
+            const motivo = descreverFalhaMidia(erro);
+            gerenciarVisor('abrir', `Falha: ${motivo}`);
+            if (typeof notyf !== 'undefined') {
+                notyf.error(motivo);
+            }
+            return false;
+        }
+    }
+
+    function reproduzirStreamRemoto(stream, origem = 'unknown') {
+        const remoteAudio = document.getElementById('remoteAudio');
+
+        if (!remoteAudio || !stream) {
+            return;
+        }
+
+        if (remoteAudio.srcObject !== stream) {
+            remoteAudio.srcObject = stream;
+        }
+
+        remoteAudio.autoplay = true;
+        remoteAudio.playsInline = true;
+        remoteAudio.volume = 1;
+        remoteAudio.muted = false;
+
+        logWebRTC('[WebRTC] Stream remoto anexado ao audio', {
+            origem,
+            tracks: stream.getTracks?.().map(t => ({
+                kind: t.kind,
+                enabled: t.enabled,
+                readyState: t.readyState,
+                muted: t.muted
+            })) || []
+        });
+
+        remoteAudio.play()
+            .then(() => logWebRTC('[WebRTC] remoteAudio.play() OK', { origem }))
+            .catch((err) => warnWebRTC('[WebRTC] remoteAudio.play() falhou', { origem, err }));
+    }
+
+    function anexarAudioRemoto(peerconnection) {
+        if (!peerconnection || peerconnection.__maxxAudioRemotoAnexado) {
+            return;
+        }
+
+        peerconnection.__maxxAudioRemotoAnexado = true;
+
+        peerconnection.addEventListener('track', (event) => {
+            logWebRTC('[WebRTC] track remoto recebido', {
+                streams: event.streams?.length || 0,
+                trackKind: event.track?.kind || null,
+                trackReadyState: event.track?.readyState || null,
+                trackMuted: event.track?.muted ?? null
+            });
+
+            const stream = event.streams?.[0] || new MediaStream([event.track]);
+            reproduzirStreamRemoto(stream, 'track-event');
+        });
+    }
+
+    function tentarAnexarAudioRemotoDaSessao(session, origem = 'session') {
+        const peerconnection = session?.connection;
+
+        if (!peerconnection) {
+            warnWebRTC('[WebRTC] Sessão ainda sem peerconnection para anexar áudio remoto', { origem });
+            return;
+        }
+
+        registrarPeerConnection(peerconnection);
+        anexarAudioRemoto(peerconnection);
+
+        const remoteTracks = peerconnection.getReceivers?.()
+            .map(receiver => receiver.track)
+            .filter(track => track && track.kind === 'audio') || [];
+
+        if (remoteTracks.length > 0) {
+            reproduzirStreamRemoto(new MediaStream(remoteTracks), origem);
+        } else {
+            warnWebRTC('[WebRTC] PeerConnection sem receiver de áudio remoto ainda', {
+                origem,
+                iceConnectionState: peerconnection.iceConnectionState,
+                connectionState: peerconnection.connectionState,
+                signalingState: peerconnection.signalingState
+            });
+        }
+    }
+
+    function registrarPeerConnection(peerconnection) {
+        if (!peerconnection) return;
+
+        anexarAudioRemoto(peerconnection);
+
+        if (peerconnection.__maxxLogsPeerAnexados) {
+            return;
+        }
+
+        peerconnection.__maxxLogsPeerAnexados = true;
+
+        peerconnection.addEventListener('iceconnectionstatechange', () => {
+            logWebRTC('[WebRTC] ICE state:', peerconnection.iceConnectionState);
+        });
+
+        peerconnection.addEventListener('icegatheringstatechange', () => {
+            logWebRTC('[WebRTC] ICE gathering:', peerconnection.iceGatheringState);
+        });
+
+        peerconnection.addEventListener('connectionstatechange', () => {
+            logWebRTC('[WebRTC] Peer connection state:', peerconnection.connectionState);
+        });
+
+        peerconnection.addEventListener('signalingstatechange', () => {
+            logWebRTC('[WebRTC] Signaling state:', peerconnection.signalingState);
+        });
+
+        peerconnection.addEventListener('icecandidateerror', (event) => {
+            warnWebRTC('[WebRTC] ICE candidate error:', event);
+        });
+    }
+
+    function mostrarDTMFVoando(textoCompleto) {
+        const containerPai = document.getElementById('balao-dtmf-container');
+        if (!containerPai) return;
+
+        let balao = document.getElementById('balao-interno-dtmf');
+
+        const tocarSom = (frequencia, volume, duracao) => {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(frequencia, audioCtx.currentTime);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duracao);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duracao);
+            } catch (e) { /* Falha silenciosa de áudio */ }
+        };
+
+        if (!balao) {
+            tocarSom(880, 0.05, 0.15);
+            balao = document.createElement('div');
+            balao.id = 'balao-interno-dtmf';
+            balao.className = "bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border border-red-500 flex flex-col items-center min-w-[200px] transition-all duration-500 transform animate-in fade-in slide-in-from-top-4 pointer-events-auto cursor-pointer hover:bg-white hover:scale-105 active:scale-95 group";
+
+            balao.onclick = function() {
+                const num = document.getElementById('dtmf-display-realtime').innerText.replace(/\s/g, '');
+                copiarTexto(num, 'Dígitos Capturados');
+                balao.classList.replace('border-red-500', 'border-emerald-500');
+                setTimeout(() => balao.classList.replace('border-emerald-500', 'border-red-500'), 1000);
+            };
+
+            balao.innerHTML = `
+            <div class="flex items-center gap-2 mb-1">
+                <i class="fas fa-keyboard text-[10px] text-red-500"></i>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dígitos (Clique p/ copiar)</span>
+            </div>
+            <div id="dtmf-display-realtime" class="text-2xl font-black text-slate-800 tracking-[0.2em] font-sans leading-tight"></div>`;
+            containerPai.appendChild(balao);
+        } else {
+            tocarSom(440, 0.02, 0.05);
+        }
+
+        const display = document.getElementById('dtmf-display-realtime');
+        if (display) display.innerText = String(textoCompleto);
+
+        clearTimeout(window.dtmfTimeoutGlobal);
+        window.dtmfTimeoutGlobal = setTimeout(() => {
+            balao.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => {
+                if (balao.parentNode) balao.remove();
+                memoriaSequenciaDtmf = "";
+            }, 500);
+        }, 15000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        verificarSessaoExistente();
+        travarScrollInternoAudios();
+
+        const remoteAudio = document.getElementById('remoteAudio');
+        if (remoteAudio) {
+            remoteAudio.addEventListener('playing', () => {
+                logWebRTC('[WebRTC] remoteAudio playing');
+            });
+
+            remoteAudio.addEventListener('pause', () => {
+                logWebRTC('[WebRTC] remoteAudio pause');
+            });
+
+            remoteAudio.addEventListener('error', (event) => {
+                warnWebRTC('[WebRTC] remoteAudio error', event);
+            });
+        }
+    });
+
+    function conectarWebRTC() {
+        const sessaoStorage = localStorage.getItem('agente_sessao');
+        if (!sessaoStorage) return;
+
+        const dados = JSON.parse(sessaoStorage);
+        const ramal = dados.ramal;
+        const senha = dados.senha;
+
+        const socket = new JsSIP.WebSocketInterface(`wss://${servidor}:${portaWebrtc}/ws`);
+
+        const configuration = {
+            sockets: [socket],
+            uri: `sip:${ramal}@${servidor}`,
+            password: senha,
+            register: true,
+            authorization_user: ramal,
+            display_name: ramal,
+            contact_uri: `sip:${ramal}@${servidor};transport=ws`,
+            session_timers: false
+        };
+
+        ua = new JsSIP.UA(configuration);
+
+        ua.on('registered', () => {
+            logWebRTC('[WebRTC] UA registrado', {
+                ramal,
+                servidor,
+                portaWebrtc,
+                contactUri: configuration.contact_uri
+            });
+            atualizarBadgeStatus(true);
+            sincronizarAgenteLivreSilencioso();
+        });
+
+        ua.on('unregistered', () => atualizarBadgeStatus(false));
+        ua.on('registrationFailed', (e) => {
+            warnWebRTC('[WebRTC] Falha no registro SIP', {
+                cause: e?.cause,
+                statusCode: e?.response?.status_code,
+                reasonPhrase: e?.response?.reason_phrase
+            });
+            atualizarBadgeStatus(false);
+        });
+
+        ua.on('newRTCSession', (data) => {
+            sessaoVoz = data.session;
+            logWebRTC('[WebRTC] newRTCSession', {
+                originator: data.originator,
+                direction: sessaoVoz.direction,
+                remote: sessaoVoz.remote_identity?.uri?.toString?.() || null,
+                requestMethod: sessaoVoz.request?.method || null,
+                requestHeaders: sessaoVoz.request?.headers || null
+            });
+
+            tentarAnexarAudioRemotoDaSessao(sessaoVoz, 'newRTCSession');
+
+            if (sessaoVoz.direction === 'incoming') {
+                const numeroVindo = sessaoVoz.remote_identity.uri.user;
+                incomingWebrtcMeta = {
+                    number: numeroVindo,
+                    receivedAt: Date.now()
+                };
+
+                try {
+                    const incomingAriId =
+                        sessaoVoz.request?.getHeader?.('X-Asterisk-Uniqueid')
+                        || sessaoVoz.request?.getHeader?.('X-Asterisk-Channel-Id')
+                        || null;
+
+                    if (incomingAriId) {
+                        currentAnswerChannelId = incomingAriId;
+                        logWebRTC('[WebRTC] ChannelId recebido na INVITE', {
+                            incomingAriId,
+                            ramal: ramalLogado
+                        });
+                    } else {
+                        warnWebRTC('[WebRTC] INVITE incoming sem channelId explícito');
+                    }
+                } catch (e) {
+                    warnWebRTC('[WebRTC] Falha ao extrair channelId da sessão incoming', e);
+                }
+
+                const drawer = document.getElementById('drawer-teclado');
+                if (drawer && drawer.classList.contains('translate-x-full')) {
+                    toggleTeclado();
+                }
+
+                if (document.getElementById('activeCallContainer')?.classList.contains('hidden')) {
+                    exibirDadosCliente(numeroVindo, null, 'AGUARDANDO CAMPANHA', {
+                        cliente: {
+                            name: 'CHAMADA ENTRANTE',
+                            phone: numeroVindo
+                        }
+                    });
+                }
+
+                gerenciarVisor('abrir', 'Recebendo Chamada...');
+                atualizarVisualChamada('ringing', numeroVindo);
+            }
+
+            sessaoVoz.on('peerconnection', (data) => {
+                registrarPeerConnection(data.peerconnection);
+
+                data.peerconnection.addEventListener('signalingstatechange', () => {
+                    const localSdp = data.peerconnection.localDescription?.sdp;
+                    const remoteSdp = data.peerconnection.remoteDescription?.sdp;
+                    if (localSdp || remoteSdp) {
+                        logWebRTC('[WebRTC] SDP atual', {
+                            signalingState: data.peerconnection.signalingState,
+                            localType: data.peerconnection.localDescription?.type || null,
+                            localAudio: resumirSdpAudio(localSdp),
+                            remoteType: data.peerconnection.remoteDescription?.type || null,
+                            remoteAudio: resumirSdpAudio(remoteSdp)
+                        });
+                    }
+                });
+            });
+
+            sessaoVoz.on('progress', () => {
+                if (sessaoVoz.direction === 'outgoing') {
+                    gerenciarVisor('abrir', 'Chamando...');
+                    atualizarVisualChamada('progress');
+                }
+            });
+
+            sessaoVoz.on('accepted', () => {
+                consolidarAtendimentoWebRTC(sessaoVoz, 'accepted');
+            });
+
+            sessaoVoz.on('confirmed', () => {
+                consolidarAtendimentoWebRTC(sessaoVoz, 'confirmed');
+            });
+
+            sessaoVoz.on('ended', () => {
+                limparEstadoChamadaWebRTC();
+            });
+
+            sessaoVoz.on('failed', (e) => {
+                warnWebRTC('[WebRTC] Sessão falhou', {
+                    cause: e?.cause,
+                    originator: e?.originator,
+                    statusCode: e?.message?.status_code,
+                    reasonPhrase: e?.message?.reason_phrase,
+                    raw: e
+                });
+                const motivo = descreverFalhaMidia(e);
+                gerenciarVisor('abrir', `Falha: ${motivo}`);
+                setTimeout(() => {
+                    limparEstadoChamadaWebRTC();
+                }, 2500);
+            });
+        });
+
+        ua.start();
+    }
+
+    async function sincronizarAgenteLivreSilencioso() {
+        if (!ramalLogado) return;
+
+        try {
+            await fetch(`${baseUrl}/callcenter/agent-set-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ramal: ramalLogado, status: 'disponivel' })
+            });
+        } catch (e) {
+            warnWebRTC('[AgentSync] Falha ao sincronizar agente como LIVRE', e);
+        }
+    }
+
+    function gerenciarVisor(acao, msg = "") {
+        const visorAtivo = document.getElementById('visor-chamada');
+        const txtProgresso = document.getElementById('progresso-texto');
+        const txtCron = document.getElementById('cronometro-visor');
+        const visorNumero = document.getElementById('visor-numero');
+        const input = document.getElementById('numDiscar');
+
+        if (acao === 'timer') {
+            visorAtivo.classList.remove('hidden');
+            const timerPainel = document.getElementById('meuTimer');
+            segsChamada = currentCallId !== null ? (parseInt(timerPainel?.dataset.seconds) || 0) : 0;
+            atualizarCronometroTeclado(segsChamada);
+            if (timerCronometroChamada) clearInterval(timerCronometroChamada);
+            if (timerVisor) clearInterval(timerVisor);
+            if (currentCallId === null) {
+                timerCronometroChamada = setInterval(() => {
+                    segsChamada++;
+                    atualizarCronometroTeclado(segsChamada);
+                }, 1000);
+            }
+        } else if (acao === 'fechar') {
+            visorAtivo.classList.add('hidden');
+            clearInterval(timerCronometroChamada);
+            clearInterval(timerVisor);
+            timerCronometroChamada = null;
+            timerVisor = null;
+            segsChamada = 0;
+        }
+
+        if (!visorAtivo || !txtProgresso || !txtCron) return;
+
+        if (acao === 'abrir') {
+            visorAtivo.classList.remove('hidden');
+            if (msg) txtProgresso.innerText = msg;
+            if (visorNumero) visorNumero.innerText = input?.value || '';
+        } else if (acao === 'timer') {
+            visorAtivo.classList.remove('hidden');
+            if (msg) txtProgresso.innerText = msg;
+            if (visorNumero) visorNumero.innerText = input?.value || visorNumero.innerText || '';
+            const timerPainel = document.getElementById('meuTimer');
+            segsChamada = currentCallId !== null ? (parseInt(timerPainel?.dataset.seconds) || 0) : 0;
+            atualizarCronometroTeclado(segsChamada);
+            clearInterval(timerCronometroChamada);
+            clearInterval(timerVisor);
+            if (currentCallId === null) {
+                timerVisor = setInterval(() => {
+                    segsChamada++;
+                    atualizarCronometroTeclado(segsChamada);
+                }, 1000);
+            }
+        } else {
+            visorAtivo.classList.add('hidden');
+            clearInterval(timerCronometroChamada);
+            clearInterval(timerVisor);
+            timerCronometroChamada = null;
+            timerVisor = null;
+            segsChamada = 0;
+            txtCron.innerText = "00:00";
+            if (txtProgresso) txtProgresso.innerText = "";
+            if (visorNumero) visorNumero.innerText = "";
+        }
+    }
+
+    function atualizarBadgeStatus(online) {
+        const dot = document.getElementById('status-dot');
+        const ping = document.getElementById('status-ping');
+        const text = document.getElementById('status-text');
+        if (!dot || !ping || !text) return;
+
+        if (online) {
+            dot.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+            ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+            text.innerText = "Ramal Online";
+            text.className = "text-[9px] font-bold text-emerald-600 uppercase tracking-tight";
+        } else {
+            dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+            ping.className = "";
+            text.innerText = "Ramal Offline";
+            text.className = "text-[9px] font-bold text-red-600 uppercase tracking-tight";
+        }
+    }
+
+    function limparEstadoChamadaWebRTC() {
+        registrarHistoricoCardAtual();
+        incomingAnswerInFlight = false;
+        chamadaWebRTCAceita = false;
+        limparWatchdogAtendimento();
+        incomingWebrtcMeta = null;
+        currentCallId = null;
+        currentAnswerChannelId = null;
+        ultimoDadosPlanilhaKey = null;
+        window.channelIdParaARI = null;
+
+        const btnPrincipal = document.getElementById('btn-acao-chamada');
+        if (btnPrincipal) btnPrincipal.disabled = false;
+
+        const btnMute = document.getElementById('btn-mute');
+        const muteIcon = btnMute?.querySelector('i');
+        if (btnMute) btnMute.classList.remove('bg-amber-500', 'text-white');
+        if (muteIcon) muteIcon.className = "fa fa-microphone";
+
+        const controles = document.getElementById('controles-chamada');
+        if (controles) {
+            controles.classList.add('hidden');
+            controles.style.display = '';
+        }
+
+        const input = document.getElementById('numDiscar');
+        if (input) input.value = "";
+
+        resetarBotaoAtenderWebRTC();
+
+        const activeCallContainer = document.getElementById('activeCallContainer');
+        const clienteNome = document.getElementById('clienteNome');
+        if (activeCallContainer && clienteNome?.textContent !== 'PAUSA ATIVA') {
+            activeCallContainer.classList.add('hidden');
+        }
+
+        const remoteAudio = document.getElementById('remoteAudio');
+        if (remoteAudio) {
+            remoteAudio.pause();
+            remoteAudio.srcObject = null;
+        }
+
+        gerenciarVisor('fechar');
+        ocultarControlesAlternancia();
+        mostrarTecladoNumerico();
+        pararAudioAtual();
+        resetBotaoChamada();
+        sessaoVoz = null;
+    }
+
+    function terminarChamada() {
+        const sessaoAtual = sessaoVoz;
+        if (sessaoAtual) {
+            try {
+                sessaoAtual.terminate();
+            } catch (e) {
+                warnWebRTC('[WebRTC] Falha ao encerrar sessão', e);
+            }
+        }
+        limparEstadoChamadaWebRTC();
+    }
+
+    function toggleMute() {
+        if (!sessaoVoz) return;
+        const btnMute = document.getElementById('btn-mute');
+        const icon = btnMute?.querySelector('i');
+        if (sessaoVoz.isMuted().audio) {
+            sessaoVoz.unmute();
+            btnMute?.classList.remove('bg-amber-500', 'text-white');
+            if (icon) icon.className = "fa fa-microphone";
+        } else {
+            sessaoVoz.mute();
+            btnMute?.classList.add('bg-amber-500', 'text-white');
+            if (icon) icon.className = "fa fa-microphone-slash";
+        }
+    }
+
+    function prepararTransferencia() {
+        const destino = prompt("Digite o ramal:");
+        const ramalDestino = String(destino || '').replace(/\D/g, '');
+
+        if (!ramalDestino) {
+            return;
+        }
+
+        if (!sessaoVoz || typeof sessaoVoz.isEstablished !== 'function' || !sessaoVoz.isEstablished()) {
+            if (typeof notyf !== 'undefined') notyf.error("Só é possível transferir uma chamada em linha.");
+            return;
+        }
+
+        try {
+            sessaoVoz.refer(`sip:${ramalDestino}@${servidor}`, {
+                eventHandlers: {
+                    requestSucceeded: () => {
+                        if (typeof notyf !== 'undefined') notyf.success("Transferência solicitada.");
+                    },
+                    requestFailed: () => {
+                        if (typeof notyf !== 'undefined') notyf.error("Asterisk recusou a transferência.");
+                    }
+                }
+            });
+        } catch (e) {
+            warnWebRTC('[WebRTC] Falha ao solicitar transferência SIP REFER', e);
+            if (typeof notyf !== 'undefined') notyf.error("Falha ao solicitar transferência.");
+        }
+    }
+
+    function mostrarControlesAlternancia() {
+        const controles = document.getElementById('controles-alternancia');
+        if (controles) controles.classList.remove('hidden');
+    }
+
+    function ocultarControlesAlternancia() {
+        const controles = document.getElementById('controles-alternancia');
+        if (controles) controles.classList.add('hidden');
+    }
+
+    function mostrarTecladoNumerico() {
+        const grid = document.getElementById('grid-numerico');
+        const lista = document.getElementById('lista-audios-chamada');
+        const texto = document.getElementById('txt-alternar');
+        if (grid) grid.classList.remove('hidden');
+        if (lista) lista.classList.add('hidden');
+        if (texto) texto.innerText = 'Ver Áudios';
+    }
+
+    async function carregarAudiosDoServidor() {
+        const containerAtalho = document.getElementById('container-audios-atalho');
+        const containerBiblioteca = document.getElementById('container-biblioteca-audios');
+
+        try {
+            const response = await fetch(`${baseUrl}/campaign/voice/audios-search`);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                let htmlGeral = '';
+                if (result.data.length === 0) {
+                    htmlGeral = '<p class="text-[10px] text-center text-slate-400 py-4 font-black uppercase">Nenhum áudio encontrado</p>';
+                } else {
+                    result.data.forEach(audio => {
+                        const duracao = audio.duration || audio.duration_seconds || 0;
+                        htmlGeral += `
+                        <button onclick="tocarAudio(this, '${audio.url}')"
+                            data-path="${audio.path}"
+                            data-duration="${duracao}"
+                            data-name="${audio.display_name || 'Sem Nome'}"
+                            class="w-full p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-blue-500 transition-all cursor-pointer group text-left mb-2 block shadow-sm">
+                            <div class="flex justify-between items-center pointer-events-none">
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-[10px] font-black text-blue-500 uppercase mb-1">Asterisk • ${duracao}s</p>
+                                    <p class="text-xs font-bold truncate text-slate-700 dark:text-white">${audio.display_name || 'Sem Nome'}</p>
+                                </div>
+                                <i class="fa fa-play text-blue-500 transition-colors ml-2 shrink-0"></i>
+                            </div>
+                        </button>`;
+                    });
+                }
+                if (containerAtalho) containerAtalho.innerHTML = htmlGeral;
+                if (containerBiblioteca) containerBiblioteca.innerHTML = htmlGeral;
+            }
+        } catch (error) { /* Erro de carregamento */ }
+    }
+
+    function mostrarListaAudios() {
+        const grid = document.getElementById('grid-numerico');
+        const lista = document.getElementById('lista-audios-chamada');
+        const texto = document.getElementById('txt-alternar');
+        if (grid) grid.classList.add('hidden');
+        if (lista) lista.classList.remove('hidden');
+        if (texto) texto.innerText = 'Ver Teclado';
+        carregarAudiosDoServidor();
+    }
+
+    function tocarAudio(btn, url) {
+        const pathInterno = btn.getAttribute('data-path');
+        const duracaoBotao = btn.getAttribute('data-duration');
+        const icone = btn.querySelector('i');
+        const estaTocando = icone.classList.contains('fa-pause');
+
+        if (!sessaoVoz) {
+            if (estaTocando) {
+                if (previewAudioLocal) {
+                    previewAudioLocal.pause();
+                    previewAudioLocal = null;
+                }
+                resetBotao(btn);
+            } else {
+                resetBotao(btn);
+                icone.className = "fas fa-spinner fa-spin text-blue-500";
+                previewAudioLocal = new Audio(url);
+                previewAudioLocal.play().then(() => {
+                    atualizarBotaoPlayPause(btn, 'pause');
+                    previewAudioLocal.onended = () => {
+                        resetBotao(btn);
+                        previewAudioLocal = null;
+                    };
+                }).catch(() => resetBotao(btn));
+            }
+            return;
+        }
+
+        if (previewAudioLocal) {
+            previewAudioLocal.pause();
+            previewAudioLocal = null;
+        }
+
+        const acao = estaTocando ? 'stop' : 'play';
+        if (!estaTocando) icone.className = "fas fa-spinner fa-spin";
+
+        fetch(`${baseUrl}/callcenter/play-audio-ari`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ramal: ramalLogado, audio_path: pathInterno, action: acao })
+        })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    if (acao === 'stop') {
+                        resetBotao(btn);
+                        if (timerEsconderAudio) clearTimeout(timerEsconderAudio);
+                        document.getElementById('info-audio-executando')?.classList.add('hidden');
+                        return;
+                    }
+                    atualizarBotaoPlayPause(btn, 'pause');
+                    const containerAudio = document.getElementById('info-audio-executando');
+                    const spanNome = document.getElementById('nome-audio-visor');
+                    if (containerAudio) {
+                        spanNome.innerText = (res.name || "ÁUDIO").replace('_wav', '').replace('_mp3', '').toUpperCase();
+                        containerAudio.classList.remove('hidden');
+                    }
+                    let duracaoFinal = res.duration || duracaoBotao || 0;
+                    if (duracaoFinal > 0) {
+                        if (timerEsconderAudio) clearTimeout(timerEsconderAudio);
+                        timerEsconderAudio = setTimeout(() => {
+                            resetBotao(btn);
+                            containerAudio?.classList.add('hidden');
+                            timerEsconderAudio = null;
+                        }, parseFloat(duracaoFinal) * 1000);
+                    }
+                } else {
+                    resetBotao(btn);
+                }
+            }).catch(() => resetBotao(btn));
+    }
+
+    function atualizarBotaoPlayPause(btn, estado) {
+        const icon = btn.querySelector('i');
+        if (estado === 'pause' || estado === true) {
+            icon.className = "fa fa-pause text-blue-500";
+            btn.classList.add('ring-2', 'ring-blue-100', 'border-blue-500');
+        } else {
+            icon.className = "fa fa-play text-slate-300";
+            btn.classList.remove('ring-2', 'ring-blue-100', 'border-blue-500');
+        }
+    }
+
+    function resetBotao(btn) {
+        const icon = btn.querySelector('i');
+        icon.className = "fa fa-play text-slate-300";
+        btn.classList.remove('border-blue-500','border-emerald-500','border-amber-500','ring-2','ring-blue-100','ring-emerald-100','ring-amber-100');
+    }
+
+    function pararAudioAtual() {
+        if (audioAtual) {
+            audioAtual.pause();
+            audioAtual.currentTime = 0;
+        }
+        if (botaoAtual) resetBotao(botaoAtual);
+        audioAtual = null;
+        botaoAtual = null;
+    }
+
+    function alternarInterfaceChamada() {
+        const lista = document.getElementById('lista-audios-chamada');
+        if (!lista) return;
+        lista.classList.contains('hidden') ? mostrarListaAudios() : mostrarTecladoNumerico();
+    }
+
+    async function discarHistorico(numero) {
+        // 1. Limpeza: mantém apenas os números
+        let numeroLimpo = numero.replace(/\D/g, '');
+
+        // 2. Busca o prefixo do banco (Ex: "25" ou vazio)
+        const prefixoBanco = await buscarPrefixoInteligente();
+
+        // 3. Definições de segurança e Brasil
+        const prefixosSistema = ['55', '65'];
+        let numeroFinal;
+
+        // --- LÓGICA DE TRAVA INTELIGENTE ---
+        const jaTemPrefixoSistema = prefixosSistema.some(p => numeroLimpo.startsWith(p));
+        const jaTemPrefixoBanco = prefixoBanco && numeroLimpo.startsWith(prefixoBanco);
+
+        if (jaTemPrefixoSistema || jaTemPrefixoBanco) {
+            numeroFinal = numeroLimpo;
+            logWebRTC(`Prefixo detectado (${numeroLimpo.substring(0,2)}). Mantendo original.`);
+        }
+        else if (numeroLimpo.length === 10 || numeroLimpo.length === 11) {
+            const pInjetar = (prefixoBanco && prefixoBanco !== "") ? prefixoBanco : '55';
+            numeroFinal = pInjetar + numeroLimpo;
+            logWebRTC(`Telefone nacional sem prefixo. Injetando: ${pInjetar}`);
+        }
+        else {
+            numeroFinal = numeroLimpo;
+            logWebRTC('Número fora do padrão nacional de 10/11 dígitos. Enviando puro.');
+        }
+
+        // --- DISPARO SIP & UI ---
+        logWebRTC(`Enviando para Asterisk: ${numeroFinal}`);
+
+        if (ua && ua.isConnected()) {
+            const microfoneLiberado = await garantirMicrofoneLiberado();
+            if (!microfoneLiberado) return;
+            const localStream = await obterStreamLocal();
+
+            ua.call(`sip:${numeroFinal}@${servidor}`, obterOpcoesMidia(localStream));
+
+            // 🟢 AQUI ESTÁ O QUE FALTAVA: ABRE O DRAWER DO TECLADO
+            const drawer = document.getElementById('drawer-teclado');
+            if (drawer && drawer.classList.contains('translate-x-full')) {
+                // Se a gaveta está escondida (tem a classe translate-x-full), a gente abre
+                toggleTeclado();
+            }
+
+            // Atualiza o estado visual para 'calling'
+            if (typeof atualizarVisualChamada === 'function') {
+                atualizarVisualChamada('calling');
+            }
+
+            // Abre o visor e exibe a mensagem de discagem
+            if (typeof gerenciarVisor === 'function') {
+                gerenciarVisor('abrir', 'Discando...');
+            }
+
+            // Alimenta o input de discagem e ajusta a fonte
+            const input = document.getElementById('numDiscar');
+            if (input) {
+                input.value = numeroLimpo;
+                if (typeof atualizarEscalaFonte === 'function') {
+                    atualizarEscalaFonte(input);
+                }
+            }
+        } else {
+            warnWebRTC("UA não conectado.");
+            if (typeof gerenciarVisor === 'function') {
+                gerenciarVisor('abrir', 'Erro: Sem Conexão');
+            }
+        }
+    }
+
+    async function buscarPrefixoInteligente() {
+        if (cachePrefixo !== null) return cachePrefixo;
+
+        try {
+            const response = await fetch(`${baseUrl}/campaign/voice/sip-trunks/view`);
+            const res = await response.json();
+
+            if (res.success && res.data.length > 0) {
+                // 🔍 REGRA DE OURO:
+                // 1. Tenta achar um tronco que NÃO é do sistema (is_system == 0) -> Prioridade Total
+                // 2. Se não achar, pega o primeiro do sistema (is_system == 1)
+                const troncoCustom = res.data.find(t => parseInt(t.is_system) === 0);
+                const troncoSystem = res.data.find(t => parseInt(t.is_system) === 1);
+
+                const troncoEscolhido = troncoCustom || troncoSystem;
+
+                if (troncoEscolhido) {
+                    // Aqui você pega o campo correto do seu banco (tech_prefix ou dial_prefix)
+                    cachePrefixo = troncoEscolhido.tech_prefix || troncoEscolhido.dial_prefix || "";
+                    logWebRTC(`Tronco identificado: ${troncoEscolhido.name} | Prefixo: ${cachePrefixo}`);
+                    return cachePrefixo;
+                }
+            }
+        } catch (error) {
+            warnWebRTC("Erro ao buscar troncos:", error);
+        }
+        return ""; // Fallback sem prefixo
+    }
+
+    let audioCtxMicroSIP = null;
+    function getAudioCtxMxx() {
+        if (!audioCtxMicroSIP) audioCtxMicroSIP = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtxMicroSIP;
+    }
+
+    async function tocarClickSoftphone() {
+        try {
+            const ctx = getAudioCtxMxx();
+            if (ctx.state === 'suspended') await ctx.resume();
+            const duracao = 0.08;
+            const volume = 0.03;
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc1.type = 'sine'; osc2.type = 'sine';
+            osc1.frequency.setValueAtTime(900, ctx.currentTime);
+            osc2.frequency.setValueAtTime(1300, ctx.currentTime);
+            gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.004);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duracao);
+            osc1.connect(gainNode); osc2.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc1.start(); osc2.start();
+            osc1.stop(ctx.currentTime + duracao); osc2.stop(ctx.currentTime + duracao);
+        } catch (e) { /* Áudio bloqueado */ }
+    }
+
+    function addNumero(num) {
+        const input = document.getElementById('numDiscar');
+        if (!input) return;
+        tocarClickSoftphone();
+        input.value += num;
+        atualizarEscalaFonte(input);
+    }
+
+    function limparNumero() {
+        const input = document.getElementById('numDiscar');
+        if (!input) return;
+        input.value = input.value.slice(0, -1);
+        atualizarEscalaFonte(input);
+    }
+
+    function atualizarEscalaFonte(input) {
+        const tamanho = input.value.length;
+        if (tamanho > 13) input.style.fontSize = '1.2rem';
+        else if (tamanho >= 11) input.style.fontSize = '1.5rem';
+        else if (tamanho >= 9) input.style.fontSize = '1.875rem';
+        else input.style.fontSize = '2.25rem';
+    }
+
+    async function acaoChamadaManual() {
+        const input = document.getElementById('numDiscar');
+        const numero = input?.value || '';
+        if (!numero) return notyf.error("Digite um número.");
+
+        if (ua && ua.isConnected()) {
+            atualizarVisualChamada('calling');
+            discarHistorico(numero);
+            gerenciarVisor('abrir', 'Iniciando...');
+        } else {
+            notyf.error("Ramal não registrado.");
+        }
+    }
+
+    function atualizarVisualChamada(statusPuro, numeroRemoto = "") {
+        const btn = document.getElementById('btn-acao-chamada');
+        const controles = document.getElementById('controles-chamada');
+        const label = btn?.querySelector('span');
+        const icon = btn?.querySelector('i');
+        const visorNumero = document.getElementById('visor-numero');
+
+        if (!btn) return;
+        const status = String(statusPuro || '').toLowerCase();
+
+        if (status === 'ringing' || status === 'incoming') {
+            btn.className = "w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-white rounded-2xl font-black uppercase shadow-lg flex items-center justify-center gap-3 transition-all animate-bounce";
+            if (label) label.innerText = numeroRemoto ? `ATENDER: ${numeroRemoto}` : "ATENDER CHAMADA";
+            if (icon) icon.className = "fa fa-phone mr-2";
+            if (visorNumero && numeroRemoto) visorNumero.innerText = numeroRemoto;
+            btn.onclick = () => atenderChamada();
+            if (controles) controles.classList.add('hidden');
+        } else if (['calling', 'progress', 'accepted', 'confirmed'].includes(status)) {
+            btn.classList.remove('from-emerald-500', 'to-teal-400', 'animate-bounce');
+            btn.classList.add('from-red-500', 'to-rose-600');
+            if (label) label.innerText = "DESLIGAR";
+            if (icon) icon.className = "fa fa-phone-slash mr-2";
+            btn.onclick = () => terminarChamada();
+            if (['accepted', 'confirmed'].includes(status) && controles) {
+                controles.classList.remove('hidden');
+                controles.style.display = 'grid';
+            }
+        } else {
+            if (controles) controles.classList.add('hidden');
+            resetBotaoChamada();
+        }
+    }
+
+    function resetBotaoChamada() {
+        const btn = document.getElementById('btn-acao-chamada');
+        const controles = document.getElementById('controles-chamada');
+        if (controles) {
+            controles.classList.add('hidden');
+            controles.style.display = '';
+        }
+        if (!btn) return;
+        btn.className = "w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-white rounded-2xl font-black uppercase shadow-lg flex items-center justify-center gap-3 transition-all";
+        const span = btn.querySelector('span');
+        const icon = btn.querySelector('i');
+        if (span) span.innerText = "Iniciar Chamada";
+        if (icon) icon.className = "fa fa-phone";
+        btn.onclick = () => acaoChamadaManual();
+    }
+
+    function toggleTeclado() {
+        const drawer = document.getElementById('drawer-teclado');
+        if (!drawer) return;
+        drawer.classList.toggle('translate-x-full');
+        if (typeof gerenciarBotoesFlutuantes === 'function') gerenciarBotoesFlutuantes(!drawer.classList.contains('translate-x-full'));
+    }
+
+    function toggleAudios() {
+        const drawer = document.getElementById('drawer-audios');
+        if (!drawer) return;
+        const abrindo = drawer.classList.contains('translate-x-full');
+        drawer.classList.toggle('translate-x-full');
+        if (typeof gerenciarBotoesFlutuantes === 'function') gerenciarBotoesFlutuantes(!drawer.classList.contains('translate-x-full'));
+        if (abrindo) carregarAudiosDoServidor();
+    }
+
+    function gerenciarBotoesFlutuantes(esconder) {
+        const botoes = document.getElementById('floating-actions');
+        if (!botoes) return;
+        esconder ? botoes.classList.add('opacity-0', 'translate-x-24', 'pointer-events-none') : botoes.classList.remove('opacity-0', 'translate-x-24', 'pointer-events-none');
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const drawer = document.getElementById('drawer-teclado');
+        if (!drawer || drawer.classList.contains('translate-x-full')) return;
+        if (['Enter', 'Backspace', 'Escape'].includes(e.key)) e.preventDefault();
+        if (/^[0-9*#]$/.test(e.key)) addNumero(e.key);
+        if (e.key === 'Backspace') limparNumero();
+        if (e.key === 'Enter') acaoChamadaManual();
+        if (e.key === 'Escape') toggleTeclado();
+    });
+
+    function travarScrollInternoAudios() {
+        const lista = document.getElementById('container-audios-atalho');
+        if (!lista) return;
+        lista.addEventListener('wheel', function (e) {
+            const noTopo = lista.scrollTop <= 0;
+            const noFim = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 1;
+            e.stopPropagation();
+            if ((e.deltaY < 0 && noTopo) || (e.deltaY > 0 && noFim)) e.preventDefault();
+        }, { passive: false });
+    }
+
+    function verificarSessaoExistente() {
+        const sessao = localStorage.getItem('agente_sessao');
+        if (sessao) {
+            const dados = JSON.parse(sessao);
+            ramalLogado = dados.ramal;
+            document.getElementById('authContainer').classList.add('hidden');
+            document.getElementById('mainPanelContainer').classList.remove('hidden');
+            document.getElementById('nomeAgente').innerText = dados.nome;
+            document.getElementById('ramalAgente').innerText = ramalLogado;
+            const floatingActions = document.getElementById('floating-actions');
+            floatingActions.classList.remove('hidden');
+            floatingActions.classList.add('flex');
+            document.getElementById('drawer-teclado').classList.remove('hidden');
+            document.getElementById('drawer-audios').classList.remove('hidden');
+            conectarWebRTC();
+            startTimers();
+            carregarPausasDinamicas();
+            iniciarEscutaSSE(ramalLogado);
+            renderizarHistorico();
+        }
+    }
+
+    async function fazerCheckin() {
+        const ramal = document.getElementById('authRamal').value;
+        const pass = document.getElementById('authPass').value;
+        if (!ramal || !pass) return notyf.error("Preencha os campos.");
+        const btn = document.querySelector('button[onclick="fazerCheckin()"]');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Validando...';
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/agent-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ramal, password: pass })
+            });
+            const result = await response.json();
+            if (result.status === 'OK') {
+                localStorage.setItem('agente_sessao', JSON.stringify({ ramal: result.data.ramal, nome: result.data.nome, senha: result.data.password_sip }));
+                notyf.success(result.message);
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                notyf.error(result.message);
+                btn.disabled = false;
+                btn.innerHTML = 'Iniciar Jornada';
+            }
+        } catch (e) {
+            notyf.error("Erro de conexão.");
+            btn.disabled = false;
+            btn.innerHTML = 'Iniciar Jornada';
+        }
+    }
+
+    async function carregarPausasDinamicas() {
+        try {
+            const res = await fetch(`${baseUrl}/callcenter/active-breaks`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                const container = document.getElementById('gridAcoesAgente');
+                const btnOffline = document.getElementById('btn-offline');
+                document.querySelectorAll('.btn-pausa-dinamica').forEach(el => el.remove());
+
+                const configPorTipo = {
+                    'Improdutiva': { classes: 'border-orange-100 bg-orange-50 hover:bg-orange-100 text-orange-600', iconPadrao: 'ni-button-pause' },
+                    'Produtiva': { classes: 'border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-600', iconPadrao: 'ni-delivery-fast' },
+                    'Logoff': { classes: 'border-red-100 bg-red-50 hover:bg-red-100 text-red-600', iconPadrao: 'ni-button-power' },
+                    'Default': { classes: 'border-slate-100 bg-slate-50 hover:bg-slate-100 text-slate-600', iconPadrao: 'ni-atom' }
+                };
+
+                json.data.forEach(pausa => {
+                    const config = configPorTipo[pausa.type] || configPorTipo['Default'];
+                    const btn = document.createElement('button');
+                    btn.dataset.nome = pausa.name.toUpperCase();
+                    btn.className = `btn-pausa-dinamica p-5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95 shadow-sm flex flex-col items-center justify-center text-center group ${config.classes}`;
+                    btn.onclick = () => mudarStatus('pausa', pausa.id);
+                    btn.innerHTML = `<i class="ni ${pausa.icon || config.iconPadrao} block text-2xl mb-2 group-hover:scale-110 transition-transform"></i><span class="text-[10px] font-black uppercase tracking-wider">${pausa.name}</span>`;
+                    btnOffline ? container.insertBefore(btn, btnOffline) : container.appendChild(btn);
+                });
+            }
+        } catch (e) { /* Erro pausas */ }
+    }
+
+    async function mudarStatus(novoStatus, pausaId = null) {
+        if (!ramalLogado || travaCliqueStatus) return;
+        travaCliqueStatus = true;
+        const botoes = document.querySelectorAll('#gridAcoesAgente button');
+        botoes.forEach(btn => { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); });
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/agent-set-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ramal: ramalLogado, status: novoStatus, pausa_id: pausaId })
+            });
+            const result = await response.json();
+            if (result.success) notyf.success(result.message);
+        } catch (e) { notyf.error("Erro de conexão."); }
+
+        setTimeout(() => {
+            travaCliqueStatus = false;
+            botoes.forEach(btn => { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); });
+        }, 3000);
+    }
+
+    function iniciarEscutaSSE(ramal) {
+        if (sseSource) sseSource.close();
+        sseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+        sseSource.addEventListener('update', function (e) {
+            try {
+                const data = JSON.parse(e.data);
+                const listaChamadas = data.chamadas || [];
+                const listaAgentes = data.agentes || [];
+                let estouEmLinhaAgora = false;
+
+                const chamadaPertenceAoAgente = (c) => {
+                    const r = String(ramal);
+                    const vars = c.vars || {};
+
+                    return String(c.agente) === r
+                        || String(c.dest) === r
+                        || String(vars.__RAMAL || '') === r
+                        || String(vars.AGENT_ID || '') === r;
+                };
+
+                const estouEmLinha = listaChamadas.some(chamadaPertenceAoAgente);
+                let chamadaParaMim = null;
+                if (estouEmLinha) {
+                    chamadaParaMim = listaChamadas.find(c => {
+                        if (!chamadaPertenceAoAgente(c)) return false;
+                        const dDest = String(c.dest || "").replace(/\D/g, '').length;
+                        const dCaller = String(c.caller || "").replace(/\D/g, '').length;
+                        return dDest > 8 || dCaller > 8;
+                    }) || listaChamadas.find(chamadaPertenceAoAgente);
+                }
+
+                const chamadaRelacionadaAoAgente = (c) => {
+                    if (chamadaPertenceAoAgente(c)) return true;
+                    if (!chamadaParaMim) return false;
+
+                    const id = String(c.id || '');
+                    const peer = String(c.peer || '');
+                    const idMinha = String(chamadaParaMim.id || '');
+                    const peerMinha = String(chamadaParaMim.peer || '');
+
+                    return (id && peerMinha && id === peerMinha)
+                        || (peer && idMinha && peer === idMinha);
+                };
+
+                listaChamadas.forEach(c => {
+                    if (chamadaRelacionadaAoAgente(c)) {
+                        estouEmLinhaAgora = true;
+                        if (c.dtmf !== null && c.dtmf !== undefined && c.dtmf !== '' && memoriaSequenciaDtmf !== String(c.dtmf)) {
+                            memoriaSequenciaDtmf = String(c.dtmf);
+                            mostrarDTMFVoando(memoriaSequenciaDtmf);
+                        }
+                    }
+                });
+
+                if (!estouEmLinhaAgora) {
+                    memoriaSequenciaDtmf = "";
+                    const containerPai = document.getElementById('balao-dtmf-container');
+                    if (containerPai) containerPai.innerHTML = "";
+                }
+
+                const meuStatus = listaAgentes.find(a => String(a.ramal) === String(ramal));
+                if (meuStatus) atualizarInterfaceStatus(meuStatus);
+
+                if (chamadaParaMim) {
+                    const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
+                    let telefoneReal = (limparEContar(chamadaParaMim.dest) === 8) ? chamadaParaMim.caller : chamadaParaMim.dest;
+                    if (limparEContar(telefoneReal) > 8 && telefoneReal !== "—") {
+                        const campanhaAtual = document.getElementById('campanhaNome')?.innerText || '';
+                        const aguardandoCampanha = campanhaAtual.toUpperCase().includes('AGUARDANDO CAMPANHA');
+                        const dadosPlanilhaKey = [
+                            chamadaParaMim.id || '',
+                            chamadaParaMim.voice_list_id || '',
+                            telefoneReal || '',
+                            chamadaParaMim.campanha_nome || ''
+                        ].join('|');
+                        const precisaAtualizarDados =
+                            currentCallId !== chamadaParaMim.id
+                            || ultimoDadosPlanilhaKey !== dadosPlanilhaKey
+                            || aguardandoCampanha;
+
+                        if (precisaAtualizarDados) {
+                            currentCallId = chamadaParaMim.id;
+                            ultimoDadosPlanilhaKey = dadosPlanilhaKey;
+                            const pernaDoAgente = listaChamadas.find(c =>
+                                chamadaPertenceAoAgente(c)
+                                && String(c.dest) === String(ramal)
+                                && c.id !== chamadaParaMim.id
+                            );
+                            const idParaOARI = pernaDoAgente ? pernaDoAgente.id : chamadaParaMim.id;
+                            currentAnswerChannelId = idParaOARI;
+                            buscarDadosPlanilha(chamadaParaMim.voice_list_id, telefoneReal).then(dadosPlanilha => {
+                                exibirDadosCliente(telefoneReal, chamadaParaMim.id, chamadaParaMim.campanha_nome, dadosPlanilha, idParaOARI);
+                            });
+                        }
+                    }
+                    if (typeof sincronizarTimerComChamada === "function") sincronizarTimerComChamada(chamadaParaMim.duracao);
+                } else if (currentCallId !== null) {
+                    fecharCardCliente();
+                    const btnAtender = document.getElementById('btnAtender');
+                    if (btnAtender) btnAtender.classList.add('hidden');
+                    currentCallId = null;
+                    currentAnswerChannelId = null;
+                    ultimoDadosPlanilhaKey = null;
+                }
+            } catch (err) { /* Erro monitoramento */ }
+        });
+    }
+
+    function registrarNoHistorico(numero, nome, duracao, campanha) {
+        const agora = new Date();
+        const horario = agora.getHours().toString().padStart(2, '0') + ":" + agora.getMinutes().toString().padStart(2, '0');
+        callHistory.unshift({ numero, nome: nome || "Cliente Desconhecido", duracao, campanha, horario });
+        if (callHistory.length > 10) callHistory.pop();
+        localStorage.setItem('agente_historico', JSON.stringify(callHistory));
+        renderizarHistorico();
+    }
+
+    function registrarHistoricoCardAtual() {
+        const activeCallContainer = document.getElementById('activeCallContainer');
+        const nomeEl = document.getElementById('clienteNome');
+        const numeroEl = document.getElementById('clienteNumero');
+        const timerEl = document.getElementById('meuTimer');
+        const campanhaEl = document.getElementById('campanhaNome');
+
+        if (!activeCallContainer || activeCallContainer.classList.contains('hidden')) return;
+        if (!nomeEl || !numeroEl || nomeEl.innerText === "PAUSA ATIVA") return;
+
+        const numero = (numeroEl.innerText || '').trim();
+        const nome = (nomeEl.innerText || '').trim();
+        if (!numero || numero === '(00) 00000-0000') return;
+
+        const duracao = timerEl ? timerEl.innerText : "00:00";
+        const campanha = (campanhaEl?.innerText || "Manual")
+            .replace(/^Campanha:\s*/i, '')
+            .replace(/^CAMPANHA:\s*/i, '')
+            .trim() || "Manual";
+        const chave = currentCallId || currentAnswerChannelId || `${numero}|${nome}|${campanha}`;
+
+        if (ultimoHistoricoRegistrado === chave) return;
+        ultimoHistoricoRegistrado = chave;
+        registrarNoHistorico(numero, nome || "Cliente Desconhecido", duracao, campanha);
+    }
+
+    function renderizarHistorico() {
+        const list = document.getElementById('historyList');
+        if (!list) return;
+        if (callHistory.length === 0) {
+            list.innerHTML = '<p class="col-span-full text-[10px] text-center font-bold text-slate-400 uppercase py-4">Nenhuma chamada registrada hoje</p>';
+            return;
+        }
+        list.innerHTML = callHistory.map(item => `
+        <div onclick="discarHistorico('${item.numero}')" class="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer group relative overflow-hidden flex items-center">
+            <div class="flex-1 pr-0 group-hover:pr-8 transition-all duration-300">
+                <div class="flex justify-between items-start mb-1"><span class="text-[9px] font-black text-blue-500 uppercase">${item.horario}</span><span class="text-[8px] font-bold text-slate-400 uppercase">${item.duracao}</span></div>
+                <h6 class="text-[11px] font-black dark:text-white mb-0 truncate">${item.nome}</h6>
+                <p class="text-[10px] text-slate-500 font-bold mb-0">${item.numero}</p>
+            </div>
+            <div class="absolute inset-y-0 right-0 w-8 bg-blue-600 flex items-center justify-center translate-x-full group-hover:translate-x-0 transition-transform duration-300"><i class="fa fa-phone text-white text-[10px]"></i></div>
+        </div>`).join('');
+    }
+
+    function copiarTexto(texto, label) {
+        if (!texto || texto === '---') return;
+        navigator.clipboard.writeText(texto).then(() => {
+            if (typeof notyf !== 'undefined') notyf.success(`${label} copiado!`);
+        });
+    }
+
+    function abrirWhatsApp(numero, nome) {
+        const numLimpo = String(numero).replace(/\D/g, '');
+        const saudacao = (new Date().getHours() < 12) ? "Bom dia" : (new Date().getHours() < 18 ? "Boa tarde" : "Boa noite");
+        const mensagem = encodeURIComponent(`${saudacao} ${nome}, tudo bem?`);
+        window.open(`https://wa.me/${numLimpo}?text=${mensagem}`, '_blank');
+    }
+
+    async function enviarProtocoloSMS(numero, protocolo, nome, elementoBtn) {
+        if (!numero || !protocolo || protocolo === '---') return;
+
+        const originalHTML = elementoBtn.innerHTML;
+        elementoBtn.disabled = true;
+        elementoBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+
+        const mensagemSms = `Ola ${nome.split(' ')[0]}, seu protocolo: ${protocolo}`;
+
+        // 1. Limpa tudo que não for número
+        let numeroLimpo = numero.replace(/\D/g, '');
+
+        // 2. AJUSTE DO DDI 55:
+        // Se o número tem 10 ou 11 dígitos (DDD + Celular), adicionamos o 55.
+        // Se já começar com 55, deixamos como está.
+        if (numeroLimpo.length >= 10 && numeroLimpo.length <= 11) {
+            numeroLimpo = '55' + numeroLimpo;
+        }
+
+        try {
+            const payload = new URLSearchParams();
+
+            // Enviamos como 'phones[]' para o seu PHP ler como array automaticamente
+            payload.append('phones[]', numeroLimpo);
+            payload.append('message', mensagemSms);
+            payload.append('optionGroup1', 'protocolo');
+            payload.append('optionGroup2', '0');
+
+            const response = await fetch(`${baseUrl}/campaign/single-shot-send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload
+            });
+
+            const text = await response.text();
+            let result;
+
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                // Se o PHP der erro 500 ou Fatal Error, o texto não será JSON
+                warnWebRTC("Resposta bruta do servidor:", text);
+                throw new Error("Erro interno no servidor. Verifique logs/saldo.");
+            }
+
+            if (result.status === 200 || result.success) {
+                notyf.success("SMS enviado com sucesso!");
+                elementoBtn.classList.replace('text-blue-600', 'text-emerald-500');
+                elementoBtn.innerHTML = '<i class="fa fa-check"></i>';
+            } else {
+                // Caso o PHP retorne erro de saldo ou operadora
+                throw new Error(result.message || "Falha no envio");
+            }
+
+        } catch (e) {
+            notyf.error(e.message);
+            elementoBtn.disabled = false;
+            elementoBtn.innerHTML = originalHTML;
+        }
+    }
+
+    function limparNumeros(valor) {
+        return String(valor || '').replace(/\D/g, '');
+    }
+
+    function validarCPF(cpf) {
+        cpf = limparNumeros(cpf);
+
+        if (cpf.length !== 11) return false;
+        if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+        let soma = 0;
+        let resto;
+
+        for (let i = 1; i <= 9; i++) {
+            soma += parseInt(cpf.substring(i - 1, i), 10) * (11 - i);
+        }
+
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpf.substring(9, 10), 10)) return false;
+
+        soma = 0;
+        for (let i = 1; i <= 10; i++) {
+            soma += parseInt(cpf.substring(i - 1, i), 10) * (12 - i);
+        }
+
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpf.substring(10, 11), 10)) return false;
+
+        return true;
+    }
+
+
+
+    async function buscarDadosPagos() {
+        const input = document.getElementById('inputBuscaManual');
+        const btn = document.getElementById('btnBuscaManual');
+        const numeroAtualNoVisor = document.getElementById('clienteNumero').innerText;
+
+        const valorDigitado = (input?.value || '').trim();
+
+        if (valorDigitado.length < 3) {
+            return notyf.error("Digite ao menos 3 caracteres.");
+        }
+
+        let cpf = '';
+        let telefone = '';
+        let nome = '';
+
+        const somenteNumeros = limparNumeros(valorDigitado);
+        const nomeLimpo = valorDigitado.replace(/\s+/g, ' ').trim();
+
+        // 🔥 inteligência de identificação
+        if (/[a-zA-ZÀ-ÿ]/.test(valorDigitado)) {
+            nome = nomeLimpo;
+        } else if (validarCPF(somenteNumeros)) {
+            cpf = somenteNumeros;
+        } else {
+            telefone = somenteNumeros;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/lookup-client`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cpf: cpf,
+                    telefone: telefone,
+                    nome: nome
+                })
+            });
+
+            const res = await response.json();
+
+            logWebRTC('Lookup client:', res);
+
+            if (res.success && res.cliente) {
+
+                notyf.success("Cliente identificado!");
+
+                // ✅ GUARDA PARA O DRAWER
+                clienteManualAtual = res.cliente || null;
+                detalhesClienteManual = res.detalhes || null;
+
+                // ✅ MOSTRA BOTÃO "VER DADOS"
+                mostrarBotaoMaisDetalhes();
+
+                // ✅ LIMPA GRID ANTIGO (PLANILHA OU OUTRA BUSCA)
+                const grid = document.getElementById('clienteDetalhesGrid');
+                if (grid) grid.innerHTML = '';
+
+                // ✅ RENDERIZA CARD PRINCIPAL
+                exibirDadosCliente(
+                    numeroAtualNoVisor,
+                    currentCallId,
+                    "BUSCA MANUAL",
+                    { cliente: res.cliente }
+                );
+
+                // limpa input
+                input.value = "";
+
+            } else {
+                notyf.error(res.message || "Cliente não encontrado.");
+            }
+
+        } catch (e) {
+            warnWebRTC('Erro buscarDadosPagos:', e);
+            notyf.error("Falha na busca.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa fa-sync-alt"></i> Buscar';
+        }
+    }
+
+    function esconderBuscaEDetalhes() {
+        const boxBusca = document.getElementById('boxBuscaManual');
+        const btnDetalhes = document.getElementById('btnMaisDetalhes');
+
+        if (boxBusca) boxBusca.classList.add('hidden');
+        if (btnDetalhes) btnDetalhes.classList.add('hidden');
+    }
+
+    function mostrarBuscaManual() {
+        const boxBusca = document.getElementById('boxBuscaManual');
+        const btnDetalhes = document.getElementById('btnMaisDetalhes');
+
+        if (boxBusca) boxBusca.classList.remove('hidden');
+        if (btnDetalhes) btnDetalhes.classList.add('hidden');
+    }
+
+    function abrirMaisDetalhesCliente() {
+        if (!clienteManualAtual || !detalhesClienteManual) {
+            return notyf.error('Nenhum detalhe do cliente carregado.');
+        }
+
+        renderizarDrawerCliente(clienteManualAtual, detalhesClienteManual);
+        toggleDrawerClienteDetalhes(true);
+    }
+
+    function mostrarBotaoMaisDetalhes() {
+        const boxBusca = document.getElementById('boxBuscaManual');
+        const btnDetalhes = document.getElementById('btnMaisDetalhes');
+
+        if (boxBusca) boxBusca.classList.add('hidden');
+        if (btnDetalhes) btnDetalhes.classList.remove('hidden');
+    }
+
+    function formatarTelefoneBR(numero) {
+        const n = String(numero || '').replace(/\D/g, '');
+
+        if (!n) return '---';
+
+        if (n.length === 11) {
+            return n.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        }
+
+        if (n.length === 10) {
+            return n.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+        }
+
+        return n;
+    }
+
+    function formatarDataBR(data) {
+        const valor = String(data || '').trim();
+        if (!valor) return '---';
+
+        const base = valor.split(' ')[0];
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(base)) {
+            const [ano, mes, dia] = base.split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+
+        return valor;
+    }
+
+    function escaparHtml(valor) {
+        return String(valor ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function cardResumoHtml(label, value) {
+        const v = value && String(value).trim() ? String(value).trim() : '---';
+
+        return `
+        <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+            <p class="text-[9px] font-black uppercase text-slate-400 mb-1">${escaparHtml(label)}</p>
+            <p class="text-xs font-black text-slate-700 dark:text-white break-words">${escaparHtml(v)}</p>
+        </div>
+    `;
+    }
+
+    function renderizarDrawerCliente(cliente = {}, detalhes = {}) {
+        const nomeEl = document.getElementById('drawerClienteNome');
+        const cpfEl = document.getElementById('drawerClienteCpf');
+        const telEl = document.getElementById('drawerClienteTelefone');
+
+        const badgeTelefones = document.getElementById('badgeQtdTelefones');
+        const badgeEnderecos = document.getElementById('badgeQtdEnderecos');
+        const badgeEmails = document.getElementById('badgeQtdEmails');
+
+        const resumoEl = document.getElementById('secaoResumoCliente');
+        const telefonesEl = document.getElementById('tabelaTelefonesCliente');
+        const enderecosEl = document.getElementById('listaEnderecosCliente');
+        const emailsEl = document.getElementById('tabelaEmailsCliente');
+        const scoreEl = document.getElementById('secaoScoreCliente');
+        const vinculosEl = document.getElementById('secaoVinculosCliente');
+        const outrasBasesEl = document.getElementById('secaoOutrasBasesCliente');
+
+        const telefones = Array.isArray(detalhes.telefones) ? detalhes.telefones : [];
+        const enderecos = Array.isArray(detalhes.enderecos) ? detalhes.enderecos : [];
+        const emails = Array.isArray(detalhes.emails) ? detalhes.emails : [];
+        const resumo = Array.isArray(detalhes.resumo) ? detalhes.resumo : [];
+        const scorePerfil = Array.isArray(detalhes.score_perfil) ? detalhes.score_perfil : [];
+        const vinculos = detalhes.vinculos || {};
+        const outrasBases = detalhes.outras_bases || {};
+
+        if (nomeEl) {
+            nomeEl.textContent = (cliente.name || 'CLIENTE NÃO IDENTIFICADO').toUpperCase();
+        }
+
+        if (cpfEl) {
+            cpfEl.textContent = `CPF: ${cliente.cpf || '---'}`;
+        }
+
+        if (telEl) {
+            telEl.textContent = `TEL: ${formatarTelefoneBR(cliente.phone)}`;
+        }
+
+        if (badgeTelefones) {
+            badgeTelefones.textContent = `${telefones.length} Telefone${telefones.length === 1 ? '' : 's'}`;
+        }
+
+        if (badgeEnderecos) {
+            badgeEnderecos.textContent = `${enderecos.length} Endereço${enderecos.length === 1 ? '' : 's'}`;
+        }
+
+        if (badgeEmails) {
+            badgeEmails.textContent = `${emails.length} E-mail${emails.length === 1 ? '' : 's'}`;
+        }
+
+        if (resumoEl) {
+            resumoEl.innerHTML = resumo.length
+                ? resumo.map(item => {
+                    const valor = String(item.label || '').toLowerCase().includes('nascimento')
+                        ? formatarDataBR(item.value)
+                        : item.value;
+
+                    return cardResumoHtml(item.label || 'Campo', valor);
+                }).join('')
+                : `<div class="col-span-full text-[11px] font-bold text-slate-400 uppercase">Nenhum resumo disponível.</div>`;
+        }
+
+        if (telefonesEl) {
+            telefonesEl.innerHTML = telefones.length
+                ? telefones.map(tel => `
+                <tr class="bg-white dark:bg-slate-900">
+                    <td class="px-4 py-3 text-xs font-bold text-slate-700 dark:text-white">${escaparHtml(formatarTelefoneBR(tel.numero))}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(tel.tipo || '---')}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(tel.classificacao || '---')}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(tel.informacao || '---')}</td>
+                </tr>
+            `).join('')
+                : `<tr><td colspan="4" class="px-4 py-4 text-[11px] font-bold text-slate-400 uppercase">Nenhum telefone encontrado.</td></tr>`;
+        }
+
+        if (enderecosEl) {
+            enderecosEl.innerHTML = enderecos.length
+                ? enderecos.map(end => `
+                <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        ${cardResumoHtml('Logradouro', end.logradouro || '---')}
+                        ${cardResumoHtml('Número', end.numero || '---')}
+                        ${cardResumoHtml('Complemento', end.complemento || '---')}
+                        ${cardResumoHtml('Bairro', end.bairro || '---')}
+                        ${cardResumoHtml('Cidade', end.cidade || '---')}
+                        ${cardResumoHtml('UF', end.uf || '---')}
+                        ${cardResumoHtml('CEP', end.cep || '---')}
+                        ${cardResumoHtml('Informação', end.informacao || '---')}
+                    </div>
+                </div>
+            `).join('')
+                : `<div class="text-[11px] font-bold text-slate-400 uppercase">Nenhum endereço encontrado.</div>`;
+        }
+
+        if (emailsEl) {
+            emailsEl.innerHTML = emails.length
+                ? emails.map(email => `
+                <tr class="bg-white dark:bg-slate-900">
+                    <td class="px-4 py-3 text-xs font-bold text-slate-700 dark:text-white break-all">${escaparHtml(email.email || '---')}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(email.score || '---')}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(email.estrutura || '---')}</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-300">${escaparHtml(email.status || '---')}</td>
+                </tr>
+            `).join('')
+                : `<tr><td colspan="4" class="px-4 py-4 text-[11px] font-bold text-slate-400 uppercase">Nenhum e-mail encontrado.</td></tr>`;
+        }
+
+        if (scoreEl) {
+            scoreEl.innerHTML = scorePerfil.length
+                ? scorePerfil.map(item => cardResumoHtml(item.label || 'Campo', item.value || '---')).join('')
+                : `<div class="col-span-full text-[11px] font-bold text-slate-400 uppercase">Nenhum dado de score/perfil encontrado.</div>`;
+        }
+
+        if (vinculosEl) {
+            const blocos = [];
+
+            if (Array.isArray(vinculos.parentes) && vinculos.parentes.length) {
+                blocos.push(`
+                <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-3">Parentes</p>
+                    <div class="space-y-2">
+                        ${vinculos.parentes.map(item => `
+                            <div class="text-xs text-slate-600 dark:text-slate-300">
+                                <span class="font-black text-slate-800 dark:text-white">${escaparHtml(item.nome || '---')}</span>
+                                — ${escaparHtml(item.vinculo || '---')}
+                                ${item.cpf ? ` — CPF: ${escaparHtml(item.cpf)}` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+            }
+
+            if (Array.isArray(vinculos.pis) && vinculos.pis.length) {
+                blocos.push(`
+                <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-3">PIS</p>
+                    <div class="space-y-2">
+                        ${vinculos.pis.map(item => `
+                            <div class="text-xs font-bold text-slate-700 dark:text-white">
+                                ${escaparHtml(item.pis || '---')}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+            }
+
+            if (Array.isArray(vinculos.tse) && vinculos.tse.length) {
+                blocos.push(`
+                <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-3">TSE</p>
+                    <div class="space-y-2">
+                        ${vinculos.tse.map(item => `
+                            <div class="text-xs text-slate-600 dark:text-slate-300">
+                                Título: <span class="font-black text-slate-800 dark:text-white">${escaparHtml(item.titulo || '---')}</span>
+                                — Zona: ${escaparHtml(item.zona || '---')}
+                                — Seção: ${escaparHtml(item.secao || '---')}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+            }
+
+            if (Array.isArray(vinculos.irpf) && vinculos.irpf.length) {
+                blocos.push(`
+                <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-3">IRPF</p>
+                    <div class="space-y-2">
+                        ${vinculos.irpf.map(item => `
+                            <div class="text-xs text-slate-600 dark:text-slate-300">
+                                Ano: <span class="font-black text-slate-800 dark:text-white">${escaparHtml(item.ano || '---')}</span>
+                                — Banco: ${escaparHtml(item.banco || '---')}
+                                — Lote: ${escaparHtml(item.lote || '---')}
+                                — Situação: ${escaparHtml(item.situacao || '---')}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+            }
+
+            vinculosEl.innerHTML = blocos.length
+                ? blocos.join('')
+                : `<div class="text-[11px] font-bold text-slate-400 uppercase">Nenhum vínculo encontrado.</div>`;
+        }
+
+        if (outrasBasesEl) {
+            const entries = Object.entries(outrasBases);
+
+            outrasBasesEl.innerHTML = entries.length
+                ? entries.map(([chave, valor]) => {
+                    let qtd = 0;
+
+                    if (Array.isArray(valor)) qtd = valor.length;
+                    else if (valor && typeof valor === 'object') qtd = Object.keys(valor).length;
+
+                    return `
+                    <div class="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-slate-400">${escaparHtml(chave)}</p>
+                                <p class="text-xs font-bold text-slate-700 dark:text-white mt-1">
+                                    ${qtd} registro${qtd === 1 ? '' : 's'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                }).join('')
+                : `<div class="text-[11px] font-bold text-slate-400 uppercase">Nenhuma base complementar encontrada.</div>`;
+        }
+    }
+
+    async function buscarDadosPlanilha(idLista, telefone) {
+        try {
+            const res = await fetch(`${baseUrl}/callcenter/get-client`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: idLista, telefone: telefone })
+            });
+            const data = await res.json();
+            return data.success ? data : null;
+        } catch (e) { return null; }
+    }
+
+    function toggleDrawerClienteDetalhes(abrir = true) {
+        const overlay = document.getElementById('drawerClienteOverlay');
+        const drawer = document.getElementById('drawerClienteDetalhes');
+
+        if (!overlay || !drawer) return;
+
+        if (abrir) {
+            overlay.classList.remove('hidden');
+            drawer.classList.remove('hidden');
+
+            requestAnimationFrame(() => {
+                overlay.classList.remove('opacity-0');
+                overlay.classList.add('opacity-100');
+
+                drawer.classList.remove('translate-x-full');
+            });
+
+            document.body.classList.add('overflow-hidden');
+        } else {
+            overlay.classList.remove('opacity-100');
+            overlay.classList.add('opacity-0');
+
+            drawer.classList.add('translate-x-full');
+
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                drawer.classList.add('hidden');
+            }, 300);
+
+            document.body.classList.remove('overflow-hidden');
+        }
+    }
+
+    function exibirDadosCliente(numero, callId, campanha, dados = {}, idDoBotao = null) {
+        const btnAcaoCard = document.getElementById('btnAtender');
+        const eDiscador = campanha && !campanha.toLowerCase().includes('manual');
+        const estaEmLinha = sessaoVoz && sessaoVoz.isEstablished();
+
+        const buscaManualBemSucedida = !!detalhesClienteManual;
+
+        if (buscaManualBemSucedida) {
+            mostrarBotaoMaisDetalhes();
+        } else {
+            mostrarBuscaManual();
+            detalhesClienteManual = null;
+        }
+
+        if (btnAcaoCard) {
+            btnAcaoCard.classList.add('hidden');
+            if (eDiscador && !estaEmLinha) {
+                btnAcaoCard.innerText = "ATENDER";
+                btnAcaoCard.className = "p-3 bg-emerald-500 text-white rounded-xl shadow-md hover:bg-emerald-600 transition-all block";
+                btnAcaoCard.classList.remove('hidden');
+                btnAcaoCard.onclick = () => atenderChamada(idDoBotao || callId);
+            }
+        }
+
+        const c = (dados && dados.cliente) ? dados.cliente : {};
+        const f = (num) => {
+            let l = String(num || "").replace(/\D/g, '');
+            if (l.length > 11) l = l.slice(-11);
+            return l.length === 11 ? l.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3") : l.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+        };
+
+        const foneFormatado = f(numero || c.phone);
+        const foneParaLinks = foneFormatado.replace(/\D/g, '');
+        const nomeExibir = (c.name || "CLIENTE NÃO IDENTIFICADO").toUpperCase();
+
+        document.getElementById('clienteNome').innerText = nomeExibir;
+        document.getElementById('clienteNumero').innerText = foneFormatado;
+        document.getElementById('campanhaNome').innerText = "CAMPANHA: " + (campanha || c.campaign_name || "MXX");
+
+        const grid = document.getElementById('clienteDetalhesGrid');
+        if (grid) {
+            const cardHtml = (label, valor, isProtocolo = false) => {
+                const val = valor || "---";
+                const v = String(val).toLowerCase();
+                let cores = 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700';
+                if (['ativo', 'pago', 'sim'].includes(v)) cores = 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20';
+                if (['pendente', 'atraso', 'não', 'informado'].includes(v)) cores = 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20';
+
+                return `<div class="group relative p-3 rounded-xl border ${cores} shadow-sm transition-all hover:shadow-md"><div class="flex justify-between items-start mb-1"><p class="text-[9px] font-bold text-slate-400 uppercase leading-none">${label}</p><div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="copiarTexto('${val}', '${label}')" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-[10px]"><i class="fa fa-copy"></i></button>${isProtocolo ? `<button onclick="enviarProtocoloSMS('${foneParaLinks}', '${val}', '${nomeExibir}', this)" class="p-1 text-blue-600 rounded text-[10px]" title="Enviar SMS"><i class="fa fa-envelope"></i></button>` : ''}</div></div><p class="text-xs font-black truncate">${val}</p></div>`;
+            };
+
+            let h = `<div class="col-span-full bg-blue-600 p-3 rounded-xl shadow-lg flex items-center justify-between mb-2"><div class="flex items-center gap-3"><div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-white"><i class="fab fa-whatsapp text-xl"></i></div><div><p class="text-[10px] font-bold text-blue-100 uppercase leading-none">WhatsApp</p><p class="text-xs font-black text-white">Iniciar Conversa</p></div></div><button onclick="abrirWhatsApp('${foneParaLinks}', '${nomeExibir}')" class="bg-white text-blue-600 px-5 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-blue-50 transition-all">ABRIR CHAT</button></div>`;
+            h += cardHtml('CPF', c.cpf) + cardHtml('Protocolo', callId, true);
+            if (c.extra_data) {
+                try {
+                    const ex = typeof c.extra_data === 'string' ? JSON.parse(c.extra_data) : c.extra_data;
+                    for (const k in ex) if (k.toLowerCase() !== 'cpf') h += cardHtml(k.replace(/_/g, ' ').toUpperCase(), ex[k]);
+                } catch (e) { }
+            }
+            grid.innerHTML = h;
+
+        }
+        document.getElementById('activeCallContainer').classList.remove('hidden');
+    }
+
+    function fecharCardCliente() {
+        try {
+            const n = document.getElementById('clienteNome'),
+                num = document.getElementById('clienteNumero'),
+                t = document.getElementById('meuTimer'),
+                c = document.getElementById('campanhaNome');
+
+            registrarHistoricoCardAtual();
+        } catch (e) {}
+
+        if (sessaoVoz) {
+            sessaoVoz.terminate();
+            sessaoVoz = null;
+        }
+
+        currentCallId = null;
+        currentAnswerChannelId = null;
+        ultimoDadosPlanilhaKey = null;
+        document.getElementById('activeCallContainer').classList.add('hidden');
+
+        const btnAtender = document.getElementById('btnAtender');
+        if (btnAtender) btnAtender.classList.add('hidden');
+
+        detalhesClienteManual = null;
+        mostrarBuscaManual();
+        toggleDrawerClienteDetalhes(false);
+    }
+
+    function atualizarInterfaceStatus(dados) {
+        const badge = document.getElementById('statusBadge'), timerEl = document.getElementById('meuTimer'), label = document.getElementById('timerLabel'), contAtivo = document.getElementById('activeCallContainer'), grid = document.getElementById('clienteDetalhesGrid'), botoes = document.querySelectorAll('#gridAcoesAgente button');
+
+        if (currentCallId !== null || existeChamadaWebRTCAtiva()) {
+            if (badge) { badge.innerText = "EM ATENDIMENTO"; badge.className = "bg-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm"; }
+            if (label) label.innerText = "DURAÇÃO DA CHAMADA";
+            manterCardChamadaAtiva();
+            return;
+        }
+
+        botoes.forEach(b => b.classList.remove('ring-4', 'ring-orange-500/40', 'border-orange-500', 'ring-emerald-500/40', 'border-emerald-500'));
+        const cores = { 'emerald': 'bg-emerald-500', 'orange': 'bg-orange-500', 'slate': 'bg-slate-400', 'blue': 'bg-blue-500', 'red': 'bg-red-500' };
+        if (dados.status && badge) {
+            badge.innerText = dados.status.toUpperCase();
+            badge.className = `text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm ${cores[dados.color] || 'bg-slate-400'}`;
+        }
+        if (label) label.innerText = "DURAÇÃO NO STATUS";
+
+        const sU = dados.status ? dados.status.toUpperCase() : '', nU = dados.status_name ? dados.status_name.toUpperCase() : '';
+        botoes.forEach(b => {
+            const nB = b.dataset.nome || '', tB = b.innerText.toUpperCase();
+            if ((sU.includes('PAUSA')) && nB === nU) b.classList.add('ring-4', 'ring-orange-500/40', 'border-orange-500');
+            else if ((sU.includes('LIVRE') || sU.includes('DISPONIVEL')) && tB.includes('LIVRE')) b.classList.add('ring-4', 'ring-emerald-500/40', 'border-emerald-500');
+        });
+
+        if (sU.includes('PAUSA')) {
+            contAtivo.classList.remove('hidden');
+            contAtivo.querySelectorAll('button:not(#btnAtender)').forEach(b => b.classList.add('hidden'));
+            const mot = String(dados.status_name || 'PAUSA').toUpperCase();
+            document.getElementById('clienteNome').textContent = "PAUSA ATIVA";
+            document.getElementById('clienteNumero').textContent = mot;
+            document.getElementById('campanhaNome').textContent = `MOTIVO: ${mot}`;
+            if (grid) grid.innerHTML = `<div class="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm col-span-full"><p class="text-[10px] font-bold text-orange-500 uppercase mb-1">Status Atual</p><p class="text-sm font-black text-orange-700 mb-0">${mot}</p></div>`;
+            esconderBuscaEDetalhes();
+        } else { contAtivo.classList.add('hidden'); }
+
+        if (timerEl && dados.tempo_segundos !== undefined) {
+            timerEl.dataset.seconds = dados.tempo_segundos;
+            timerEl.innerText = dados.tempo || formatTime(dados.tempo_segundos);
+            if (currentCallId !== null) atualizarCronometroTeclado(parseInt(dados.tempo_segundos) || 0);
+        }
+    }
+
+    function sincronizarTimerComChamada(duracao) {
+        const t = document.getElementById('meuTimer');
+        const segundos = segundosDaDuracao(duracao);
+        if (!t) return;
+        t.dataset.seconds = segundos;
+        t.innerText = duracao;
+        atualizarCronometroTeclado(segundos);
+    }
+
+    function segundosDaDuracao(duracao) {
+        const partes = String(duracao || '0:0:0').split(':').map(v => parseInt(v, 10) || 0);
+        if (partes.length === 2) return partes[0] * 60 + partes[1];
+        return (partes[0] || 0) * 3600 + (partes[1] || 0) * 60 + (partes[2] || 0);
+    }
+
+    function atualizarCronometroTeclado(segundos) {
+        const cron = document.getElementById('cronometro-visor');
+        if (!cron) return;
+        const sec = Math.max(0, parseInt(segundos, 10) || 0);
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        cron.innerText = `${m}:${s}`;
+    }
+
+    function startTimers() {
+        if (timersStarted) return; timersStarted = true;
+        setInterval(() => {
+            const el = document.getElementById('meuTimer'), label = document.getElementById('timerLabel');
+            if (el) {
+                let sec = parseInt(el.dataset.seconds) || 0;
+                sec++; el.dataset.seconds = sec; el.innerText = formatTime(sec);
+                if (currentCallId !== null) { if (label.innerText !== "DURAÇÃO DA CHAMADA") label.innerText = "DURAÇÃO DA CHAMADA"; atualizarCronometroTeclado(sec); }
+                else { if (label.innerText !== "DURAÇÃO NO STATUS") label.innerText = "DURAÇÃO NO STATUS"; }
+            }
+        }, 1000);
+    }
+
+    function formatTime(sec) {
+        const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+
+    async function hangupCurrentCall() {
+        if (sessaoVoz) { sessaoVoz.terminate(); sessaoVoz = null; }
+        if (!currentCallId) return fecharCardCliente();
+        const btn = event.currentTarget, old = btn.innerHTML;
+        try {
+            btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Limpando...';
+            await fetch(`${baseUrl}/campaign/voice/hangup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ call_id: currentCallId }) });
+        } catch (err) { } finally { fecharCardCliente(); if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+    }
+
+    async function atenderChamada(targetCallId = null) {
+        const btn = document.getElementById('btnAtender');
+        const btnPrincipal = document.getElementById('btn-acao-chamada');
+        const old = btn ? btn.innerHTML : '';
+        const answerCallId = targetCallId || currentAnswerChannelId || currentCallId;
+        const sessaoIncoming = obterSessaoIncomingPendente();
+        logWebRTC('[ATENDER] Clique recebido', {
+            targetCallId,
+            currentAnswerChannelId,
+            currentCallId,
+            answerCallId,
+            ramalLogado,
+            sessaoVozDirection: sessaoVoz?.direction || null,
+            sessaoVozEstablished: typeof sessaoVoz?.isEstablished === 'function'
+                ? sessaoVoz.isEstablished()
+                : null,
+            temSessaoIncomingPendente: !!sessaoIncoming
+        });
+
+        if (!sessaoIncoming) {
+            warnWebRTC('[ATENDER] Nenhuma sessão SIP/WebRTC incoming disponível para atender', {
+                uaRegistrado: !!(ua && typeof ua.isRegistered === 'function' && ua.isRegistered()),
+                incomingWebrtcMeta,
+                answerCallId,
+                currentAnswerChannelId,
+                currentCallId,
+                sessaoVozExiste: !!sessaoVoz,
+                sessaoVozDirection: sessaoVoz?.direction || null,
+                sessaoVozEnded: typeof sessaoVoz?.isEnded === 'function' ? sessaoVoz.isEnded() : null,
+                sessaoVozEstablished: typeof sessaoVoz?.isEstablished === 'function' ? sessaoVoz.isEstablished() : null
+            });
+
+            if (typeof notyf !== 'undefined') {
+                notyf.error("Nenhuma chamada WebRTC recebida para atender.");
+            }
+            return;
+        }
+
+        if (incomingAnswerInFlight) {
+            logWebRTC('[ATENDER] Answer WebRTC já está em andamento, ignorando novo clique');
+            return;
+        }
+
+        const microfoneLiberado = await garantirMicrofoneLiberado();
+        if (!microfoneLiberado) {
+            warnWebRTC('[ATENDER] Microfone não liberado para atender via WebRTC');
+            return;
+        }
+
+        try {
+            incomingAnswerInFlight = true;
+            chamadaWebRTCAceita = false;
+            const localStream = await obterStreamLocal();
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Atendendo...';
+            }
+            if (btnPrincipal) {
+                btnPrincipal.disabled = true;
+            }
+
+            gerenciarVisor('abrir', 'Atendendo...');
+
+            logWebRTC('[ATENDER] Atendendo sessão incoming via WebRTC', {
+                incomingWebrtcMeta,
+                localTracks: localStream?.getTracks?.().map(t => ({
+                    kind: t.kind,
+                    enabled: t.enabled,
+                    readyState: t.readyState
+                })) || []
+            });
+            sessaoIncoming.answer(obterOpcoesMidia(localStream));
+            limparWatchdogAtendimento();
+            setTimeout(() => {
+                consolidarAtendimentoWebRTC(sessaoIncoming, 'post-answer-check-1s');
+            }, 1000);
+            setTimeout(() => {
+                consolidarAtendimentoWebRTC(sessaoIncoming, 'post-answer-check-3s');
+            }, 3000);
+            timerAnswerWatchdog = setTimeout(() => {
+                const mesmaSessao = sessaoVoz === sessaoIncoming;
+                const encerrada = typeof sessaoIncoming.isEnded === 'function' && sessaoIncoming.isEnded();
+                const estabelecida = typeof sessaoIncoming.isEstablished === 'function' && sessaoIncoming.isEstablished();
+
+                if (mesmaSessao && estabelecida) {
+                    consolidarAtendimentoWebRTC(sessaoIncoming, 'answer-watchdog-established');
+                    return;
+                }
+
+                if (!incomingAnswerInFlight || !mesmaSessao || encerrada) {
+                    return;
+                }
+
+                incomingAnswerInFlight = false;
+                chamadaWebRTCAceita = false;
+                resetarBotaoAtenderWebRTC();
+                if (btnPrincipal) btnPrincipal.disabled = false;
+                gerenciarVisor('abrir', 'Falha ao confirmar atendimento');
+
+                try {
+                    sessaoIncoming.terminate();
+                } catch (e) {
+                    warnWebRTC('[ATENDER] Falha ao encerrar sessão presa no atendimento', e);
+                }
+
+                if (typeof notyf !== 'undefined') {
+                    notyf.error("A chamada não confirmou no WebRTC. Verifique conexão e tente novamente.");
+                }
+            }, 15000);
+            setTimeout(() => tentarAnexarAudioRemotoDaSessao(sessaoIncoming, 'after-answer'), 300);
+            atualizarVisualChamada('progress', incomingWebrtcMeta?.number || '');
+
+            if (typeof notyf !== 'undefined') {
+                notyf.success("Atendendo via WebRTC...");
+            }
+            return;
+        } catch (err) {
+            incomingAnswerInFlight = false;
+            chamadaWebRTCAceita = false;
+            limparWatchdogAtendimento();
+            warnWebRTC('[ATENDER] Falha ao atender via WebRTC', err);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = old;
+            }
+            if (btnPrincipal) {
+                btnPrincipal.disabled = false;
+            }
+            if (typeof notyf !== 'undefined') {
+                notyf.error("Falha ao atender a sessão WebRTC. Verifique console/SDP.");
+            }
+            return;
+        }
+    }
+
+    async function resetCheckin() {
+        if (confirm("Deseja realmente encerrar sua jornada?")) {
+            if (ramalLogado) {
+                try { await fetch(`${baseUrl}/callcenter/agent-set-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ramal: ramalLogado, status: 'LIVRE' }) }); } catch (e) { }
+            }
+            localStorage.removeItem('agente_sessao');
+            localStorage.removeItem('agente_historico');
+            window.location.reload();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById('drawerClienteOverlay');
+
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                toggleDrawerClienteDetalhes(false);
+            });
+        }
+    });
+</script>

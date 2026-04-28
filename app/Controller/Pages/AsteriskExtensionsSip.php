@@ -1,13 +1,14 @@
 <?php
 
 namespace App\Controller\Pages;
+
+use App\Config\TelephonyConfig;
 use Firebase\JWT\JWT;
 
 
 class AsteriskExtensionsSip
 {
     // ======== CONFIG ========
-    private const string BASE_URL = 'http://192.168.1.8/index.php';
     private const string JWT_ISSUER = 'mxx-asterisk';
     private const int JWT_TTL = 3600; // segundos
     private const int CONNECT_TIMEOUT = 3;
@@ -17,34 +18,45 @@ class AsteriskExtensionsSip
     private ?string $cachedJwt = null;
     private int $cachedJwtExp = 0;
 
+    private static function baseUrl(): string
+    {
+        return TelephonyConfig::asteriskIndexUrl();
+    }
+
     /**
      * Exemplo de chamada para listar extensões SIP
      */
     public function listExtensions(array $query = []): array
     {
+        $query = $this->normalizeQuery($query);
+
         // 🔹 se o usuário for super_admin, não envia user_id nem tenant_id
-        if (isset($query['function']) && $query['function'] === 'super_admin') {
-            unset($query['user_id'], $query['tenant_id']);
+        if (($query['function'] ?? null) === 'super_admin') {
+            unset($query['user_id'], $query['tenant_id'], $query['tenancy_id'], $query['owner_id']);
         }
 
         $query['action'] = $query['action'] ?? 'extensions';
-        return $this->request('GET', $query);
+        return $this->normalizeApiResponse($this->request('GET', $query), 'extensions', true);
     }
 
     public function createExtension(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'extensions');
         $query['action'] = 'create_extension';
-        return $this->request('POST', $query, $payload);
+        return $this->normalizeApiResponse($this->request('POST', $query, $payload), 'extensions', false);
     }
 
     public function getExtensionById(array $query, string $id): array
     {
+        $query = $this->normalizeQuery($query);
+
         // 🔹 Ação correta definida na sua API PHP
         $query['action'] = 'getById';
         $query['id'] = $id;
 
         // 🔹 Executa requisição (gera JWT e envia cabeçalho)
-        $response = $this->request('GET', $query);
+        $response = $this->normalizeApiResponse($this->request('GET', $query), 'extensions', false);
 
         // 🔹 Trata o retorno
         $status = $response['status'] ?? 0;
@@ -66,18 +78,24 @@ class AsteriskExtensionsSip
 
     public function updateExtension(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'extensions');
         $query['action'] = 'update_extension';
-        return $this->request('PUT', $query, $payload);
+        return $this->normalizeApiResponse($this->request('PUT', $query, $payload), 'extensions', false);
     }
 
     public function updateBalance(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'generic');
         $query['action'] = 'update_balance';
         return $this->request('PUT', $query, $payload);
     }
 
     public function updateTariff(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'generic');
         //echo "<pre>";
         //print_r($payload);
         //echo "</pre>";exit();
@@ -88,6 +106,8 @@ class AsteriskExtensionsSip
 
     public function deleteExtension(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'extensions');
         // 🔹 Define a ação esperada pela API
         $query['action'] = 'delete_extension';
 
@@ -97,6 +117,8 @@ class AsteriskExtensionsSip
 
     public function updateStatus(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'extensions');
         // 🔹 Define a ação esperada pela API PHP
         $query['action'] = 'update_status';
 
@@ -107,6 +129,8 @@ class AsteriskExtensionsSip
     // ================== AUDIOS (NOVO) ==================
     public function createAudio(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'audios');
         // 🔹 Define a ação
         $query['action'] = 'create_audio';
 
@@ -120,22 +144,28 @@ class AsteriskExtensionsSip
         }
 
         // 🚀 Faz a requisição POST com o corpo JSON
-        return $this->request('POST', $query, $payload);
+        return $this->normalizeApiResponse($this->request('POST', $query, $payload), 'audios', false);
     }
 
 
     public function listAudios(array $query = []): array
     {
+        $query = $this->normalizeQuery($query);
+
         // 🔹 Se o usuário for super_admin, não envia user_id nem tenant_id
         if (isset($query['function']) && strtolower($query['function']) === 'super_admin') {
-            unset($query['user_id'], $query['tenant_id']);
+            unset($query['user_id'], $query['tenant_id'], $query['tenancy_id'], $query['owner_id']);
         }
 
         // 🔹 Define ação padrão
         $query['action'] = $query['action'] ?? 'list_audios';
 
         // 🔹 Faz a requisição
-        $response = $this->request('GET', $query);
+        $response = $this->normalizeApiResponse($this->request('GET', $query), 'audios', true);
+
+        //echo "<pre>";
+        //print_r($response);
+        //echo "</pre>";exit();
 
         // 🔹 Verifica se deu erro na requisição
         if (!isset($response['ok']) || !$response['ok']) {
@@ -161,6 +191,69 @@ class AsteriskExtensionsSip
         ];
     }
 
+    /**
+     * Lista as gravações de chamadas (Snoop/Record) do Call Center
+     * -----------------------------------------------------------
+     */
+    public function listRecordings(array $query = []): array
+    {
+        $query = $this->normalizeQuery($query);
+
+        // 🔹 Se for super_admin, remove filtros restritivos para ver tudo
+        if (isset($query['function']) && strtolower($query['function']) === 'super_admin') {
+            unset($query['user_id'], $query['tenant_id'], $query['tenancy_id'], $query['owner_id']);
+        }
+
+        // 🔹 Define a ação para o backend (ex: buscar no banco CDR)
+        $query['action'] = $query['action'] ?? 'list_recordings';
+
+        // 🔹 Faz a requisição ao seu motor/API
+        $response = $this->normalizeApiResponse($this->request('GET', $query), 'recordings', true);
+
+        // 🔹 Validação da resposta
+        if (!isset($response['ok']) || !$response['ok']) {
+            return [
+                'ok'    => false,
+                'error' => $response['error'] ?? 'Erro ao listar gravações',
+                'data'  => [],
+            ];
+        }
+
+        $body = $response['data'] ?? [];
+        $data = $body['data'] ?? [];
+
+        // 🔹 PULO DO GATO: Gerar o Token de Áudio para cada linha
+        // O caminho no disco é: tenant_XXX/user_YYY/call:ZZZ.wav
+        foreach ($data as &$item) {
+            if (!empty($item['call_id'])) {
+                $tenantId = $item['tenancy_id'] ?? '0';
+                $userId   = $item['owner_id']   ?? '0';
+                $callId   = $item['call_id'];
+
+                // Garante que o callId tenha o prefixo "call:" se não vier do banco
+                $fileName = (strpos($callId, 'call:') === false) ? "call:{$callId}.wav" : "{$callId}.wav";
+
+                // Monta a string do caminho relativo
+                $pathString = "tenant_{$tenantId}/user_{$userId}/{$fileName}";
+
+                // Gera o token Base64 para o recording.php
+                $item['audio_token'] = base64_encode($pathString);
+
+                // Link pronto para o player do Dashboard
+                // Ajuste o domínio para o seu servidor
+                $item['recording_url'] = "/recording.php?token=" . $item['audio_token'];
+            }
+        }
+
+        return [
+            'ok'      => true,
+            'status'  => $body['status']  ?? 200,
+            'message' => $body['message'] ?? '',
+            'total'   => $body['total']   ?? count($data),
+            'data'    => $data,
+        ];
+    }
+
 
 
     /**
@@ -169,6 +262,8 @@ class AsteriskExtensionsSip
 
     public function deleteAudio(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'audios');
         // 🔹 Define a ação esperada pela API
         $query['action'] = 'delete_audio';
 
@@ -179,40 +274,56 @@ class AsteriskExtensionsSip
 
     public function listTrunks(array $query = []): array
     {
+        $query = $this->normalizeQuery($query);
 
         // 🔹 se o usuário for super_admin, não envia user_id nem tenant_id
-        if (isset($query['function']) && $query['function'] === 'super_admin') {
-            unset($query['user_id'], $query['tenant_id']);
+        if (($query['function'] ?? null) === 'super_admin') {
+            unset($query['user_id'], $query['tenant_id'], $query['tenancy_id'], $query['owner_id']);
         }
 
         $query['action'] = 'get_trunks';
-        return $this->request('GET', $query);
+        return $this->normalizeApiResponse($this->request('GET', $query), 'trunks', true);
     }
 
 
     public function createSipTrunk(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'trunks');
         $query['action'] = 'create_trunk';
-        return $this->request('POST', $query, $payload);
+        return $this->normalizeApiResponse($this->request('POST', $query, $payload), 'trunks', false);
     }
 
     public function getTrunkById(array $query, int $id): array
     {
+        $query = $this->normalizeQuery($query);
 
         // 🔹 Ação correta definida na sua API PHP
         $query['action'] = 'getTrunkById';
         $query['id'] = $id;
+        $query['trunk_id'] = (string)$id;
 
         // 🔹 Executa requisição (gera JWT e envia cabeçalho)
-        $response = $this->request('GET', $query);
+        $response = $this->normalizeApiResponse($this->request('GET', $query), 'trunks', false);
 
-        // 🔹 Trata o retorno
-        $status = $response['status'] ?? 0;
-        $ok = $status >= 200 && $status < 300;
+        $row = $this->extractEntityData($response, false);
 
-        if (!$ok || empty($response['data'])) {
+        if (!is_array($row) || $row === []) {
+            $fallback = $this->findTrunkInList($query, $id);
+            if ($fallback !== null) {
+                return [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [
+                        'success' => true,
+                        'data' => $fallback,
+                    ],
+                ];
+            }
+
             return [
                 'ok' => false,
+                'status' => $response['status'] ?? 404,
                 'error' => $response['error'] ?? "SIP Trunk {$id} não encontrado.",
                 'data' => [],
             ];
@@ -226,12 +337,16 @@ class AsteriskExtensionsSip
 
     public function updateSipTrunks(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'trunks');
         $query['action'] = 'update_trunks';
-        return $this->request('PUT', $query, $payload);
+        return $this->normalizeApiResponse($this->request('PUT', $query, $payload), 'trunks', false);
     }
 
     public function updateStatusSipTrunks(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'trunks');
         // 🔹 Define a ação esperada pela API PHP
         $query['action'] = 'status_trunks';
 
@@ -241,6 +356,8 @@ class AsteriskExtensionsSip
 
     public function deleteSipTrunks(array $query, array $payload): array
     {
+        $query = $this->normalizeQuery($query);
+        $payload = $this->normalizePayload($payload, 'trunks');
         // 🔹 Define a ação esperada pela API
         $query['action'] = 'delete_trunks';
 
@@ -254,7 +371,7 @@ class AsteriskExtensionsSip
     private function request(string $method, array $query = [], ?array $body = null): array
     {
         // 🔗 Montagem da URL com query string
-        $url = self::BASE_URL;
+        $url = self::baseUrl();
 
         if (!empty($query)) {
             $qs = http_build_query($query);
@@ -395,12 +512,23 @@ class AsteriskExtensionsSip
             throw new \RuntimeException('JWT_SECRET não definido no .env');
         }
 
+        $jwtClaims = [];
+        foreach ($extraClaims as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            if (is_scalar($value) || $value === null) {
+                $jwtClaims[$key] = $value;
+            }
+        }
+
         // Payload mínimo e genérico
         $payload = array_merge([
             'iss' => self::JWT_ISSUER,
             'iat' => $now,
             'exp' => $exp,
-        ]);
+        ], $jwtClaims);
 
         //echo "<pre>";
         //print_r($payload);
@@ -417,6 +545,237 @@ class AsteriskExtensionsSip
         $this->cachedJwtExp = $exp;
 
         return $token;
+    }
+
+    private function normalizeQuery(array $query): array
+    {
+        if (isset($query['tenant_id']) && !isset($query['tenancy_id'])) {
+            $query['tenancy_id'] = $query['tenant_id'];
+        } elseif (isset($query['tenancy_id']) && !isset($query['tenant_id'])) {
+            $query['tenant_id'] = $query['tenancy_id'];
+        }
+
+        if (isset($query['user_id']) && !isset($query['owner_id'])) {
+            $query['owner_id'] = $query['user_id'];
+        } elseif (isset($query['owner_id']) && !isset($query['user_id'])) {
+            $query['user_id'] = $query['owner_id'];
+        }
+
+        if (isset($query['function']) && !isset($query['role'])) {
+            $query['role'] = $query['function'];
+        } elseif (isset($query['role']) && !isset($query['function'])) {
+            $query['function'] = $query['role'];
+        }
+
+        if (isset($query['extension']) && !isset($query['username'])) {
+            $query['username'] = $query['extension'];
+        } elseif (isset($query['username']) && !isset($query['extension'])) {
+            $query['extension'] = $query['username'];
+        }
+
+        return $query;
+    }
+
+    private function normalizePayload(array $payload, string $entity): array
+    {
+        $payload = $this->normalizeQuery($payload);
+
+        if ($entity === 'extensions') {
+            if (isset($payload['extension']) && !isset($payload['username'])) {
+                $payload['username'] = $payload['extension'];
+            } elseif (isset($payload['username']) && !isset($payload['extension'])) {
+                $payload['extension'] = $payload['username'];
+            }
+
+            if (isset($payload['callerid']) && !isset($payload['caller_number'])) {
+                $payload['caller_number'] = $payload['callerid'];
+            } elseif (isset($payload['caller_number']) && !isset($payload['callerid'])) {
+                $payload['callerid'] = $payload['caller_number'];
+            }
+        }
+
+        if ($entity === 'audios' || $entity === 'recordings') {
+            if (isset($payload['file']) && !isset($payload['file_name'])) {
+                $payload['file_name'] = $payload['file'];
+            } elseif (isset($payload['file_name']) && !isset($payload['file'])) {
+                $payload['file'] = $payload['file_name'];
+            }
+        }
+
+        if ($entity === 'trunks') {
+            if (isset($payload['id']) && !isset($payload['trunk_id'])) {
+                $payload['trunk_id'] = (string)$payload['id'];
+            }
+        }
+
+        return $payload;
+    }
+
+    private function normalizeApiResponse(array $response, string $entity, bool $expectsList): array
+    {
+        if (!isset($response['data']) || !is_array($response['data'])) {
+            return $response;
+        }
+
+        $body = $response['data'];
+
+        if (array_key_exists('data', $body)) {
+            $body['data'] = $this->normalizeEntityValue($body['data'], $entity, $expectsList);
+
+            if ($expectsList && is_array($body['data']) && !isset($body['total'])) {
+                $body['total'] = count($body['data']);
+            }
+
+            $response['data'] = $body;
+            return $response;
+        }
+
+        $response['data'] = $this->normalizeEntityValue($body, $entity, $expectsList);
+        return $response;
+    }
+
+    private function normalizeEntityValue(mixed $value, string $entity, bool $expectsList): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if ($expectsList || $this->isList($value)) {
+            return array_values(array_map(
+                fn ($row) => is_array($row) ? $this->normalizeEntityRow($row, $entity) : $row,
+                $value
+            ));
+        }
+
+        return $this->normalizeEntityRow($value, $entity);
+    }
+
+    private function normalizeEntityRow(array $row, string $entity): array
+    {
+        $row = $this->copyAlias($row, 'tenant_id', ['tenancy_id', 'tenantId']);
+        $row = $this->copyAlias($row, 'tenancy_id', ['tenant_id', 'tenantId']);
+        $row = $this->copyAlias($row, 'user_id', ['owner_id', 'userId']);
+        $row = $this->copyAlias($row, 'owner_id', ['user_id', 'ownerId']);
+        $row = $this->copyAlias($row, 'status', ['account_status', 'sip_status_text']);
+
+        switch ($entity) {
+            case 'extensions':
+                $row = $this->copyAlias($row, 'extension', ['username', 'ramal', 'id']);
+                $row = $this->copyAlias($row, 'username', ['extension', 'ramal']);
+                $row = $this->copyAlias($row, 'caller_number', ['callerid', 'caller_number_external']);
+                $row = $this->copyAlias($row, 'callerid', ['caller_number']);
+                $row = $this->copyAlias($row, 'transport', ['transport_name']);
+                $row = $this->copyAlias($row, 'online', ['registered', 'is_online']);
+                $row = $this->copyAlias($row, 'registered', ['online']);
+                $row = $this->copyAlias($row, 'sip_status_text', ['sip_detail', 'status']);
+                break;
+
+            case 'trunks':
+                $row = $this->copyAlias($row, 'trunk_id', ['id', 'trunkId']);
+                $row = $this->copyAlias($row, 'id', ['trunk_id']);
+                $row = $this->copyAlias($row, 'direction', ['route_direction']);
+                $row = $this->copyAlias($row, 'is_system', ['system', 'is_default']);
+                $row = $this->copyAlias($row, 'techprefix', ['tech_prefix']);
+                $row = $this->copyAlias($row, 'dial_prefix', ['dialPrefix']);
+                $row = $this->copyAlias($row, 'online', ['is_online', 'registered']);
+                $row = $this->copyAlias($row, 'is_online', ['online']);
+                $row = $this->copyAlias($row, 'sip_status_text', ['sip_detail', 'status']);
+                break;
+
+            case 'audios':
+                $row = $this->copyAlias($row, 'file_name', ['file', 'filename']);
+                $row = $this->copyAlias($row, 'file', ['file_name']);
+                $row = $this->copyAlias($row, 'duration_seconds', ['duration', 'seconds']);
+                $row = $this->copyAlias($row, 'size_bytes', ['size']);
+                $row = $this->copyAlias($row, 'name', ['display_name', 'file_name']);
+                break;
+
+            case 'recordings':
+                $row = $this->copyAlias($row, 'file', ['file_name', 'name']);
+                $row = $this->copyAlias($row, 'display_name', ['name', 'file']);
+                $row = $this->copyAlias($row, 'audio_url', ['recording_url', 'url']);
+                $row = $this->copyAlias($row, 'recording_url', ['audio_url', 'url']);
+                $row = $this->copyAlias($row, 'call_id', ['id', 'uniqueid']);
+                break;
+        }
+
+        return $row;
+    }
+
+    private function copyAlias(array $row, string $target, array $sources): array
+    {
+        if (isset($row[$target]) && $row[$target] !== null && $row[$target] !== '') {
+            return $row;
+        }
+
+        foreach ($sources as $source) {
+            if (isset($row[$source]) && $row[$source] !== null && $row[$source] !== '') {
+                $row[$target] = $row[$source];
+                break;
+            }
+        }
+
+        return $row;
+    }
+
+    private function isList(array $value): bool
+    {
+        if ($value === []) {
+            return true;
+        }
+
+        return array_keys($value) === range(0, count($value) - 1);
+    }
+
+    private function extractEntityData(array $response, bool $expectsList): array|null
+    {
+        $data = $response['data'] ?? null;
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        if (array_key_exists('data', $data)) {
+            $data = $data['data'];
+        }
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        if ($expectsList) {
+            return $this->isList($data) ? $data : [$data];
+        }
+
+        return $this->isList($data) ? ($data[0] ?? null) : $data;
+    }
+
+    private function findTrunkInList(array $query, int $id): ?array
+    {
+        $fallbackQuery = $query;
+        unset($fallbackQuery['id'], $fallbackQuery['trunk_id']);
+
+        $listResponse = $this->listTrunks($fallbackQuery);
+        $list = $this->extractEntityData($listResponse, true);
+
+        if (!is_array($list)) {
+            return null;
+        }
+
+        foreach ($list as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $candidateId = (string)($row['id'] ?? '');
+            $candidateTrunkId = (string)($row['trunk_id'] ?? '');
+
+            if ($candidateId === (string)$id || $candidateTrunkId === (string)$id) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
 }

@@ -2,6 +2,7 @@
 
 namespace App\Model\Entity;
 
+use App\Utils\TenancyHelper;
 use WilliamCosta\DatabaseManager\Database;
 
 class CampaignVoice
@@ -14,6 +15,7 @@ class CampaignVoice
     public string $type;
     public int $total_contacts;
     public string $job_id;
+    public string $queue_id;
     public string $status;
     public string $total_calls;
     public string $answered_calls;
@@ -33,6 +35,7 @@ class CampaignVoice
             'name'           => $this->name,
             'type'           => $this->type, // 🔴 obrigatório
             'job_id'         => $this->job_id,
+            'queue_id'       => $this->queue_id,
             'total_contacts' => $this->total_contacts,
             'status'         => $this->status
         ]);
@@ -43,128 +46,118 @@ class CampaignVoice
 
     public static function getVoiceLists(?int $userId = null, ?string $tenancyId = null): array
     {
-        $where  = [];
-        $params = [];
+        $userContext = [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $userId,
+            'user_function' => is_null($userId) ? 'admin' : 'reseller'
+        ];
 
-        if (!empty($userId)) {
-            $where[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
+        // O Helper já gera: "tenancy_id = X AND (user_id = Y...)"
+        $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id', 'voice_list');
 
-        if (!empty($tenancyId)) {
-            $where[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // Constrói a string final do WHERE
-        $whereSql = !empty($where) ? implode(' AND ', $where) : '';
-
-        // Executa o SELECT — note o uso de string vazia no primeiro argumento
         $results = (new Database('voice_list'))->select(
-            $whereSql,
-            $params,
+            $where,
+            [], // Params vazios pois o Helper injeta os valores tratados
             'id DESC'
         )->fetchAll(\PDO::FETCH_ASSOC);
 
         return $results ?: [];
     }
 
-    public static function getVoiceListsDetail(
-        ?int $userId = null,
-        ?string $tenancyId = null
-    ): array {
-        $where  = [];
-        $params = [];
+    public static function getVoiceListsDetail(?int $userId = null, ?string $tenancyId = null): array
+    {
+        $userContext = [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $userId,
+            'user_function' => is_null($userId) ? 'admin' : 'reseller'
+        ];
 
-        // 🔒 Filtro por usuário (quando existir)
-        if ($userId !== null) {
-            $where[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
-        // 🔒 Filtro por tenancy (quando existir)
-        if ($tenancyId !== null) {
-            $where[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // WHERE dinâmico
-        $whereSql = !empty($where)
-            ? implode(' AND ', $where)
-            : '';
+        $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id', 'campaign_voice');
 
         return (new Database('campaign_voice'))
-            ->select(
-                $whereSql,
-                $params,
-                'id DESC'
-            )
+            ->select($where, [], 'id DESC')
             ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function getPhonesByListId(int $listId, string $tenancyId, int $userId = null): array
     {
         try {
-            $db = new Database('voice_list_contacts vc 
-            INNER JOIN voice_list vl ON vl.id = vc.voice_list_id');
+            $db = new Database('voice_list_contacts vc INNER JOIN voice_list vl ON vl.id = vc.voice_list_id');
 
-            // filtros base
-            $where = '
-            vc.voice_list_id = :list_id
-            AND vl.tenancy_id = :tenancy_id
-        ';
+            $userContext = [
+                'tenancy_id'    => $tenancyId,
+                'id'            => $userId,
+                'user_function' => is_null($userId) ? 'admin' : 'reseller'
+            ];
+
+            // Filtro fixo (list_id) + Filtro de Segurança do Helper
+            $where = TenancyHelper::applySecurityFilter('vc.voice_list_id = :list_id', $userContext, 'user_id', 'vl');
+
+            return $db->select($where, [':list_id' => $listId], null, null, 'vc.phone, vc.voice_list_id')
+                ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+
+    public static function getContactDetailsByListAndPhone(int $listId, string $phone, string $tenancyId, int $userId): ?array
+    {
+        try {
+            $db = new Database('voice_list_contacts vc 
+        INNER JOIN voice_list vl ON vl.id = vc.voice_list_id');
+
+            // Filtro Triplo de Segurança:
+            // 1. A lista certa (voice_list_id)
+            // 2. O telefone certo (phone)
+            // 3. O dono da lista (user_id) + a empresa (tenancy_id)
+            $where = 'vc.voice_list_id = :list_id 
+                  AND vc.phone = :phone 
+                  AND vl.tenancy_id = :tenancy_id 
+                  AND vl.user_id = :user_id';
 
             $params = [
                 ':list_id'    => $listId,
-                ':tenancy_id' => $tenancyId
+                ':phone'      => $phone,
+                ':tenancy_id' => $tenancyId,
+                ':user_id'    => $userId
             ];
 
-            // se user_id veio, aplica o filtro (mantém fluxo original)
-            if (!empty($userId)) {
-                $where .= ' AND vl.user_id = :user_id';
-                $params[':user_id'] = $userId;
-            }
+            $stmt = $db->select($where, $params, null, '1', 'vc.*, vl.name as campaign_name');
+            $data = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            $stmt = $db->select($where, $params, null, null, 'vc.phone');
-
-            return $stmt->fetchAll(\PDO::FETCH_COLUMN, 0) ?: [];
+            return $data ?: null;
 
         } catch (\Throwable $e) {
-            error_log('getPhonesByListId error: '.$e->getMessage());
-            return [];
+            error_log('getContactDetails error: ' . $e->getMessage());
+            return null;
         }
     }
 
 
     public static function countVoiceCampaignsByStatus(?string $tenancyId = null, ?int $userId = null): array
     {
-        $where  = [];
-        $params = [];
+        $userContext = [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $userId,
+            'user_function' => is_null($userId) ? 'admin' : 'reseller'
+        ];
 
-        if (!empty($tenancyId)) {
-            $where[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        if (!empty($userId)) {
-            $where[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
-        $whereSql = $where ? implode(' AND ', $where) : '1=1';
+        $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id', 'campaign_voice');
 
         $sql = "
-        SELECT
-            SUM(CASE WHEN status = 'y' THEN 1 ELSE 0 END) AS y,
-            SUM(CASE WHEN status = 'p' THEN 1 ELSE 0 END) AS p,
-            SUM(CASE WHEN status = 'n' THEN 1 ELSE 0 END) AS n,
-            SUM(CASE WHEN status = 'f' THEN 1 ELSE 0 END) AS f,
-            SUM(CASE WHEN status = 'c' THEN 1 ELSE 0 END) AS c
-        FROM campaign_voice
-        WHERE {$whereSql}
-    ";
+            SELECT
+                SUM(CASE WHEN status = 'y' THEN 1 ELSE 0 END) AS y,
+                SUM(CASE WHEN status = 'p' THEN 1 ELSE 0 END) AS p,
+                SUM(CASE WHEN status = 'n' THEN 1 ELSE 0 END) AS n,
+                SUM(CASE WHEN status = 'f' THEN 1 ELSE 0 END) AS f,
+                SUM(CASE WHEN status = 'c' THEN 1 ELSE 0 END) AS c
+            FROM campaign_voice
+            WHERE {$where}
+        ";
 
-        $row = (new Database('campaign_voice'))->execute($sql, $params)->fetchObject();
+        $row = (new Database('campaign_voice'))->execute($sql)->fetchObject();
 
         return [
             'y' => (int)($row->y ?? 0),
@@ -214,7 +207,15 @@ class CampaignVoice
     /**
      * Adiciona um contato a uma lista
      */
-    public static function addContactToList(int $voiceListId, string $name, string $phone, string $status = 'pending'): int
+
+    public static function addContactToList(
+        int $voiceListId,
+        string $name,
+        string $phone,
+        ?string $cpf = null,
+        ?string $extraData = null,
+
+    ): int
     {
         $db = new Database('voice_list_contacts');
 
@@ -222,7 +223,8 @@ class CampaignVoice
             'voice_list_id' => $voiceListId,
             'name'          => $name,
             'phone'         => $phone,
-            'status'        => $status,
+            'cpf'           => $cpf,
+            'extra_data'    => $extraData,
             'created_at'    => date('Y-m-d H:i:s'),
             'updated_at'    => date('Y-m-d H:i:s')
         ]);
@@ -279,6 +281,10 @@ class CampaignVoice
 
     public static function getById(int $id): ?array
     {
+        // Aqui, como não recebemos tenancy_id no parâmetro, o ideal é que
+        // a sua Controller valide isso antes ou que o getById receba a Tenancy.
+        // Se for uma busca interna do sistema (motor de voz), deixamos o ID simples:
+
         $r = (new Database('campaign_voice'))->select(
             'id = :id',
             [':id' => $id]
@@ -290,12 +296,13 @@ class CampaignVoice
 
     public static function updateStatusByJob(string $jobId, string $status): bool
     {
+        // Usamos o placeholder :job_id para evitar quebras por caracteres especiais ou SQL Injection
         return (new Database('campaign_voice'))->update(
-            'job_id = "' . $jobId . '"',
-            ['status' => $status]
+            'job_id = :job_id',
+            ['status' => $status],
+            [':job_id' => $jobId]
         );
     }
-
 
     public static function deleteVoiceList(int $voiceListId): bool
     {

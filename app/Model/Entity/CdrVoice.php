@@ -2,6 +2,7 @@
 
 namespace App\Model\Entity;
 
+use App\Utils\TenancyHelper;
 use WilliamCosta\DatabaseManager\Database;
 use PDO;
 
@@ -14,18 +15,34 @@ class CdrVoice
     public $campaign_type;
     public $tenancy_id;
     public $user_id;
+    public $user_name;
+    public $user_account_code;
     public $channel_number;
+    public $endpoints;
     public $number;
     public $destination;
+    public $direction;
+    public $trunk;
+    public $trunk_id;
     public $type;
     public $state;
     public $dialstatus;
     public $cause;
     public $cause_txt;
+    public $sip_code;
     public $duration;
+    public $billsec;
     public $taxa_of_service;
     public $techprefix;
     public $value;
+    public $agent_abandoned;
+    public $agent_abandon_reason;
+    public $call_minute_cost;
+    public $hangup_by;
+    public $sms_cost;
+    public $torpedo_cost;
+    public $application;
+    public $cdr_timestamp;
     public $role;
     public $started;
     public $answered;
@@ -45,17 +62,35 @@ class CdrVoice
             campaign_type,
             tenancy_id,
             user_id,
+            user_name,
+            user_account_code,
             channel_number,
+            endpoints,
             `number`,
             destination,
+            direction,
+            trunk,
+            trunk_id,
+            techprefix,
             `type`,
             `state`,
             dialstatus,
             cause,
             cause_txt,
+            sip_code,
             duration,
+            billsec,
             `taxa_of_service`,             
             `value`,
+            agent_abandoned,
+            agent_abandon_reason,
+            call_minute_cost,
+            hangup_by,
+            sms_cost,
+            torpedo_cost,
+            application,
+            cdr_timestamp,
+            role,
             started,
             answered,
             ended
@@ -67,17 +102,35 @@ class CdrVoice
             :campaign_type,
             :tenancy_id,
             :user_id,
+            :user_name,
+            :user_account_code,
             :channel_number,
+            :endpoints,   
             :number,
             :destination,
+            :direction,
+            :trunk,
+            :trunk_id,
+            :techprefix,
             :type,
             :state,
             :dialstatus,
             :cause,
             :cause_txt,
+            :sip_code,
             :duration,
+            :billsec,
             :taxa_of_service,      
             :value,
+            :agent_abandoned,
+            :agent_abandon_reason,
+            :call_minute_cost,
+            :hangup_by,
+            :sms_cost,
+            :torpedo_cost,
+            :application,
+            :cdr_timestamp,
+            :role,
             :started,
             :answered,
             :ended
@@ -92,17 +145,35 @@ class CdrVoice
             ':campaign_type' => $this->campaign_type,
             ':tenancy_id'    => $this->tenancy_id,
             ':user_id'       => $this->user_id,
+            ':user_name'      => $this->user_name,
+            ':user_account_code' => $this->user_account_code,
             ':channel_number'=> $this->channel_number,
+            ':endpoints'      => $this->endpoints,
             ':number'        => $this->number,
             ':destination'   => $this->destination,
+            ':direction'     => $this->direction ?? 'outbound',
+            ':trunk'         => $this->trunk,
+            ':trunk_id'      => $this->trunk_id,
+            ':techprefix'    => $this->techprefix,
             ':type'          => $this->type ?? 'normal',
             ':state'         => $this->state,
             ':dialstatus'    => $this->dialstatus,
             ':cause'         => $this->cause,
             ':cause_txt'     => $this->cause_txt,
+            ':sip_code'      => $this->sip_code,
             ':duration'      => $this->duration ?? 0,
+            ':billsec'       => $this->billsec ?? $this->duration ?? 0,
             ':taxa_of_service' => $this->taxa_of_service ?? 0,
             ':value'         => $this->value ?? 0,
+            ':agent_abandoned' => $this->agent_abandoned ?? 0,
+            ':agent_abandon_reason' => $this->agent_abandon_reason,
+            ':call_minute_cost' => $this->call_minute_cost ?? 0,
+            ':hangup_by'     => $this->hangup_by,
+            ':sms_cost'      => $this->sms_cost ?? 0,
+            ':torpedo_cost'  => $this->torpedo_cost ?? 0,
+            ':application'   => $this->application,
+            ':cdr_timestamp' => $this->cdr_timestamp,
+            ':role'          => $this->role,
             ':started'       => $this->started,
             ':answered'      => $this->answered,
             ':ended'         => $this->ended,
@@ -122,175 +193,79 @@ class CdrVoice
      */
     public static function getCdrVoice(array $filters = [], ?string $order = null, ?string $limit = null): array
     {
-        $where = [];
-        $params = [];
+        // 1. Organizamos o contexto para a função que você criou
+        $userContext = [
+            'tenancy_id'    => $filters['tenancy_id'] ?? null,
+            'id'            => $filters['user_id'] ?? null,
+            'user_function' => $filters['user_function'] ?? ''
+        ];
 
+        // 2. Limpamos o array para não dar erro de coluna inexistente no loop abaixo
+        unset($filters['tenancy_id'], $filters['user_id'], $filters['user_function']);
+
+        // 3. Chamamos a sua função específica para CDR (Blindando o sistema)
+        $whereSQL = TenancyHelper::applyCdrSecurityFilter($userContext, 'c');
+
+        // 4. Parâmetros dinâmicos (Datas, status, etc)
+        $params = [];
         foreach ($filters as $key => $value) {
-            $where[] = "$key = :$key";
-            $params[":$key"] = $value;
+            $safeKey = preg_replace('/[^a-zA-Z0-9_]/', '', $key);
+            $whereSQL .= " AND c.{$safeKey} = :{$safeKey}";
+            $params[":{$safeKey}"] = $value;
         }
 
-        $whereSQL = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-        $orderSQL = $order ? "ORDER BY $order" : 'ORDER BY created_at DESC';
-        $limitSQL = $limit ? "LIMIT $limit" : '';
+        // 5. Query final
+        $query = "SELECT c.* FROM cdr c WHERE $whereSQL " .
+            ($order ? "ORDER BY $order" : "ORDER BY c.created_at DESC") .
+            ($limit ? " LIMIT $limit" : "");
 
-        $query = "
-            SELECT *
-            FROM cdr
-            $whereSQL
-            $orderSQL
-            $limitSQL
-        ";
-
-        $stmt = (new Database())->execute($query, $params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
-    /*public static function countCdrVoice(?int $userId, ?string $tenancyId): object
+    public static function countCdrVoice(array $filters): object
     {
-        $where = "1=1";
-        $params = [];
-
-        // 🔹 Filtrar por tenancy (se houver)
-        if (!empty($tenancyId)) {
-            $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // 🔹 Filtrar por usuário (se houver)
-        if (!empty($userId)) {
-            $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
-        }
-
-        // 🔹 Consulta agregada igual ao SMS
-        $result = (new Database('cdr'))->select(
-            $where,
-            $params,
-            null,
-            null,
-            "
-            COUNT(*) AS total,
-
-            SUM(CASE WHEN dialstatus = 'ANSWER'   THEN 1 ELSE 0 END) AS answer,
-            SUM(CASE WHEN dialstatus = 'NOANSWER' THEN 1 ELSE 0 END) AS noanswer,
-            SUM(CASE WHEN dialstatus = 'FAILED'   THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN dialstatus = 'BUSY'     THEN 1 ELSE 0 END) AS busy,
-            SUM(CASE WHEN dialstatus = 'CANCEL'   THEN 1 ELSE 0 END) AS cancel,
-
-            SUM(value)    AS value_total,
-            SUM(duration) AS duration_total
-        "
-        )->fetchObject();
-
-        return (object)[
-            'total'         => (int)   ($result->total         ?? 0),
-            'answer'        => (int)   ($result->answer        ?? 0),
-            'noanswer'      => (int)   ($result->noanswer      ?? 0),
-            'failed'        => (int)   ($result->failed        ?? 0),
-            'busy'          => (int)   ($result->busy          ?? 0),
-            'cancel'        => (int)   ($result->cancel        ?? 0),
-
-            'value_total'   => (float) ($result->value_total   ?? 0),
-            'duration_total'=> (int)   ($result->duration_total?? 0),
+        // 1. Extraímos os dados para o contexto de segurança
+        $userContext = [
+            'tenancy_id'    => $filters['tenancy_id'] ?? null,
+            'id'            => $filters['user_id'] ?? null,
+            'user_function' => $filters['user_function'] ?? ''
         ];
-    }*/
 
-    /*public static function countCdrVoice(?int $userId, ?string $tenancyId): object
-    {
-        $where = "1=1";
+        // 2. Chamamos a nossa função "blindada" de segurança do CDR
+        // Ela vai cuidar de separar Agente, Revendedor e Admin automaticamente
+        $whereSecurity = TenancyHelper::applyCdrSecurityFilter($userContext, 'cdr');
+
         $params = [];
-
-        // 🔹 Filtrar por tenancy (se houver)
-        if (!empty($tenancyId)) {
-            $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
+        // Se você tiver filtros de data (ex: created_at), eles entram aqui
+        if (isset($filters['start_date']) && isset($filters['end_date'])) {
+            $whereSecurity .= " AND cdr.created_at BETWEEN :start AND :end";
+            $params[':start'] = $filters['start_date'];
+            $params[':end']   = $filters['end_date'];
         }
 
-        // 🔹 Filtrar por usuário (se houver)
-        if (!empty($userId)) {
-            $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
-        }
+        // ✅ Só voz (conforme seu original)
+        $whereSecurity .= " AND cdr.type IN ('normal','outbound','inbound', 'service_fee')";
 
-        // ✅ NÃO CONTAR RAMAL (ramal sempre tem channel_number preenchido)
-        $where .= " AND (channel_number IS NULL OR channel_number = '')";
-
-        // 🔹 Consulta agregada
-        $result = (new Database('cdr'))->select(
-            $where,
-            $params,
-            null,
-            null,
-            "
-            COUNT(*) AS total,
-
-            SUM(CASE WHEN dialstatus = 'ANSWER'   THEN 1 ELSE 0 END) AS answer,
-            SUM(CASE WHEN dialstatus = 'NOANSWER' THEN 1 ELSE 0 END) AS noanswer,
-            SUM(CASE WHEN dialstatus = 'FAILED'   THEN 1 ELSE 0 END) AS failed,
-            SUM(CASE WHEN dialstatus = 'BUSY'     THEN 1 ELSE 0 END) AS busy,
-            SUM(CASE WHEN dialstatus = 'CANCEL'   THEN 1 ELSE 0 END) AS cancel,
-
-            SUM(COALESCE(value, 0))           AS value_total,
-            SUM(COALESCE(taxa_of_service, 0)) AS taxa_total,
-            SUM(COALESCE(duration, 0))        AS duration_total
-        "
-        )->fetchObject();
-
-        return (object)[
-            'total'          => (int)   ($result->total          ?? 0),
-            'answer'         => (int)   ($result->answer         ?? 0),
-            'noanswer'       => (int)   ($result->noanswer       ?? 0),
-            'failed'         => (int)   ($result->failed         ?? 0),
-            'busy'           => (int)   ($result->busy           ?? 0),
-            'cancel'         => (int)   ($result->cancel         ?? 0),
-
-            'value_total'    => (float) ($result->value_total    ?? 0),
-            'taxa_total'     => (float) ($result->taxa_total     ?? 0),
-            'duration_total' => (int)   ($result->duration_total ?? 0),
-        ];
-    }*/
-
-    public static function countCdrVoice(?int $userId, ?string $tenancyId): object
-    {
-        $where = "1=1";
-        $params = [];
-
-        if (!empty($tenancyId)) {
-            $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        if (!empty($userId)) {
-            $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
-        }
-
-        // ✅ só voz (manual + discador)
-        $where .= " AND type IN ('normal','outbound','inbound', 'service_fee')";
-
-        $callKey = "COALESCE(NULLIF(call_id,''), channel_id)";
+        $callKey = "COALESCE(NULLIF(cdr.call_id,''), cdr.channel_id)";
 
         $fields = "
         COUNT(*) AS total,
-
         SUM(CASE WHEN status_rank = 50 THEN 1 ELSE 0 END) AS answer,
         SUM(CASE WHEN status_rank = 40 THEN 1 ELSE 0 END) AS busy,
         SUM(CASE WHEN status_rank = 30 THEN 1 ELSE 0 END) AS noanswer,
         SUM(CASE WHEN status_rank = 20 THEN 1 ELSE 0 END) AS failed,
         SUM(CASE WHEN status_rank = 10 THEN 1 ELSE 0 END) AS cancel,
-
         SUM(value_one)    AS value_total,
-        SUM(taxa_one)     AS taxa_total,
+        SUM(taxa_one)      AS taxa_total,
         SUM(duration_one) AS duration_total
     ";
 
+        // Aplicamos o filtro de segurança DENTRO da subquery
         $table = "(
-        SELECT
+        SELECT 
             {$callKey} AS call_key,
-
             MAX(
-                CASE dialstatus
+                CASE dialstatus 
                     WHEN 'ANSWER'   THEN 50
                     WHEN 'BUSY'     THEN 40
                     WHEN 'NOANSWER' THEN 30
@@ -299,12 +274,11 @@ class CdrVoice
                     ELSE 0
                 END
             ) AS status_rank,
-
             MAX(COALESCE(value, 0))           AS value_one,
             MAX(COALESCE(taxa_of_service, 0)) AS taxa_one,
             MAX(COALESCE(duration, 0))        AS duration_one
         FROM cdr
-        WHERE {$where}
+        WHERE {$whereSecurity}
         GROUP BY call_key
     ) t";
 
@@ -331,52 +305,48 @@ class CdrVoice
 
 
 
-    public static function fetchVoiceStatusCountsWithDay( ?string $tenancyId, ?int $userId = null, ?int $resellerId = null): array
+    public static function fetchVoiceStatusCountsWithDay(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): array
     {
         $db = new Database('cdr');
-
         $params = [];
-        $extraCondition = '';
 
-        // 🔹 Filtrar tenancy
-        if (!empty($tenancyId)) {
-            $extraCondition .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
-        }
+        // 1. Preparamos o contexto para o Helper de segurança
+        // Precisamos descobrir o cargo de forma inteligente aqui
+        $role = 'agent';
+        if (!is_null($resellerId)) $role = 'reseller';
+        if (is_null($userId) && is_null($resellerId)) $role = 'admin';
 
-        // 🔹 Filtrar user
-        if (!is_null($userId)) {
-            $extraCondition .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
-        }
+        $userContext = [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $resellerId ?? $userId,
+            'user_function' => $role
+        ];
 
-        // 🔹 Filtrar revendedor
-        if (!is_null($resellerId)) {
-            $extraCondition .= " AND user_id = :reseller_id";
-            $params[':reseller_id'] = $resellerId;
-        }
+        // 2. Usamos o nosso Helper que já funciona nos Cards
+        // O alias 'cdr' deve bater com o nome da tabela no seu Database
+        $securityFilter = TenancyHelper::applyCdrSecurityFilter($userContext, 'cdr');
 
-        // 🔹 Mapeamento: dialstatus → status VOZ
+        // 3. Montamos a condição extra (A segurança já vem no $securityFilter)
+        $extraCondition = " AND " . $securityFilter;
+
+        // Mapeamento original
         $map = [
             'ANSWER'    => 'ATENDIDA',
             'NOANSWER'  => 'NAO_ATENDIDA',
             'FAILED'    => 'FALHA',
             'BUSY'      => 'OCUPADO',
             'CANCEL'    => 'CANCELADO',
-            'VOICEMAIL' => 'CAIXA_POSTAL',  // se existir em seu CDR
-            'COMPLETED' => 'COMPLETADA',    // se existir esse status
+            'VOICEMAIL' => 'CAIXA_POSTAL'
         ];
-
         $statusList = array_keys($map);
 
-        // Função auxiliar idêntica ao SMS
-        $getStatusData = function(string $dateCond)
-        use ($db, $extraCondition, $params, $statusList, $map)
-        {
+        // Função auxiliar ajustada
+        $getStatusData = function(string $dateCond) use ($db, $extraCondition, $params, $statusList, $map) {
             $result = array_fill_keys(array_values($map), 0);
 
+            // Importante: usamos 'cdr.' antes das datas se o seu helper usar alias
             $rows = $db->select(
-                "$dateCond $extraCondition GROUP BY dialstatus",
+                "{$dateCond} {$extraCondition} GROUP BY dialstatus",
                 $params,
                 null,
                 null,
@@ -385,60 +355,22 @@ class CdrVoice
 
             foreach ($rows as $row) {
                 $status = strtoupper($row['dialstatus'] ?? '');
-                if (in_array($status, $statusList)) {
-                    $translated = $map[$status];
-                    $result[$translated] = (int)$row['total'];
+                if (isset($map[$status])) {
+                    $result[$map[$status]] = (int)$row['total'];
                 }
             }
-
             return $result;
         };
 
-        // 🔹 Status mensal
-        $statusMes = $getStatusData(
-            "MONTH(started) = MONTH(CURDATE()) 
-         AND YEAR(started) = YEAR(CURDATE())"
-        );
+        // Filtros de data (Garantindo que o campo started seja filtrado)
+        $statusMes = $getStatusData("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE())");
+        $statusDia = $getStatusData("DATE(started) = CURDATE()");
 
-        // 🔹 Status diário
-        $statusDia = $getStatusData(
-            "DATE(started) = CURDATE()"
-        );
-
-        // 🔹 Totais agregados
-        $totalMesAtual = (int)$db->select(
-            "MONTH(started) = MONTH(CURDATE()) 
-         AND YEAR(started) = YEAR(CURDATE()) $extraCondition",
-            $params,
-            null,
-            null,
-            "COUNT(*) AS total"
-        )->fetchColumn();
-
-        $totalMesAnterior = (int)$db->select(
-            "MONTH(started) = MONTH(CURDATE() - INTERVAL 1 MONTH) 
-         AND YEAR(started) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition",
-            $params,
-            null,
-            null,
-            "COUNT(*) AS total"
-        )->fetchColumn();
-
-        $totalDiaAtual = (int)$db->select(
-            "DATE(started) = CURDATE() $extraCondition",
-            $params,
-            null,
-            null,
-            "COUNT(*) AS total"
-        )->fetchColumn();
-
-        $totalDiaAnterior = (int)$db->select(
-            "DATE(started) = CURDATE() - INTERVAL 1 DAY $extraCondition",
-            $params,
-            null,
-            null,
-            "COUNT(*) AS total"
-        )->fetchColumn();
+        // Totais agregados com o filtro de segurança
+        $totalMesAtual = (int)$db->select("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE()) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalMesAnterior = (int)$db->select("MONTH(started) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(started) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalDiaAtual = (int)$db->select("DATE(started) = CURDATE() $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalDiaAnterior = (int)$db->select("DATE(started) = CURDATE() - INTERVAL 1 DAY $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
 
         return [
             'statusMes'        => $statusMes,
@@ -451,28 +383,248 @@ class CdrVoice
     }
 
 
-
-
-
-
     /**
-     * Busca um único registro de CDR pelo ID do canal.
+     * Calcula o SLA (Service Level Agreement) do dia atual.
+     * Baseado em chamadas atendidas dentro do tempo limite (padrão 20s).
+     * @param array $filters
+     * @return array Porcentagem de 0 a 100
      */
-    public static function getByChannelId(string $channelId): ?array
+
+
+    public static function getCdrReport(array $filters = []): array
     {
-        $query = "SELECT * FROM cdr WHERE channel_id = :channel_id LIMIT 1";
-        $stmt = (new Database())->execute($query, [':channel_id' => $channelId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result ?: null;
+        $db = new Database('cdr');
+
+        // 1. Contexto para o Helper (Pegamos o que vem da Controller)
+        $userContext = [
+            'tenancy_id'    => $filters['tenancy_id'] ?? null,
+            'id'            => $filters['user_id'] ?? null,
+            'user_function' => $filters['user_role'] ?? 'admin'
+        ];
+
+        // 🚀 AQUI ESTÁ O SEGREDO: Usamos o applyCdrSecurityFilter para o Revendedor ver a equipe
+        $securityFilter = TenancyHelper::applyCdrSecurityFilter($userContext, 'c');
+
+        // Filtros base técnicos
+        $whereSQL = "c.channel_number IS NOT NULL AND c.channel_number <> '' AND $securityFilter";
+
+        $params = [];
+
+        // 2. Filtros Dinâmicos da UI
+        if (!empty($filters['agent'])) {
+            $whereSQL .= " AND (c.channel_number = :agent_val OR c.user_name = :agent_name)";
+            $params[':agent_val']  = $filters['agent'];
+            $params[':agent_name'] = $filters['agent'];
+        }
+
+        // Filtro de Data Início
+        if (!empty($filters['date_from'])) {
+            $whereSQL .= " AND c.started >= :date_from";
+            $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
+        } else {
+            // Se não mandar data, por padrão mostra o dia de hoje
+            $whereSQL .= " AND c.started >= :date_today";
+            $params[':date_today'] = date('Y-m-d 00:00:00');
+        }
+
+        // Filtro de Data Fim
+        if (!empty($filters['date_to'])) {
+            $whereSQL .= " AND c.started <= :date_to";
+            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        if (!empty($filters['status'])) {
+            $whereSQL .= " AND c.dialstatus = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        // 🚀 QUERY DE REGISTROS (Ajustada com a segurança)
+        $queryRecords = "SELECT c.*, 
+                    cv.name as campanha_nome,
+                    COALESCE(NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) as queue_id,
+                    COALESCE(NULLIF(q.name, ''), NULLIF(qa.queue_name, ''), NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) as queue_name,
+                    (UNIX_TIMESTAMP(c.answered) - UNIX_TIMESTAMP(c.started)) as espera_seg,
+                    (UNIX_TIMESTAMP(c.ended) - UNIX_TIMESTAMP(c.answered)) as conversa_seg
+                    FROM cdr c
+                    LEFT JOIN campaign_voice cv ON cv.id = c.campaign_id AND cv.tenancy_id = c.tenancy_id
+                    LEFT JOIN queues_config q ON q.queue_id = cv.queue_id AND q.tenancy_id = c.tenancy_id
+                    LEFT JOIN (
+                        SELECT
+                            qm.tenancy_id,
+                            qm.agent_ramal,
+                            MIN(qm.queue_id) as queue_id,
+                            MIN(qc.name) as queue_name
+                        FROM queue_members qm
+                        LEFT JOIN queues_config qc ON qc.queue_id = qm.queue_id AND qc.tenancy_id = qm.tenancy_id
+                        GROUP BY qm.tenancy_id, qm.agent_ramal
+                    ) qa ON qa.tenancy_id = c.tenancy_id AND qa.agent_ramal = c.channel_number
+                    WHERE $whereSQL 
+                    ORDER BY c.started DESC LIMIT 500";
+
+        // 📊 QUERY DE STATS (Para os cards do relatório baterem com a lista)
+        $queryStats = "SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN dialstatus = 'ANSWER' THEN 1 ELSE 0 END) as atendidas,
+                    SUM(CASE WHEN dialstatus <> 'ANSWER' THEN 1 ELSE 0 END) as abandonadas,
+                    AVG(CASE WHEN dialstatus = 'ANSWER' AND answered IS NOT NULL AND ended IS NOT NULL THEN (UNIX_TIMESTAMP(ended) - UNIX_TIMESTAMP(answered)) ELSE NULL END) as tma_avg
+                    FROM cdr c
+                    WHERE $whereSQL";
+
+        try {
+            $records = $db->execute($queryRecords, $params)->fetchAll(\PDO::FETCH_ASSOC);
+            $stats = $db->execute($queryStats, $params)->fetchObject();
+
+            return [
+                'records' => $records ?: [],
+                'stats' => [
+                    'total'       => (int)($stats->total ?? 0),
+                    'atendidas'   => (int)($stats->atendidas ?? 0),
+                    'abandonadas' => (int)($stats->abandonadas ?? 0),
+                    'tma'         => (int)($stats->tma_avg ?? 0)
+                ]
+            ];
+        } catch (\Exception $e) {
+            error_log("Erro CDR Report: " . $e->getMessage());
+            return ['records' => [], 'stats' => ['total'=>0, 'atendidas'=>0, 'abandonadas'=>0, 'tma'=>0]];
+        }
     }
 
     /**
-     * Remove CDRs de um tenancy específico (usado em exclusões em cascata manuais).
+     * Calcula o SLA do dia atual.
+     * Adicionado parâmetro $ownerId para blindagem de perfil.
      */
-    public static function deleteByTenancy(string $tenancyId): bool
+    public static function getSlaToday(string $tenancyId, int $secondsThreshold = 20, $ownerId = null): float
     {
-        $query = "DELETE FROM cdr WHERE tenancy_id = :tenancy_id";
-        $stmt = (new Database())->execute($query, [':tenancy_id' => $tenancyId]);
-        return $stmt->rowCount() > 0;
+        $db = new Database('cdr');
+
+        $userContext = [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $ownerId,
+            'user_function' => ($ownerId === null) ? 'admin' : ($_SESSION['user']['function'] ?? 'reseller')
+        ];
+        $securityFilter = TenancyHelper::applyCdrSecurityFilter($userContext, 'c');
+
+        $where = "DATE(c.started) = CURDATE() 
+              AND c.tenancy_id = :tenancy_id 
+              AND c.channel_number IS NOT NULL 
+              AND c.channel_number <> ''
+              AND c.dialstatus = 'ANSWER'
+              AND c.answered IS NOT NULL
+              AND $securityFilter"; // 🚀 Blindagem
+
+        $params = [
+            ':tenancy_id' => $tenancyId,
+            ':threshold'  => $secondsThreshold
+        ];
+
+                $query = "SELECT 
+                COUNT(*) as total_atendidas,
+                SUM(CASE WHEN (UNIX_TIMESTAMP(c.answered) - UNIX_TIMESTAMP(c.started)) <= :threshold THEN 1 ELSE 0 END) as dentro_meta
+            FROM cdr c WHERE $where";
+
+        try {
+            $stmt = $db->execute($query, $params);
+            $result = $stmt->fetchObject();
+            $total  = (int)($result->total_atendidas ?? 0);
+            $dentro = (int)($result->dentro_meta ?? 0);
+            if ($total === 0) return 100.0;
+            return round(($dentro / $total) * 100, 1);
+        } catch (\Exception $e) {
+            return 100.0;
+        }
     }
+
+    /**
+     * Tendência de SLA da última hora.
+     */
+    public static function getSlaTrendLastHour(string $tenancyId, $ownerId = null): array
+    {
+        $db = new Database('cdr');
+        $dataPoints = [];
+        $now = time();
+        for ($i = 50; $i >= 0; $i -= 10) {
+            $time = $now - ($i * 60);
+            $key = floor($time / 600);
+            $dataPoints[$key] = ['label' => date('H:i', floor($time / 600) * 600), 'sla' => 100];
+        }
+
+        $params = [':tenancy_id' => $tenancyId];
+        $where = "started >= NOW() - INTERVAL 1 HOUR
+              AND tenancy_id = :tenancy_id
+              AND channel_number IS NOT NULL
+              AND channel_number <> ''
+              AND dialstatus = 'ANSWER'";
+
+        // 🛡️ BLINDAGEM
+        if ($ownerId !== null) {
+            $where .= " AND user_id = :owner_id";
+            $params[':owner_id'] = $ownerId;
+        }
+
+        $query = "SELECT FLOOR(UNIX_TIMESTAMP(started) / 600) AS time_key,
+              COUNT(*) as total,
+              SUM(CASE WHEN (UNIX_TIMESTAMP(answered) - UNIX_TIMESTAMP(started)) <= 20 THEN 1 ELSE 0 END) as dentro
+              FROM cdr WHERE $where GROUP BY time_key";
+
+        try {
+            $stmt = $db->execute($query, $params);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($rows as $row) {
+                if (isset($dataPoints[$row['time_key']])) {
+                    $sla = ($row['total'] > 0) ? ($row['dentro'] / $row['total']) * 100 : 100;
+                    $dataPoints[$row['time_key']]['sla'] = round($sla, 1);
+                }
+            }
+            return ['values' => array_column($dataPoints, 'sla'), 'labels' => array_column($dataPoints, 'label')];
+        } catch (\Exception $e) {
+            return ['values' => [100, 100, 100, 100, 100, 100], 'labels' => array_column($dataPoints, 'label')];
+        }
+    }
+
+    /**
+     * Resumo dos Cards Superiores (Atendidas, TMA, TME).
+     */
+    public static function getDailyStatsSummary(string $tenantId, $ownerId = null): array
+    {
+        $db = new Database('cdr');
+
+        // Preparamos o contexto para o Helper de segurança
+        $userContext = [
+            'tenancy_id'    => $tenantId,
+            'id'            => $ownerId,
+            'user_function' => ($ownerId === null) ? 'admin' : ($_SESSION['user']['function'] ?? 'reseller')
+        ];
+
+        // O alias 'c' deve bater com a sua query abaixo
+        $securityFilter = TenancyHelper::applyCdrSecurityFilter($userContext, 'c');
+
+        $params = [':tid' => $tenantId];
+        $where = "c.tenancy_id = :tid 
+              AND DATE(c.started) = CURDATE()
+              AND c.channel_number IS NOT NULL 
+              AND c.channel_number <> ''
+              AND $securityFilter"; // 🚀 Segurança aplicada aqui
+
+        $query = "SELECT 
+        SUM(CASE WHEN c.dialstatus = 'ANSWER' THEN 1 ELSE 0 END) as atendidas,
+        SUM(CASE WHEN c.dialstatus <> 'ANSWER' THEN 1 ELSE 0 END) as abandonadas,
+        AVG(CASE WHEN c.dialstatus = 'ANSWER' THEN (UNIX_TIMESTAMP(c.ended) - UNIX_TIMESTAMP(c.answered)) ELSE NULL END) as tma_seg,
+        AVG(CASE WHEN c.dialstatus = 'ANSWER' THEN (UNIX_TIMESTAMP(c.answered) - UNIX_TIMESTAMP(c.started)) ELSE NULL END) as tme_seg
+        FROM cdr c WHERE $where";
+
+        try {
+            $stmt = $db->execute($query, $params);
+            $res = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return [
+                'atendidas'   => (int)($res['atendidas'] ?? 0),
+                'abandonadas' => (int)($res['abandonadas'] ?? 0),
+                'tma'         => (int)($res['tma_seg'] ?? 0),
+                'tme'         => (int)($res['tme_seg'] ?? 0)
+            ];
+        } catch (\Exception $e) {
+            return ['atendidas' => 0, 'abandonadas' => 0, 'tma' => 0, 'tme' => 0];
+        }
+    }
+
+
 }

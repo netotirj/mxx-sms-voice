@@ -4,6 +4,7 @@ include __DIR__.'/login/authetication.php';
 include __DIR__.'/login/sessions.php';
 include __DIR__.'/login/register.php';
 include __DIR__.'/login/reset-pass.php';
+include __DIR__.'/login/social.php';
 
 include __DIR__.'/dash/dashboard.php';
 include __DIR__.'/dash/campaign.php';
@@ -15,8 +16,8 @@ include __DIR__.'/dash/permissions.php';
 include __DIR__.'/dash/rates.php';
 include __DIR__.'/dash/voice.php';
 include __DIR__.'/dash/whatsapp.php';
+include __DIR__.'/dash/callcenter.php';
 include __DIR__.'/dash/movies.php';
-
 
 
 

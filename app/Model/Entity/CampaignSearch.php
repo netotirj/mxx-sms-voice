@@ -2,6 +2,7 @@
 
 namespace App\Model\Entity;
 
+use App\Utils\TenancyHelper;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
 
@@ -127,63 +128,33 @@ class CampaignSearch
 
     public static function getCampaignByIdAndTenancy(int $id, string $tenancy_id): ?self
     {
+        // O contexto aqui valida se o ID da campanha pertence à Tenancy
+        $where = TenancyHelper::applySecurityFilter("id = :id", [
+            'tenancy_id' => $tenancy_id,
+            'user_function' => 'admin' // Admin da própria tenancy
+        ], 'user_id', 'campaign');
 
         return (new Database('campaign'))
-            ->select('id = :id AND tenancy_id = :tenancy_id', [
-                ':id' => $id,
-                ':tenancy_id' => $tenancy_id
-            ])
+            ->select($where, [':id' => $id])
             ->fetchObject(self::class) ?: null;
     }
-
-    /*public static function countCampaignsByTenancyAndUser(?string $tenancy_id, ?int $user_id, ?string $status = null): int
-    {
-        $db = new Database('campaign');
-
-        $where = 'tenancy_id = :tenancy_id AND user_id = :user_id';
-        $params = [
-            ':tenancy_id' => $tenancy_id,
-            ':user_id' => $user_id,
-        ];
-
-        if ($status !== null) {
-            $where .= ' AND status = :status';
-            $params[':status'] = $status;
-        }
-
-        $count = $db->select(
-            $where,
-            $params,
-            null,
-            null,
-            'COUNT(*) as total'
-        )->fetchColumn();
-
-        return (int) $count;
-    }*/
 
     public static function countCampaignsByTenancyAndUser(?string $tenancy_id, ?int $user_id, ?string $status = null): int
     {
         $db = new Database('campaign');
 
-        $where  = "1 = 1";
-        $params = [];
+        // Contexto para o Helper decidir se filtra por user_id ou só tenancy
+        $userContext = [
+            'tenancy_id'    => $tenancy_id,
+            'id'            => $user_id,
+            'user_function' => is_null($user_id) ? 'admin' : 'reseller'
+        ];
 
-        // Só aplica filtro se NÃO for null
-        if ($tenancy_id !== null) {
-            $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancy_id;
-        }
+        // O status continua sendo um filtro manual (existingWhere)
+        $initialWhere = $status !== null ? "status = :status" : "";
+        $params = $status !== null ? [':status' => $status] : [];
 
-        if ($user_id !== null) {
-            $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $user_id;
-        }
-
-        if ($status !== null) {
-            $where .= " AND status = :status";
-            $params[':status'] = $status;
-        }
+        $where = TenancyHelper::applySecurityFilter($initialWhere, $userContext, 'user_id', 'campaign');
 
         $count = $db->select(
             $where,
@@ -210,19 +181,20 @@ class CampaignSearch
     public static function getContactsForSmsDispatch(int $campaignId, string $tenancyId, int $userId): array
     {
         try {
+            // Usamos o alias 'c' para a tabela campaign para o Helper não se perder
+            $userContext = [
+                'tenancy_id'    => $tenancyId,
+                'id'            => $userId,
+                'user_function' => 'reseller'
+            ];
+
+            // Filtro base: o ID da campanha
+            $where = TenancyHelper::applySecurityFilter('contacts.campaign_id = :campaignId', $userContext, 'user_id', 'c');
+
             $results = (new Database('contacts INNER JOIN campaign AS c ON c.id = contacts.campaign_id'))
                 ->select(
-                    '
-                contacts.campaign_id = :campaignId
-                AND contacts.tenancy_id = :tenancyId
-                AND c.tenancy_id = contacts.tenancy_id
-                AND c.user_id = :userId
-                ',
-                    [
-                        ':campaignId' => $campaignId,
-                        ':tenancyId'  => $tenancyId,
-                        ':userId'     => $userId
-                    ],
+                    $where,
+                    [':campaignId' => $campaignId],
                     null,
                     null,
                     'contacts.phone, c.message, c.name, c.type_msg, c.charset_msg'
@@ -231,7 +203,6 @@ class CampaignSearch
 
             return is_array($results) ? $results : [];
         } catch (\Throwable $e) {
-            // Log ou print do erro pode ser adicionado aqui
             return [];
         }
     }

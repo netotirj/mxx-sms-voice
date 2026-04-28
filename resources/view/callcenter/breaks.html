@@ -1,0 +1,784 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-200 text-lg">
+                            <i class="ni ni-button-pause"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Gerenciar Pausas</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Defina os motivos e tempos permitidos para ausência</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="btnNovaPausa" type="button" class="inline-flex items-center gap-2 bg-gradient-to-tr from-red-600 to-red-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85">
+                            <i class="ni ni-fat-add text-sm"></i> Nova Pausa
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap p-4 -mx-3">
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Em Pausa (Agora)</p>
+                                        <h5 id="count_pausa_agora" class="mb-0 font-bold text-red-600">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-red-600 to-red-400 flex items-center justify-center">
+                                        <i class="ni ni-button-pause text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Tempo Médio</p>
+                                        <h5 id="avg_time_pausa" class="mb-0 font-bold dark:text-white">00:00:00</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-slate-600 to-slate-400 flex items-center justify-center">
+                                        <i class="ni ni-time-alarm text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Pausas Ativas</p>
+                                        <h5 id="total_pausas" class="mb-0 font-bold text-emerald-500">0 Tipos</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center">
+                                        <i class="ni ni-settings text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Excesso de Tempo</p>
+                                        <h5 id="alert_excesso" class="mb-0 font-bold text-orange-600">0 Alertas</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-orange-500 to-yellow-400 flex items-center justify-center">
+                                        <i class="ni ni-bell-55 text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="flex flex-wrap lg:flex-nowrap items-end gap-4">
+
+                        <div class="w-full lg:w-32">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase ml-1">Mostrar</label>
+                            <select id="pfRowsPerPage" onchange="pfCurrentPage=1; renderPausesTable();" class="mt-1 w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none transition-all">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+
+                        <div class="w-full lg:w-48">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase ml-1">Tipo</label>
+                            <select id="pfTypeFilter" onchange="pfCurrentPage=1; renderPausesTable();" class="mt-1 w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none transition-all">
+                                <option value="">Todos os Tipos</option>
+                                <option value="Improdutiva">Improdutiva</option>
+                                <option value="Produtiva">Produtiva</option>
+                                <option value="Logoff">Logoff</option>
+                            </select>
+                        </div>
+
+                        <div class="w-full lg:w-40">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase ml-1">Estado</label>
+                            <select id="pfStatusFilter" onchange="pfCurrentPage=1; renderPausesTable();" class="mt-1 w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none transition-all">
+                                <option value="">Todos</option>
+                                <option value="active">Ativo</option>
+                                <option value="inactive">Inativo</option>
+                            </select>
+                        </div>
+
+                        <div class="flex-grow w-full lg:w-auto">
+                            <div class="flex justify-between items-center mb-1 px-1">
+                                <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Pesquisar Motivo</label>
+                                <button type="button" onclick="resetarFiltrosPausas()" class="text-xxs font-black text-red-500 hover:text-red-700 uppercase transition-all flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar Filtros
+                                </button>
+                            </div>
+                            <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                <i class="fa fa-search text-slate-400 text-xs"></i>
+                            </span>
+                                <input id="pfSearchInput" oninput="pfCurrentPage=1; renderPausesTable();" class="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none transition-all" placeholder="Nome ou descrição...">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr class="bg-slate-50 dark:bg-slate-800/50">
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Motivo da Pausa</th>
+
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">No Momento</th>
+
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Tipo</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Tempo Máximo</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Estado</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="listaPausas">
+                            <tr>
+                                <td colspan="6" class="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                    <i class="fa fa-spinner fa-spin mr-2"></i> Sincronizando Pausas...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="pfPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">Mostrando pausas...</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="pfPrevPage" onclick="if(pfCurrentPage > 1){pfCurrentPage--; renderPausesTable();}" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 transition-all">
+                            Anterior
+                        </button>
+                        <div id="pfPageNumbers" class="flex gap-1"></div>
+                        <button id="pfNextPage" onclick="pfCurrentPage++; renderPausesTable();" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 transition-all">
+                            Próximo
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap -mx-3 mb-6 p-6">
+                    <div class="w-full lg:w-6/12 px-3">
+                        <div class="bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                            <h6 class="dark:text-white font-bold text-xs uppercase mb-4">Status dos Agentes (Agora)</h6>
+                            <div class="h-64 flex justify-center">
+                                <canvas id="chart-agentes-status"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full lg:w-6/12 px-3">
+                        <div class="bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                            <h6 class="dark:text-white font-bold text-xs uppercase mb-4">Uso de Pausas por Motivo</h6>
+                            <div class="h-64">
+                                <canvas id="chart-pausas-categorias"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalPausa" class="fixed inset-0 flex items-center justify-center bg-black/60 hidden z-50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg p-8 mx-4 border border-slate-100 dark:border-slate-800">
+
+        <div class="flex items-center gap-4 mb-8 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-red-400 text-white flex items-center justify-center text-2xl shadow-lg shadow-red-200 dark:shadow-none">
+                <i class="ni ni-settings-gear-65"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight" id="modalPausaTitle">Configurar Pausa</h3>
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-widest">Interface do Agente</p>
+            </div>
+        </div>
+
+        <form id="formPausa" class="space-y-5">
+            <input type="hidden" name="id" id="pausa_id">
+
+            <div>
+                <label class="block text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1 tracking-wide">Nome da Pausa (Exibido no Painel)</label>
+                <input type="text" name="name" id="name" required
+                       class="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-bold dark:bg-slate-800 dark:text-white focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all"
+                       placeholder="Ex: INTERVALO ALMOÇO" />
+            </div>
+
+            <div>
+                <label class="block text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1 tracking-wide">Descrição Interna</label>
+                <input type="text" name="description" id="description"
+                       class="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-bold dark:bg-slate-800 dark:text-white focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all"
+                       placeholder="Ex: Pausa obrigatória de 1 hora" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1 tracking-wide">Tema Visual (Cor)</label>
+                    <select name="color_theme" id="color_theme" class="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-bold dark:bg-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-500 transition-all appearance-none">
+                        <option value="orange">Laranja (Improdutiva)</option>
+                        <option value="blue">Azul (Produtiva)</option>
+                        <option value="emerald">Verde (Feedback)</option>
+                        <option value="purple">Roxo (Sistemas)</option>
+                        <option value="red">Vermelho (Urgência)</option>
+                        <option value="slate">Cinza (Outros)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1 tracking-wide">Tempo Máximo</label>
+                    <input type="text" name="max_time" id="max_time" required
+                           class="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-bold dark:bg-slate-800 dark:text-white focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all text-center"
+                           placeholder="00:00:00" />
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1 tracking-wide">Ícone Representativo</label>
+                <select name="icon" id="icon" class="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-bold dark:bg-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-500 transition-all">
+                    <option value="ni-button-pause">Pausa Clássica</option>
+                    <option value="ni-time-alarm">Relógio / Alarme</option>
+                    <option value="ni-button-power">Desligamento</option>
+                    <option value="ni-delivery-fast">Saída Rápida</option>
+                    <option value="ni-chat-round">Feedback / Chat</option>
+                    <option value="ni-headphones">Treinamento</option>
+                </select>
+            </div>
+
+            <div class="flex items-center justify-between pt-6">
+                <button type="button" id="btnCancelarPausa" class="px-6 py-3 text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">
+                    Descartar
+                </button>
+                <button type="submit" id="submitBtnPausa" class="px-8 py-4 bg-gradient-to-tr from-red-600 to-red-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-red-500/20 hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest">
+                    Salvar Configuração
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<audio id="alertAudio" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<script>
+    // --- ESTADO GLOBAL ---
+    let pausesMap = {};
+    let pauseSource = null;
+    let pfCurrentPage = 1;
+    let filteredPausesArray = [];
+    let lastExcessoCount = 0;
+    let audioCtx = null;
+    let chartAgentesStatus = null; // Inicialize como null
+    let chartPausasCategorias = null; // Inicialize como nul
+    let contagemAgentesPorPausa = {};
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+        connectPausesSSE();
+        listarPausasConfig();
+
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
+        const btnNova = document.getElementById('btnNovaPausa');
+        if(btnNova) btnNova.onclick = () => openModalNovaPausa();
+
+        const btnCancela = document.getElementById('btnCancelarPausa');
+        if(btnCancela) btnCancela.onclick = () => closePauseModal();
+    });
+
+    // --- FUNÇÃO DE FORMATAÇÃO (Obrigatória para o gráfico não dar erro) ---
+    function formatTime(seconds) {
+        const total = Math.abs(parseInt(seconds || 0, 10));
+        const hrs = String(Math.floor(total / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+        const secs = String(total % 60).padStart(2, '0');
+        return `${hrs}:${mins}:${secs}`;
+    }
+
+    function connectPausesSSE() {
+        if (pauseSource) return;
+
+        // --- GRÁFICOS ---
+        if (!chartAgentesStatus) {
+            const ctxStatus = document.getElementById('chart-agentes-status')?.getContext('2d');
+            if (ctxStatus) {
+                chartAgentesStatus = new Chart(ctxStatus, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Disponível', 'Em Pausa', 'Offline'],
+                        datasets: [{ data: [0, 0, 0], backgroundColor: ['#2dce89', '#fb6340', '#94a3b8'], borderWidth: 0 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, animation: false }
+                });
+            }
+        }
+
+        if (!chartPausasCategorias) {
+            const ctxCat = document.getElementById('chart-pausas-categorias')?.getContext('2d');
+            if (ctxCat) {
+                chartPausasCategorias = new Chart(ctxCat, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: '#5e72e4', borderRadius: 5 }] },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        scales: {
+                            x: { beginAtZero: true, ticks: { callback: (value) => formatTime(value) } }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: (ctx) => ` Duração: ${formatTime(ctx.raw)}` } }
+                        }
+                    }
+                });
+            }
+        }
+
+        pauseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+        pauseSource.addEventListener('update', (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+
+                if (payload.stats && payload.stats.pausas) {
+                    const s = payload.stats.pausas;
+                    const currentExcesso = parseInt(s.excesso ?? 0, 10);
+                    const agora = parseInt(s.agora ?? 0, 10);
+                    const ativas = parseInt(s.ativas ?? 0, 10);
+
+                    if (currentExcesso > lastExcessoCount) {
+                        playAlertSound();
+
+                        if (Notification.permission === "granted") {
+                            new Notification("Alerta de Monitoramento", {
+                                body: `Atenção: ${currentExcesso} agente(s) em excesso de tempo de pausa!`
+                            });
+                        } else if (Notification.permission !== "denied") {
+                            Notification.requestPermission();
+                        }
+                    }
+
+                    lastExcessoCount = currentExcesso;
+
+                    animatePauseCount(document.getElementById('count_pausa_agora'), agora);
+                    animatePauseCount(document.getElementById('alert_excesso'), currentExcesso, '', ' Alertas');
+
+                    const avgEl = document.getElementById('avg_time_pausa');
+                    if (avgEl) {
+                        avgEl.innerText = s.media ?? '00:00:00';
+                    }
+
+                    const totalEl = document.getElementById('total_pausas');
+                    if (totalEl) {
+                        totalEl.innerText = `${ativas} Tipos`;
+                    }
+                }
+
+                if (payload.agentes) {
+                    contagemAgentesPorPausa = {};
+
+                    payload.agentes.forEach(a => {
+                        if (a.status === 'Em Pausa' || a.status === 'PAUSA') {
+                            const corSse = String(a.color || '').toLowerCase().trim();
+                            const nomeSse = String(a.status_name || '').toUpperCase().trim();
+
+                            if (corSse) contagemAgentesPorPausa[corSse] = (contagemAgentesPorPausa[corSse] || 0) + 1;
+                            if (nomeSse) contagemAgentesPorPausa[nomeSse] = (contagemAgentesPorPausa[nomeSse] || 0) + 1;
+                        }
+                    });
+
+                    renderPausesTable();
+
+                    const agentesPausados = payload.agentes.filter(a => a.status === 'Em Pausa' || a.status === 'PAUSA');
+                    const disp = payload.agentes.filter(a => a.status === 'Disponível').length;
+                    const off  = payload.agentes.filter(a => a.status === 'Offline').length;
+
+                    if(chartAgentesStatus) {
+                        chartAgentesStatus.data.datasets[0].data = [disp, agentesPausados.length, off];
+                        chartAgentesStatus.update('none');
+                    }
+
+                    if(chartPausasCategorias) {
+                        const novosLabels = agentesPausados.map(a => a.nome || a.ramal);
+                        const novosDados  = agentesPausados.map(a => a.tempo_segundos || 0);
+                        const coresHex = { 'orange': '#f59e0b', 'blue': '#3b82f6', 'red': '#ef4444', 'purple': '#8b5cf6', 'emerald': '#10b981', 'slate': '#64748b' };
+
+                        chartPausasCategorias.data.labels = novosLabels.length ? novosLabels : ['Ninguém'];
+                        chartPausasCategorias.data.datasets[0].data = novosDados.length ? novosDados : [0];
+                        chartPausasCategorias.data.datasets[0].backgroundColor = agentesPausados.map(a => coresHex[String(a.color).toLowerCase().trim()] || '#f59e0b');
+                        chartPausasCategorias.update('none');
+                    }
+                }
+
+            } catch (err) { console.error('❌ Erro Crítico no SSE:', err); }
+        });
+
+        pauseSource.onerror = () => {
+            if (pauseSource) { pauseSource.close(); pauseSource = null; }
+            setTimeout(connectPausesSSE, 3000);
+        };
+    }
+
+    /**
+     * Toca o som de alerta lidando com as restrições do Chrome
+     */
+    async function playAlertSound() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            if (audioCtx.state === 'suspended') return;
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.2);
+        } catch (e) {
+            console.warn("Áudio ainda bloqueado pelo navegador.");
+        }
+    }
+
+    // --- 1. FUNÇÃO PARA ABRIR E LIMPAR (NOVA PAUSA) ---
+    function openModalNovaPausa() {
+        const modal = document.getElementById('modalPausa');
+        const form = document.getElementById('formPausa');
+        if (form) form.reset(); // Limpa o campo "name" e outros
+
+        document.getElementById('pausa_id').value = '';
+        document.getElementById('modalPausaTitle').innerText = "Configurar Nova Pausa";
+        document.getElementById('submitBtnPausa').innerText = "Salvar Configuração";
+
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function closePauseModal() {
+        const modal = document.getElementById('modalPausa');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    // --- LÓGICA DE SALVAMENTO (AJUSTADA PARA O SEU PHP) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const formPausa = document.getElementById('formPausa');
+        if (formPausa) {
+            formPausa.onsubmit = async (e) => {
+                e.preventDefault();
+
+                // Criamos o FormData diretamente do elemento form
+                // Isso envia os dados exatamente como o PHP getPostVars() espera
+                const formData = new FormData(formPausa);
+
+                try {
+                    // IMPORTANTE: Não passamos headers de Content-Type aqui.
+                    // O navegador define automaticamente como multipart/form-data
+                    const response = await fetch(`${baseUrl}/callcenter/breaks-save`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const text = await response.text(); // Pegamos como texto primeiro para evitar erros de parse
+                    try {
+                        const result = JSON.parse(text);
+                        if (result.success) {
+                            if (typeof notyf !== 'undefined') notyf.success("Salvo com sucesso!");
+                            closePauseModal();
+                            listarPausasConfig(); // Recarrega a tabela
+                        } else {
+                            alert("Erro: " + result.message);
+                        }
+                    } catch (jsonErr) {
+                        console.error("Erro no retorno do PHP (Não é JSON):", text);
+                        alert("O servidor retornou um erro inesperado. Verifique o console.");
+                    }
+
+                } catch (error) {
+                    console.error("Erro na requisição:", error);
+                    alert("Erro ao conectar com o servidor.");
+                }
+            };
+        }
+    });
+
+    function deletePause(id = null) {
+        let idsParaExcluir = [];
+
+        if (id) {
+            // Exclusão individual via botão da tabela
+            idsParaExcluir = [id];
+        } else {
+            // Exclusão em massa via checkboxes (caso implemente o .row-checkbox)
+            const selecionados = document.querySelectorAll(".row-checkbox:checked");
+            idsParaExcluir = Array.from(selecionados).map(cb => cb.value);
+        }
+
+        if (idsParaExcluir.length === 0) {
+            if (typeof notyf !== 'undefined') notyf.error("Selecione pelo menos uma pausa para excluir.");
+            return;
+        }
+
+        // Mensagem dinâmica baseada na quantidade
+        const mensagem = idsParaExcluir.length === 1
+            ? `Deseja realmente excluir esta configuração de pausa?`
+            : `Deseja excluir as <b>${idsParaExcluir.length}</b> pausas selecionadas?`;
+
+        Swal.fire({
+            title: "Confirmar Exclusão",
+            html: mensagem,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sim, excluir",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#ef4444", // Vermelho Tailwind
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Exibe o loader
+                Swal.showLoading();
+
+                // Criamos o FormData para manter o padrão que seu PHP getPostVars() espera
+                const formData = new FormData();
+                // Se o seu PHP espera um array de IDs, enviamos como JSON ou múltiplos appends.
+                // Para manter simples e funcional com o controller que fizemos:
+                formData.append('id', idsParaExcluir[0]);
+
+                fetch(`${baseUrl}/callcenter/breaks-delete`, {
+                    method: "POST",
+                    body: formData // Enviando como FormData para o getPostVars() do PHP
+                })
+                    .then((res) => res.json())
+                    .then((result) => {
+                        if (result.success) {
+                            if (typeof notyf !== 'undefined') notyf.success(result.message || "Pausa removida com sucesso!");
+
+                            // Desmarcar o "Selecionar Todos" se houver
+                            const selectAll = document.getElementById("selectAll");
+                            if(selectAll) selectAll.checked = false;
+
+                            // Limpeza local e re-renderização imediata
+                            idsParaExcluir.forEach(idExcluir => delete pausesMap[idExcluir]);
+                            renderPausesTable();
+
+                        } else {
+                            if (typeof notyf !== 'undefined') notyf.error(result.message || "Erro ao excluir pausa.");
+                        }
+                    })
+                    .catch(() => {
+                        if (typeof notyf !== 'undefined') notyf.error("Falha na comunicação com o servidor.");
+                    })
+                    .finally(() => {
+                        Swal.close();
+                    });
+            }
+        });
+    }
+
+    /**
+     * BUSCA DADOS DA TABELA
+     */
+    async function listarPausasConfig() {
+        try {
+            const res = await fetch(`${baseUrl}/callcenter/breaks-list`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                pausesMap = {};
+                json.data.forEach(p => { pausesMap[p.id] = p; });
+                renderPausesTable();
+            } else {
+                document.getElementById('listaPausas').innerHTML = `<tr><td colspan="5" class="text-center p-8 text-slate-400">Nenhuma pausa cadastrada.</td></tr>`;
+            }
+        } catch (error) {
+            document.getElementById('listaPausas').innerHTML = `<tr><td colspan="5" class="text-center p-8 text-red-500">Erro ao carregar dados.</td></tr>`;
+        }
+    }
+
+    /**
+     * RENDERIZAÇÃO DA TABELA (Com contagem de Agentes Real-time)
+     */
+    function renderPausesTable() {
+        const tbody = document.getElementById('listaPausas');
+        if (!tbody) return;
+
+        const todasPausas = Object.values(pausesMap);
+        const rowsPerPage = parseInt(document.getElementById('pfRowsPerPage')?.value || 10);
+        const start = (pfCurrentPage - 1) * rowsPerPage;
+        const slice = todasPausas.slice(start, start + rowsPerPage);
+
+        const colorClasses = {
+            'orange':  { bg: 'bg-orange-500',  badge: 'bg-orange-100 text-orange-600' },
+            'blue':    { bg: 'bg-blue-500',    badge: 'bg-blue-100 text-blue-600' },
+            'emerald': { bg: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-600' },
+            'purple':  { bg: 'bg-purple-500',  badge: 'bg-purple-100 text-purple-600' },
+            'red':     { bg: 'bg-red-500',     badge: 'bg-red-100 text-red-600' },
+            'slate':   { bg: 'bg-slate-500',   badge: 'bg-slate-100 text-slate-600' }
+        };
+
+        tbody.innerHTML = slice.map(pause => {
+            // 1. CHAVE ÚNICA: Usamos apenas o Nome em maiúsculo para comparar
+            const nomeParaComparar = String(pause.name || '').toUpperCase().trim();
+            const corTema = String(pause.color_theme || '').toLowerCase().trim();
+
+            // 2. CONTAGEM LIMPA: Buscamos no mapa APENAS pelo nome exato
+            // Removido o 'contagemAgentesPorPausa[corChave]' que causava a duplicidade
+            const qtdAgentes = contagemAgentesPorPausa[nomeParaComparar] || 0;
+
+            const theme = colorClasses[corTema] || colorClasses['orange'];
+
+            return `
+        <tr class="border-b dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <td class="p-4 align-middle">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${theme.bg}">
+                        <i class="ni ${pause.icon || 'ni-button-pause'} text-white text-sm"></i>
+                    </div>
+                    <div class="flex flex-col text-left">
+                        <h6 class="mb-0 text-sm font-bold dark:text-white leading-none mb-1">${pause.name}</h6>
+                        <p class="mb-0 text-[10px] uppercase font-bold text-slate-400">${pause.description || '-'}</p>
+                    </div>
+                </div>
+            </td>
+            <td class="p-4 align-middle text-center">
+                <div class="flex flex-col items-center justify-center min-w-[80px]">
+                    <span class="text-sm font-black transition-all ${qtdAgentes > 0 ? 'text-blue-500 animate-pulse scale-110' : 'text-slate-300'}">
+                        ${qtdAgentes}
+                    </span>
+                    <span class="text-[9px] uppercase text-slate-400 font-bold leading-none">Agentes</span>
+                </div>
+            </td>
+            <td class="p-4 align-middle text-center">
+                <span class="inline-block px-2 py-1 rounded-lg text-[10px] font-black uppercase ${theme.badge}">${pause.type}</span>
+            </td>
+            <td class="p-4 text-center align-middle text-xs font-bold dark:text-white">${pause.max_time}</td>
+            <td class="p-4 text-center align-middle">
+                <span onclick="togglePauseStatus('${pause.id}', '${pause.status}')" class="cursor-pointer px-2.5 py-1 rounded-md text-[10px] font-black text-white uppercase ${pause.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'} shadow-lg">
+                    ${pause.status === 'active' ? 'Ativo' : 'Inativo'}
+                </span>
+            </td>
+            <td class="p-4 text-center align-middle">
+                <div class="flex justify-center gap-2">
+                    <button onclick="editPause('${pause.id}')" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 border border-blue-100 transition-all hover:bg-blue-500 hover:text-white">
+                        <i class="fa fa-pen text-xs"></i>
+                    </button>
+                    <button onclick="deletePause('${pause.id}')" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 border border-red-100 transition-all hover:bg-red-500 hover:text-white">
+                        <i class="fa fa-trash text-xs"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+        }).join('');
+
+        const totalPages = Math.ceil(todasPausas.length / rowsPerPage) || 1;
+        updatePfPaginationUI(totalPages);
+    }
+
+    function editPause(id) {
+        const pausa = pausesMap[id]; // 🛡️ Corrigido: usando pausesMap
+        if (!pausa) return;
+
+        openModalNovaPausa();
+        document.getElementById('modalPausaTitle').innerText = "Editar Configuração";
+        document.getElementById('submitBtnPausa').innerText = "Atualizar Pausa";
+        document.getElementById('pausa_id').value = pausa.id;
+        document.getElementById('name').value = pausa.name;
+        document.getElementById('description').value = pausa.description;
+        document.getElementById('color_theme').value = pausa.color_theme || 'orange';
+        document.getElementById('max_time').value = pausa.max_time;
+        document.getElementById('icon').value = pausa.icon || 'ni-button-pause';
+    }
+
+    /**
+     * MÁSCARA E AUXILIARES (PAGINAÇÃO, ETC)
+     */
+    const inputMaxTime = document.getElementById('max_time');
+    inputMaxTime?.addEventListener('input', function (e) {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length > 6) v = v.slice(0, 6);
+        if (v.length >= 5) v = v.replace(/^(\d{2})(\d{2})(\d{2}).*/, '$1:$2:$3');
+        else if (v.length >= 3) v = v.replace(/^(\d{2})(\d{2}).*/, '$1:$2');
+        e.target.value = v;
+    });
+
+    function updatePfPaginationUI(totalPages) {
+        const info = document.getElementById('pfPageInfo');
+        const numbers = document.getElementById('pfPageNumbers');
+        if (info) info.textContent = `Página ${pfCurrentPage} de ${totalPages} (${filteredPausesArray.length} itens)`;
+        document.getElementById('pfPrevPage').disabled = (pfCurrentPage === 1);
+        document.getElementById('pfNextPage').disabled = (pfCurrentPage >= totalPages || totalPages === 0);
+        if (numbers) {
+            numbers.innerHTML = "";
+            for (let p = Math.max(1, pfCurrentPage - 1); p <= Math.min(totalPages, pfCurrentPage + 1); p++) {
+                const btn = document.createElement("button");
+                btn.textContent = p;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg ${p === pfCurrentPage ? "bg-red-600 text-white border-red-600" : "dark:text-white hover:bg-slate-100 border-slate-200 dark:border-slate-700"}`;
+                btn.onclick = () => { pfCurrentPage = p; renderPausesTable(); };
+                numbers.appendChild(btn);
+            }
+        }
+    }
+
+    async function togglePauseStatus(id, currentStatus) {
+        const newStatus = (currentStatus === 'active') ? 'inactive' : 'active';
+
+        try {
+            const res = await fetch(`${baseUrl}/callcenter/breaks-toggle-status`, {
+                method: 'POST',
+                body: JSON.stringify({ id, status: newStatus })
+            });
+
+            if (res.ok) {
+                notyf.success("Status atualizado!");
+                await listarPausasConfig(); // Recarrega a tabela
+            }
+        } catch (e) {
+            notyf.error("Erro ao alterar status");
+        }
+    }
+
+    function animatePauseCount(el, val, prefix = '', suffix = '') {
+        if (!el) return;
+        const endValue = parseInt(val);
+        const lastValue = parseInt(el.dataset.lastValue || 0);
+        if (lastValue === endValue) return;
+        el.dataset.lastValue = endValue;
+        let frame = 0; const totalFrames = 60;
+        function update() {
+            frame++;
+            const progress = frame / totalFrames;
+            const current = Math.round(lastValue + (endValue - lastValue) * progress);
+            el.textContent = prefix + current + suffix;
+            if (frame < totalFrames) requestAnimationFrame(update);
+        }
+        update();
+    }
+
+    function escapePauseHtml(t) { return String(t).replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+    document.addEventListener('click', () => {
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }, { once: true });
+
+</script>

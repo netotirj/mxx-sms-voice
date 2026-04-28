@@ -1,12 +1,53 @@
-// HEARTBEAT SESSION KEEPER
 document.addEventListener('DOMContentLoaded', () => {
     const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+
     const notyf = new Notyf({
         duration: 4000,
-        position: {x: 'right', y: 'top'},
+        position: { x: 'right', y: 'top' },
     });
 
-    let heartbeatIntervalId; // variável global para controle
+    let heartbeatIntervalId = null;
+    let inactivityTimer = null;
+
+    const HEARTBEAT_INTERVAL = 2 * 60 * 1000;   // 2 minutos
+    const INACTIVITY_LIMIT = 30 * 60 * 1000;    // 30 minutos
+
+    function saveSessionState() {
+        const state = {
+            lastRoute: window.location.pathname + window.location.search + window.location.hash,
+            timestamp: Date.now()
+        };
+
+        localStorage.setItem('app_session_state', JSON.stringify(state));
+    }
+
+    function clearSessionState() {
+        localStorage.removeItem('app_session_state');
+        localStorage.removeItem('agente_sessao');
+        sessionStorage.clear();
+    }
+
+    async function restoreSessionState() {
+        const raw = localStorage.getItem('app_session_state');
+        if (!raw) return;
+
+        try {
+            const state = JSON.parse(raw);
+            if (!state?.lastRoute) return;
+
+            const current = window.location.pathname + window.location.search + window.location.hash;
+
+            if (
+                window.location.pathname === '/dashboard' &&
+                state.lastRoute !== current &&
+                state.lastRoute !== '/dashboard'
+            ) {
+                window.location.href = state.lastRoute;
+            }
+        } catch (e) {
+            console.error('Erro ao restaurar estado da sessão:', e);
+        }
+    }
 
     async function keepSessionAlive() {
         try {
@@ -25,46 +66,54 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.status === 'OK') {
-                // Sessão ativa, nada a fazer
-            } else if (data.status === 419) {
-                clearInterval(heartbeatIntervalId); // interrompe o heartbeat
+                saveSessionState();
+                return true;
+            }
+
+            if (data.status === 419 || data.status === 401) {
+                clearInterval(heartbeatIntervalId);
+                clearTimeout(inactivityTimer);
+                clearSessionState();
+
                 notyf.error(data.message || 'Sessão expirada! Redirecionando...');
                 setTimeout(() => {
                     window.location.href = `${baseUrl}/login`;
-                }, 5000);
-            } else if (data.status === 401) {
-                clearInterval(heartbeatIntervalId); // interrompe o heartbeat
-                notyf.error(data.message || 'Usuário não autenticado! Redirecionando...');
-                setTimeout(() => {
-                    window.location.href = `${baseUrl}/login`;
-                }, 5000);
-            } else {
-                notyf.error(data.message || 'Erro ao manter a sessão ativa.');
+                }, 1500);
+
+                return false;
             }
+
+            notyf.error(data.message || 'Erro ao manter a sessão ativa.');
+            return false;
+
         } catch (error) {
-            //console.error('Erro ao verificar sessão:', error);
             notyf.error('Erro de conexão ao verificar sessão.');
+            return false;
         }
     }
 
-    // Executa ao carregar
-    keepSessionAlive().then(r => {
-
-    });
-
-    // Executa a cada 3 minutos (180000 ms)
-    heartbeatIntervalId = setInterval(keepSessionAlive, 180000);
-
-
-    let inactivityTimer;
-    const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutos em milissegundos
-
-    function logoutForInactivity() {
+    async function logoutForInactivity() {
         clearInterval(heartbeatIntervalId);
+        clearTimeout(inactivityTimer);
+
+        try {
+            await fetch(`${baseUrl}/dashboard/logout`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+            });
+        } catch (e) {
+            console.error('Erro ao encerrar sessão por inatividade:', e);
+        }
+
+        clearSessionState();
+
         notyf.error('Sessão expirada por inatividade. Redirecionando...');
         setTimeout(() => {
-            window.location.href = `${baseUrl}/dashboard/logout`;
-        }, 5000);
+            window.location.href = `${baseUrl}/login`;
+        }, 1500);
     }
 
     function resetInactivityTimer() {
@@ -72,13 +121,30 @@ document.addEventListener('DOMContentLoaded', () => {
         inactivityTimer = setTimeout(logoutForInactivity, INACTIVITY_LIMIT);
     }
 
-// Escuta qualquer tipo de atividade do usuário
-    ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(event => {
-        document.addEventListener(event, resetInactivityTimer);
+    ['mousemove', 'keydown', 'mousedown', 'touchstart', 'click', 'scroll'].forEach(event => {
+        document.addEventListener(event, () => {
+            resetInactivityTimer();
+            saveSessionState();
+        }, { passive: true });
     });
 
-// Inicia o timer pela primeira vez
-    resetInactivityTimer();
+    window.addEventListener('beforeunload', () => {
+        saveSessionState();
+    });
 
+    (async () => {
+        const ok = await keepSessionAlive();
 
+        if (!ok) return;
+
+        await restoreSessionState();
+        resetInactivityTimer();
+
+        heartbeatIntervalId = setInterval(async () => {
+            const valid = await keepSessionAlive();
+            if (!valid) {
+                clearInterval(heartbeatIntervalId);
+            }
+        }, HEARTBEAT_INTERVAL);
+    })();
 });

@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Config\TelephonyConfig;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
@@ -15,10 +16,11 @@ class VoiceOriginate
 
     public function __construct()
     {
-        $this->ariBase = "http://192.168.1.8:8088/ari/";
+        $this->ariBase = TelephonyConfig::ariBaseUrl();
+        $this->stasisApp = TelephonyConfig::stasisApp();
 
         $this->client = new Client([
-            'auth'        => ['maxx', 'mxx123'],
+            'auth'        => TelephonyConfig::ariAuth(),
             'timeout'     => 10.0,     // total
             'connect_timeout' => 3.0,  // conecta rápido
             'http_errors' => false,    // NÃO lançar por 4xx/5xx
@@ -40,6 +42,7 @@ class VoiceOriginate
         $mainAudio      = $data['audio']['main'] ?? null;
         $dtmf           = $data['audio']['dtmf'] ?? [];
         $userId         = $data['user_id'];
+        $record_calls   = $data['record_calls'] ?? 0;
         $role           = $data['role'];
         $tenantId       = $data['tenant_id'];
         $callerId       = $data['caller_id'];
@@ -48,11 +51,15 @@ class VoiceOriginate
         $torpedoCost    = $data['torpedo_cost'] ?? 0;
         $variableType   = $data['variable_type'] ?? 'voice';
         $trunkUsed      = $data['trunk'];
+        $trunkId        = $data['trunk_id'] ?? $trunkUsed;
+        $trunkName      = $data['trunk_name'] ?? $trunkUsed;
         $techPrefix     = trim($data['tech_prefix'] ?? '');
         $jobId          = $data['job_id'] ?? null;
         $callId         = $data['call_id'] ?? null;
         $campaignId     = $data['campaign_id'] ?? null;
+        $queueId        = $data['queue_id'] ?? null;
         $taxaOfService  = $data['taxa_of_service'] ?? 0;
+        $voiceListId    = $data['voice_list_id'] ?? null;
 
         $action = strtolower(trim((string)($data['action'] ?? 'dtmf')));
 
@@ -74,8 +81,10 @@ class VoiceOriginate
             'OWNER_ID'         => (string)$userId,
             'ROLE'             => (string)$role,
             'TENANT_ID'        => (string)$tenantId,
+            '__RECORD_CALLS'   => (string)$record_calls,
             'EXTENSION'        => (string)$number,
-            'TRUNK'            => (string)$trunkUsed,
+            'TRUNK'            => (string)$trunkName,
+            'TRUNK_ID'         => (string)$trunkId,
             'TECHPREFIX'       => (string)$techPrefix,
             'CALL_MINUTE_COST' => (string)$callMinuteCost,
             'TORPEDO_COST'     => (string)$torpedoCost,
@@ -85,12 +94,16 @@ class VoiceOriginate
             'JOB_ID'           => (string)$jobId,
             'CALL_ID'          => (string)$callId,
             'CAMPAIGN_ID'      => (string)$campaignId,
+            'QUEUE_ID'         => (string)$queueId,
             'CAMPAIGN_TYPE'    => (string)$variableType,
             'CALLERID(num)'    => (string)$callerId,
             'CALLERID(name)'   => (string)$callerId,
             'ACTION'           => (string)$action,
             'TORPEDO_TYPE'     => (string)$action,
+            'VOICE_LIST_ID'    => (string)$voiceListId
         ];
+
+        print_r($variables);
 
         if ($reservedAgent) {
             $variables['RESERVED_AGENT'] = (string)$reservedAgent;
@@ -103,8 +116,8 @@ class VoiceOriginate
         ], JSON_UNESCAPED_SLASHES);
 
         $payload = [
-            //'endpoint'  => "PJSIP/{$techPrefix}{$number}@{$trunkUsed}",
-            'endpoint'  => "PJSIP/{$number}@{$trunkUsed}",
+            'endpoint'  => "PJSIP/{$techPrefix}{$number}@{$trunkUsed}",
+            //'endpoint'  => "PJSIP/{$number}@{$trunkUsed}",
             'extension' => $number, // número limpo
             'timeout'   => 60,
             'callerId'  => $callerId,

@@ -1,0 +1,873 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg">
+                            <i class="ni ni-single-02"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Gerenciamento de Agentes</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Monitore e gerencie os agentes do seu call center</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="openModalNovoAgente()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-blue-600 to-blue-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85">
+                            <i class="ni ni-fat-add text-sm"></i> Novo Agente
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 p-4">
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Total</p>
+                                        <h5 id="totalAgentesCount" class="mb-0 font-bold dark:text-white">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center">
+                                        <i class="ni ni-single-02 text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Disponíveis</p>
+                                        <h5 id="onlineAgentesCount" class="mb-0 font-bold text-emerald-500">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center">
+                                        <i class="ni ni-check-bold text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Em Pausa</p>
+                                        <h5 id="pausaAgentesCount" class="mb-0 font-bold text-orange-500">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-orange-500 to-yellow-400 flex items-center justify-center">
+                                        <i class="ni ni-button-pause text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Offline</p>
+                                        <h5 id="offlineAgentesCount" class="mb-0 font-bold text-red-600">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-red-600 to-orange-600 flex items-center justify-center">
+                                        <i class="ni ni-button-power text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Ocupados</p>
+                                        <h5 id="ocupadoAgentesCount" class="mb-0 font-bold text-blue-500">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-blue-500 to-cyan-400 flex items-center justify-center">
+                                        <i class="ni ni-headphones text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mostrar</label>
+                            <select id="afRowsPerPage" onchange="afCurrentPage=1; renderAgentsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Agente</label>
+                            <select id="afAgentFilter" onchange="afCurrentPage=1; renderAgentsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Agentes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Ramal</label>
+                            <select id="afExtensionFilter" onchange="afCurrentPage=1; renderAgentsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Ramais</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Status</label>
+                            <select id="afStatusFilter" onchange="afCurrentPage=1; renderAgentsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Status</option>
+                                <option value="DISPONÍVEL">Disponível</option>
+                                <option value="EM PAUSA">Em Pausa</option>
+                                <option value="EM CHAMADA">Em Chamada</option>
+                                <option value="OFFLINE">Offline</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-2">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400">Pesquisar Tudo</label>
+                                <button type="button" onclick="resetarFiltrosAgentes()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 hover:text-red-700 uppercase transition-all inline-flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <i class="fa fa-search text-slate-400 text-xs"></i>
+                                </span>
+                                <input id="afSearchInput" oninput="afCurrentPage=1; renderAgentsTable();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Procurar...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Agente</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Ramal / Fila</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Tempo</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="cdrTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center p-6 italic text-slate-400">Carregando agentes...</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="afPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">Mostrando agentes...</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="afPrevPage" onclick="if(afCurrentPage > 1){afCurrentPage--; renderAgentsTable();}" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="afPageNumbers" class="flex gap-1"></div>
+                        <button id="afNextPage" onclick="afCurrentPage++; renderAgentsTable();" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="createModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-white" id="modalTitle">
+                Adicionar Agente (SIP)
+            </h3>
+            <button onclick="closeAgentModal()" class="text-slate-400 hover:text-slate-600"><i class="fa fa-times"></i></button>
+        </div>
+
+        <form id="createSipForm" class="space-y-3">
+            <input type="hidden" name="id" id="agent_id">
+
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Nome do Agente</label>
+                <input type="text" name="name" id="name" required
+                       class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                       placeholder="Ex: João Silva" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Ramal (Username)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" name="username" id="username" readonly required
+                               class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none" />
+                        <button type="button" id="regenUser" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-blue-500 hover:text-white transition shadow-sm">
+                            <i class="fa fa-sync-alt text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Senha SIP</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" name="password" id="password" readonly required
+                               class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none" />
+                        <button type="button" id="regenPass" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-blue-500 hover:text-white transition shadow-sm">
+                            <i class="fa fa-key text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">CallerID (Identificador)</label>
+                <input type="text" name="caller_number" id="caller_number"
+                       class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4">
+                <button type="button" onclick="closeAgentModal()" class="px-4 py-2 text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="submitBtn" class="px-6 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-all uppercase">
+                    Salvar Agente
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let agentsMap = {};
+    let agentSource = null;
+    let reconnectTimer = null;
+    let timersStarted = false;
+    let activeCalls = [];
+    let afCurrentPage = 1;
+    let filteredAgentsArray = [];
+    let selectsPopulados = false;
+    const animations = new Map();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startTimers(); // Inicia o motor do relógio local
+        connectAgentsSSE();
+    });
+
+    function connectAgentsSSE() {
+        if (agentSource) return;
+
+        agentSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+        agentSource.addEventListener('update', (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                activeCalls = payload.chamadas || [];
+
+                // 1. Processamento de dados e Atualização dos Objetos no Mapa
+                payload.agentes.forEach(agent => {
+                    const ramal = String(agent.ramal);
+                    const statusRaw = String(agent.status).toLowerCase();
+
+                    let finalSeconds = parseInt(agent.tempo_segundos) || 0;
+                    let finalLabel = agent.tempo || "00:00:00";
+                    let finalStatus = agent.status;
+                    let finalColor = agent.color;
+
+                    // 🔥 AJUSTE DE PRIORIDADE: Verifica se o ramal está em alguma chamada ativa no JSON
+                    // Procuramos tanto no campo 'agente' quanto no 'dest' ou 'caller'
+                    const callAtiva = activeCalls.find(c =>
+                        String(c.agente) === ramal ||
+                        String(c.dest) === ramal ||
+                        String(c.caller) === ramal
+                    );
+
+                    // Se houver chamada ativa, FORÇA o status ocupado independente do que o banco diz
+                    if (callAtiva) {
+                        finalStatus = 'EM CHAMADA';
+                        finalColor = 'blue';
+
+                        // Sincroniza o cronômetro com a duração real da chamada que vem no JSON
+                        finalLabel = callAtiva.duracao;
+                        const p = callAtiva.duracao.split(':');
+                        finalSeconds = (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]);
+                    } else if (statusRaw.includes('pausa')) {
+                        finalStatus = 'EM PAUSA';
+                        finalColor = 'orange';
+                    } else if (statusRaw.includes('offline')) {
+                        finalStatus = 'OFFLINE';
+                        finalColor = 'slate';
+                    }
+
+                    // 💾 Salva no mapa global para persistência
+                    agentsMap[ramal] = {
+                        ...agent,
+                        tempo_segundos: finalSeconds,
+                        tempo: finalLabel,
+                        status: finalStatus,
+                        color: finalColor
+                    };
+                });
+
+                // 2. VERIFICAÇÃO DE MUDANÇA DE ESTADO (Assinatura) 🛡️
+                const tbody = document.getElementById('cdrTableBody');
+                const trsAtuais = Array.from(tbody.querySelectorAll('tr[data-ramal-row]'));
+
+                // A assinatura agora observa o status calculado (finalStatus) e a quantidade de chamadas
+                const assinaturaNovosDados = payload.agentes.map(a => {
+                    const info = agentsMap[a.ramal];
+                    return `${a.ramal}-${info.status}-${info.color}`;
+                }).sort().join('|') + `-calls:${activeCalls.length}`;
+
+                const assinaturaTelaAtual = trsAtuais.map(tr => {
+                    const r = tr.getAttribute('data-ramal-row');
+                    const s = tr.querySelector('.badge-status')?.innerText.trim() || '';
+                    const badge = tr.querySelector('.badge-status');
+                    const color = badge?.className.includes('emerald') ? 'emerald' :
+                        badge?.className.includes('blue') ? 'blue' :
+                            badge?.className.includes('orange') ? 'orange' : 'slate';
+
+                    return `${r}-${s}-${color}`;
+                }).sort().join('|') + `-calls:${activeCalls.length}`;
+
+                // RECONSTRÓI A TABELA SE:
+                // A - Algum status mudou (ex: de Disponível para EM CHAMADA)
+                // B - A quantidade de chamadas mudou (entrada/saída de ligações)
+                // C - A quantidade de agentes mudou ou tabela está vazia
+                if (trsAtuais.length !== payload.agentes.length || assinaturaNovosDados !== assinaturaTelaAtual || tbody.innerHTML.includes('Carregando')) {
+                    console.log("🔄 Mudança detectada (Status de Chamada). Renderizando tabela...");
+
+                    // Se nomes mudaram, forçamos a atualização dos selects de filtro
+                    const nomesNovos = payload.agentes.map(a => a.nome).sort().join('');
+                    const nomesAtuais = trsAtuais.map(tr => tr.querySelector('td:first-child')?.innerText.trim()).sort().join('');
+                    if (nomesNovos !== nomesAtuais) selectsPopulados = false;
+
+                    renderAgentsTable();
+                } else {
+                    // Se a estrutura é a mesma, atualizamos apenas os cards e timers
+                    updateCards();
+                    document.querySelectorAll('.agent-timer').forEach(el => {
+                        const r = el.dataset.ramal;
+                        if(agentsMap[r]) {
+                            el.dataset.seconds = agentsMap[r].tempo_segundos;
+                            el.innerText = agentsMap[r].tempo;
+                        }
+                    });
+                }
+
+            } catch (err) { console.error('Erro ao processar EventSource:', err); }
+        });
+
+        agentSource.onerror = () => {
+            safeCloseAgentSource();
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectAgentsSSE, 3000);
+        };
+    }
+
+    function renderAgentsTable() {
+        const tbody = document.getElementById('cdrTableBody');
+        if (!tbody) return;
+
+        const todosAgentes = Object.values(agentsMap);
+
+        // 1. POPULAR FILTROS (Apenas uma vez para não travar a tela)
+        if (!selectsPopulados && todosAgentes.length > 0) {
+            popularSelectsFiltro(todosAgentes);
+        }
+
+        // 2. CAPTURA VALORES DOS FILTROS
+        const selAgente = document.getElementById('afAgentFilter')?.value || "";
+        const selRamal = document.getElementById('afExtensionFilter')?.value || "";
+        const selStatus = document.getElementById('afStatusFilter')?.value.toUpperCase() || "";
+        const buscaGeral = document.getElementById('afSearchInput')?.value.toLowerCase().trim() || "";
+        const rowsPerPage = parseInt(document.getElementById('afRowsPerPage')?.value || 10);
+
+        // 3. FILTRAGEM (Lógica idêntica às Filas)
+        filteredAgentsArray = todosAgentes.filter(agent => {
+            const matchAgente = !selAgente || agent.nome === selAgente;
+            const matchRamal = !selRamal || String(agent.ramal) === selRamal;
+            const matchStatus = !selStatus || (agent.status || "").toUpperCase().includes(selStatus);
+            const matchBusca = !buscaGeral ||
+                (agent.nome || "").toLowerCase().includes(buscaGeral) ||
+                (agent.ramal || "").toString().includes(buscaGeral);
+
+            return matchAgente && matchRamal && matchStatus && matchBusca;
+        });
+
+        // 4. PAGINAÇÃO
+        const total = filteredAgentsArray.length;
+        const totalPages = Math.ceil(total / rowsPerPage) || 1;
+        if (afCurrentPage > totalPages) afCurrentPage = totalPages;
+
+        const start = (afCurrentPage - 1) * rowsPerPage;
+        const slice = filteredAgentsArray.slice(start, start + rowsPerPage);
+
+        // 5. RENDERIZAÇÃO DAS LINHAS
+        if (total === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center p-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhum agente encontrado</td></tr>`;
+        } else {
+            tbody.innerHTML = slice.map(agent => {
+                const badgeClasses = { 'emerald': 'from-emerald-500 to-teal-400', 'blue': 'from-blue-500 to-cyan-400', 'orange': 'from-orange-500 to-yellow-400', 'slate': 'from-slate-600 to-slate-400' };
+                const badgeGradient = badgeClasses[agent.color] || badgeClasses['slate'];
+
+                return `
+            <tr data-ramal-row="${agent.ramal}" class="border-b dark:border-white/10 hover:bg-slate-50 transition-colors">
+                <td class="p-4 text-sm font-bold dark:text-white">${agent.nome}</td>
+                <td class="p-4 text-xs dark:text-white">${agent.ramal}</td>
+                <td class="p-4 text-center">
+                    <span class="badge-status bg-gradient-to-tl ${badgeGradient} px-3 py-1 rounded-lg text-xxs font-black text-white uppercase font-bold shadow-sm">
+                        ${agent.status.toUpperCase()}
+                    </span>
+                </td>
+                <td class="p-4 text-center">
+                    <span class="text-xs font-mono font-bold dark:text-white agent-timer bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded"
+                          data-ramal="${agent.ramal}" data-seconds="${agent.tempo_segundos}">
+                        ${agent.tempo}
+                    </span>
+                </td>
+                <td class="p-4 text-center">
+                    <div class="flex justify-center gap-2">
+                        <button onclick="editAgent('${agent.ramal}')" class="p-2 text-blue-500 hover:scale-110 transition-all"><i class="fa fa-pen"></i></button>
+                        <button onclick="deleteAgent('${agent.ramal}')" class="p-2 text-red-500 hover:scale-110 transition-all"><i class="fa fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>`;
+            }).join('');
+        }
+
+        updateAfPaginationUI(totalPages);
+        updateCards(); // Atualiza os contadores do topo
+    }
+
+    // Preenche os selects apenas uma vez quando os dados chegam
+    function popularSelectsFiltro(agentes) {
+        const selAgente = document.getElementById('afAgentFilter');
+        const selRamal = document.getElementById('afExtensionFilter');
+        if (!selAgente || !selRamal) return;
+
+        // Limpa e popula
+        selAgente.innerHTML = '<option value="">Todos os Agentes</option>';
+        selRamal.innerHTML = '<option value="">Todos os Ramais</option>';
+
+        agentes.sort((a, b) => (a.nome || "").localeCompare(b.nome)).forEach(a => {
+            selAgente.add(new Option(a.nome, a.nome));
+            selRamal.add(new Option(a.ramal, a.ramal));
+        });
+
+        selectsPopulados = true; // Ativa a trava
+    }
+
+    function updateAfPaginationUI(totalPages) {
+        const info = document.getElementById('afPageInfo');
+        const numbers = document.getElementById('afPageNumbers');
+        if (info) info.textContent = `Página ${afCurrentPage} de ${totalPages} (${filteredAgentsArray.length} agentes)`;
+
+        document.getElementById('afPrevPage').disabled = (afCurrentPage === 1);
+        document.getElementById('afNextPage').disabled = (afCurrentPage >= totalPages);
+
+        if (numbers) {
+            numbers.innerHTML = "";
+            if (totalPages <= 1) return;
+            for (let p = Math.max(1, afCurrentPage - 1); p <= Math.min(totalPages, afCurrentPage + 1); p++) {
+                const btn = document.createElement("button");
+                btn.textContent = p;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg ${p === afCurrentPage ? "bg-blue-600 text-white border-blue-600" : "dark:text-white hover:bg-slate-100 border-slate-200 dark:border-slate-700"}`;
+                btn.onclick = () => { afCurrentPage = p; renderAgentsTable(); };
+                numbers.appendChild(btn);
+            }
+        }
+    }
+
+    // Reset completo dos filtros
+    function resetarFiltrosAgentes() {
+        document.getElementById('afAgentFilter').value = '';
+        document.getElementById('afExtensionFilter').value = '';
+        document.getElementById('afStatusFilter').value = '';
+        document.getElementById('afSearchInput').value = '';
+        document.getElementById('afRowsPerPage').value = '10';
+        afCurrentPage = 1;
+        renderAgentsTable();
+    }
+
+    function startTimers() {
+        if (timersStarted) return;
+        timersStarted = true;
+        setInterval(() => {
+            // Seleciona os timers tanto da tabela quanto dos cards
+            document.querySelectorAll('.agent-timer, .dynamic-timer').forEach(el => {
+                let seconds = parseInt(el.dataset.seconds);
+
+                // 🛡️ Se o valor no dataset for inválido, assume 0 para não gerar NaN
+                if (isNaN(seconds)) seconds = 0;
+
+                seconds++;
+                el.dataset.seconds = seconds;
+                el.innerText = formatTime(seconds);
+            });
+        }, 1000);
+    }
+
+    function formatTime(seconds) {
+        // 🛡️ Previne NaN caso o valor venha nulo ou corrompido
+        if (isNaN(seconds) || seconds === null || seconds === undefined) return "00:00:00";
+
+        const sec = Math.max(0, parseInt(seconds, 10)); // Garante que não seja negativo
+
+        const days = Math.floor(sec / 86400);
+        const h = Math.floor((sec % 86400) / 3600).toString().padStart(2, '0');
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+        const sc = (sec % 60).toString().padStart(2, '0');
+
+        // Se passou de 24h, mostra os dias (Ex: 1d 02:15:30)
+        if (days > 0) {
+            return `${days}d ${h}:${m}:${sc}`;
+        }
+
+        return `${h}:${m}:${sc}`;
+    }
+
+    function safeCloseAgentSource() { if (agentSource) { agentSource.close(); agentSource = null; } }
+    function updateCards() {
+        const agentes = Object.values(agentsMap);
+
+        let total = agentes.length;
+        let disponiveis = 0;
+        let emPausa = 0;
+        let offline = 0;
+        let ocupados = 0;
+
+        agentes.forEach(agent => {
+            const ramal = String(agent.ramal);
+            const statusRaw = String(agent.status || '').toLowerCase();
+
+            // Regra dinâmica: Se tem chamada ativa no topo, conta como ocupado aqui também
+            const temChamadaAtiva = activeCalls.some(c => String(c.agente) === ramal);
+
+            if (temChamadaAtiva || statusRaw.includes('chamada') || statusRaw.includes('ocupado')) {
+                ocupados++;
+            }
+            else if (statusRaw.includes('pausa')) {
+                emPausa++;
+            }
+            else if (statusRaw.includes('offline') || statusRaw === 'unknown') {
+                offline++;
+            }
+            else if (statusRaw.includes('disponível') || statusRaw.includes('online') || statusRaw.includes('livre')) {
+                disponiveis++;
+            }
+        });
+
+        // APLICANDO A ANIMAÇÃO NOS ELEMENTOS
+        animateCountUp(document.getElementById('totalAgentesCount'), total);
+        animateCountUp(document.getElementById('onlineAgentesCount'), disponiveis);
+        animateCountUp(document.getElementById('pausaAgentesCount'), emPausa);
+        animateCountUp(document.getElementById('offlineAgentesCount'), offline);
+        animateCountUp(document.getElementById('ocupadoAgentesCount'), ocupados);
+    }
+
+    function animateCountUp(el, rawValue, prefix = '') {
+        if (!el) return;
+
+        const endValue = parseNumber(rawValue);
+
+        // prioridade: data-decimals no elemento
+        let decimals = getForcedDecimals(el);
+
+        // se não tiver, aplica regra inteligente
+        if (decimals === null) {
+            decimals = getSmartDecimals(endValue, 4);
+        }
+
+        const lastValue = parseNumber(el.dataset.lastValue);
+        if (lastValue === endValue) return;
+
+        if (animations.has(el)) {
+            cancelAnimationFrame(animations.get(el));
+            animations.delete(el);
+        }
+
+        el.dataset.lastValue = String(endValue);
+
+        const duration = 1200;
+        const frameDuration = 16;
+        const totalFrames = Math.max(1, Math.round(duration / frameDuration));
+        let frame = 0;
+        const startValue = Number.isFinite(lastValue) ? lastValue : 0;
+
+        function update() {
+            frame++;
+            const progress = Math.min(1, frame / totalFrames);
+            const currentValue = startValue + (endValue - startValue) * progress;
+
+            // durante animação, mantém as mesmas casas
+            const formatted = currentValue.toLocaleString('pt-BR', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+
+            el.textContent = prefix + formatted;
+
+            if (progress < 1) {
+                animations.set(el, requestAnimationFrame(update));
+            } else {
+                // no final, recalcula as casas com base no valor final
+                // (assim 2,9500 vira 2,95; 2,9750 vira 2,975)
+                const finalDecimals = (getForcedDecimals(el) ?? getSmartDecimals(endValue, 4));
+
+                const finalFormatted = endValue.toLocaleString('pt-BR', {
+                    minimumFractionDigits: finalDecimals,
+                    maximumFractionDigits: finalDecimals
+                });
+
+                el.textContent = prefix + finalFormatted;
+                animations.delete(el);
+            }
+        }
+
+        update();
+    }
+
+    // Converte qualquer valor para número válido
+    function parseNumber(val) {
+        if (val === undefined || val === null || val === '') return 0;
+        if (typeof val === 'number') return val;
+        return parseFloat(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+    }
+
+    // Verifica se existe um atributo data-decimals fixo no HTML
+    function getForcedDecimals(el) {
+        const attr = el.getAttribute('data-decimals');
+        return attr !== null ? parseInt(attr, 10) : null;
+    }
+
+    // Lógica para decidir quantas casas decimais exibir
+    function getSmartDecimals(val, max = 4) {
+        if (Number.isInteger(val)) return 0;
+        const str = val.toString();
+        const parts = str.split('.');
+        if (!parts[1]) return 0;
+        return Math.min(parts[1].length, max);
+    }
+
+    // Funções de Controle do Modal de Agentes
+    // Botão Novo Agente (Quando abre o modal)
+    // --- FUNÇÕES DE CONTROLE DO MODAL ---
+
+    function openModalNovoAgente() {
+        const modal = document.getElementById('createModal');
+        const form = document.getElementById('createSipForm');
+
+        form.reset();
+        document.getElementById('agent_id').value = '';
+        document.getElementById('modalTitle').innerText = "➕ Novo Agente";
+        document.getElementById('submitBtn').innerText = "Criar Agente";
+
+        // 🚀 GERAÇÃO AUTOMÁTICA (8 DÍGITOS)
+        const ramalInicial = gerarRamal(8);
+        document.getElementById('username').value = ramalInicial;
+        document.getElementById('caller_number').value = ramalInicial;
+        document.getElementById('password').value = gerarSenha();
+
+        // Reset de estado dos campos (habilita ramal)
+        document.getElementById('username').readOnly = true;
+        const regenUserBtn = document.getElementById('regenUser');
+        if (regenUserBtn) {
+            regenUserBtn.disabled = false;
+            regenUserBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    function closeAgentModal() {
+        document.getElementById('createModal').classList.add('hidden');
+    }
+
+    // Função para Editar (chamada pelo botão da tabela)
+    async function editAgent(ramal) {
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/agents/get/${ramal}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const sip = result.data.data || result.data;
+                const form = document.getElementById('createSipForm');
+
+                // Preenche os campos do modal
+                document.getElementById('agent_id').value = sip.id || sip.username || ramal;
+                document.getElementById('name').value = sip.name || "";
+                document.getElementById('username').value = sip.username || ramal;
+                document.getElementById('caller_number').value = sip.callerid || sip.caller_number || ramal;
+
+                // 🔑 AQUI ESTÁ O PONTO: Garante que a senha venha do banco para o input
+                const passwordInput = document.getElementById('password');
+                passwordInput.value = sip.password || "";
+
+                // Importante: Deixe como readonly, NÃO use disabled
+                passwordInput.readOnly = false;
+
+                document.getElementById('modalTitle').innerText = "✏️ Editar Agente";
+                document.getElementById('submitBtn').innerText = "Atualizar";
+
+                document.getElementById('createModal').classList.remove('hidden');
+            }
+        } catch (err) {
+            notyf.error("Erro ao carregar dados do agente");
+        }
+    }
+
+    // Submissão Unificada
+    document.getElementById('createSipForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        // Captura os dados do formulário
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+
+        // 🛡️ Validação de segurança no Front-end
+        if (!data.password || data.password.trim() === "") {
+            notyf.error("A senha é obrigatória para atualizar o ramal!");
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Salvando...';
+
+        // Se houver agent_id (campo oculto), usamos a rota de UPDATE, senão CREATE
+        const isEdit = data.id && data.id !== "";
+        const url = isEdit
+            ? `${baseUrl}/campaign/voice/sip-devices/${data.id}/update`
+            : `${baseUrl}/campaign/voice/sip-devices/create`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                notyf.success(result.message || "Agente atualizado!");
+                closeAgentModal();
+                if (typeof renderAgentsTable === 'function') renderAgentsTable();
+            } else {
+                notyf.error(result.message || "Erro no servidor");
+            }
+        } catch (err) {
+            notyf.error("Erro de comunicação.");
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = isEdit ? "Atualizar" : "Salvar Agente";
+        }
+    });
+
+    // --- FUNÇÕES DE APOIO ---
+
+    function gerarRamal(qtd = 8) {
+        let ramal = "";
+        for (let i = 0; i < qtd; i++) ramal += Math.floor(Math.random() * 10);
+        return ramal;
+    }
+
+    function gerarSenha() {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?";
+        let senha = "";
+        for (let i = 0; i < 8; i++) {
+            senha += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return senha;
+    }
+
+    /**
+     * Exclui um ou mais agentes
+     * @param {string|null} ramal - Se passado, exclui apenas um. Se null, exclui os selecionados.
+     */
+    function deleteAgent(ramal = null) {
+        let idsParaExcluir = [];
+
+        if (ramal) {
+            // Exclusão individual via botão da tabela
+            idsParaExcluir = [ramal];
+        } else {
+            // Exclusão em massa via checkboxes
+            const selecionados = document.querySelectorAll(".row-checkbox:checked");
+            idsParaExcluir = Array.from(selecionados).map(cb => cb.value);
+        }
+
+        if (idsParaExcluir.length === 0) {
+            notyf.error("Selecione pelo menos um agente para excluir.");
+            return;
+        }
+
+        // Mensagem bonitinha baseada na quantidade
+        const mensagem = idsParaExcluir.length === 1
+            ? `Deseja realmente excluir o agente <b>${idsParaExcluir[0]}</b>?`
+            : `Deseja excluir os <b>${idsParaExcluir.length}</b> agentes selecionados?`;
+
+        Swal.fire({
+            title: "Confirmar Exclusão",
+            html: mensagem,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sim, excluir",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#ef4444", // Vermelho
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Loader no SweetAlert
+                Swal.showLoading();
+
+                fetch(`${baseUrl}/campaign/voice/sip-devices/delete`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ids: idsParaExcluir }),
+                })
+                    .then((res) => res.json())
+                    .then((result) => {
+                        if (result.success) {
+                            notyf.success(result.message || "Agente(s) removido(s) com sucesso!");
+
+                            // Desmarcar o "Selecionar Todos" se houver
+                            const selectAll = document.getElementById("selectAll");
+                            if(selectAll) selectAll.checked = false;
+
+                            // O SSE vai detectar que os ramais sumiram do banco e
+                            // a nossa lógica de "assinatura" no update vai limpar a tabela automaticamente.
+                            // Mas para ser instantâneo, podemos forçar:
+                            idsParaExcluir.forEach(id => delete agentsMap[id]);
+                            renderAgentsTable();
+                        } else {
+                            notyf.error(result.message || "Erro ao excluir agente.");
+                        }
+                    })
+                    .catch(() => notyf.error("Falha na comunicação com o servidor."))
+                    .finally(() => {
+                        Swal.close();
+                    });
+            }
+        });
+    }
+
+    // Botões de Refresh
+    document.getElementById('regenUser')?.addEventListener('click', function() {
+        if(this.disabled) return;
+        const novoRamal = gerarRamal(8);
+        document.getElementById('username').value = novoRamal;
+        document.getElementById('caller_number').value = novoRamal;
+        notyf.success("Novo ramal gerado!");
+    });
+
+    document.getElementById("regenPass")?.addEventListener("click", () => {
+        document.getElementById("password").value = gerarSenha();
+        notyf.success("Nova senha gerada!");
+    });
+</script>

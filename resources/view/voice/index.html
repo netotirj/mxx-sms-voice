@@ -603,168 +603,109 @@
                             <!-- 🧠 STEP 4 - Caller ID, Estratégia, Tronco e Ramais -->
                             <!-- =================================================== -->
                             <div class="step-panel hidden" data-step="4">
-                                <h2 class="text-xl font-semibold text-slate-700 mb-4">Caller ID, Estratégia e Ramais</h2>
-                                <p class="text-slate-600 mb-6">
-                                    Configure como a campanha irá discar, por onde e com que estratégia.
+                                <h2 class="text-xl font-semibold text-slate-700 mb-2">Destino e Configuração</h2>
+                                <p class="text-slate-500 text-sm mb-6">
+                                    Configure como a campanha irá discar e para qual fila as chamadas serão entregues.
                                 </p>
 
-                                <!-- 🔸 Tipo de Envio -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Tipo de Envio
-                                    </label>
-                                    <select id="variableType" class="w-full border rounded-lg p-2 bg-white">
-                                        <option value="NORMAL">Normal</option>
-                                        <option value="TORPEDO">Torpedo (mensagem direta)</option>
-                                    </select>
-                                </div>
-
-
-                                <!-- 🌟 Step4 Hero (visual) -->
-                                <div id="step4Hero" class="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+                                <div id="step4Hero" class="mb-6 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="flex items-center gap-2">
-                                                  <span id="step4Badge"
-                                                        class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-600 text-white">
-                                                    ✅ Normal
-                                                  </span>
+                <span id="step4Badge" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-600 text-white tracking-widest">
+                    ✅ Normal
+                </span>
+                                            <span id="step4Hint" class="text-xs text-slate-500 font-medium">
+                    Áudio vem do Step 2.
+                </span>
+                                        </div>
+                                        <span id="step4StrategyChip" class="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase bg-white border border-slate-200 text-slate-600 shadow-sm tracking-tighter">
+                Fila: -
+            </span>
+                                    </div>
+                                </div>
 
-                                            <span id="step4Hint" class="text-xs text-slate-500">
-                                                    Modo normal: áudio vem do Step2.
-                                                  </span>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Tipo de Envio</label>
+                                        <select id="variableType" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none focus:ring-2 focus:ring-orange-500/20">
+                                            <option value="NORMAL">Normal</option>
+                                            <option value="TORPEDO">Torpedo (Mensagem Direta)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Velocidade (CPS)</label>
+                                        <select id="speedProfile" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none focus:ring-2 focus:ring-orange-500/20">
+                                            <option value="safe">Seguro (1 CPS)</option>
+                                            <option value="normal" selected>Normal (10 CPS)</option>
+                                            <option value="aggressive">Agressivo (20 CPS)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="mb-6 hidden animate-fadeIn" id="torpedoModeBox">
+                                    <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Quando o cliente atender</label>
+                                    <select id="torpedoMode" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none">
+                                        <option value="transfer" selected>Transferir para Fila</option>
+                                        <option value="audio_only">Somente áudio e encerrar</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-6" id="queueSelectionBox">
+                                    <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-2 tracking-widest">
+                                        Fila de Atendimento
+                                    </label>
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                            <i class="fa fa-users text-sm"></i>
                                         </div>
 
-                                        <span id="step4StrategyChip"
-                                              class="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                                          Estratégia: -
-                                        </span>
+                                        <select id="campaignQueueSelect"
+                                                class="w-full pl-11 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700
+                                               outline-none transition-all duration-300
+                                               appearance-none
+                                               focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10
+                                               hover:border-slate-300 cursor-pointer shadow-sm">
+                                            <option value="">Carregando filas...</option>
+                                        </select>
+
+                                        <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-slate-400">
+                                            <i class="fa fa-chevron-down text-[10px]"></i>
+                                        </div>
                                     </div>
-                                </div>
 
-
-
-
-                                <!-- 🔸 TORPEDO Mode -->
-                                <div class="mb-6 hidden" id="torpedoModeBox">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Quando atender
-                                    </label>
-
-                                    <select id="torpedoMode" class="w-full border rounded-lg p-2 bg-white">
-                                        <option value="transfer" selected>Transferir para ramais</option>
-                                        <option value="audio_only">Somente executar o áudio e encerrar</option>
-                                    </select>
-
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Em <b>Somente áudio</b>, não haverá transferência para agentes.
+                                    <p class="text-[10px] text-slate-400 mt-2 ml-1 font-medium italic">
+                                        * Selecione para onde enviar as chamadas atendidas.
                                     </p>
                                 </div>
 
-                                <!-- 🔸 TORPEDO: Áudio obrigatório (fallback se Step2 não escolheu) -->
-                                <div class="mb-6 hidden" id="torpedoAudioBox">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Áudio do TORPEDO (obrigatório)
-                                    </label>
-
-                                    <div class="text-sm text-slate-600 mb-1">
-                                        Se for enviar áudio, escolha o áudio
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Modo Caller ID</label>
+                                        <select id="callerIdMode" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none">
+                                            <option value="fixed">Fixo</option>
+                                            <option value="random">Aleatório</option>
+                                        </select>
                                     </div>
-
-                                    <select id="torpedoAudioSelect" class="border rounded-lg px-3 py-2 w-full mb-2">
-                                        <option value="">Selecione o áudio</option>
-                                    </select>
-
-                                    <p id="torpedoAudioError" class="text-xs text-red-600 mt-1 hidden">
-                                        No modo TORPEDO, é obrigatório selecionar um áudio.
-                                    </p>
-
-                                    <div id="torpedoDtmfError" class="hidden mt-2 text-sm text-rose-700">
-                                        No modo <b>Transferir</b>, se você configurou DTMF no passo 3, é necessário ter ao menos 1 dígito com ação <b>Transferir</b>.
+                                    <div id="callerIdBox">
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Número Bina</label>
+                                        <input id="callerIdNumber" type="text" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none" placeholder="5511999999999">
                                     </div>
-
                                 </div>
 
-
-                                <!-- 🔸 Estratégia de Discagem -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Estratégia da Campanha
-                                    </label>
-                                    <label for="dialStrategy"></label><select id="dialStrategy" class="w-full border rounded-lg p-2 bg-white">
-                                        <option value="rrmemory">Round-Robin (equilibrado)</option>
-                                        <option value="leastrecent">Menos recente (prioriza quem esperou)</option>
-                                        <option value="linear">Linear (ordem fixa)</option>
-                                        <option value="ringall">Ring-All (primeiro que atender)</option>
-                                    </select>
-
-                                </div>
-
-                                <!-- 🔸 Velocidade -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Velocidade da Campanha
-                                    </label>
-                                    <label for="speedProfile"></label><select id="speedProfile" class="border rounded-lg px-3 py-2 w-full">
-                                        <option value="safe">Seguro Baixo Custo (1 CPS)</option>
-                                        <option value="normal" selected>Normal (10 CPS)</option>
-                                        <option value="aggressive">Agressivo (20 CPS)</option>
-                                    </select>
-                                </div>
-
-                                <!-- 🔸 Caller ID Mode -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Modo do Caller ID
-                                    </label>
-                                    <label for="callerIdMode"></label><select id="callerIdMode" class="w-full border rounded-lg p-2 bg-white">
-                                    <option value="fixed">Fixo</option>
-                                    <option value="random">Aleatório</option>
-                                    <!--<option value="pool">Pool de números</option>-->
-                                </select>
-                                </div>
-
-                                <!-- 🔸 Caller ID -->
-                                <div class="mb-6" id="callerIdBox">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Caller ID
-                                    </label>
-                                    <label for="callerIdNumber"></label><input id="callerIdNumber" type="text"
-                                                                               class="w-full border rounded-lg p-2"
-                                                                               placeholder="Ex: 5511999999999">
-                                </div>
-
-                                <!-- 🔸 Tronco SIP -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Tronco SIP
-                                    </label>
-                                    <label for="sipTrunk"></label><select id="sipTrunk" class="w-full border rounded-lg p-2 bg-white">
-                                        <option value="">Auto (balanceado)</option>
-                                    </select>
-                                </div>
-
-                                <!-- 🔸 Fallback -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">
-                                        Se nenhum agente atender
-                                    </label>
-                                    <label for="noAgentAction"></label><select id="noAgentAction" class="w-full border rounded-lg p-2 bg-white">
-                                        <option value="retry">Reagendar chamada</option>
-                                        <option value="voicemail">Tocar áudio</option>
-                                        <option value="hangup">Encerrar</option>
-                                    </select>
-                                </div>
-
-                                <!-- 🔸 Ramais -->
-                                <div class="mb-6">
-                                    <label class="block text-sm font-medium text-slate-700 mb-2">
-                                        Ramais disponíveis
-                                    </label>
-                                    <div id="ramaisContainer"
-                                         class="border border-slate-200 rounded-lg bg-white p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                        <p class="text-sm text-slate-500 col-span-full text-center">
-                                            Carregando ramais...
-                                        </p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Tronco SIP</label>
+                                        <select id="sipTrunk" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none">
+                                            <option value="">Auto (Balanceado)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase text-slate-400 ml-1 mb-1 tracking-widest">Se ninguém atender</label>
+                                        <select id="noAgentAction" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white text-sm outline-none">
+                                            <option value="retry">Reagendar chamada</option>
+                                            <option value="hangup">Encerrar</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -800,7 +741,7 @@
 
                                     <div><b>Caller ID:</b> <span id="confirmCallerId" class="text-emerald-600">—</span>
                                     </div>
-                                    <div><b>Ramais:</b> <span id="confirmRamais"></span></div>
+                                    <div><b>Fila:</b> <span id="confirmRamais"></span></div>
                                 </div>
 
 
@@ -839,14 +780,92 @@
                                     </div>
                                 </div>
 
+                                <div id="scheduleCallPanel" class="hidden mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                    <div class="flex flex-col gap-3">
+                                        <div class="flex items-start gap-3">
+                                            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                                AG
+                                            </div>
+                                            <div>
+                                                <h5 class="text-sm font-bold text-slate-800">Agendar chamada</h5>
+                                                <p id="scheduleSummary" class="text-xs text-orange-700 mt-1">
+                                                    Selecione a data e o horário do agendamento.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 md:items-end">
+                                            <div class="relative">
+                                                <label for="scheduleDate" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                                    Data
+                                                </label>
+                                                <input id="scheduleDate"
+                                                       type="text"
+                                                       inputmode="numeric"
+                                                       autocomplete="off"
+                                                       placeholder="dd/mm/aaaa"
+                                                       class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                                <button id="scheduleDatePickerBtn"
+                                                        type="button"
+                                                        class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                                    <i class="fa fa-calendar"></i>
+                                                </button>
+                                                <div id="scheduleCalendar"
+                                                     class="hidden absolute left-0 top-full mt-2 z-50 w-full md:w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-4">
+                                                    <div class="flex items-center justify-between mb-3">
+                                                        <button id="schedulePrevMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">‹</button>
+                                                        <div id="scheduleCalendarTitle" class="text-sm font-bold text-slate-700"></div>
+                                                        <button id="scheduleNextMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">›</button>
+                                                    </div>
+                                                    <div class="grid gap-1 text-center text-[10px] font-bold uppercase text-slate-400 mb-2"
+                                                         style="grid-template-columns: repeat(7, minmax(0, 1fr));">
+                                                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                                                    </div>
+                                                    <div id="scheduleCalendarDays"
+                                                         class="grid gap-1"
+                                                         style="grid-template-columns: repeat(7, minmax(0, 1fr));"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="relative">
+                                                <label for="scheduleTime" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                                    Horário
+                                                </label>
+                                                <input id="scheduleTime"
+                                                       type="text"
+                                                       inputmode="numeric"
+                                                       autocomplete="off"
+                                                       placeholder="hh:mm"
+                                                       class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                                <button id="scheduleTimePickerBtn"
+                                                        type="button"
+                                                        class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                                    <i class="fa fa-clock"></i>
+                                                </button>
+                                                <div id="scheduleTimeOptions"
+                                                     class="hidden absolute left-0 top-full mt-2 z-50 w-full rounded-xl border border-slate-200 bg-white shadow-xl p-2 overflow-y-auto"
+                                                     style="max-height: 11rem; overflow-y: auto; overscroll-behavior: contain;"></div>
+                                            </div>
+
+                                        <button id="cancelScheduleCallBtn"
+                                                type="button"
+                                                onclick="window.closeVoiceSchedulePanel?.()"
+                                                class="h-14 px-5 text-sm font-semibold border border-slate-200 rounded-xl text-slate-600 bg-white hover:bg-slate-50 transition">
+                                            Cancelar agendamento
+                                        </button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- 🔹 Botões -->
-                                <div class="flex flex-wrap gap-3">
-                                    <button class="px-4 py-2 border rounded-lg">Enviar teste</button>
-                                    <button class="px-4 py-2 border rounded-lg">Reenvio</button>
-                                    <button class="px-4 py-2 border rounded-lg">Agendar</button>
-                                    <button
-                                            class="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg transition">
-                                        Disparar →
+                                <div id="campaignActionButtons" class="flex flex-wrap items-center justify-between gap-3">
+                                    <button id="scheduleCallBtn" type="button" onclick="window.openVoiceSchedulePanel?.()" class="px-5 py-3 border rounded-xl bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition">
+                                        Agendar chamada
+                                    </button>
+                                    <button id="startCampaignBtn"
+                                            type="button"
+                                            class="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl transition ml-auto">
+                                        Disparar agora →
                                     </button>
                                 </div>
                             </div>
@@ -1013,7 +1032,27 @@
         </span>
     `;
         }
-        function statusBadge(status) {
+        function formatScheduleMessage(item) {
+            const raw = item?.scheduled_at || item?.created_at || "";
+            if (!raw) return "Campanha agendada";
+
+            const normalized = String(raw).replace(" ", "T");
+            const date = new Date(normalized);
+
+            if (Number.isNaN(date.getTime())) {
+                return `Agendada para ${raw}`;
+            }
+
+            const day = String(date.getDate()).padStart(2, "0");
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, "0");
+            const minutes = String(date.getMinutes()).padStart(2, "0");
+
+            return `Agendada para ${day}/${month}/${year} às ${hours}:${minutes}`;
+        }
+
+        function statusBadge(status, item = {}) {
             status = (status ?? "-").toString().toLowerCase();
 
             const map = {
@@ -1041,22 +1080,33 @@
                     label: "Erro no envio",
                     icon: "🚫",
                     color: "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                },
+                s: {
+                    label: "Agendada",
+                    icon: "🕒",
+                    color: "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
                 }
 
             };
 
-            const item = map[status] || {
+            const badge = map[status] || {
                 label: status.toUpperCase(),
                 icon: "❔",
                 color: "bg-gray-100 text-gray-600 ring-1 ring-gray-200"
             };
 
+            const scheduleMessage = status === "s" ? formatScheduleMessage(item) : "";
+            const scheduleAttrs = status === "s"
+                ? `title="${scheduleMessage}" data-schedule-message="${scheduleMessage}" role="button" tabindex="0"`
+                : "";
+            const scheduleClass = status === "s" ? "vc-schedule-status cursor-help" : "";
+
             return `
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5
                          rounded-full text-xs font-semibold whitespace-nowrap
-                         ${item.color}">
-              <span class="text-[11px] leading-none">${item.icon}</span>
-              ${item.label}
+                         ${badge.color} ${scheduleClass}" ${scheduleAttrs}>
+              <span class="text-[11px] leading-none">${badge.icon}</span>
+              ${badge.label}
             </span>
           `;
         }
@@ -1120,6 +1170,16 @@
             const id = item.id;
 
             if (!id) return "-";
+
+            if (st === "s" || item.source === "schedule") {
+                return `
+            <span title="Campanha agendada"
+                  class="inline-flex items-center justify-center w-8 h-8
+                         bg-sky-50 text-sky-500 rounded-lg cursor-default ring-1 ring-sky-100">
+              🕒
+            </span>
+        `;
+            }
 
             // FINALIZADA
             if (st === "f") {
@@ -1196,7 +1256,7 @@
               </td>
 
               <td class="px-4 py-2 border border-slate-100 text-center">
-                ${statusBadge(item.status)}
+                ${statusBadge(item.status, item)}
               </td>
 
               <td class="px-4 py-2 border border-slate-100 text-center text-xs font-semibold text-slate-700">
@@ -1262,6 +1322,14 @@
         }
 
         tbody.addEventListener("click", (ev) => {
+            const scheduleStatus = ev.target.closest(".vc-schedule-status");
+            if (scheduleStatus) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                notyf.success(scheduleStatus.dataset.scheduleMessage || "Campanha agendada");
+                return;
+            }
+
             const btn = ev.target.closest(".vc-action-btn");
             if (!btn) return;
 
@@ -1272,12 +1340,12 @@
             const action = btn.dataset.action;
 
             if (action === "resend") {
-                btn.disabled = true;
-                btn.classList.add("opacity-60", "pointer-events-none");
-
                 switchConfirm(
                     "Deseja reenviar esta campanha cancelada?",
                     async () => {
+                        btn.disabled = true;
+                        btn.classList.add("opacity-60", "pointer-events-none");
+
                         try {
                             await resendCampaign(id);
                         } finally {
@@ -1298,6 +1366,14 @@
                     : "Deseja retomar esta campanha?",
                 () => togglePauseCampaign(id, action)
             );
+        });
+
+        tbody.addEventListener("keydown", (ev) => {
+            const scheduleStatus = ev.target.closest(".vc-schedule-status");
+            if (!scheduleStatus || (ev.key !== "Enter" && ev.key !== " ")) return;
+
+            ev.preventDefault();
+            notyf.success(scheduleStatus.dataset.scheduleMessage || "Campanha agendada");
         });
 
         async function resendCampaign(id) {
@@ -1606,7 +1682,7 @@
                     applyFilters();
                 })
 
-                    .catch(() => {
+                .catch(() => {
                     if (++errorCount >= 3) {
                         tbody.innerHTML = `
                     <tr>
@@ -1694,18 +1770,27 @@
             const windowS = 10; // ✅ sua escolha
 
             const showIfChanged = (key, payload) => {
-                // ✅ marcou que há problema ativo (stasis/alert/requeue)
+                // ✅ marcou que há problema ativo
                 lastWasProblem = true;
 
-                // se estava mostrando “recuperado”, cancela o timer
                 if (recoveryTimer) {
                     clearTimeout(recoveryTimer);
                     recoveryTimer = null;
                 }
 
+                // Se a chave mudou (ex: era erro de Stasis e virou Requeue), renderiza o badge do zero
                 if (lastBadgeKey !== key) {
                     lastBadgeKey = key;
                     showBadge(payload);
+                } else {
+                    // 🔥 O PULO DO GATO:
+                    // Se a chave é a mesma, mas o conteúdo mudou (Almoço -> Banheiro),
+                    // nós apenas injetamos o texto novo nos elementos que já existem.
+                    if (badgeTitle) badgeTitle.textContent = payload.title;
+                    if (badgeSub) badgeSub.textContent = payload.sub || "";
+
+                    // Garante que o badge esteja visível (caso alguém tenha fechado manualmente)
+                    if (badgeWrap) badgeWrap.classList.remove("hidden");
                 }
                 return;
             };
@@ -1913,6 +1998,297 @@
         }
     }
 
+    function setWizardNextVisible(visible) {
+        ["nextBtn", "btnNextTop"].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            btn.classList.toggle("hidden", !visible);
+            btn.hidden = !visible;
+            btn.disabled = !visible;
+            btn.style.display = visible ? "" : "none";
+            btn.setAttribute("aria-hidden", visible ? "false" : "true");
+            btn.tabIndex = visible ? 0 : -1;
+        });
+    }
+
+    window.openVoiceSchedulePanel = function () {
+        const schedulePanel = document.getElementById("scheduleCallPanel");
+        const scheduleButton = document.getElementById("scheduleCallBtn");
+        const sendButton = document.getElementById("startCampaignBtn");
+
+        schedulePanel?.classList.remove("hidden");
+        scheduleButton?.classList.add("hidden");
+
+        if (sendButton) {
+            sendButton.dataset.scheduleMode = "scheduled";
+            sendButton.innerHTML = "Agendar chamada →";
+        }
+
+        setWizardNextVisible(false);
+        window.ensureVoiceScheduleDefaults?.();
+        window.renderVoiceScheduleCalendar?.();
+        window.renderVoiceScheduleTimeOptions?.();
+
+        if (typeof window.__voiceSetScheduleMode === "function") {
+            window.__voiceSetScheduleMode(true);
+        }
+    };
+
+    window.closeVoiceSchedulePanel = function () {
+        const schedulePanel = document.getElementById("scheduleCallPanel");
+        const scheduleButton = document.getElementById("scheduleCallBtn");
+        const sendButton = document.getElementById("startCampaignBtn");
+
+        schedulePanel?.classList.add("hidden");
+        scheduleButton?.classList.remove("hidden");
+
+        if (sendButton) {
+            sendButton.dataset.scheduleMode = "now";
+            sendButton.innerHTML = "Disparar agora →";
+        }
+
+        setWizardNextVisible(false);
+
+        if (typeof window.__voiceSetScheduleMode === "function") {
+            window.__voiceSetScheduleMode(false);
+        }
+    };
+
+    window.__voiceScheduleMonthCursor = window.__voiceScheduleMonthCursor || (() => {
+        const date = new Date();
+        date.setDate(1);
+        date.setHours(0, 0, 0, 0);
+        return date;
+    })();
+
+    function voiceSchedulePad(value) {
+        return String(value).padStart(2, "0");
+    }
+
+    function voiceScheduleDateLabel(date) {
+        return `${voiceSchedulePad(date.getDate())}/${voiceSchedulePad(date.getMonth() + 1)}/${date.getFullYear()}`;
+    }
+
+    function voiceScheduleTimeLabel(date) {
+        return `${voiceSchedulePad(date.getHours())}:${voiceSchedulePad(date.getMinutes())}`;
+    }
+
+    function voiceParseScheduleDateTime() {
+        const dateInput = document.getElementById("scheduleDate");
+        const timeInput = document.getElementById("scheduleTime");
+        const dateMatch = String(dateInput?.value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        const timeMatch = String(timeInput?.value || "").match(/^(\d{2}):(\d{2})$/);
+
+        if (!dateMatch || !timeMatch) return null;
+
+        const date = new Date(Number(dateMatch[3]), Number(dateMatch[2]) - 1, Number(dateMatch[1]));
+        if (
+            date.getFullYear() !== Number(dateMatch[3]) ||
+            date.getMonth() !== Number(dateMatch[2]) - 1 ||
+            date.getDate() !== Number(dateMatch[1])
+        ) return null;
+
+        const hours = Number(timeMatch[1]);
+        const minutes = Number(timeMatch[2]);
+        if (hours > 23 || minutes > 59) return null;
+
+        date.setHours(hours, minutes, 0, 0);
+        return date;
+    }
+
+    function updateVoiceScheduleSummary() {
+        const summary = document.getElementById("scheduleSummary");
+        if (!summary) return;
+
+        const date = voiceParseScheduleDateTime();
+        summary.textContent = date
+            ? `Agendado para ${voiceScheduleDateLabel(date)} às ${voiceScheduleTimeLabel(date)}.`
+            : "Selecione a data e o horário do agendamento.";
+    }
+
+    window.renderVoiceScheduleCalendar = function () {
+        const daysWrap = document.getElementById("scheduleCalendarDays");
+        const title = document.getElementById("scheduleCalendarTitle");
+        const dateInput = document.getElementById("scheduleDate");
+        if (!daysWrap || !title) return;
+
+        const cursor = window.__voiceScheduleMonthCursor || new Date();
+        const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const monthName = cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+        title.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+        daysWrap.innerHTML = "";
+
+        for (let i = 0; i < firstDay.getDay(); i++) {
+            daysWrap.insertAdjacentHTML("beforeend", `<span class="h-9"></span>`);
+        }
+
+        for (let day = 1; day <= lastDay.getDate(); day++) {
+            const current = new Date(cursor.getFullYear(), cursor.getMonth(), day);
+            const label = voiceScheduleDateLabel(current);
+            const disabled = current < today;
+            const selected = dateInput?.value === label;
+
+            daysWrap.insertAdjacentHTML("beforeend", `
+                <button type="button"
+                        ${disabled ? "disabled" : "" }
+                        data-date="${label}"
+                        class="h-9 rounded-lg text-xs font-semibold transition ${disabled ? "text-slate-300 cursor-not-allowed bg-slate-50" : selected ? "bg-emerald-500 text-white" : "text-slate-600 hover:bg-emerald-50"}">
+                    ${day}
+                </button>
+            `);
+        }
+    };
+
+    window.renderVoiceScheduleTimeOptions = function () {
+        const options = document.getElementById("scheduleTimeOptions");
+        if (!options) return;
+
+        options.innerHTML = "";
+        for (let hour = 9; hour <= 18; hour++) {
+            for (const minute of [0, 15, 30, 45]) {
+                if (hour === 18 && minute > 0) continue;
+                const value = `${voiceSchedulePad(hour)}:${voiceSchedulePad(minute)}`;
+                options.insertAdjacentHTML("beforeend", `
+                    <button type="button"
+                            data-time="${value}"
+                            class="w-full px-3 py-2 rounded-lg text-sm text-slate-700 text-left hover:bg-emerald-50">
+                        ${value}
+                    </button>
+                `);
+            }
+        }
+    };
+
+    window.ensureVoiceScheduleDefaults = function () {
+        const dateInput = document.getElementById("scheduleDate");
+        const timeInput = document.getElementById("scheduleTime");
+        const minDate = new Date(Date.now() + 5 * 60 * 1000);
+
+        if (dateInput && !dateInput.value) dateInput.value = voiceScheduleDateLabel(minDate);
+        if (timeInput && !timeInput.value) timeInput.value = voiceScheduleTimeLabel(minDate);
+
+        updateVoiceScheduleSummary();
+    };
+
+    window.toggleVoiceScheduleCalendar = function (event) {
+        event?.preventDefault();
+        event?.stopPropagation();
+
+        const calendar = document.getElementById("scheduleCalendar");
+        const times = document.getElementById("scheduleTimeOptions");
+        if (!calendar) return;
+
+        window.ensureVoiceScheduleDefaults();
+        window.renderVoiceScheduleCalendar();
+        times?.classList.add("hidden");
+        calendar.classList.toggle("hidden");
+    };
+
+    window.toggleVoiceScheduleTimeOptions = function (event) {
+        event?.preventDefault();
+        event?.stopPropagation();
+
+        const calendar = document.getElementById("scheduleCalendar");
+        const times = document.getElementById("scheduleTimeOptions");
+        if (!times) return;
+
+        window.ensureVoiceScheduleDefaults();
+        window.renderVoiceScheduleTimeOptions();
+        calendar?.classList.add("hidden");
+        times.classList.toggle("hidden");
+    };
+
+    window.changeVoiceScheduleMonth = function (direction) {
+        const cursor = window.__voiceScheduleMonthCursor || new Date();
+        cursor.setMonth(cursor.getMonth() + Number(direction || 0));
+        cursor.setDate(1);
+        window.__voiceScheduleMonthCursor = cursor;
+        window.renderVoiceScheduleCalendar();
+    };
+
+    window.selectVoiceScheduleDate = function (value) {
+        const input = document.getElementById("scheduleDate");
+        const calendar = document.getElementById("scheduleCalendar");
+        if (input) input.value = value;
+        calendar?.classList.add("hidden");
+        updateVoiceScheduleSummary();
+        window.renderVoiceScheduleCalendar();
+    };
+
+    window.selectVoiceScheduleTime = function (value) {
+        const input = document.getElementById("scheduleTime");
+        const times = document.getElementById("scheduleTimeOptions");
+        if (input) input.value = value;
+        times?.classList.add("hidden");
+        updateVoiceScheduleSummary();
+    };
+
+    function bindVoiceScheduleControls() {
+        const dateBtn = document.getElementById("scheduleDatePickerBtn");
+        const timeBtn = document.getElementById("scheduleTimePickerBtn");
+        const prevBtn = document.getElementById("schedulePrevMonth");
+        const nextBtn = document.getElementById("scheduleNextMonth");
+        const daysWrap = document.getElementById("scheduleCalendarDays");
+        const timeOptions = document.getElementById("scheduleTimeOptions");
+
+        if (dateBtn && dateBtn.dataset.bound !== "1") {
+            dateBtn.dataset.bound = "1";
+            dateBtn.addEventListener("click", (event) => window.toggleVoiceScheduleCalendar(event));
+        }
+
+        if (timeBtn && timeBtn.dataset.bound !== "1") {
+            timeBtn.dataset.bound = "1";
+            timeBtn.addEventListener("click", (event) => window.toggleVoiceScheduleTimeOptions(event));
+        }
+
+        if (prevBtn && prevBtn.dataset.bound !== "1") {
+            prevBtn.dataset.bound = "1";
+            prevBtn.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                window.changeVoiceScheduleMonth(-1);
+            });
+        }
+
+        if (nextBtn && nextBtn.dataset.bound !== "1") {
+            nextBtn.dataset.bound = "1";
+            nextBtn.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                window.changeVoiceScheduleMonth(1);
+            });
+        }
+
+        if (daysWrap && daysWrap.dataset.bound !== "1") {
+            daysWrap.dataset.bound = "1";
+            daysWrap.addEventListener("click", (event) => {
+                const btn = event.target.closest("button[data-date]");
+                if (!btn || btn.disabled) return;
+                event.preventDefault();
+                event.stopPropagation();
+                window.selectVoiceScheduleDate(btn.dataset.date || "");
+            });
+        }
+
+        if (timeOptions && timeOptions.dataset.bound !== "1") {
+            timeOptions.dataset.bound = "1";
+            timeOptions.addEventListener("click", (event) => {
+                const btn = event.target.closest("button[data-time]");
+                if (!btn) return;
+                event.preventDefault();
+                event.stopPropagation();
+                window.selectVoiceScheduleTime(btn.dataset.time || "");
+            });
+        }
+    }
+
+    ready(bindVoiceScheduleControls);
+
 
     // helper: safe ready
     function ready(fn) {
@@ -1970,11 +2346,9 @@
     function showStep(step) {
         const MAX_STEP = 5;
         const MIN_STEP = 1;
-        currentStep = step;
-
-
         if (step < MIN_STEP) step = MIN_STEP;
         if (step > MAX_STEP) step = MAX_STEP;
+        currentStep = step;
 
         document.querySelectorAll(".step-panel").forEach((panel) => panel.classList.add("hidden"));
         const currentPanel = document.querySelector(`.step-panel[data-step="${step}"]`);
@@ -2042,8 +2416,7 @@
         const btnNextTop = document.getElementById("btnNextTop");
         const btnBackTop = document.getElementById("btnBackTop");
 
-        if (nextBtn) nextBtn.classList.toggle("hidden", step === MAX_STEP);
-        if (btnNextTop) btnNextTop.classList.toggle("hidden", step === MAX_STEP);
+        setWizardNextVisible(step !== MAX_STEP);
         if (prevBtn) prevBtn.classList.toggle("hidden", step === MIN_STEP);
         if (btnBackTop) btnBackTop.classList.toggle("hidden", step === MIN_STEP);
 
@@ -2303,6 +2676,7 @@
                 // continua preenchendo selectedAudio (se você ainda usa em outros lugares)
                 selectedAudio.name = name;
                 selectedAudio.src  = src;
+                window.__voiceSelectedAudio = { name, src };
 
                 // ✅ aqui é a chave: salva no "banco" correto dependendo do modo
                 syncAudioSelectionByMode(name, src);
@@ -2320,6 +2694,7 @@
 
                 // limpa selectedAudio se era o selecionado atual
                 if (selectedAudio.src === rowSrc) selectedAudio = { name: "", src: "" };
+                if (window.__voiceSelectedAudio?.src === rowSrc) window.__voiceSelectedAudio = { name: "", src: "" };
 
                 // ✅ limpa também do step2Audio/torpedoAudio
                 if (step2Audio.src === rowSrc) step2Audio = { name: "", src: "" };
@@ -2621,14 +2996,14 @@
                                 <option value="transfer">Transferir para ramal</option>
                             </select>
 
-                                     <!-- Bloco do áudio (permanece sempre visível) -->
+                                    <!-- Bloco do áudio (permanece sempre visível) -->
             <div class="text-sm text-slate-600 mb-1">Se for enviar áudio, escolha o áudio</div>
             <select name="digit_audio[]" class="border rounded-lg px-3 py-2 w-full mb-3">
             <option value="">Selecione o áudio</option>
             ${generateAudioOptionsHTML()}
             </select>
 
-                        <!-- Campos extras de SMS (aparecem somente quando necessário) -->
+                <!-- Campos extras de SMS (aparecem somente quando necessário) -->
             <div class="extra-sms-fields hidden mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
             <label class="block text-xs font-medium mb-1">Serviço MKT SHORT</label>
             <select name="digit_sms_service[]"
@@ -2646,42 +3021,42 @@
             </div>
             </div>`;
 
-        digitsContainer.appendChild(div);
+            digitsContainer.appendChild(div);
 
-        // 🔹 Referências
-        const actionSelect = div.querySelector(".digit-action");
-        const smsFields = div.querySelector(".extra-sms-fields");
+            // 🔹 Referências
+            const actionSelect = div.querySelector(".digit-action");
+            const smsFields = div.querySelector(".extra-sms-fields");
 
-        // 🔹 Exibe os campos extras de SMS conforme seleção
-        actionSelect.addEventListener("change", () => {
-            if (actionSelect.value === "sms") {
-                smsFields.classList.remove("hidden");
-            } else {
-                smsFields.classList.add("hidden");
-            }
+            // 🔹 Exibe os campos extras de SMS conforme seleção
+            actionSelect.addEventListener("change", () => {
+                if (actionSelect.value === "sms") {
+                    smsFields.classList.remove("hidden");
+                } else {
+                    smsFields.classList.add("hidden");
+                }
+                updatePreview();
+            });
+
+            // 🔹 Atualiza preview em qualquer modificação
+            div.querySelectorAll("select, input, textarea").forEach((el) => el.addEventListener("input", updatePreview));
+
             updatePreview();
         });
 
-        // 🔹 Atualiza preview em qualquer modificação
-        div.querySelectorAll("select, input, textarea").forEach((el) => el.addEventListener("input", updatePreview));
+        removeBtn?.addEventListener("click", () => {
+            if (!digitsContainer) return;
+            if (digitsContainer.children.length > 1) {
+                digitsContainer.removeChild(digitsContainer.lastElementChild);
+                reindexDigits(digitsContainer);
+                updatePreview();
+            } else alert("É necessário manter pelo menos um dígito.");
+        });
 
-        updatePreview();
-    });
+        // 🔹 Aplica o comportamento no dígito inicial
+        digitsContainer?.querySelectorAll(".digit-item").forEach(attachDigitBehavior);
 
-    removeBtn?.addEventListener("click", () => {
-        if (!digitsContainer) return;
-        if (digitsContainer.children.length > 1) {
-            digitsContainer.removeChild(digitsContainer.lastElementChild);
-            reindexDigits(digitsContainer);
-            updatePreview();
-        } else alert("É necessário manter pelo menos um dígito.");
-    });
-
-    // 🔹 Aplica o comportamento no dígito inicial
-    digitsContainer?.querySelectorAll(".digit-item").forEach(attachDigitBehavior);
-
-    digitsContainer?.addEventListener("change", updatePreview);
-}
+        digitsContainer?.addEventListener("change", updatePreview);
+    }
 
         // reindexa dígitos
         function reindexDigits(container) {
@@ -2822,23 +3197,21 @@
 
         function setupStep4() {
             const variableTypeEl  = document.getElementById("variableType");
-            const dialStrategyEl  = document.getElementById("dialStrategy");
             const noAgentActionEl = document.getElementById("noAgentAction");
-
             const callerIdModeEl  = document.getElementById("callerIdMode");
             const callerIdBox     = document.getElementById("callerIdBox");
             const callerIdInput   = document.getElementById("callerIdNumber");
-
             const torpedoModeBox  = document.getElementById("torpedoModeBox");
             const torpedoModeEl   = document.getElementById("torpedoMode");
+            const trunkSelect     = document.getElementById("sipTrunk");
 
-            const ramalContainer  = document.getElementById("ramaisContainer");
-
-            // ✅ Torpedo select + box
+            // 🚀 Select de Filas (Substitui o antigo ramaisContainer)
+            const queueSelectEl   = document.getElementById("campaignQueueSelect");
             const torpedoSel      = document.getElementById("torpedoAudioSelect");
 
-            if (!variableTypeEl || !dialStrategyEl || !callerIdModeEl || !callerIdInput || !ramalContainer) return;
+            if (!variableTypeEl || !callerIdModeEl || !queueSelectEl) return;
 
+            // --- Utilitários ---
             function setDisabled(el, disabled) {
                 if (!el) return;
                 el.disabled = !!disabled;
@@ -2851,476 +3224,149 @@
                 el.classList.toggle("hidden", !!hidden);
             }
 
-            function clearRamaisSelection() {
-                const inputs = document.querySelectorAll('input[name="ramais[]"]');
-                for (let i = 0; i < inputs.length; i++) inputs[i].checked = false;
-            }
-
-            function getSelectedRamaisSet() {
-                const checked = document.querySelectorAll('input[name="ramais[]"]:checked');
-                const s = {};
-                for (let i = 0; i < checked.length; i++) s[String(checked[i].value)] = true;
-                return s;
-            }
-
             function getDesiredTrunkType() {
                 const mode = callerIdModeEl.value || "fixed";
                 return (mode === "fixed") ? "cli_aberta" : "bina_inteligente";
             }
 
-            function applyCallerIdRules() {
-                const mode = callerIdModeEl.value || "fixed";
-                if (mode === "fixed") {
-                    setHidden(callerIdBox, false);
-                    setDisabled(callerIdInput, false);
-                } else {
-                    setHidden(callerIdBox, true);
-                    callerIdInput.value = "";
+            // --- Lógica de Troncos SIP (REINTEGRADA) ---
+            // --- Lógica de Troncos SIP (CORRIGIDA) ---
+            async function loadTrunksByType() {
+                if (!trunkSelect) return;
+                const desiredType = getDesiredTrunkType();
+
+                trunkSelect.innerHTML = '<option value="">Carregando troncos...</option>';
+
+                try {
+                    const res = await fetch(`${baseUrl}/campaign/voice/sip-trunks/view`);
+                    const result = await res.json();
+                    const trunksAll = result.data || [];
+
+                    const filtered = trunksAll.filter(t => String(t.cli_type).toLowerCase() === desiredType);
+
+                    trunkSelect.innerHTML = '<option value="">Auto (balanceado)</option>';
+                    filtered.forEach(t => {
+                        const opt = document.createElement("option");
+
+                        // 1. O value continua sendo o nome técnico (ex: trunk-maxx)
+                        opt.value = t.trunk_id;
+
+                        // 2. 🚀 O TRUQUE: Aqui você injeta o ID real (o "58") no dataset
+                        opt.dataset.id = t.id;
+
+                        // 3. Injeta o tipo de CLI real para o resumo
+                        opt.dataset.cliType = t.cli_type;
+
+                        // 4. Injeta o status para a lógica de Auto (balanceado)
+                        opt.dataset.status = t.sip_status || "UNKNOWN";
+
+                        opt.textContent = (t.sip_status === 'OK' ? '🟢 ' : '🔴 ') + (t.name || t.trunk_id);
+                        trunkSelect.appendChild(opt);
+                    });
+                } catch (e) {
+                    trunkSelect.innerHTML = '<option value="">Erro ao carregar troncos</option>';
                 }
             }
 
+            // --- Lógica de Filas ---
+            async function loadQueuesToCampaign() {
+                queueSelectEl.innerHTML = '<option value="">Carregando filas...</option>';
+                try {
+                    const res = await fetch(`${baseUrl}/callcenter/queues/list`);
+                    const result = await res.json();
+                    const queues = result.data || [];
+
+                    queueSelectEl.innerHTML = '<option value="">Selecione uma fila...</option>';
+                    queues.forEach(q => {
+                        const opt = document.createElement("option");
+                        opt.value = q.queue_id;
+                        opt.textContent = `${q.name.toUpperCase()}`;
+                        opt.dataset.agents = q.total_agents;
+                        opt.dataset.strategy = q.strategy;
+                        queueSelectEl.appendChild(opt);
+                    });
+                } catch (e) {
+                    queueSelectEl.innerHTML = '<option value="">Erro ao carregar filas</option>';
+                }
+            }
+
+            function applyCallerIdRules() {
+                const mode = callerIdModeEl.value || "fixed";
+                setHidden(callerIdBox, mode !== "fixed");
+            }
+
             function applyDynamicRules() {
-                const variableType = variableTypeEl.value; // NORMAL | TORPEDO
-                const strategy     = dialStrategyEl.value; // predictive|progressive|preview|blast
+                const isTorpedo = variableTypeEl.value === "TORPEDO";
+                const torpMode = torpedoModeEl?.value || "transfer";
+                const audioOnly = isTorpedo && torpMode === "audio_only";
 
-                const isTorpedo = (variableType === "TORPEDO");
-                const torpMode  = (torpedoModeEl && torpedoModeEl.value) ? torpedoModeEl.value : "transfer";
-                const audioOnly = isTorpedo && (torpMode === "audio_only");
-                const blast     = (strategy === "blast");
-
-                // TORPEDO mode box
                 setHidden(torpedoModeBox, !isTorpedo);
 
-                // ✅ quando for TORPEDO: prepara select (Step4 fallback)
-                if (isTorpedo) {
-                    refreshTorpedoAudioOptions();
+                // Esconde a seleção de fila se for "Somente Áudio"
+                const queueBox = document.getElementById("queueSelectionBox");
+                if (queueBox) setHidden(queueBox, audioOnly);
 
-                    // se já tem selectedAudio do Step2, reflete no select
-                    if (torpedoSel && selectedAudio && String(selectedAudio.name || "").trim()) {
-                        const want = String(selectedAudio.name || "").trim();
-
-                        // tenta por value
-                        torpedoSel.value = want;
-
-                        // fallback por texto
-                        if (String(torpedoSel.value || "").trim() !== want) {
-                            for (let i = 0; i < torpedoSel.options.length; i++) {
-                                if (String(torpedoSel.options[i].textContent || "").trim() === want) {
-                                    torpedoSel.selectedIndex = i;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // aplica regra de obrigatoriedade/visibilidade do box do áudio
-                applyTorpedoAudioRule();
-
-                // Ramais: desabilita em BLAST ou TORPEDO audio_only
-                const disableRamais = blast || audioOnly;
-                setDisabled(ramalContainer, disableRamais);
-                if (disableRamais) clearRamaisSelection();
-
-                // noAgentAction: não faz sentido em audio_only
                 setDisabled(noAgentActionEl, audioOnly);
                 if (audioOnly && noAgentActionEl) noAgentActionEl.value = "hangup";
 
                 if (typeof updatePreview === "function") updatePreview();
-
                 paintStep4UI();
-
             }
 
-            function trunkBadge(status) {
-                switch (String(status || "").toUpperCase()) {
-                    case "OK":       return "🟢";
-                    case "WARN":     return "🟡";
-                    case "DOWN":     return "🔴";
-                    case "DISABLED": return "⚪";
-                    default:         return "⚫";
-                }
-            }
-
-            function applyTrunkSelectStyle(selectEl) {
-                if (!selectEl) return;
-
-                selectEl.classList.remove(
-                    "border-emerald-400","ring-emerald-200","text-emerald-700",
-                    "border-yellow-400","ring-yellow-200","text-yellow-700",
-                    "border-red-400","ring-red-200","text-red-700",
-                    "border-slate-300","ring-slate-200","text-slate-600"
-                );
-
-                const opt = (selectEl.selectedOptions && selectEl.selectedOptions[0]) ? selectEl.selectedOptions[0] : null;
-                const st = (opt && opt.dataset) ? String(opt.dataset.status || "").toUpperCase() : "";
-
-                selectEl.classList.add("ring-2","outline-none");
-
-                switch (st) {
-                    case "OK":
-                        selectEl.classList.add("border-emerald-400","ring-emerald-200","text-emerald-700");
-                        break;
-                    case "WARN":
-                        selectEl.classList.add("border-yellow-400","ring-yellow-200","text-yellow-700");
-                        break;
-                    case "DOWN":
-                        selectEl.classList.add("border-red-400","ring-red-200","text-red-700");
-                        break;
-                    default:
-                        selectEl.classList.add("border-slate-300","ring-slate-200","text-slate-600");
-                        break;
-                }
-            }
-
-            async function loadTrunksByType() {
-                const trunkSelect = document.getElementById("sipTrunk");
-                if (!trunkSelect) return;
-
-                const selectedBefore = trunkSelect.value || "";
-                const desiredType = getDesiredTrunkType();
-
-                trunkSelect.innerHTML =
-                    '<option value="" data-status="UNKNOWN">Auto (balanceado)</option>' +
-                    '<option value="__loading__" disabled selected data-status="UNKNOWN">Carregando trunks...</option>';
-
-                try {
-                    const res = await fetch(String(baseUrl) + "/campaign/voice/sip-trunks/view");
-                    const result = await res.json();
-                    const trunksAll = (result && result.data) ? result.data : [];
-
-                    const trunks = [];
-                    for (let i = 0; i < trunksAll.length; i++) {
-                        const t = trunksAll[i];
-                        const tp = String((t && t.cli_type) ? t.cli_type : "").toLowerCase();
-                        if (tp === desiredType) trunks.push(t);
-                    }
-
-                    trunkSelect.innerHTML = '<option value="" data-status="UNKNOWN">Auto (balanceado)</option>';
-
-                    if (!trunks.length) {
-                        trunkSelect.innerHTML += '<option value="" disabled data-status="UNKNOWN">Nenhum trunk compatível</option>';
-                        trunkSelect.value = "";
-                        applyTrunkSelectStyle(trunkSelect);
-                        return;
-                    }
-
-                    for (let j = 0; j < trunks.length; j++) {
-                        const t2 = trunks[j];
-                        const id = String((t2 && t2.trunk_id) ? t2.trunk_id : "").trim();
-                        if (!id) continue;
-
-                        const status = String((t2 && t2.sip_status) ? t2.sip_status : "UNKNOWN").toUpperCase();
-                        const detail = String((t2 && t2.sip_detail) ? t2.sip_detail : "").trim();
-                        const labelName = String((t2 && t2.name) ? t2.name : id).trim();
-                        const numericId = String((t2 && t2.id) ? t2.id : "").trim();
-
-
-                        const opt = document.createElement("option");
-                        opt.value = id;
-                        opt.dataset.id = numericId; // 👈 ID numérico
-                        opt.dataset.status = status;
-                        opt.dataset.cliType = String((t2 && t2.cli_type) ? t2.cli_type : "");
-
-                        const badge = trunkBadge(status);
-                        opt.textContent = detail ? (badge + " " + labelName + " — " + detail) : (badge + " " + labelName);
-
-                        trunkSelect.appendChild(opt);
-                    }
-
-                    let found = false;
-
-                    if (selectedBefore) {
-                        for (let k = 0; k < trunkSelect.options.length; k++) {
-                            if (trunkSelect.options[k].value === selectedBefore) {
-                                trunkSelect.value = selectedBefore;
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!found && trunkSelect.options.length === 2) {
-                        trunkSelect.selectedIndex = 1;
-                    }
-
-                    if (!found && trunkSelect.options.length > 2) {
-                        trunkSelect.value = "";
-                    }
-
-                    applyTrunkSelectStyle(trunkSelect);
-
-                } catch (e) {
-                    trunkSelect.innerHTML =
-                        '<option value="" data-status="UNKNOWN">Auto (balanceado)</option>' +
-                        '<option value="" disabled data-status="UNKNOWN">Erro ao carregar trunks</option>';
-                    trunkSelect.value = "";
-                    applyTrunkSelectStyle(trunkSelect);
-                }
-
-                if (!window.__trunkSelectBound) {
-                    window.__trunkSelectBound = true;
-                    trunkSelect.addEventListener("change", function () {
-                        applyTrunkSelectStyle(trunkSelect);
-                        if (typeof updatePreview === "function") updatePreview();
-                    });
-                }
-            }
-
-            async function loadRamais() {
-                const selectedBefore = getSelectedRamaisSet();
-
-                ramalContainer.innerHTML =
-                    '<p class="text-sm text-slate-500 col-span-full text-center">Carregando ramais...</p>';
-
-                try {
-                    const res = await fetch(String(baseUrl) + "/campaign/voice/sip-devices");
-                    const result = await res.json();
-                    const ramaisList = (result && result.data) ? result.data : [];
-
-                    ramalContainer.innerHTML = "";
-
-                    if (!Array.isArray(ramaisList) || ramaisList.length === 0) {
-                        ramalContainer.innerHTML =
-                            '<p class="text-slate-500 text-sm italic col-span-full text-center">Nenhum ramal encontrado.</p>';
-                        return;
-                    }
-
-                    for (let i = 0; i < ramaisList.length; i++) {
-                        const r = ramaisList[i];
-                        const ramal = String(r && r.id ? r.id : "").trim();
-                        const name  = String(r && r.name ? r.name : "").trim();
-
-                        const div = document.createElement("div");
-                        div.className = "flex items-center space-x-2";
-
-                        const checked = selectedBefore[ramal] ? "checked" : "";
-
-                        div.innerHTML =
-                            '<input type="checkbox" name="ramais[]" value="' + ramal + '" id="ramal_' + ramal + '" class="accent-emerald-500" ' + checked + '>' +
-                            '<label for="ramal_' + ramal + '" class="text-slate-700 text-sm">' + name + " (" + ramal + ")</label>";
-
-                        ramalContainer.appendChild(div);
-                    }
-                } catch (e) {
-                    ramalContainer.innerHTML =
-                        '<p class="text-red-500 text-sm italic col-span-full text-center">Erro ao carregar ramais.</p>';
-                } finally {
-                    applyDynamicRules();
-                }
-            }
-
-            if (typeof window.__campaignCps === "undefined" || !window.__campaignCps) {
-                setCampaignCps(getDefaultCpsFromSpeedProfile());
-            }
-
-            // bind 1x
+            // --- Listeners (Bind 1x) ---
             if (!window.__step4Bound) {
                 window.__step4Bound = true;
 
                 variableTypeEl.addEventListener("change", applyDynamicRules);
-                dialStrategyEl.addEventListener("change", applyDynamicRules);
                 if (torpedoModeEl) torpedoModeEl.addEventListener("change", applyDynamicRules);
 
-                callerIdModeEl.addEventListener("change", function () {
+                callerIdModeEl.addEventListener("change", () => {
                     applyCallerIdRules();
-                    loadTrunksByType();
+                    loadTrunksByType(); // Agora ela existe!
                     applyDynamicRules();
+                });
+
+                queueSelectEl.addEventListener("change", function() {
+                    const selected = this.options[this.selectedIndex];
+                    const chip = document.getElementById("step4StrategyChip");
+                    if (chip && selected.value) {
+                        chip.classList.remove("hidden");
+                        chip.textContent = "Estratégia: " + (selected.dataset.strategy || "").toUpperCase();
+                    }
                     if (typeof updatePreview === "function") updatePreview();
                 });
-
-                ramalContainer.addEventListener("change", function (e) {
-                    if (e.target && e.target.matches && e.target.matches('input[name="ramais[]"]')) {
-                        if (typeof updatePreview === "function") updatePreview();
-                    }
-                });
-
-                const speedProfileEl = document.getElementById("speedProfile");
-                if (speedProfileEl) {
-                    speedProfileEl.addEventListener("change", function () {
-                        if (!window.__callRateTouched) {
-                            setCampaignCps(getDefaultCpsFromSpeedProfile());
-                        }
-                        if (typeof updatePreview === "function") updatePreview();
-                    });
-                }
-
-                // ✅ bind do select do Step4: escolher áudio atualiza preview como Step2
-                if (torpedoSel && !window.__torpedoSelectBound) {
-                    window.__torpedoSelectBound = true;
-
-                    torpedoSel.addEventListener("change", function () {
-                        const opt = this.selectedOptions && this.selectedOptions[0] ? this.selectedOptions[0] : null;
-
-                        selectedAudio.name = String(this.value || "").trim();
-                        selectedAudio.src  = opt ? String(opt.dataset.src || "").trim() : "";
-
-                        applyTorpedoAudioRule();
-                        updatePreview?.();
-                        paintStep4UI();
-                    });
-
-                }
             }
 
-            // init
+            // --- Inicialização ---
             applyDynamicRules();
-            loadRamais();
-
             applyCallerIdRules();
             loadTrunksByType();
-
-            // ✅ init do select (se Step4 abriu depois do loadMyAudios, ok)
-            refreshTorpedoAudioOptions();
-            applyTorpedoAudioRule();
+            loadQueuesToCampaign();
             paintStep4UI();
 
-
-
             function paintStep4UI() {
-                const hero   = document.getElementById("step4Hero");
-                const badge  = document.getElementById("step4Badge");
-                const hint   = document.getElementById("step4Hint");
-                const chip   = document.getElementById("step4StrategyChip");
-
-                const torpedoBox = document.getElementById("torpedoModeBox");
-                const torpedoAudioBox = document.getElementById("torpedoAudioBox");
-
-                const isTorpedo = String(variableTypeEl.value || "").toUpperCase() === "TORPEDO";
-                const strategy  = String(dialStrategyEl.value || "").toLowerCase();
-
-                // Hero base
+                const hero = document.getElementById("step4Hero");
+                const isTorpedo = variableTypeEl.value === "TORPEDO";
                 if (hero) {
-                    hero.classList.remove(
-                        "border-emerald-200","bg-emerald-50","shadow-emerald-100",
-                        "border-rose-200","bg-rose-50","shadow-rose-100",
-                        "shadow"
-                    );
-
-                    hero.classList.add("shadow");
-
-                    if (isTorpedo) {
-                        hero.classList.add("border-rose-200","bg-rose-50","shadow-rose-100");
-                    } else {
-                        hero.classList.add("border-emerald-200","bg-emerald-50","shadow-emerald-100");
-                    }
-                }
-
-                // Badge
-                if (badge) {
-                    badge.classList.remove(
-                        "bg-emerald-600","text-white",
-                        "bg-rose-600","text-white",
-                        "bg-slate-100","text-slate-700"
-                    );
-
-                    if (isTorpedo) {
-                        badge.classList.add("bg-rose-600","text-white");
-                        badge.textContent = "🚀 Torpedo";
-                    } else {
-                        badge.classList.add("bg-emerald-600","text-white");
-                        badge.textContent = "✅ Normal";
-                    }
-                }
-
-                // Hint
-                if (hint) {
-                    hint.textContent = isTorpedo
-                        ? "Torpedo exige áudio. Se não selecionou no Step2, escolha aqui."
-                        : "Modo normal: áudio vem do Step2 (atendimento).";
-                }
-
-                // Strategy chip
-                if (chip) {
-                    chip.classList.remove("hidden");
-
-                    const labelMap = {
-                        rrmemory: "Round-Robin",
-                        leastrecent: "Menos recente",
-                        linear: "Linear",
-                        ringall: "Ring-All"
-                    };
-
-                    const tooltipMap = {
-                        rrmemory: "Distribui chamadas de forma equilibrada, lembrando o último agente atendido.",
-                        leastrecent: "Prioriza o agente que está há mais tempo sem receber chamadas.",
-                        linear: "Segue uma ordem fixa de agentes, sem balanceamento.",
-                        ringall: "Seleciona o primeiro agente disponível no momento."
-                    };
-
-                    chip.textContent = `Estratégia: ${labelMap[strategy] || strategy || "-"}`;
-                    chip.title = tooltipMap[strategy] || "Estratégia de distribuição de chamadas";
-
-                    chip.classList.remove(
-                        "bg-slate-100","text-slate-600",
-                        "bg-purple-100","text-purple-700",
-                        "bg-yellow-100","text-yellow-700",
-                        "bg-blue-100","text-blue-700",
-                        "bg-emerald-100","text-emerald-700"
-                    );
-
-                    if (strategy === "rrmemory") {
-                        chip.classList.add("bg-purple-100","text-purple-700");
-                    } else if (strategy === "leastrecent") {
-                        chip.classList.add("bg-blue-100","text-blue-700");
-                    } else if (strategy === "linear") {
-                        chip.classList.add("bg-emerald-100","text-emerald-700");
-                    } else if (strategy === "ringall") {
-                        chip.classList.add("bg-yellow-100","text-yellow-700");
-                    } else {
-                        chip.classList.add("bg-slate-100","text-slate-600");
-                    }
-                }
-
-
-                // Destaque de blocos TORPEDO
-                [torpedoBox, torpedoAudioBox].forEach((el) => {
-                    if (!el) return;
-                    el.classList.toggle("ring-2", isTorpedo);
-                    el.classList.toggle("ring-rose-200", isTorpedo);
-                    el.classList.toggle("rounded-xl", true);
-                    el.classList.toggle("p-4", true);
-                    el.classList.toggle("bg-white", true);
-                    el.classList.toggle("border", true);
-                    el.classList.toggle("border-slate-200", true);
-                });
-
-                // Torpedo select “glow” se estiver obrigatório e vazio
-                if (torpedoSel) {
-                    //const needAudio = isTorpedo;
-                    const mode = getTorpedoModeValue();
-                    const needAudio = isTorpedo && (mode === "audio_only");
-
-                    const hasAudio = !!String(torpedoSel.value || "").trim();
-
-                    torpedoSel.classList.remove("border-rose-400","ring-rose-200","text-rose-700");
-
-                    if (needAudio && !hasAudio) {
-                        torpedoSel.classList.add("border-rose-400","ring-2","ring-rose-200","text-rose-700");
-                    }
+                    hero.className = isTorpedo
+                        ? "mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm"
+                        : "mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm";
                 }
             }
-
-            function pulseError(el) {
-                if (!el) return;
-                el.classList.remove("animate-shake");
-                void el.offsetWidth; // reflow
-                el.classList.add("animate-shake");
-            }
-
         }
 
 
 
-
         // ==========================
-// STEP 5 (somente confirmação) — NÃO altera click aqui
-// ==========================
+        // STEP 5 (somente confirmação) — NÃO altera click aqui
+        // ==========================
         function setupStep5() {
+            setWizardNextVisible(false);
+
             const confirmCampaignName  = document.getElementById("confirmCampaignName");
             const confirmContactList   = document.getElementById("confirmContactList");
             const confirmCallerId      = document.getElementById("confirmCallerId");
-            const confirmRamais        = document.getElementById("confirmRamais");
+            const confirmRamais        = document.getElementById("confirmRamais"); // Onde exibiremos a Fila
             const confirmFlowContainer = document.getElementById("confirmFlowContainer");
             const confirmVariableType  = document.getElementById("confirmVariableType");
             const confirmTorpedoMode   = document.getElementById("confirmTorpedoMode");
@@ -3330,73 +3376,49 @@
 
             if (!confirmCampaignName || !confirmContactList || !confirmFlowContainer) return;
 
-            // valores do step 4
+            // Valores do Step 4
             const variableTypeEl = document.getElementById("variableType");
-            const variableType = (variableTypeEl && variableTypeEl.value)
-                ? String(variableTypeEl.value).toUpperCase()
-                : "NORMAL";
+            const variableType = (variableTypeEl && variableTypeEl.value) ? String(variableTypeEl.value).toUpperCase() : "NORMAL";
 
             const torpedoModeEl = document.getElementById("torpedoMode");
-            const torpedoMode = (torpedoModeEl && torpedoModeEl.value)
-                ? String(torpedoModeEl.value).toLowerCase()
-                : "transfer";
+            const torpedoMode = (torpedoModeEl && torpedoModeEl.value) ? String(torpedoModeEl.value).toLowerCase() : "transfer";
 
             const isTorpedoAudioOnly = (variableType === "TORPEDO" && torpedoMode === "audio_only");
 
+            // 🚀 Lógica da Fila Selecionada
+            const queueSelect = document.getElementById("campaignQueueSelect");
+            const selectedQueueOpt = queueSelect ? queueSelect.options[queueSelect.selectedIndex] : null;
+
             function getSelectedText(selectEl) {
                 if (!selectEl) return "";
-                const opt = selectEl.selectedOptions && selectEl.selectedOptions[0]
-                    ? selectEl.selectedOptions[0]
-                    : null;
+                const opt = selectEl.selectedOptions && selectEl.selectedOptions[0] ? selectEl.selectedOptions[0] : null;
                 return opt ? String(opt.textContent || "").trim() : "";
             }
 
-            function getSelectedValue(selectEl) {
-                return selectEl ? String(selectEl.value || "").trim() : "";
-            }
-
-            const trunkEl    = document.getElementById("sipTrunk");
-            const strategyEl = document.getElementById("dialStrategy");
-            const noAgentEl  = document.getElementById("noAgentAction");
-
-            const strategyValue = getSelectedValue(strategyEl);
-            const isBlast = (strategyValue === "blast");
-
-            // 🔹 Estratégia
+            // 🔹 Estratégia (Vem do dataset da fila ou do select antigo se existir)
             if (confirmDialStrategy) {
-                const txt = getSelectedText(strategyEl);
-                confirmDialStrategy.textContent = txt || "—";
+                const strategy = selectedQueueOpt ? selectedQueueOpt.dataset.strategy : "—";
+                confirmDialStrategy.textContent = strategy.toUpperCase() || "—";
             }
 
             // 🔹 Tronco SIP
             if (confirmSipTrunk) {
-                const trunkValue = getSelectedValue(trunkEl);
-                const trunkTxt   = getSelectedText(trunkEl);
-
-                if (!trunkValue) {
-                    confirmSipTrunk.innerHTML = '<span class="text-slate-500">Auto (balanceado)</span>';
-                } else {
-                    confirmSipTrunk.textContent = trunkTxt || trunkValue;
-                }
+                const trunkEl = document.getElementById("sipTrunk");
+                const trunkValue = trunkEl ? trunkEl.value : "";
+                const trunkTxt = getSelectedText(trunkEl);
+                confirmSipTrunk.textContent = !trunkValue ? "Auto (balanceado)" : trunkTxt;
             }
 
             // 🔹 Se nenhum agente atender
             if (confirmNoAgentAction) {
-                if (isTorpedoAudioOnly || isBlast) {
-                    confirmNoAgentAction.innerHTML =
-                        '<span class="text-slate-400 italic text-sm">Não aplicável</span>';
-                } else {
-                    const txt = getSelectedText(noAgentEl);
-                    confirmNoAgentAction.textContent = txt || "—";
-                }
+                const noAgentEl = document.getElementById("noAgentAction");
+                confirmNoAgentAction.textContent = isTorpedoAudioOnly ? "Não aplicável" : getSelectedText(noAgentEl);
             }
 
             // Torpedo mode label
             if (confirmTorpedoMode) {
                 if (variableType === "TORPEDO") {
-                    confirmTorpedoMode.textContent = isTorpedoAudioOnly
-                        ? "Somente áudio e encerrar"
-                        : "Transferir para ramais";
+                    confirmTorpedoMode.textContent = isTorpedoAudioOnly ? "Somente áudio e encerrar" : "Transferir para Fila";
                 } else {
                     confirmTorpedoMode.textContent = "—";
                 }
@@ -3409,91 +3431,82 @@
             const campaignName = (campaignNameInp && campaignNameInp.value) ? campaignNameInp.value : "—";
 
             const contactListName = (typeof selectedList !== "undefined" && selectedList && selectedList.name) ? selectedList.name : "—";
-            const contactCount    = (typeof selectedList !== "undefined" && selectedList && selectedList.contacts) ? selectedList.contacts : 0;
+            const contactCount    = (typeof selectedList !== "undefined" && selectedList && selectedList.contacts) ? parseInt(selectedList.contacts) : 0;
 
             const callerIdInp = document.getElementById("callerIdNumber");
             const callerId = (callerIdInp && callerIdInp.value) ? callerIdInp.value : "—";
 
-            // Preço (mantém seu cálculo simples)
-            let voicePrice = PRICES.voice;
-            if (variableType === "TORPEDO") voicePrice = PRICES.torpedo;
-            const price = contactCount * voicePrice;
-
             confirmCampaignName.textContent = campaignName;
-            confirmContactList.innerHTML =
-                contactListName +
-                '<span class="text-sm text-slate-500 ml-2">(' +
-                contactCount + ' contatos • R$ ' + price.toFixed(2).replace(".", ",") +
-                ')</span>';
+            confirmContactList.innerHTML = `${contactListName} <span class="text-sm text-slate-500 ml-2">(${contactCount} contatos)</span>`;
 
             if (confirmCallerId) confirmCallerId.textContent = callerId;
 
-            // Ramais selecionados / aplicável
+            // 🚀 Fila selecionada no lugar dos Ramais
             if (confirmRamais) {
                 if (isTorpedoAudioOnly) {
-                    confirmRamais.innerHTML = '<span class="text-slate-400 italic text-sm">Não aplicável</span>';
+                    confirmRamais.innerHTML = '<span class="text-slate-400 italic text-sm ml-1">Não aplicável</span>';
+                } else if (selectedQueueOpt && selectedQueueOpt.value) {
+                    const qtdAgentes = selectedQueueOpt.dataset.agents || "0";
+                    const nomeFila = selectedQueueOpt.text.split('(')[0].trim();
+                    confirmRamais.innerHTML = `
+                <span class="inline-flex items-center gap-2 ml-1">
+                    <span class="text-emerald-600 font-bold">${nomeFila}</span>
+                    <span class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md border border-emerald-200 font-black">
+                        <i class="fa fa-users mr-1"></i>${qtdAgentes} AGENTES
+                    </span>
+                </span>`;
                 } else {
-                    const checked = document.querySelectorAll('input[name="ramais[]"]:checked');
-                    if (checked && checked.length) {
-                        let html = "";
-                        for (let i = 0; i < checked.length; i++) {
-                            const e = checked[i];
-                            const label = (e.nextElementSibling && e.nextElementSibling.textContent)
-                                ? e.nextElementSibling.textContent.trim()
-                                : e.value;
-
-                            html += '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-sm mr-1">' + label + '</span>';
-                        }
-                        confirmRamais.innerHTML = html;
-                    } else {
-                        confirmRamais.innerHTML = '<span class="text-slate-400 italic text-sm">Nenhum ramal selecionado</span>';
-                    }
+                    confirmRamais.innerHTML = '<span class="text-red-500 font-bold ml-1 text-sm underline">Não selecionada!</span>';
                 }
             }
 
-            // Copiar fluxo do preview
-            const previewFlow = document.getElementById("pvFlowContainer");
-            if (previewFlow) confirmFlowContainer.innerHTML = previewFlow.innerHTML;
+            if (document.getElementById("pvFlowContainer")) {
+                confirmFlowContainer.innerHTML = document.getElementById("pvFlowContainer").innerHTML;
+            }
 
             // ==========================
-            // ✅ CPS slider do Step5
+            // ✅ ESTIMATIVA CORRIGIDA
             // ==========================
             const callRate = document.getElementById("callRate");
             const callRateValue = document.getElementById("callRateValue");
             const estimatedDuration = document.getElementById("estimatedDuration");
 
             function updateEstimate() {
-                const cpsNow = callRate ? (parseInt(callRate.value, 10) || 1) : getCampaignCps();
-                const duration = contactCount > 0 ? (contactCount / cpsNow) : 0;
+                const cpsNow = callRate ? (parseInt(callRate.value, 10) || 1) : 1;
 
-                const seconds = duration.toFixed(1);
-                const minutes = (duration / 60).toFixed(1);
+                // Usa o contactCount capturado acima no escopo da setupStep5
+                if (contactCount > 0) {
+                    const duration = contactCount / cpsNow;
+                    const seconds = duration.toFixed(1);
+                    const minutes = (duration / 60).toFixed(1);
 
-                if (estimatedDuration) {
-                    estimatedDuration.textContent = (duration < 60)
-                        ? (seconds + "s")
-                        : (minutes + " min (" + seconds + "s)");
+                    if (estimatedDuration) {
+                        estimatedDuration.innerHTML = (duration < 60)
+                            ? `<b class="text-emerald-600">${seconds}s</b>`
+                            : `<b class="text-emerald-600">${minutes} min</b> <span class="text-[10px] text-slate-400">(${seconds}s)</span>`;
+                    }
+                } else {
+                    if (estimatedDuration) estimatedDuration.textContent = "0s";
                 }
             }
 
             if (callRate) {
-                const cps = getCampaignCps();
+                // Pega o CPS atual do sistema
+                const cps = (typeof getCampaignCps === "function") ? getCampaignCps() : 10;
                 callRate.value = String(cps);
                 if (callRateValue) callRateValue.textContent = String(cps);
 
                 if (!window.__callRateBound) {
                     window.__callRateBound = true;
-
                     callRate.addEventListener("input", function () {
-                        window.__callRateTouched = true;
-                        setCampaignCps(callRate.value);
-
-                        if (callRateValue) callRateValue.textContent = String(callRate.value);
-                        updateEstimate();
+                        if (typeof setCampaignCps === "function") setCampaignCps(this.value);
+                        if (callRateValue) callRateValue.textContent = String(this.value);
+                        updateEstimate(); // Chama a função interna
                     });
                 }
             }
 
+            // Roda a primeira vez ao abrir o Step 5
             updateEstimate();
         }
 
@@ -3504,62 +3517,67 @@
             return (mode === "fixed") ? "cli_aberta" : "bina_inteligente";
         }
 
+        /**
+         * 🚀 Função para capturar os dados do Tronco SIP e Bina
+         * essencial para o envio da campanha
+         */
         function getSelectedTrunkPayload() {
             const sel = document.getElementById("sipTrunk");
             if (!sel) {
-                return { sip_trunk: "", cli_type: getCliTypeDesired(), selected_cli_type: "", candidates_ok: [] };
+                return { sip_trunk: "", sip_trunk_id: "", cli_type: getCliTypeDesired(), selected_cli_type: "", candidates_ok: [] };
             }
 
             const val = (sel.value != null) ? String(sel.value) : "";
             const opt = (sel.selectedOptions && sel.selectedOptions[0]) ? sel.selectedOptions[0] : null;
 
             let selectedCliType = "";
-            let status = "";
+            let sipTrunkId = "";
 
             if (opt && opt.dataset) {
                 selectedCliType = opt.dataset.cliType ? String(opt.dataset.cliType) : "";
-                status = opt.dataset.status ? String(opt.dataset.status).toUpperCase() : "";
+                // 🚀 AQUI ESTÁ O TRUQUE: Pegando o numericId (ex: 58) que o Step 4 salvou
+                sipTrunkId = opt.dataset.id ? String(opt.dataset.id) : "";
             }
 
             // se usuário escolheu trunk específico (não auto)
             if (val && val !== "__loading__") {
                 return {
-                    sip_trunk: val,
-                    cli_type: getCliTypeDesired(),        // "desejado"
-                    selected_cli_type: selectedCliType,   // "real do option"
+                    sip_trunk: val,          // Ex: "trunk-maxx"
+                    sip_trunk_id: sipTrunkId, // 🚀 Agora vai o "58"
+                    cli_type: getCliTypeDesired(),
+                    selected_cli_type: selectedCliType,
                     candidates_ok: []
                 };
             }
 
-            // Auto: monta candidatos OK (do select atual filtrado)
+            // Auto: monta candidatos OK (lógica para quando não seleciona um tronco fixo)
             const candidates = [];
             for (let i = 0; i < sel.options.length; i++) {
                 const o = sel.options[i];
-                if (!o || !o.value) continue;               // ignora Auto
-                if (o.value === "__loading__") continue;
+                if (!o || !o.value || o.value === "__loading__") continue;
 
                 const st = (o.dataset && o.dataset.status) ? String(o.dataset.status).toUpperCase() : "UNKNOWN";
                 if (st === "OK") candidates.push(String(o.value));
             }
 
             return {
-                sip_trunk: "",                              // auto
+                sip_trunk: "",
+                sip_trunk_id: "",
                 cli_type: getCliTypeDesired(),
                 selected_cli_type: selectedCliType,
                 candidates_ok: candidates
             };
         }
-
         function getPriceByType(type) {
-        return PRICES[type] ?? 0;
+            return PRICES[type] ?? 0;
         }
 
-    // apenas evita erro caso texto tenha caracteres especiais
-    function safe(value) {
-        return (value || "").replace(/[<>&"]/g, function (c) {
-            return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
-        });
-    }
+        // apenas evita erro caso texto tenha caracteres especiais
+        function safe(value) {
+            return (value || "").replace(/[<>&"]/g, function (c) {
+                return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
+            });
+        }
 
         function hasValidDtmf() {
             const actions = document.querySelectorAll(".digit-action");
@@ -3619,12 +3637,13 @@
                     audioToRender = torpedoAudio;
                 }
             } else {
-                // NORMAL
-                if (!isNormalSimpleTransfer) {
-                    // NORMAL + DTMF ou SMS → áudio vem do Step2
-                    if (step2Audio?.src) {
-                        audioToRender = step2Audio;
-                    }
+                // NORMAL: se o usuário selecionou áudio no Step 2, ele precisa aparecer na prévia.
+                if (step2Audio?.src) {
+                    audioToRender = step2Audio;
+                } else if (selectedAudio?.src) {
+                    audioToRender = selectedAudio;
+                } else if (window.__voiceSelectedAudio?.src) {
+                    audioToRender = window.__voiceSelectedAudio;
                 }
             }
 
@@ -3767,13 +3786,6 @@
             }
         }
 
-//h//hhhhhhhhhh
-
-
-
-
-
-
 
         document.addEventListener("DOMContentLoaded", () => {
             const variableType = document.getElementById("variableType");
@@ -3903,307 +3915,357 @@
 
 
         // ==========================
-// DOMContentLoaded (FormData / envio) — com bind 1x e regra do áudio
-// ==========================
+        // DOMContentLoaded (FormData / envio) — com bind 1x e regra do áudio
+        // ==========================
+
         document.addEventListener("DOMContentLoaded", function () {
-            const sendButton = document.querySelector('[data-step="5"] button.bg-emerald-500');
+            if (!window.__voiceScheduleDelegationBound) {
+                window.__voiceScheduleDelegationBound = true;
+                document.addEventListener("click", (event) => {
+                    const scheduleBtn = event.target.closest("#scheduleCallBtn");
+                    if (scheduleBtn && typeof window.__voiceSetScheduleMode === "function") {
+                        event.preventDefault();
+                        window.__voiceSetScheduleMode(true);
+                        return;
+                    }
+
+                    const cancelBtn = event.target.closest("#cancelScheduleCallBtn");
+                    if (cancelBtn && typeof window.__voiceSetScheduleMode === "function") {
+                        event.preventDefault();
+                        window.__voiceSetScheduleMode(false);
+                    }
+                });
+            }
+
+            const sendButton = document.getElementById("startCampaignBtn");
+            const scheduleButton = document.getElementById("scheduleCallBtn");
+            const cancelScheduleButton = document.getElementById("cancelScheduleCallBtn");
+            const schedulePanel = document.getElementById("scheduleCallPanel");
+            const scheduleDateInput = document.getElementById("scheduleDate");
+            const scheduleTimeInput = document.getElementById("scheduleTime");
+            const scheduleSummary = document.getElementById("scheduleSummary");
+            const scheduleCalendar = document.getElementById("scheduleCalendar");
+            const scheduleCalendarDays = document.getElementById("scheduleCalendarDays");
+            const scheduleCalendarTitle = document.getElementById("scheduleCalendarTitle");
+            const schedulePrevMonth = document.getElementById("schedulePrevMonth");
+            const scheduleNextMonth = document.getElementById("scheduleNextMonth");
+            const scheduleDatePickerBtn = document.getElementById("scheduleDatePickerBtn");
+            const scheduleTimePickerBtn = document.getElementById("scheduleTimePickerBtn");
+            const scheduleTimeOptions = document.getElementById("scheduleTimeOptions");
             if (!sendButton) return;
 
-            // ✅ evita clique duplicado (script carregado 2x / step re-render)
             if (sendButton.dataset.bound === "1") return;
             sendButton.dataset.bound = "1";
 
+            let scheduleMonthCursor = new Date();
+            scheduleMonthCursor.setDate(1);
+
+            function pad2(value) {
+                return String(value).padStart(2, "0");
+            }
+
+            function toPtDateValue(date) {
+                return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
+            }
+
+            function toTimeValue(date) {
+                return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+            }
+
+            function parsePtDate(value) {
+                const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (!match) return null;
+
+                const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+                if (
+                    date.getFullYear() !== Number(match[3]) ||
+                    date.getMonth() !== Number(match[2]) - 1 ||
+                    date.getDate() !== Number(match[1])
+                ) return null;
+
+                return date;
+            }
+
+            function parseScheduleDateTime() {
+                const date = parsePtDate(scheduleDateInput?.value || "");
+                const timeMatch = String(scheduleTimeInput?.value || "").match(/^(\d{2}):(\d{2})$/);
+                if (!date || !timeMatch) return null;
+
+                const hours = Number(timeMatch[1]);
+                const minutes = Number(timeMatch[2]);
+                if (hours > 23 || minutes > 59) return null;
+
+                date.setHours(hours, minutes, 0, 0);
+                return date;
+            }
+
+            function toSqlDatetimeFromSchedule() {
+                const date = parseScheduleDateTime();
+                if (!date) return "";
+                return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:00`;
+            }
+
+            function updateScheduleSummary() {
+                const date = parseScheduleDateTime();
+                if (!scheduleSummary) return;
+
+                if (!date) {
+                    scheduleSummary.textContent = "Selecione a data e o horário do agendamento.";
+                    return;
+                }
+
+                scheduleSummary.textContent = `Agendado para ${toPtDateValue(date)} às ${toTimeValue(date)}.`;
+            }
+
+            function fillMinimumSchedule() {
+                const minDate = new Date(Date.now() + 5 * 60 * 1000);
+                if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toPtDateValue(minDate);
+                if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+                updateScheduleSummary();
+            }
+
+            function renderScheduleCalendar() {
+                if (!scheduleCalendarDays || !scheduleCalendarTitle) return;
+
+                const monthName = scheduleMonthCursor.toLocaleDateString("pt-BR", {
+                    month: "long",
+                    year: "numeric"
+                });
+                scheduleCalendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                scheduleCalendarDays.innerHTML = "";
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const firstDay = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth(), 1);
+                const lastDay = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth() + 1, 0);
+
+                for (let i = 0; i < firstDay.getDay(); i++) {
+                    scheduleCalendarDays.insertAdjacentHTML("beforeend", `<span class="h-9"></span>`);
+                }
+
+                for (let day = 1; day <= lastDay.getDate(); day++) {
+                    const current = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth(), day);
+                    const disabled = current < today;
+                    const selected = scheduleDateInput?.value === toPtDateValue(current);
+
+                    scheduleCalendarDays.insertAdjacentHTML("beforeend", `
+                        <button type="button"
+                                class="h-9 rounded-lg text-xs font-semibold transition ${disabled ? "text-slate-300 cursor-not-allowed bg-slate-50" : selected ? "bg-emerald-500 text-white" : "text-slate-600 hover:bg-emerald-50"}"
+                                data-date="${toPtDateValue(current)}"
+                                ${disabled ? "disabled" : ""}>
+                            ${day}
+                        </button>
+                    `);
+                }
+            }
+
+            function renderScheduleTimeOptions() {
+                if (!scheduleTimeOptions) return;
+
+                scheduleTimeOptions.innerHTML = "";
+                for (let hour = 9; hour <= 18; hour++) {
+                    for (const minute of [0, 15, 30, 45]) {
+                        if (hour === 18 && minute > 0) continue;
+                        const value = `${pad2(hour)}:${pad2(minute)}`;
+                        scheduleTimeOptions.insertAdjacentHTML("beforeend", `
+                            <button type="button"
+                                    class="w-full px-3 py-2 rounded-lg text-sm text-slate-700 text-left hover:bg-emerald-50"
+                                    data-time="${value}">
+                                ${value}
+                            </button>
+                        `);
+                    }
+                }
+            }
+
+            function normalizeScheduleDateInput() {
+                if (!scheduleDateInput) return;
+                let value = scheduleDateInput.value.replace(/\D/g, "").slice(0, 8);
+                if (value.length >= 5) value = `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
+                else if (value.length >= 3) value = `${value.slice(0, 2)}/${value.slice(2)}`;
+                scheduleDateInput.value = value;
+                updateScheduleSummary();
+            }
+
+            function normalizeScheduleTimeInput() {
+                if (!scheduleTimeInput) return;
+                let value = scheduleTimeInput.value.replace(/\D/g, "").slice(0, 4);
+                if (value.length >= 3) value = `${value.slice(0, 2)}:${value.slice(2)}`;
+                scheduleTimeInput.value = value;
+                updateScheduleSummary();
+            }
+
+            function closeSchedulePickers() {
+                scheduleCalendar?.classList.add("hidden");
+                scheduleTimeOptions?.classList.add("hidden");
+            }
+
+            function toDatetimeLocalValue(date) {
+                const pad = (value) => String(value).padStart(2, "0");
+                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            }
+
+            function toSqlDatetime(value) {
+                return value ? `${value.replace("T", " ")}:00` : "";
+            }
+
+            function setScheduleMode(enabled) {
+                if (schedulePanel) schedulePanel.classList.toggle("hidden", !enabled);
+                if (scheduleButton) scheduleButton.classList.toggle("hidden", enabled);
+                sendButton.dataset.scheduleMode = enabled ? "scheduled" : "now";
+                sendButton.innerHTML = enabled ? "Agendar chamada →" : "Disparar agora →";
+                setWizardNextVisible(false);
+
+                if (enabled) {
+                    fillMinimumSchedule();
+                    renderScheduleCalendar();
+                    renderScheduleTimeOptions();
+                    scheduleDateInput?.focus();
+                } else {
+                    closeSchedulePickers();
+                }
+            }
+
+            window.__voiceSetScheduleMode = setScheduleMode;
+
+            scheduleDateInput?.addEventListener("input", normalizeScheduleDateInput);
+            scheduleTimeInput?.addEventListener("input", normalizeScheduleTimeInput);
+
+            document.addEventListener("click", (ev) => {
+                if (
+                    schedulePanel?.contains(ev.target) ||
+                    scheduleDatePickerBtn?.contains(ev.target) ||
+                    scheduleTimePickerBtn?.contains(ev.target)
+                ) return;
+
+                closeSchedulePickers();
+            });
+
+            scheduleButton?.addEventListener("click", () => setScheduleMode(true));
+            cancelScheduleButton?.addEventListener("click", () => setScheduleMode(false));
+
             sendButton.addEventListener("click", function () {
                 (async function () {
+                    const scheduleMode = sendButton.dataset.scheduleMode === "scheduled" ? "scheduled" : "now";
+                    const scheduledAt = toSqlDatetimeFromSchedule();
+
+                    if (scheduleMode === "scheduled" && !scheduledAt) {
+                        notyf.error("Informe a data e hora do agendamento.");
+                        scheduleDateInput?.focus();
+                        return;
+                    }
+
+                    if (scheduleMode === "scheduled" && parseScheduleDateTime() <= new Date()) {
+                        notyf.error("Escolha uma data e horário futuros.");
+                        scheduleDateInput?.focus();
+                        return;
+                    }
+
                     sendButton.disabled = true;
-                    sendButton.innerHTML =
-                        '<svg class="animate-spin h-5 w-5 text-white inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
-                        '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
-                        '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l5-5-5-5v4a8 8 0 00-8 8z"></path>' +
-                        '</svg> Enviando...';
+                    sendButton.innerHTML = scheduleMode === "scheduled"
+                        ? `<i class="fa fa-spinner fa-spin mr-2"></i> Agendando...`
+                        : `<i class="fa fa-spinner fa-spin mr-2"></i> Enviando...`;
 
                     try {
-                        const elCampaignName = document.getElementById("campaignNameInput");
-                        const campaignName = (elCampaignName && elCampaignName.value) ? elCampaignName.value : "";
+                        // 1. Campos Básicos
+                        const campaignName = document.getElementById("campaignNameInput")?.value || "";
+                        const contactListId = (typeof selectedList !== "undefined" && selectedList?.id)
+                            ? selectedList.id
+                            : (document.getElementById("contactListId")?.value || "");
+                        const callRate = document.getElementById("callRate")?.value || 1;
 
-                        const elContactListId = document.getElementById("contactListId");
-                        const contactListId = (elContactListId && elContactListId.value) ? elContactListId.value : "";
+                        // 2. Fila e Estratégia
+                        const queueSelect = document.getElementById("campaignQueueSelect");
+                        const selectedQueueOpt = queueSelect ? queueSelect.options[queueSelect.selectedIndex] : null;
+                        const queueId = queueSelect ? queueSelect.value : "";
+                        const queueStrategy = (selectedQueueOpt && selectedQueueOpt.dataset.strategy) ? selectedQueueOpt.dataset.strategy : "rrmemory";
 
-                        const elCallRate = document.getElementById("callRate");
-                        const callRate = (elCallRate && elCallRate.value) ? elCallRate.value : 1;
+                        // 3. Tronco SIP (AQUI ESTÁ A CORREÇÃO)
+                        const trunkInfo = getSelectedTrunkPayload(); // Esta função já captura o dataset.id
 
-                        const elCallerId = document.getElementById("callerIdNumber");
-                        let callerId = (elCallerId && elCallerId.value) ? elCallerId.value : "";
-
-                        // ==========================
-                        // modo atual (depois das limpezas)
-                        // ==========================
-                        const elVarType = document.getElementById("variableType");
-                        const variableType = (elVarType && elVarType.value) ? String(elVarType.value).toUpperCase() : "NORMAL";
-
-                        const torpEl = document.getElementById("torpedoMode");
-                        const torpMode = (torpEl && torpEl.value) ? String(torpEl.value).toLowerCase() : "transfer";
-
-                        // SMS
-                        const elSmsAfter = document.getElementById("sms-after-call");
-                        const smsEnabled = !!(elSmsAfter && elSmsAfter.checked);
-
-                        let smsData = null;
-                        if (smsEnabled) {
-                            const elSmsMsg = document.getElementById("sms-message");
-                            const elSmsSvc = document.getElementById("select-service");
-                            const elSmsSt  = document.getElementById("after_response_type_value");
-
-                            smsData = {
-                                text: (elSmsMsg && elSmsMsg.value) ? elSmsMsg.value : "",
-                                service: (elSmsSvc && elSmsSvc.value) ? elSmsSvc.value : "",
-                                status: (elSmsSt && elSmsSt.value) ? elSmsSt.value : "",
-                            };
-                        }
-
-                        // DTMF
-                        const digitsContainer = document.getElementById("digits-container");
-                        let hasDtmf = false;
-                        if (digitsContainer && typeof hasValidDtmf === "function") {
-                            hasDtmf = !!hasValidDtmf();
-                        }
-
-                        // ✅ NORMAL + sem DTMF + sem SMS => simples transferência => NÃO envia áudio
-                        const isNormalSimpleTransferOnly = (variableType === "NORMAL" && !hasDtmf && !smsEnabled);
-
-                        // ==========================
-                        // ramais selecionados
-                        // ==========================
-                        const ramaisSelecionados = [];
-                        const checkedRamais = document.querySelectorAll('input[name="ramais[]"]:checked');
-                        for (let i = 0; i < checkedRamais.length; i++) {
-                            const e = checkedRamais[i];
-                            const ramal = e.value;
-
-                            const label = (e.nextElementSibling && e.nextElementSibling.textContent)
-                                ? e.nextElementSibling.textContent.trim()
-                                : ramal;
-
-                            const name = label.split("(")[0].trim();
-                            ramaisSelecionados.push({ ramal: ramal, name: name });
-                        }
-
-                        // ==========================
-                        // ÁUDIO PRINCIPAL (corrigido)
-                        // ==========================
-                        function getAudioFromSelect(selectId) {
-                            const sel = document.getElementById(selectId);
-                            if (!sel) return null;
-                            const opt = sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0] : null;
-                            const name = (sel.value || "").trim();
-                            const src = (opt && opt.dataset && opt.dataset.src) ? String(opt.dataset.src) : "";
-                            if (!name || !src) return null;
-                            return { name, src };
-                        }
-
-                        let mainAudio = null;
-
-                        if (variableType === "TORPEDO") {
-                            mainAudio = getAudioFromSelect("torpedoAudioSelect");
-                        } else {
-                            if (!isNormalSimpleTransferOnly) {
-                                if (typeof selectedAudio !== "undefined" && selectedAudio && selectedAudio.src) {
-                                    mainAudio = { name: selectedAudio.name || "audio.wav", src: selectedAudio.src };
-                                }
-                            }
-                        }
-
-                        let audioFile = null;
-                        let audioOrigin = null;
-
-                        if (mainAudio && mainAudio.src) {
-                            if (String(mainAudio.src).indexOf("/audio.php") !== -1) {
-                                audioOrigin = mainAudio.src;
-                            } else {
-                                try {
-                                    const resAudio = await fetch(mainAudio.src);
-                                    const blobAudio = await resAudio.blob();
-                                    audioFile = new File([blobAudio], (mainAudio.name || "audio.wav"), {
-                                        type: (blobAudio.type || "audio/wav"),
-                                    });
-                                    audioOrigin = "manual";
-                                } catch (errAudio) {
-                                    console.error("Erro ao carregar o áudio principal:", errAudio);
-                                }
-                            }
-                        }
-
-                        // ==========================
-                        // DTMF payload (igual ao seu)
-                        // ==========================
-                        const dtmf = [];
-
-                        if (digitsContainer && hasDtmf) {
-                            const digitItems = digitsContainer.querySelectorAll(".digit-item");
-
-                            for (let di = 0; di < digitItems.length; di++) {
-                                const item = digitItems[di];
-
-                                const actionSel = item.querySelector('select[name="digit_action[]"]');
-                                const actionName = (actionSel && actionSel.value) ? actionSel.value : "";
-                                if (!actionName) continue;
-
-                                const audioSel = item.querySelector('select[name="digit_audio[]"]');
-                                const audioName = (audioSel && audioSel.value) ? audioSel.value : "";
-
-                                let src = "";
-                                if (audioSel && audioSel.selectedOptions && audioSel.selectedOptions[0] && audioSel.selectedOptions[0].dataset) {
-                                    src = audioSel.selectedOptions[0].dataset.src || "";
-                                }
-
-                                const origin = (src && src.indexOf("/audio.php") !== -1) ? src : "manual";
-
-                                const obj = {
-                                    digit: di + 1,
-                                    audio: audioName,
-                                    src: src,
-                                    origin: origin,
-                                    action: actionName,
-                                };
-
-                                if (actionName === "sms") {
-                                    const elSvc = item.querySelector('select[name="digit_sms_service[]"]');
-                                    const elMsg = item.querySelector('textarea[name="digit_sms_message[]"]');
-                                    obj.sms_service = (elSvc && elSvc.value) ? elSvc.value : "";
-                                    obj.sms_message = (elMsg && elMsg.value) ? elMsg.value : "";
-                                }
-
-                                dtmf.push(obj);
-                            }
-                        }
-
-                        // ==========================
-                        // FormData
-                        // ==========================
                         const formData = new FormData();
                         formData.append("campaign_name", campaignName);
                         formData.append("contact_list", contactListId);
                         formData.append("rate", callRate);
+                        formData.append("queue_id", queueId);
+                        formData.append("dial_strategy", queueStrategy);
+                        formData.append("schedule_mode", scheduleMode);
+                        if (scheduleMode === "scheduled") {
+                            formData.append("scheduled_at", scheduledAt);
+                        }
 
+                        // 🚀 TRONCO: Usamos EXCLUSIVAMENTE o que a função getSelectedTrunkPayload retornou
+                        formData.append("sip_trunk", trunkInfo.sip_trunk);
+                        formData.append("sip_trunk_id", trunkInfo.sip_trunk_id); // Pega o '58'
+                        formData.append("cli_type", trunkInfo.cli_type);
+                        formData.append("selected_cli_type", trunkInfo.selected_cli_type); // Pega o 'cli_aberta'
+                        formData.append("trunk_candidates_ok", JSON.stringify(trunkInfo.candidates_ok));
+
+                        // 4. Bina e Outros
+                        const elVarType = document.getElementById("variableType");
+                        const variableType = elVarType ? String(elVarType.value).toUpperCase() : "NORMAL";
+                        formData.append("variable_type", variableType);
+
+                        const elCallerId = document.getElementById("callerIdNumber");
                         const callerModeEl = document.getElementById("callerIdMode");
                         const callerMode = (callerModeEl && callerModeEl.value) ? String(callerModeEl.value).toLowerCase() : "fixed";
-                        if (callerMode !== "fixed") callerId = "";
-                        formData.append("caller_id", callerId);
-
-                        formData.append("ramais", JSON.stringify(ramaisSelecionados));
-
-                        formData.append("variable_type", (elVarType && elVarType.value) ? elVarType.value : "NORMAL");
-                        const strategyEl = document.getElementById("dialStrategy");
-                        formData.append("dial_strategy", strategyEl?.value || "");
+                        formData.append("caller_id", (callerMode === "fixed") ? (elCallerId?.value || "") : "");
 
                         const pv = document.getElementById("pvPrice");
-                        const totalGeral = (pv && pv.dataset && pv.dataset.totalGeral) ? pv.dataset.totalGeral : "0";
+                        formData.append("totalGeral", pv?.dataset.totalGeral || "0");
 
-                        // regra de ação final
-                        let finalAction = "";
-                        if (hasDtmf) {
-                            finalAction = "dtmf";
-                        } else {
-                            if (variableType === "TORPEDO") {
-                                finalAction = (torpMode === "audio_only") ? "play_only" : "transfer_only";
+                        const torpEl = document.getElementById("torpedoMode");
+                        const torpMode = (torpEl && torpEl.value) ? String(torpEl.value).toLowerCase() : "transfer";
+                        formData.append("action", (variableType === "TORPEDO" && torpMode === "audio_only") ? "play_only" : "transfer_only");
+
+                        // 5. Áudios
+                        let mainAudio = null;
+                        if (variableType === "TORPEDO") {
+                            const sel = document.getElementById("torpedoAudioSelect");
+                            if (sel && sel.value) {
+                                mainAudio = { name: sel.value, src: sel.selectedOptions[0]?.dataset.src };
+                            }
+                            if (!mainAudio && torpedoAudio?.src) {
+                                mainAudio = torpedoAudio;
+                            }
+                        } else if (step2Audio?.src) {
+                            mainAudio = step2Audio;
+                        } else if (typeof selectedAudio !== "undefined" && selectedAudio?.src) {
+                            mainAudio = selectedAudio;
+                        } else if (window.__voiceSelectedAudio?.src) {
+                            mainAudio = window.__voiceSelectedAudio;
+                        }
+
+                        if (mainAudio && mainAudio.src) {
+                            if (mainAudio.src.includes("/audio.php")) {
+                                formData.append("audios_origin[]", mainAudio.src);
                             } else {
-                                finalAction = "transfer_only";
+                                const resAudio = await fetch(mainAudio.src);
+                                const blobAudio = await resAudio.blob();
+                                formData.append("audios[]", new File([blobAudio], mainAudio.name, { type: blobAudio.type }));
+                                formData.append("audios_origin[]", "manual");
                             }
                         }
 
-                        formData.append("action", finalAction);
-                        formData.append("totalGeral", totalGeral);
-
-                        // áudio principal (só existe se deve existir)
-                        if (audioFile) {
-                            formData.append("audios[]", audioFile);
-                            formData.append("audios_origin[]", "manual");
-                        } else if (audioOrigin) {
-                            formData.append("audios_origin[]", audioOrigin);
-                        }
-
-                        // áudios DTMF + dtmf json
-                        if (hasDtmf && dtmf.length > 0) {
-                            for (let ii = 0; ii < dtmf.length; ii++) {
-                                const it = dtmf[ii];
-
-                                if (it.origin === "manual" && it.src) {
-                                    try {
-                                        const res = await fetch(it.src);
-                                        const blob = await res.blob();
-                                        const file = new File([blob], (it.audio || ("digit_" + it.digit + ".wav")), {
-                                            type: (blob.type || "audio/wav"),
-                                        });
-
-                                        formData.append("audios[]", file);
-                                        formData.append("audios_origin[]", "manual");
-                                    } catch (e2) {
-                                        // ignore
-                                    }
-                                } else {
-                                    formData.append("audios_origin[]", it.origin);
-                                }
-                            }
-
-                            formData.append("dtmf", JSON.stringify(dtmf));
-                        }
-
-                        // SMS
-                        if (smsData) {
-                            formData.append("sms_text", smsData.text);
-                            formData.append("sms_service", smsData.service);
-                            formData.append("sms_status", smsData.status);
-                        }
-
-                        // ✅ TRUNK + CLI TYPE
-                        const trunkInfo = getSelectedTrunkPayload();
-                        const trunkSelect = document.getElementById("sipTrunk");
-                        const opt = trunkSelect?.selectedOptions?.[0];
-                        const trunkIdNumeric = opt?.dataset?.id || "";
-
-                        formData.append("sip_trunk", trunkInfo.sip_trunk);
-                        formData.append("cli_type", trunkInfo.cli_type);
-                        formData.append("selected_cli_type", trunkInfo.selected_cli_type);
-                        formData.append("trunk_candidates_ok", JSON.stringify(trunkInfo.candidates_ok));
-                        formData.append("sip_trunk_id", trunkIdNumeric);
-
-                        // fetch
-                        const response = await fetch(String(baseUrl) + "/campaign/voice/send-voice", {
+                        // 6. Envio
+                        const response = await fetch(`${baseUrl}/campaign/voice/send-voice`, {
                             method: "POST",
                             body: formData,
                         });
 
                         const result = await response.json();
-
-                        if (response.ok && result && result.success === true) {
-                            if (typeof notyf !== "undefined") {
-                                notyf.success(result.message || "Campanha enviada com sucesso!");
-                            }
-
-                            sendButton.innerHTML = "✅ Campanha enviada!";
-                            sendButton.classList.remove("bg-emerald-500");
-                            sendButton.classList.add("bg-emerald-600");
-
-                            // 🔒 trava o botão
-                            sendButton.disabled = true;
-
-                            // ⏳ redireciona após 1.5s
-                            setTimeout(() => {
-                                window.location.href = `${baseUrl}/campaign/voice`;
-                            }, 1500);
-
+                        if (response.ok && result?.success) {
+                            notyf.success(scheduleMode === "scheduled" ? "Chamada agendada!" : "Campanha enviada!");
+                            setTimeout(() => window.location.href = `${baseUrl}/campaign/voice`, 1500);
                         } else {
-                            const msg =
-                                (result && (result.error || result.message))
-                                    ? (result.error || result.message)
-                                    : "Erro ao enviar campanha.";
-                            throw new Error(msg);
+                            throw new Error(result.message || "Erro no envio.");
                         }
 
                     } catch (err) {
-                        if (typeof notyf !== "undefined") notyf.error((err && err.message) ? err.message : "Erro ao enviar campanha. Tente novamente.");
+                        notyf.error(err.message);
                         sendButton.disabled = false;
-                        sendButton.innerHTML = "Tentar novamente";
+                        sendButton.innerHTML = scheduleMode === "scheduled" ? "Tentar agendar novamente" : "Tentar novamente";
                     }
                 })();
             });

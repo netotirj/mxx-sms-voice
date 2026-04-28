@@ -7,6 +7,8 @@ use WilliamCosta\DatabaseManager\Database;
 class UserAuthentication
 {
     public ?int $id = null;
+    public ?int $role_id = null;
+    public ?int $account_code  = null;
     public ?string $name = null;
     public ?string $last_name = null;
     public ?string $tenancy_id = null;
@@ -36,8 +38,10 @@ class UserAuthentication
             'email'       => $this->email,
             'job_title'   => $this->job_title,
             'user_function' => $this->user_function,
+            'role_id'       => $this->role_id,
             'password'    => $this->password,
             'status'      => $this->status ?? 'n',
+            'account_code' => $this->account_code,
             'createdAt'  => $this->createdAt ?? $now,
             'updatedAt'  => $this->updated_at ?? $now,
         ];
@@ -78,39 +82,29 @@ class UserAuthentication
         ]);
     }
 
-    /*public static function getUserByEmail(string $email): ?self
+    public static function getUserByEmail(string $email): ?self
     {
         return (new Database('users'))
             ->select('email = "' . addslashes($email) . '"')
             ->fetchObject(self::class) ?: null;
-    }*/
-
-    public static function getUserByEmail(string $email): ?self
-    {
-        $db = new Database();
-
-        $query = "SELECT u.*, t.account_code
-              FROM users u
-              INNER JOIN tenancies t ON t.id = u.tenancy_id
-              WHERE u.email = :email
-              LIMIT 1";
-
-        $params = [':email' => $email];
-
-        $result = $db->execute($query, $params)->fetchObject(self::class);
-
-        return $result ?: null;
     }
+
+    public static function getUserById(int $id): ?self
+    {
+        return (new Database('users'))
+            ->select('id = ' . (int)$id . ' LIMIT 1')
+            ->fetchObject(self::class) ?: null;
+    }
+
 
     public static function getUserByAccountCode(string $accountCode): ?self
     {
         $db = new Database();
 
-        $query = "SELECT u.*, t.account_code
-              FROM users u
-              INNER JOIN tenancies t ON t.id = u.tenancy_id
-              WHERE t.account_code = :code
-              AND u.user_function = 'admin'
+        $query = "SELECT *
+              FROM users
+              WHERE account_code = :code
+                AND user_function IN ('admin','super_admin')
               LIMIT 1";
 
         $params = [':code' => $accountCode];
@@ -167,22 +161,38 @@ class UserAuthentication
         );
     }
 
-    public static function getUserByRememberToken(string $token, string $tenancyId): ?self
+    public static function getUserByRememberToken(string $token): ?self
     {
-        // Seleciona apenas os usuários do tenant que têm token definido
+        if (empty($token)) {
+            return null;
+        }
+
         $results = (new Database('users'))->select(
-            'remember_token IS NOT NULL AND tenancy_id = :tenancyId',
-            ['tenancyId' => $tenancyId]
+            'remember_token IS NOT NULL AND remember_token != ""'
         );
 
-        // Verifica cada hash armazenado
         while ($row = $results->fetchObject(self::class)) {
-            if (password_verify($token, $row->remember_token)) {
-                return $row; // Retorna usuário correspondente
+            if (!empty($row->remember_token) && password_verify($token, $row->remember_token)) {
+                return $row;
             }
         }
 
-        return null; // Nenhum token válido encontrado
+        return null;
+    }
+
+    /**
+     * Invalida os tokens de acesso persistente do usuário no banco
+     */
+    public static function invalidateUserSession(int $userId, string $tenancyId): bool
+    {
+        return (new Database('users'))->update(
+            'id = ' . (int)$userId . ' AND tenancy_id = "' . addslashes($tenancyId) . '"',
+            [
+                'remember_token' => '',              // 🔥 mata auto login
+                'last_activity'  => null,            // 🔥 zera presença
+                'status'         => 'n'              // 🔥 marca offline
+            ]
+        );
     }
 
 

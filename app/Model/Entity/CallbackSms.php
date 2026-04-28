@@ -391,61 +391,94 @@ class CallbackSms
     }
 
 
-    public static function getStatusSmsPaginated(
-        ?string $tenancyId = null,
-        ?string $searchValue = null,
-        int $start = 0,
-        int $length = 10,
-        string $orderColumn = 'id',
-        string $orderDir = 'DESC',
-        ?int $userId = null
-    ): array {
+    public static function getSmsForRealtime(array $filters = [], string $order = "id DESC"): array
+    {
         $where = "1=1";
         $params = [];
 
-        // 🔹 Filtro opcional por tenancy
-        if (!empty($tenancyId)) {
-            $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
+        // Filtros de hierarquia no banco novo.
+        if (!empty($filters['tenancy_id'])) {
+            $where .= " AND c.tenancy_id = :tenancy_id";
+            $params[':tenancy_id'] = $filters['tenancy_id'];
         }
 
-        // 🔹 Filtro opcional por user_id
-        if ($userId !== null) {
-            $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
+        if (!empty($filters['user_id'])) {
+            $where .= " AND c.user_id = :user_id";
+            $params[':user_id'] = (int)$filters['user_id'];
         }
 
-        // 🔹 Filtro de busca
-        if (!empty($searchValue)) {
+        if (!empty($filters['reseller_id'])) {
             $where .= " AND (
-            phone_sms LIKE :search OR 
-            status_sms LIKE :search OR
-            value_sms LIKE :search OR
-            campaign_id LIKE :search
-        )";
-            $params[':search'] = '%' . $searchValue . '%';
+                c.user_id = :reseller_id
+                OR c.user_id IN (
+                    SELECT u.id
+                    FROM users u
+                    WHERE u.user_id = :reseller_id
+                )
+            )";
+            $params[':reseller_id'] = (int)$filters['reseller_id'];
         }
 
-        $order = "{$orderColumn} {$orderDir}";
-        $limit = "{$start}, {$length}";
+        if (!empty($filters['status_sms'])) {
+            $where .= " AND c.status_sms = :status_sms";
+            $params[':status_sms'] = strtoupper(trim((string)$filters['status_sms']));
+        }
 
-        $query = "
-        SELECT 
-            id,
-            status_sms,
-            phone_sms,
-            value_sms,
-            operator,
-            camp_name,
-            date_send,
-            update_date
-        FROM callback
-        WHERE {$where}
-        ORDER BY {$order}
-        LIMIT {$limit}
-    ";
+        $dateColumn = "COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created)";
+        $period = strtolower((string)($filters['period'] ?? ''));
 
-        return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_OBJ);
+        if (!empty($filters['date_from'])) {
+            $where .= " AND {$dateColumn} >= :date_from";
+            $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $where .= " AND {$dateColumn} <= :date_to";
+            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        if (empty($filters['date_from']) && empty($filters['date_to'])) {
+            if ($period === 'day') {
+                $where .= " AND DATE({$dateColumn}) = CURDATE()";
+            } elseif ($period === 'week') {
+                $where .= " AND {$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                            AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+            } elseif ($period === 'month') {
+                $where .= " AND YEAR({$dateColumn}) = YEAR(CURDATE())
+                            AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+            }
+        }
+
+        $allowedOrder = [
+            'event_date DESC',
+            'event_date ASC',
+            'id DESC',
+            'id ASC',
+            'update_date DESC',
+            'date_send DESC',
+        ];
+
+        if (!in_array($order, $allowedOrder, true)) {
+            $order = 'event_date DESC';
+        }
+
+        // Query direta, sem LIMIT de paginação (apenas um limit de segurança de carga)
+        $query = "SELECT 
+                c.id,
+                c.status_sms,
+                c.phone_sms,
+                c.value_sms,
+                c.operator,
+                c.date_send,
+                c.update_date,
+                {$dateColumn} AS event_date,
+                c.camp_name
+              FROM callback c
+              WHERE {$where}
+              ORDER BY {$order}
+              LIMIT 5000";
+
+        return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_ASSOC);
     }
 
 

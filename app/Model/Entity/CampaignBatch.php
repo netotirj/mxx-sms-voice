@@ -2,6 +2,7 @@
 
 namespace App\Model\Entity;
 
+use App\Utils\TenancyHelper;
 use WilliamCosta\DatabaseManager\Database;
 
 class CampaignBatch
@@ -29,25 +30,29 @@ class CampaignBatch
         ]);
     }
 
-public static function getLastBatchByUser(int $userId, string $tenancyId): ?CampaignBatch
-{
-    $query = "
-        SELECT * FROM campaign_batches
-        WHERE user_id = :user_id
-        AND tenancy_id = :tenancy_id
-        ORDER BY id DESC
-        LIMIT 1
-    ";
+    public static function getLastBatchByUser(int $userId, string $tenancyId): ?CampaignBatch
+    {
+        // 🚀 O Helper gera a string de filtro com base nos valores que você passa no contexto
+        $where = TenancyHelper::applySecurityFilter('', [
+            'tenancy_id'    => $tenancyId,
+            'id'            => $userId,
+            'user_function' => 'reseller' // Força a regra de segurança do Revendedor
+        ], 'user_id', 'campaign_batches'); // Adicionei o alias correto da tabela
 
-    $params = [
-        ':user_id' => $userId,
-        ':tenancy_id' => $tenancyId
-    ];
+        $query = "
+    SELECT * FROM campaign_batches 
+    WHERE {$where} 
+    ORDER BY id DESC 
+    LIMIT 1
+";
 
-    $result = (new Database())->execute($query, $params)->fetchObject(CampaignBatch::class);
+        // ⚠️ Removi os params :user_id e :tenancy_id pois o Helper já inseriu os valores no $where
+        $params = [];
 
-    return $result instanceof CampaignBatch ? $result : null;
-}
+        $result = (new Database())->execute($query, $params)->fetchObject(CampaignBatch::class);
+
+        return $result instanceof CampaignBatch ? $result : null;
+    }
 
 
 public static function markAsCharged(int $batchId, int $charged = 1): bool

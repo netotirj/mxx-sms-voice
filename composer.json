@@ -25,6 +25,7 @@
     "ext-pcntl": "*",
     "firebase/php-jwt": "^7.0",
     "ext-redis": "*",
-    "predis/predis": "^3.3"
+    "predis/predis": "^3.3",
+    "ext-posix": "*"
   }
 }

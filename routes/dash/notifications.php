@@ -26,3 +26,26 @@ $obRouter->post('/notifications',[
         return new Response(200,Pages\UsersNotifications::markRead($request));
     }
 ]);
+
+$obRouter->post('/notifications/mark-all-read',[
+    'name' => '/notifications/mark-all-read',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200,Pages\UsersNotifications::markAllAsRead($request));
+    }
+]);
+
+
+$obRouter->post('/notifications/delete-all',[
+    'name' => '/notifications/delete-all',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200,Pages\UsersNotifications::deleteAllNotifications($request));
+    }
+]);

@@ -80,7 +80,7 @@ class UsersNotifications
 }
 
 
-    public static function markRead($request)
+    public static function markRead($request): Response
     {        // Verifica autenticação
         $obUser = SessionLogin::getLogged();
         if (!$obUser) {
@@ -106,5 +106,39 @@ class UsersNotifications
         } else {
             return new Response(404, ['status' => 404, 'message' => 'Notificação não encontrada ou não pertence ao usuário'], 'application/json');
         }
+    }
+
+    /**
+     * Rota: POST /notifications/mark-all-read
+     */
+    public static function markAllAsRead($request): Response
+    {
+        $obUser = SessionLogin::getLogged();
+        if (!$obUser) return new Response(401, ['message' => 'Não autorizado'], 'application/json');
+
+        // Chama o Model acima
+        $success = EntityNotifications::markAllNotificationsAsRead(
+            (int)$obUser['id'],
+            (string)$obUser['tenancy_id']
+        );
+
+        return new Response(200, ['success' => $success], 'application/json');
+    }
+
+    /**
+     * Rota: POST /notifications/delete-all
+     */
+    public static function deleteAllNotifications($request): Response
+    {
+        $obUser = SessionLogin::getLogged();
+        if (!$obUser) return new Response(401, ['message' => 'Não autorizado'], 'application/json');
+
+        // Chama o Model acima
+        $success = EntityNotifications::deleteAllNotificationsByUser(
+            (int)$obUser['id'],
+            (string)$obUser['tenancy_id']
+        );
+
+        return new Response(200, ['success' => $success], 'application/json');
     }
 }

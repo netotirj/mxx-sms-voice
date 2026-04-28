@@ -18,6 +18,28 @@ $obRouter->get('/permissions', [
     }
 ]);
 
+$obRouter->post('/permissions/roles/save', [
+    'name' => '/permissions/roles/save', // nome da rota
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::saveRole($request));
+    }
+]);
+
+$obRouter->post('/permissions/global-routes/save', [
+    'name' => '/permissions/global-routes/save', // nome da rota
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::saveGlobalRoute($request));
+    }
+]);
+
 
 $obRouter->get('/permissions/search', [
     'name' => '/permissions/search', // nome da rota
@@ -30,30 +52,53 @@ $obRouter->get('/permissions/search', [
     }
 ]);
 
-
-$obRouter->get('/permissions/{id}/search', [
-    'name' => '/permissions/{id}/search', // nome da rota
+$obRouter->post('/permissions/roles/list-all-routes', [
+    'name' => '/permissions/roles/list-all-routes', // nome da rota
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function($request,$id){
-        return new Response(200, Pages\PermissionsUsersRoles::getAllPermissionsUsersId($request,$id));
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::getRolePermissions($request));
     }
 ]);
 
-$obRouter->post('/permissions/{id}/update', [
-    'name' => '/permissions/{id}/update', // nome da rota
+$obRouter->post('/permissions/roles/list-users', [
+    'name' => '/permissions/roles/list-users', // nome da rota
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function($request, $id){
-        return new Response(200, Pages\PermissionsUsersRoles::setPermissionsUsersId($request, $id));
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::getListUsersForRole($request));
+    }
+]);
+
+$obRouter->post('/permissions/roles/assign-user', [
+    'name' => '/permissions/roles/assign-user', // nome da rota
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::setAssignUserRole($request));
     }
 ]);
 
 
+
+
+
+$obRouter->post('/permissions/roles/toggle', [
+    'name' => '/permissions/roles/toggle', // nome da rota
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::togglePermission($request));
+    }
+]);
 
 
 

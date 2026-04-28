@@ -1,0 +1,186 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg">
+                            <i class="ni ni-folder-17"></i> </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Gerenciamento de [OBJETO]</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Administre seus [OBJETO] de forma centralizada</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openDefaultModal()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-slate-800 to-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02]">
+                            <i class="ni ni-fat-add text-sm"></i> Novo [OBJETO]
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Total</p>
+                                    <h5 id="totalCount" class="mb-0 font-bold dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center text-white"><i class="ni ni-archive-2"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="afRowsPerPage" onchange="afCurrentPage=1; renderDefaultTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-5">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar</label>
+                                <button type="button" onclick="resetDefaultFilters()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="afSearchInput" oninput="afCurrentPage=1; renderDefaultTable();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none" placeholder="Procurar...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Informação</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="defaultTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="afPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="afPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="afPageNumbers" class="flex gap-1"></div>
+                        <button id="afNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="defaultModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-down">
+        <div class="p-6 pb-2 flex items-start justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="ni ni-settings text-xl"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-800 dark:text-white" id="modalTitle">Título</h3></div>
+            </div>
+            <button onclick="closeDefaultModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
+        </div>
+        <form id="defaultForm" class="p-6 space-y-4">
+            <input type="hidden" name="id" id="item_id">
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Nome</label>
+                <input type="text" name="name" id="name" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" />
+            </div>
+            <div class="flex justify-end gap-3 pt-6 border-t dark:border-slate-800">
+                <button type="button" onclick="closeDefaultModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="saveBtn" class="bg-gradient-to-tr from-blue-700 to-blue-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let rawData = [];
+    let filteredData = [];
+    let afCurrentPage = 1;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+    });
+
+    function loadData() {
+        const tbody = document.getElementById('defaultTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center p-6 italic text-slate-400">Buscando dados...</td></tr>';
+
+        fetch(`${baseUrl}/SUA_ROTA_AQUI/search`) // <--- SÓ MUDA A ROTA
+            .then(res => res.json())
+            .then(result => {
+                rawData = result.data || [];
+                renderDefaultTable();
+            });
+    }
+
+    function renderDefaultTable() {
+        const tbody = document.getElementById('defaultTableBody');
+        const rowsPerPage = parseInt(document.getElementById('afRowsPerPage')?.value || 10);
+        const search = document.getElementById('afSearchInput')?.value.toLowerCase().trim() || "";
+
+        // Filtro Local
+        filteredData = rawData.filter(item => {
+            return !search || JSON.stringify(item).toLowerCase().includes(search);
+        });
+
+        const total = filteredData.length;
+        const totalPages = Math.ceil(total / rowsPerPage) || 1;
+        const slice = filteredData.slice((afCurrentPage - 1) * rowsPerPage, afCurrentPage * rowsPerPage);
+
+        tbody.innerHTML = total === 0 ? '<tr><td colspan="2" class="text-center p-8">Nada encontrado</td></tr>' :
+            slice.map(item => `
+            <tr class="hover:bg-slate-50 border-b dark:border-slate-700">
+                <td class="px-6 py-4 text-sm font-semibold dark:text-white">${item.name}</td>
+                <td class="px-6 py-4 text-center">
+                    <button onclick='editItem(${JSON.stringify(item)})' class="p-2 text-blue-500"><i class="fa fa-edit"></i></button>
+                </td>
+            </tr>`).join('');
+
+        updatePaginationUI(totalPages);
+    }
+
+    function updatePaginationUI(totalPages) {
+        document.getElementById('afPageInfo').textContent = `Página ${afCurrentPage} de ${totalPages}`;
+        document.getElementById('afPrevPage').disabled = (afCurrentPage === 1);
+        document.getElementById('afNextPage').disabled = (afCurrentPage >= totalPages);
+
+        const numbers = document.getElementById('afPageNumbers');
+        numbers.innerHTML = "";
+        for (let p = 1; p <= totalPages; p++) {
+            if (p > afCurrentPage + 2 || p < afCurrentPage - 2) continue; // Exibe só vizinhos
+            numbers.insertAdjacentHTML('beforeend', `
+                <button onclick="afCurrentPage=${p}; renderDefaultTable();" class="px-3 py-1 text-xs font-bold border rounded-lg ${p === afCurrentPage ? 'bg-blue-600 text-white' : 'dark:text-white'}">${p}</button>
+            `);
+        }
+    }
+
+    window.openDefaultModal = function() {
+        document.getElementById('defaultForm').reset();
+        document.getElementById('item_id').value = '';
+        document.getElementById('defaultModal').classList.replace('hidden', 'flex');
+    };
+
+    window.closeDefaultModal = function() {
+        document.getElementById('defaultModal').classList.replace('flex', 'hidden');
+    };
+
+    // Paginação botões
+    document.getElementById('afPrevPage')?.addEventListener('click', () => { if(afCurrentPage > 1) { afCurrentPage--; renderDefaultTable(); } });
+    document.getElementById('afNextPage')?.addEventListener('click', () => { afCurrentPage++; renderDefaultTable(); });
+</script>

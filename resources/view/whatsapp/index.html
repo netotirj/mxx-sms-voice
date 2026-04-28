@@ -1,38 +1,220 @@
 <div class="w-full px-6 py-6 mx-auto">
     <div class="flex flex-wrap -mx-3">
-        <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-6 text-center">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100 overflow-hidden" style="min-height: 650px;">
+                
+                <div id="wa-login-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100 mx-4 text-center">
+                        <div id="step-1">
+                            <div class="bg-emerald-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                                <span class="text-white text-2xl font-bold">WA</span>
+                            </div>
+                            <h6 class="text-slate-700 text-lg font-bold mb-2 uppercase">Conectar Aparelho</h6>
+                            <p class="text-xs text-slate-400 mb-6">Digite seu número para gerar o QR Code.</p>
+                            <input type="text" id="wa-client-number" placeholder="Ex: 5521999999999" 
+                                   class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-center mb-4 text-slate-700">
+                            <button onclick="gerarQRCode()" class="w-full px-8 py-3 text-xs font-bold text-white bg-gradient-to-tl from-emerald-600 to-teal-400 rounded-xl shadow-md hover:scale-[1.02] transition-all uppercase">
+                                Gerar QR Code
+                            </button>
+                        </div>
 
-                <!-- Cabeçalho do Card -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        Campanha de WhatsApp
-                    </h6>
+                        <div id="step-qr" class="hidden text-center">
+                            <h6 class="text-slate-700 text-lg font-bold mb-2 uppercase">Escaneie o Código</h6>
+                            <div class="bg-slate-100 p-4 rounded-2xl inline-block mb-4 border-2 border-dashed border-slate-200">
+                                <img id="qrcode-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=MAXX_SOLUTIONS_DEMO" class="w-[180px] h-[180px]">
+                            </div>
+                            <p class="text-[10px] text-emerald-500 animate-pulse font-bold">AGUARDANDO LEITURA...</p>
+                            <button onclick="voltarPasso1()" class="mt-4 text-xxs font-bold text-slate-400 uppercase underline block mx-auto">Cancelar</button>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Conteúdo de Desenvolvimento -->
-                <div class="p-6 flex flex-col items-center justify-center space-y-4">
-                    <!-- Ícone animado -->
-                    <svg class="w-20 h-20 text-yellow-400 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
-                    </svg>
-
-                    <p class="text-slate-500 dark:text-slate-400 text-sm">
-                        Esta página ainda está em desenvolvimento. Em breve estará disponível!
-                    </p>
-
-                    <!-- Botão atualizar -->
-                    <button onclick="location.reload()"
-                            class="inline-flex items-center gap-2 bg-gradient-to-tr from-green-600 to-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        Atualizar Página
-                    </button>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4 border-b border-slate-50">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 text-lg">🟢</span>
+                        <div>
+                            <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Operações</h6>
+                            <p class="text-xs text-slate-400 mb-0">Visualizando: <span id="current-filter-label" class="font-bold">Tudo</span></p>
+                        </div>
+                    </div>
+                    <div class="flex bg-slate-100 p-1 rounded-xl shadow-inner">
+                        <button onclick="filtrarLayout('tudo')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-slate-700 shadow-sm transition-all uppercase">Tudo</button>
+                        <button onclick="filtrarLayout('conversa')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-700 transition-all uppercase">Conversas</button>
+                        <button onclick="filtrarLayout('grupo')" class="wa-filter-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-700 transition-all uppercase">Grupos</button>
+                    </div>
                 </div>
 
-                <!-- Rodapé do Card -->
-                <p class="mt-6 text-xs text-slate-400 dark:text-slate-500 text-center">
-                    Se tiver dúvidas, entre em contato com a nosso suporte.
-                </p>
+                <div class="flex flex-col lg:flex-row" style="height: 550px;">
+                    <div class="w-full lg:w-4/12 border-r border-slate-100 flex flex-col bg-slate-50/20">
+                        <div id="wa-chat-list" class="flex-1 overflow-y-auto pt-2 custom-scrollbar"></div>
+                    </div>
+
+                    <div class="flex-1 flex flex-col bg-white">
+                        <div class="p-4 border-b border-slate-100 flex items-center gap-3">
+                            <div id="chat-avatar" class="w-10 h-10 rounded-full bg-slate-200 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase"></div>
+                            <div>
+                                <h6 id="chat-name" class="text-sm font-bold text-slate-700 mb-0">Selecione um chat</h6>
+                                <span class="text-xxs font-bold text-slate-400 uppercase">Aguardando interação</span>
+                            </div>
+                        </div>
+                        <div id="chat-messages-area" class="flex-1 p-6 overflow-y-auto space-y-4" style="background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #f8fafc;">
+                            <div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>
+                        </div>
+
+                        <div class="p-4 bg-white border-t border-slate-100">
+                            <div class="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
+                                <button class="text-slate-400 hover:text-slate-600 ml-2" disabled>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                                </button>
+                                
+                                <input type="text" id="wa-msg-input" placeholder="Escreva uma mensagem..." 
+                                    class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-slate-700 disabled:opacity-50" disabled>
+                                
+                                <button id="wa-btn-send" disabled
+                                        class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-300 text-white rounded-full shadow-md transition-all outline-none border-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: translate(1px, 0px);">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    // Dados de exemplo com lógica de remetente e leitura
+    const chatsExemplo = [
+        { id: 1, nome: "Maurinho (Suporte)", msg: "O alinhamento do botão ficou top!", time: "14:05", tipo: "conversa", avatar: "MA", cor: "bg-blue-500", status: "online", eu: false, lido: true },
+        { id: 2, nome: "Grupo de Vendas Maxx", msg: "João: Nova venda via PIX", time: "13:50", tipo: "grupo", avatar: "GV", cor: "bg-emerald-500", status: "32 membros", eu: false, lido: false },
+        { id: 3, nome: "Ana Paula Silva", msg: "Pode me enviar o arquivo?", time: "12:10", tipo: "conversa", avatar: "AS", cor: "bg-fuchsia-500", status: "visto por último às 12:15", eu: true, lido: true },
+        { id: 4, nome: "Dev Team Infra", msg: "Sérgio: Servidor atualizado", time: "10:30", tipo: "grupo", avatar: "DT", cor: "bg-slate-700", status: "5 membros", eu: true, lido: false },
+        { id: 5, nome: "Suporte Técnico", msg: "Aguardando seu retorno", time: "Ontem", tipo: "conversa", avatar: "ST", cor: "bg-orange-500", status: "online", eu: false, lido: true }
+    ];
+
+    // Ícone de Check Duplo (Lido) em SVG
+    const svgCheckLido = `<svg class="text-sky-400 mr-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"></path><path d="m22 10-7.5 7.5L13 16"></path></svg>`;
+    // Ícone de Check Simples (Entregue) em SVG
+    const svgCheckEntregue = `<svg class="text-slate-300 mr-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>`;
+
+    function renderizarLista(filtro = 'tudo') {
+        const container = document.getElementById('wa-chat-list');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const label = document.getElementById('current-filter-label');
+        if(label) label.innerText = filtro.charAt(0).toUpperCase() + filtro.slice(1);
+
+        const filtrados = chatsExemplo.filter(c => filtro === 'tudo' || c.tipo === filtro);
+
+        filtrados.forEach(chat => {
+            let checkHTML = '';
+            if (chat.eu) {
+                checkHTML = chat.lido ? svgCheckLido : svgCheckEntregue;
+            }
+
+            const html = `
+                <div onclick="abrirConversa(${chat.id})" class="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer border-l-4 ${chat.tipo === 'grupo' ? 'border-blue-400' : 'border-emerald-500'} bg-white transition-all mb-1 shadow-sm mx-2 rounded-lg group animate-fade-in">
+                    <div class="w-10 h-10 rounded-full ${chat.cor} flex-shrink-0 flex items-center justify-center text-white text-xs font-bold group-hover:scale-105 transition-transform">
+                        ${chat.avatar}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <h6 class="text-xs font-bold text-slate-700 truncate mb-0">${chat.nome}</h6>
+                            <span class="text-[9px] font-bold text-slate-400">${chat.time}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 truncate mb-0 flex items-center">
+                            ${checkHTML} ${chat.msg}
+                        </p>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        });
+    }
+
+    function gerarQRCode() {
+        const num = document.getElementById('wa-client-number').value;
+        if(num.length < 8) return; 
+
+        document.getElementById('step-1').classList.add('hidden');
+        document.getElementById('step-qr').classList.remove('hidden');
+
+        setTimeout(() => {
+            document.getElementById('wa-login-modal').classList.add('hidden');
+            const labelEl = document.getElementById('current-filter-label');
+            if(labelEl) labelEl.parentElement.innerHTML = `Visualizando: <span id="current-filter-label" class="font-bold">Tudo</span> (Conectado: ${num})`;
+            renderizarLista('tudo'); 
+        }, 3000);
+    }
+
+    function abrirConversa(id) {
+        const chat = chatsExemplo.find(c => c.id === id);
+        if(!chat) return;
+
+        document.getElementById('chat-name').innerText = chat.nome;
+        const statusSpan = document.querySelector('#chat-name + span');
+        statusSpan.innerText = chat.status;
+        statusSpan.className = `text-xxs font-bold uppercase ${chat.status === 'online' ? 'text-emerald-500' : 'text-slate-400'}`;
+        
+        const avatar = document.getElementById('chat-avatar');
+        avatar.className = `w-10 h-10 rounded-full ${chat.cor} flex items-center justify-center text-white text-xs font-bold`;
+        avatar.innerText = chat.avatar;
+
+        document.getElementById('chat-messages-area').innerHTML = `
+            <div class="flex justify-start">
+                <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[80%] border border-slate-100">
+                    <p class="text-sm text-slate-700 mb-0">${chat.msg}</p>
+                    <span class="block text-[9px] text-slate-400 text-right mt-1 font-bold">${chat.time}</span>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <div class="bg-gradient-to-tl from-emerald-600 to-teal-400 text-white p-3 rounded-2xl rounded-tr-none shadow-md max-w-[80%]">
+                    <p class="text-sm mb-0 text-white">Mensagem visualizada com sucesso!</p>
+                    <div class="flex items-center justify-end gap-1 mt-1">
+                        <span class="text-[9px] text-emerald-100 font-bold uppercase">14:10</span>
+                        ${svgCheckLido.replace('text-sky-400', 'text-sky-200')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const input = document.getElementById('wa-msg-input');
+        const btn = document.getElementById('wa-btn-send');
+        input.disabled = false;
+        btn.disabled = false;
+        btn.classList.replace('bg-slate-300', 'bg-gradient-to-tl');
+        btn.classList.add('from-emerald-600', 'to-teal-400');
+    }
+
+    function filtrarLayout(tipo) {
+        const btns = document.querySelectorAll('.wa-filter-btn');
+        btns.forEach(b => {
+            b.classList.remove('bg-white', 'text-slate-700', 'shadow-sm');
+            b.classList.add('text-slate-500');
+        });
+        event.currentTarget.classList.remove('text-slate-500');
+        event.currentTarget.classList.add('bg-white', 'text-slate-700', 'shadow-sm');
+        renderizarLista(tipo);
+    }
+
+    function voltarPasso1() {
+        document.getElementById('step-qr').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderizarLista('tudo'); 
+    });
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .animate-fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+</style>

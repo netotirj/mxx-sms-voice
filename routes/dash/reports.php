@@ -34,7 +34,7 @@ $obRouter->get('/reports/sms-stream',[
     'name' => '/reports/sms-stream', // nome da rota
     'middlewares' => [
         'require-session-login',
-        //'require-permissions-tenancies'
+        'require-permissions-tenancies'
     ],
     function($request){
         return new Response(200,Pages\Reports::getStatusSmsStream($request));
@@ -141,10 +141,10 @@ $obRouter->get('/reports/generate/{id}/invoice',[
 ]);
 
 $obRouter->get('/reports/cdr',[
-    //'name' => '/reports/cdr', // nome da rota
+    'name' => '/reports/cdr', // nome da rota
     'middlewares' => [
         'require-session-login',
-        //'require-permissions-tenancies'
+        'require-permissions-tenancies'
     ],
     function($request){
         return new Response(200,Pages\Reports::getCdrComponents($request));
@@ -152,10 +152,10 @@ $obRouter->get('/reports/cdr',[
 ]);
 
 $obRouter->get('/reports/list-cdr',[
-    //'name' => '/reports/list-cdr', // nome da rota
+    'name' => '/reports/list-cdr', // nome da rota
     'middlewares' => [
         'require-session-login',
-        //'require-permissions-tenancies'
+        'require-permissions-tenancies'
     ],
     function($request){
         return new Response(200,Pages\Reports::getCdrCallsAnalysis($request));
@@ -168,9 +168,5 @@ $obRouter->post('/reports/web-pro',[
         return new Response(200, Pages\WebStatusSms::getCallbackPro($request));
     }
 ]);
-
-
-
-
 
 

@@ -1,77 +1,174 @@
 <div class="w-full px-6 py-6 mx-auto">
+
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
 
-                <!-- Cabeçalho -->
-                <div class="p-6 pb-0 mb-0 flex justify-between items-center border-b border-b-transparent rounded-t-2xl">
-                    <h6 class="dark:text-white text-lg font-semibold">Áudios Gravados</h6>
-                    <button type="button"
-                            onclick="openAudioModal()"
-                            class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Enviar Novo Áudio
-                    </button>
-                </div>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
 
-                <!-- Campo de busca -->
-                <div class="px-6 py-4 flex justify-end">
-                    <div class="relative w-[250px]">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                 viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
-                            </svg>
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            🎵
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Biblioteca de Áudios</h2>
+                            <p class="text-xs text-slate-400">Gerenciamento centralizado de arquivos de áudio e gravações</p>
                         </div>
-                        <input type="text" id="searchInput"
-                               placeholder="Buscar áudio..."
-                               class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <button id="audioExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <button id="audioReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <button onclick="openAudioModal()"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg
+                       bg-gradient-to-tl from-emerald-600 to-teal-400 text-white hover:opacity-85 transition shadow-sm uppercase">
+                            <span class="text-base">➕</span> Enviar Áudio
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="audioAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                                        peer-checked:bg-emerald-500"></div>
+
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                                        transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+                            <select id="audioReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Tabela -->
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="audioRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="audioStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="Ativo">Ativo</option>
+                                <option value="Inativo">Inativo</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Origem</label>
+                            <select id="audioOriginFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todas</option>
+                                <option value="upload">Upload</option>
+                                <option value="api">API</option>
+                                <option value="tts">TTS</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="audioDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="audioDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="audioSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                       placeholder="Nome do áudio...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex-auto px-0 pt-0 pb-2">
                     <div class="p-0 overflow-x-auto">
-                        <table class="items-center w-full mb-0 border-collapse dark:border-white/40 text-slate-500">
-                            <thead class="align-bottom">
+                        <table id="audio-table"
+                               class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
                             <tr>
-                                <th class="px-6 py-3 font-bold text-left uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Nome do Áudio
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Status
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Áudio
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Criado em
-                                </th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b dark:border-white/40 dark:text-white text-xxs tracking-wide whitespace-nowrap text-slate-400 opacity-70">
-                                    Ações
-                                </th>
+                                <th class="px-4 py-2 border border-slate-100">Criação</th>
+                                <th class="px-4 py-2 border border-slate-100 text-left">Nome do Áudio</th>
+                                <th class="px-4 py-2 border border-slate-100">Player</th>
+                                <th class="px-4 py-2 border border-slate-100">Formato</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                                <th class="px-4 py-2 border border-slate-100">Ações</th>
                             </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody id="audioTableBody">
+                            <tr>
+                                <td colspan="6"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando áudios...
+                                </td>
+                            </tr>
+                            </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Paginação -->
-                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
-                    <button id="prevPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        Anterior
-                    </button>
-                    <span id="pageInfo" class="text-sm text-slate-600 dark:text-slate-300">Página 1 de 1</span>
-                    <button id="nextPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        Próxima
-                    </button>
+                <div id="audioStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="audioPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="audioPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="audioPageNumbers" class="flex gap-1"></div>
+                        <button id="audioNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
 
             </div>
@@ -80,634 +177,462 @@
 </div>
 
 
-<!-- Modal de Áudio -->
-<div id="audioModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
-    <div class="bg-white w-full max-w-lg rounded-xl shadow-lg p-6 relative animate-fadeIn">
+<div id="audioModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div id="audioModalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="closeAudioModal()"></div>
 
-            <!-- Header -->
-            <div class="flex justify-between items-center mb-5">
-                <!-- Header -->
-                <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                    <span>🎵 Enviar Áudios</span>
-                </h2>
-                <button onclick="closeAudioModal()"
-                        class="text-gray-500 hover:text-gray-700 text-2xl leading-none">
-                    &times;
+    <div class="flex min-h-full items-center justify-center p-4 lg:pl-[280px]">
+
+        <div id="audioModalContent"
+             class="relative bg-white dark:bg-slate-850 rounded-2xl shadow-2xl
+                    w-full max-w-2xl transition-all duration-200
+                    max-h-[90vh] flex flex-col overflow-hidden">
+
+            <div class="flex items-center justify-between p-6 border-b dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                        <i class="fas fa-music text-lg"></i>
+                    </div>
+                    <div>
+                        <h5 class="text-lg font-bold text-slate-800 dark:text-white mb-0">Enviar Áudios</h5>
+                        <p class="text-xs text-slate-400 mb-0">Importe arquivos MP3 ou WAV</p>
+                    </div>
+                </div>
+                <button onclick="closeAudioModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
 
-            <!-- Painéis -->
-            <div class="tab-content">
+            <div class="p-6 overflow-y-auto flex-1">
 
-                <!-- SUA DIV IMPORT AQUI (apenas encapuslada) -->
-                <div class="tab-panel" data-panel="import">
-
-                    <label for="audioFile"
-                           class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors mb-3">
-                        <div class="flex flex-col items-center justify-center text-center">
-                            <svg class="w-8 h-8 mb-2 text-slate-400" fill="none"
-                                 stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      stroke-width="2"
-                                      d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/>
-                            </svg>
-                            <p class="text-sm text-slate-600">
-                                <span class="font-medium">Clique para selecionar</span> ou arraste
-                            </p>
-                            <p class="text-xs text-slate-400">MP3 ou WAV</p>
-                        </div>
-                        <input id="audioFile" type="file" accept=".mp3,.wav" class="hidden"/>
-                    </label>
-
-                    <audio id="previewAudio" controls class="w-full hidden mt-2"></audio>
-
-                    <p id="previewAudioName"
-                       class="text-sm mt-2 truncate w-full text-center font-semibold text-emerald-600"></p>
-
-                    <div class="mb-4 mt-4">
-                        <label for="importAudioName" class="block text-sm mb-2 text-slate-700">Nome do áudio</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="flex flex-col">
+                        <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Nome do Áudio (Opcional)</label>
                         <input id="importAudioName" type="text"
-                               placeholder="Nome do arquivo (opcional)"
-                               class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 transition"/>
+                               placeholder="Ex: Saudação Inicial"
+                               class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-white"/>
                     </div>
 
-                    <button id="uploadBtn"
-                            class="w-full px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition">
-                        Importar
-                    </button>
+                    <div class="flex flex-col">
+                        <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Selecionar Arquivo</label>
+                        <label for="audioFile"
+                               class="flex items-center justify-center w-full h-[42px] border-2 border-dashed border-emerald-500/30 dark:border-emerald-500/20 rounded-xl cursor-pointer bg-emerald-50/30 dark:bg-slate-800 hover:bg-emerald-50 transition-all">
+                            <div class="flex items-center gap-2 text-emerald-600">
+                                <i class="fas fa-plus-circle"></i>
+                                <p class="text-xs font-bold mb-0 uppercase tracking-tight">Escolher MP3 ou WAV</p>
+                            </div>
+                            <input id="audioFile" type="file" accept=".mp3,.wav" class="hidden" multiple onchange="handleFileSelection(this)"/>
+                        </label>
+                    </div>
+                </div>
 
+                <p id="previewAudioName" class="text-xs mt-2 truncate w-full text-center font-bold text-emerald-600 hidden"></p>
+
+                <div id="audioList" class="space-y-3 mt-4">
                 </div>
 
             </div>
 
+            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 border-t dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                    <p id="voiceCount" class="text-xs font-bold text-emerald-600 mb-0 hidden"></p>
+                </div>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button onclick="closeAudioModal()" class="flex-1 sm:flex-none px-6 py-2.5 text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">
+                        Cancelar
+                    </button>
+                    <button id="uploadAllBtn"
+                            class="flex-1 sm:flex-none px-8 py-2.5 text-xs font-bold text-white bg-gradient-to-tl from-emerald-600 to-teal-400 rounded-xl shadow-md hover:scale-[1.02] active:opacity-85 transition-all uppercase">
+                        Enviar Todos
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
-
-
-
-<style>
-    .animate-fadeIn {
-        animation: fadeIn .25s ease-out;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: scale(.95);
-        }
-        to {
-            opacity: 1;
-            transform: scale(1);
-        }
-    }
-</style>
-
+</div>
 
 <script>
-    (() => {
-        // ======= Estado privado (encapsulado) =======
-        let manualAudios = [];            // { id, name, file, progress }
-        const audioPlayers = {};          // players por id
+    // ======= ESTADO GLOBAL =======
+    let manualAudios = [];            // Fila de upload
+    const audioPlayers = {};          // Players do Modal
+    let allRows = [];                 // Dados brutos (JSON)
+    let filteredRows = [];            // Dados filtrados
+    let currentPage = 1;              // Paginação
 
-        // ======= Helpers =======
-        const q = sel => document.querySelector(sel);
-        const createEl = (tag, attrs = {}) => {
-            const el = document.createElement(tag);
-            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
-            return el;
-        };
-
-        // ======= Garante elementos dinâmicos =======
-        function ensureAudioListElement() {
-            const container = document.querySelector(".tab-content");
-            if (!container) return;
-
-            // =====================================================
-            // 🔹 audioList (lista dos áudios)
-            // =====================================================
-            if (!q('#audioList')) {
-                const list = createEl('div', { id: 'audioList' });
-                list.className = 'mt-4 space-y-3';
-                container.appendChild(list);
-            }
-
-            // =====================================================
-            // 🔹 Botão "Enviar todos"
-            // =====================================================
-            if (!q('#uploadAllBtn')) {
-
-                const btn = createEl('button', { id: 'uploadAllBtn', type: 'button' });
-                btn.className = 'w-full mt-3 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition';
-                btn.textContent = 'Enviar todos';
-                container.appendChild(btn);
-
-                // evita registrar múltiplos listeners
-                btn.dataset.bound = "1";
-
-                btn.addEventListener('click', async () => {
-
-                    if (manualAudios.length === 0) {
-                        return notyf.error('Nenhum áudio para enviar.');
-                    }
-
-                    btn.disabled = true;
-                    btn.textContent = 'Enviando...';
-
-                    let lastResponse = null;
-                    let successCount = 0;
-
-                    for (const audio of manualAudios.slice()) {
-                        const result = await uploadSingleAudio(audio);
-
-                        if (result.ok) {
-                            successCount++;
-                            lastResponse = result.response;
-
-                            manualAudios = manualAudios.filter(a => a.id !== audio.id);
-                            renderAudioList();
-                        }
-                    }
-
-                    btn.disabled = false;
-                    btn.textContent = 'Enviar todos';
-
-                    // fecha modal
-                    closeAudioModal();
-
-                    // mensagem final
-                    const msg = lastResponse?.message || `${successCount} áudio(s) enviado(s) com sucesso!`;
-                    notyf.success(msg);
-
-                    // 🔄 RECARREGAR A PÁGINA APÓS 1 SEGUNDO
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                });
-            }
-        }
-
-
-
-        // ======= Preview do input (nome + tamanho) =======
-        function setupAudioInputPreview() {
-            const audioInput = q('#audioFile');
-            if (!audioInput) return;
-
-            const MAX_SIZE_MB = 5;
-            const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
-
-            // cria o elemento de preview logo após o label do input
-            let preview = q('#previewAudioName');
-            if (!preview) {
-                preview = document.createElement('p');
-                preview.id = 'previewAudioName';
-                preview.className = 'text-sm mt-2 truncate w-full text-center font-semibold text-emerald-600 hidden';
-                const label = audioInput.closest('label');
-                if (label) label.insertAdjacentElement('afterend', preview);
-                else audioInput.parentElement.appendChild(preview);
-            }
-
-            audioInput.onchange = (e) => {
-                const file = e.target.files?.[0];
-                if (!file) {
-                    preview.textContent = '';
-                    preview.classList.add('hidden');
-                    return;
-                }
-
-                if (!['audio/mpeg','audio/wav'].includes(file.type)) {
-                    preview.textContent = 'Formato inválido (apenas MP3/WAV)';
-                    preview.className = 'text-sm mt-2 truncate w-full text-center font-semibold text-red-600';
-                    preview.classList.remove('hidden');
-                    audioInput.value = '';
-                    return;
-                }
-
-                if (file.size > MAX_SIZE_BYTES) {
-                    const sizeMB = (file.size / (1024*1024)).toFixed(2);
-                    preview.textContent = `Arquivo muito grande (${sizeMB} MB). Máx ${MAX_SIZE_MB} MB.`;
-                    preview.className = 'text-sm mt-2 truncate w-full text-center font-semibold text-red-600';
-                    preview.classList.remove('hidden');
-                    audioInput.value = '';
-                    return;
-                }
-
-                const sizeKB = (file.size / 1024).toFixed(2);
-                preview.textContent = `${file.name} (${sizeKB} KB)`;
-                preview.className = 'text-sm mt-2 truncate w-full text-center font-semibold text-emerald-600';
-                preview.classList.remove('hidden');
-            };
-        }
-
-        // ======= Importar (botão Importar) =======
-        function setupImportButton() {
-            const uploadBtn = q('#uploadBtn');
-            const fileInput = q('#audioFile');
-            const nameInput = q('#importAudioName');
-            if (!uploadBtn || !fileInput) return;
-
-            // remove listener antigo e seta novo (evita duplicates)
-            uploadBtn.onclick = () => {
-                const files = Array.from(fileInput.files || []);
-                if (files.length === 0) return alert('Selecione ao menos 1 arquivo!');
-
-                files.forEach(file => {
-                    if (!['audio/mpeg','audio/wav'].includes(file.type)) {
-                        alert(`Formato inválido: ${file.name}`);
-                        return;
-                    }
-
-                    const ext = file.type === 'audio/mpeg' ? '.mp3' : '.wav';
-                    let name = (nameInput?.value?.trim() || file.name);
-                    if (!name.toLowerCase().endsWith(ext)) name += ext;
-
-                    manualAudios.push({
-                        id: crypto.randomUUID(),
-                        name,
-                        file,
-                        progress: 0
-                    });
-                });
-
-                fileInput.value = '';
-                if (nameInput) nameInput.value = '';
-                renderAudioList();
-                // atualiza preview (esconde)
-                const preview = q('#previewAudioName');
-                if (preview) { preview.textContent=''; preview.classList.add('hidden'); }
-            };
-        }
-
-        // ======= Render da lista com delegação de eventos =======
-        function renderAudioList() {
-            const list = q('#audioList');
-            if (!list) return;
-            list.innerHTML = '';
-
-            if (manualAudios.length === 0) {
-                list.innerHTML = `<p class="text-sm text-slate-500">Nenhum áudio importado.</p>`;
-                return;
-            }
-
-            manualAudios.forEach(audio => {
-                const item = document.createElement('div');
-                item.className = 'border rounded-lg p-3 bg-gray-50';
-                item.dataset.audioId = audio.id;
-
-                item.innerHTML = `
-        <div class="flex items-center justify-between">
-          <span class="font-medium truncate max-w-[65%]">${escapeHtml(audio.name)}</span>
-          <div class="flex items-center gap-2">
-            <button class="btn-remove text-red-500 hover:text-red-700" data-action="remove" data-id="${audio.id}" title="Remover">🗑</button>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3 mt-2">
-          <button class="btn-toggle bg-emerald-600 text-white rounded-full w-8 h-8 flex items-center justify-center" data-action="toggle" data-id="${audio.id}" id="btn-${audio.id}">▶</button>
-          <div class="flex-1 h-2 bg-gray-300 rounded overflow-hidden">
-            <div id="bar-${audio.id}" class="h-full bg-emerald-500 w-0"></div>
-          </div>
-        </div>
-
-        <div class="mt-3 w-full bg-gray-200 rounded h-2">
-          <div id="progress-${audio.id}" class="h-2 bg-blue-500 rounded" style="width:${audio.progress}%"></div>
-        </div>
-      `;
-
-                list.appendChild(item);
-            });
-
-            // delegação (adiciona uma vez)
-            if (!list._hasListener) {
-                list.addEventListener('click', (ev) => {
-                    const btn = ev.target.closest('button[data-action]');
-                    if (!btn) return;
-                    const action = btn.dataset.action;
-                    const id = btn.dataset.id;
-                    if (action === 'remove') removeAudio(id);
-                    if (action === 'toggle') toggleAudio(id);
-                });
-                list._hasListener = true;
-            }
-        }
-
-        // ======= Remove áudio (por id) =======
-        function removeAudio(id) {
-            // aceitar id string/uuid
-            manualAudios = manualAudios.filter(a => String(a.id) !== String(id));
-            // stop player se existir
-            if (audioPlayers[id]) {
-                audioPlayers[id].pause();
-                delete audioPlayers[id];
-            }
-            renderAudioList();
-        }
-
-        // ======= Player estilo WhatsApp (toggle) =======
-        function toggleAudio(id) {
-            const audioObj = manualAudios.find(a => String(a.id) === String(id));
-            if (!audioObj) return;
-
-            // cria player se necessário
-            if (!audioPlayers[id]) {
-                audioPlayers[id] = new Audio(URL.createObjectURL(audioObj.file));
-                audioPlayers[id].addEventListener('timeupdate', () => {
-                    const bar = q(`#bar-${id}`);
-                    if (!bar) return;
-                    const pct = (audioPlayers[id].currentTime / (audioPlayers[id].duration || 1)) * 100;
-                    bar.style.width = pct + '%';
-                });
-                audioPlayers[id].addEventListener('ended', () => {
-                    const btn = q(`#btn-${id}`);
-                    if (btn) btn.textContent = '▶';
-                    const bar = q(`#bar-${id}`);
-                    if (bar) bar.style.width = '0%';
-                });
-            }
-
-            // pausa outros
-            Object.keys(audioPlayers).forEach(k => {
-                if (k !== id && audioPlayers[k] && !audioPlayers[k].paused) {
-                    audioPlayers[k].pause();
-                    const btnOther = q(`#btn-${k}`); if (btnOther) btnOther.textContent = '▶';
-                }
-            });
-
-            const player = audioPlayers[id];
-            const btn = q(`#btn-${id}`);
-            if (!player) return;
-            if (player.paused) {
-                player.play();
-                if (btn) btn.textContent = '⏸';
-            } else {
-                player.pause();
-                if (btn) btn.textContent = '▶';
-            }
-        }
-
-        // ======= Upload (com progresso) =======
-        async function uploadSingleAudio(audioObj) {
-            return new Promise(resolve => {
-                const form = new FormData();
-                form.append('file', audioObj.file);
-                form.append('name', audioObj.name);
-
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', `${baseUrl}/campaign/voice/audio-upload`);
-
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (!e.lengthComputable) return;
-
-                    const pct = Math.round((e.loaded / e.total) * 100);
-                    audioObj.progress = pct;
-
-                    const bar = q(`#progress-${audioObj.id}`);
-                    if (bar) bar.style.width = pct + '%';
-                });
-
-                xhr.onload = () => {
-                    let ok = xhr.status >= 200 && xhr.status < 300;
-
-                    // Tenta ler resposta JSON
-                    let response = {};
-                    try {
-                        response = JSON.parse(xhr.responseText);
-                    } catch {}
-
-                    resolve({ ok, response });
-                };
-
-                xhr.onerror = () => resolve({ ok: false, response: {} });
-                xhr.send(form);
-            });
-        }
-
-
-        // ======= Modal controle =======
-        function openAudioModal() {
-            const modal = q('#audioModal');
-            if (!modal) return;
-            modal.classList.remove('hidden');
-            // aguarda render do modal antes de init dos elementos internos
-            setTimeout(() => {
-                ensureAudioListElement();
-                setupImportButton();
-                setupAudioInputPreview();
-                renderAudioList();
-            }, 40);
-        }
-
-        function closeAudioModal() {
-            const modal = q('#audioModal');
-            if (!modal) return;
-            modal.classList.add('hidden');
-        }
-
-        // ======= Escapar HTML (segurança pequena) =======
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s]);
-        }
-
-        // ======= Inicialização (quando DOM pronto) =======
-        window.addEventListener('DOMContentLoaded', () => {
-            // expõe funções que o HTML pode chamar
-            window.openAudioModal = openAudioModal;
-            window.closeAudioModal = closeAudioModal;
-
-            // já garante que os elementos que dependem do modal sejam criados quando o modal abrir
-            // (não inicializamos setupImportButton aqui pois o input ainda pode não existir)
-        });
-
-    })();
-</script>
-
-
-
-<!-- Script -->
-<script>
     document.addEventListener('DOMContentLoaded', function () {
-        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
-        const tbody = document.querySelector('table tbody');
-        const prevBtn = document.getElementById('prevPage');
-        const nextBtn = document.getElementById('nextPage');
-        const pageInfo = document.getElementById('pageInfo');
-        const searchInput = document.getElementById('searchInput');
+        const baseUrlElement = document.querySelector('meta[name="base-url"]');
+        const baseUrl = baseUrlElement ? baseUrlElement.getAttribute('content') : '';
+        const tbody = document.getElementById('audioTableBody');
 
-        let allRows = [];
-        let filteredRows = [];
-        let currentPage = 1;
-        const perPage = 5;
+        // --- 1. CARGA INICIAL DA TABELA ---
+        if (tbody) {
+            fetch(`${baseUrl}/campaign/voice/audios-search`)
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success && Array.isArray(result.data)) {
+                        // Mapeia os dados do seu JSON para o padrão da tabela
+                        allRows = result.data.map(audio => ({
+                            id: audio.id,
+                            token: audio.token,
+                            name: audio.name || audio.display_name,
+                            url: audio.url,
+                            status: 'Ativo', // Padronizado como Ativo conforme JSON
+                            created: audio.created_at ? new Date(audio.created_at).toLocaleString('pt-BR') : '--',
+                            origem: audio.extension ? audio.extension.toUpperCase() : 'WAV'
+                        }));
 
-        // 🔹 Remove acentos
-        function removeDiacritics(str) {
-            return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
-        }
-
-        // 🔹 Filtro de busca
-        function applySearch(query) {
-            const normalizedQuery = removeDiacritics(query.toLowerCase());
-            filteredRows = allRows.filter(row =>
-                removeDiacritics(row.name.toLowerCase()).includes(normalizedQuery)
-            );
-            currentPage = 1;
-            renderPage();
-        }
-
-        //console.log(rows)
-
-        // 🔹 Renderização paginada
-        function renderPage() {
-            tbody.innerHTML = '';
-            const start = (currentPage - 1) * perPage;
-            const end = start + perPage;
-            const rows = filteredRows.slice(start, end);
-
-            if (rows.length === 0) {
-                tbody.innerHTML = `
-        <tr>
-          <td colspan="5" class="p-3 text-center text-slate-400 italic">
-            Nenhum áudio encontrado
-          </td>
-        </tr>`;
-            } else {
-                rows.forEach(audio => {
-                    const statusBadge =
-                        audio.status === 'Ativo'
-                            ? `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                 <i data-feather="check-circle" class="w-4 h-4"></i> Ativo
-               </span>`
-                            : `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                 <i data-feather="x-circle" class="w-4 h-4"></i> Inativo
-               </span>`;
-
-                    const rowHTML = `
-          <tr class="hover:bg-gray-50 transition" data-id="${audio.id}">
-           <tr class="hover:bg-gray-50 transition" data-id="${audio.token}">
-            <!-- Nome -->
-            <td class="p-3 align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              <div class="flex items-center gap-2">
-                <i data-feather="music" class="w-4 h-4 text-emerald-500"></i>
-                <h6 class="mb-0 text-sm font-medium text-gray-800">${audio.name}</h6>
-              </div>
-            </td>
-
-            <!-- Status -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              ${statusBadge}
-            </td>
-
-            <!-- Áudio -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              ${audio.url
-                        ? `<audio controls class="mx-auto w-40">
-                     <source src="${audio.url}" type="audio/mpeg">
-                     Seu navegador não suporta o player de áudio.
-                   </audio>`
-                        : '<span class="text-slate-400 italic text-xs">Sem áudio</span>'}
-            </td>
-
-            <!-- Criado em -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap text-sm text-slate-600">
-              ${audio.created ?? '--/--/---- --:--'}
-            </td>
-
-            <!-- Ações -->
-            <td class="p-3 text-center align-middle bg-transparent border-b border-gray-100 whitespace-nowrap">
-              <div class="flex justify-center gap-2">
-                <button class="btn-audio-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-3 py-1 rounded transition" data-id="${audio.id}" data-name="${audio.display_name}" data-token="${audio.token}">
-                  <i data-feather="trash-2" class="w-4 h-4"></i> Excluir
-                </button>
-              </div>
-            </td>
-          </tr>`;
-                    tbody.insertAdjacentHTML('beforeend', rowHTML);
-                });
-            }
-
-            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
-            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
-            prevBtn.disabled = currentPage === 1;
-            nextBtn.disabled = currentPage === totalPages;
-            feather.replace();
-        }
-
-        // 🔹 Paginação
-        prevBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderPage();
-            }
-        });
-
-        nextBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(filteredRows.length / perPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderPage();
-            }
-        });
-
-        // 🔹 Busca em tempo real
-        searchInput.addEventListener('input', e => applySearch(e.target.value));
-
-        // 🔹 Carrega áudios do backend
-        fetch(`${baseUrl}/campaign/voice/audios-search`)
-            .then(response => response.json())
-            .then(result => {
-                // 🔹 Valida estrutura da resposta
-                if (!result || !result.success || !Array.isArray(result.data)) {
-                    console.error('Formato inválido:', result);
-                    tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="p-3 text-center text-red-400 italic">
-                        Erro ao processar resposta da API.
-                    </td>
-                </tr>`;
-                    return;
-                }
-
-                // 🔹 Mapeia os dados do backend para o formato esperado pela tabela
-                allRows = result.data.map(audio => ({
-                    id: audio.id,
-                    name: audio.name || '(sem nome)',
-                    token: audio.token,
-                    display_name: audio.display_name,
-                    status: 'Ativo', // ✅ Pode alterar depois se quiser um status real
-                    url: audio.url || null, // ✅ Usa diretamente o link público retornado do backend
-                    created: audio.created_at
-                        ? new Date(audio.created_at).toLocaleString('pt-BR')
-                        : '--/--/---- --:--'
-                }));
-
-                // 🔹 Inicializa e renderiza
-                filteredRows = allRows;
-                renderPage();
-            })
-            .catch(error => {
-                console.error('Erro ao buscar áudios:', error);
-                tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="p-3 text-center text-red-400 italic">
-                    Erro ao carregar áudios.
-                </td>
-            </tr>`;
+                        filteredRows = allRows;
+                        renderAudioTable(); // <--- RENDERIZAÇÃO INICIAL
+                    }
+                }).catch(err => {
+                console.error("Erro ao carregar áudios:", err);
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-red-500 italic">Erro ao carregar áudios.</td></tr>`;
             });
+        }
 
+        // Inicializa listeners de filtros e modal
+        setupFilterListeners();
+        setupUploadAllListener();
     });
 
-    document.addEventListener("click", async function (e) {
-        const btn = e.target.closest(".btn-audio-delete");
-        if (!btn) return;
+    // ======= 1. FUNÇÕES DA TABELA =======
 
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        const token = btn.dataset.token;
+    function renderAudioTable() {
+        const tbody = document.getElementById('audioTableBody');
+        const rowsPerPageSelect = document.getElementById('audioRowsPerPage');
+        const pageInfo = document.getElementById('audioPageInfo');
+        const prevBtn = document.getElementById('audioPrevPage');
+        const nextBtn = document.getElementById('audioNextPage');
 
-        if (!token) return;
+        if (!tbody) return;
+        tbody.innerHTML = '';
 
+        const perPage = parseInt(rowsPerPageSelect?.value || 10, 10);
+        const start = (currentPage - 1) * perPage;
+        const rows = filteredRows.slice(start, start + perPage);
+
+        if (rows.length === 0) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-slate-400 italic font-medium">
+                    Nenhum áudio encontrado com os filtros aplicados.
+                </td>
+            </tr>`;
+        } else {
+            rows.forEach(audio => {
+                const badge = audio.status === 'Ativo' ? 'bg-emerald-500' : 'bg-slate-400';
+
+                const formato = (audio.formato || audio.origem || audio.extension || '-').toString().toUpperCase();
+                const formatoLower = formato.toLowerCase();
+
+                const mimeType =
+                    formatoLower === 'wav' ? 'audio/wav' :
+                        formatoLower === 'ogg' ? 'audio/ogg' :
+                            formatoLower === 'mp3' ? 'audio/mpeg' :
+                                formatoLower === 'mpeg' ? 'audio/mpeg' :
+                                    'audio/mpeg';
+
+                tbody.insertAdjacentHTML('beforeend', `
+                <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                    <td class="px-4 py-3 text-xs text-slate-500">
+                        ${audio.created || '-'}
+                    </td>
+
+                    <td class="px-4 py-3 text-left">
+                        <div class="flex items-center gap-2">
+                            <span class="text-emerald-500 text-base">🎵</span>
+                            <span class="text-sm font-bold text-slate-700">
+                                ${audio.name || 'Sem nome'}
+                            </span>
+                        </div>
+                    </td>
+
+                    <td class="px-4 py-3 text-center">
+                        ${audio.url
+                    ? `<audio controls class="h-8 mx-auto w-44">
+                                   <source src="${audio.url}" type="${mimeType}">
+                                   Seu navegador não suporta áudio.
+                               </audio>`
+                    : '<span class="text-xxs italic text-slate-400">Sem URL</span>'
+                }
+                    </td>
+
+                    <td class="px-4 py-3 text-center">
+                        <span class="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold uppercase">
+                            ${formato}
+                        </span>
+                    </td>
+
+                    <td class="px-4 py-3 text-center">
+                        <span class="${badge} px-2.5 py-1 text-[9px] rounded-lg font-bold uppercase text-white shadow-sm">
+                            ${audio.status || '-'}
+                        </span>
+                    </td>
+
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="deleteAudio(${audio.id}, '${audio.token}', '${audio.name}')"
+                                class="text-slate-400 hover:text-red-500 transition-all p-2">
+                            <i class="fa fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>`);
+            });
+        }
+
+        const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
+
+        if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = (currentPage === 1);
+        if (nextBtn) nextBtn.disabled = (currentPage === totalPages);
+
+        const nav = document.getElementById('audioPageNumbers');
+        if (nav) {
+            nav.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                nav.insertAdjacentHTML('beforeend', `
+                <button onclick="window.changeAudioPage(${i})"
+                    class="px-3 py-1 text-xs font-bold border rounded-lg transition-all ${
+                    i === currentPage
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                        : 'border-slate-200 hover:bg-slate-100 dark:text-white'
+                }">
+                    ${i}
+                </button>
+            `);
+            }
+        }
+    }
+
+    window.changeAudioPage = (p) => {
+        currentPage = p;
+        renderAudioTable();
+    };
+
+    // ======= 2. FILTROS (MÁQUINA DE BUSCA LOCAL) =======
+
+    function setupFilterListeners() {
+        const filterIds = ['audioSearchInput', 'audioStatusFilter', 'audioDateFrom', 'audioDateTo', 'audioRowsPerPage'];
+        filterIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', () => {
+                    applyAudioFilters();
+                });
+            }
+        });
+    }
+
+    function applyAudioFilters() {
+        const query = document.getElementById('audioSearchInput')?.value.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim() || "";
+        const status = document.getElementById('audioStatusFilter')?.value || "";
+
+        filteredRows = allRows.filter(row => {
+            const normName = row.name.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+            const mName = !query || normName.includes(query);
+            const mStatus = !status || row.status === status;
+            return mName && mStatus;
+        });
+
+        currentPage = 1;
+        renderAudioTable();
+    }
+
+    // ======= 3. MODAL E FILA DE UPLOAD (AUTOMATIZADO) =======
+
+    function openAudioModal() {
+        document.getElementById('audioModal').classList.remove('hidden');
+        // Garante que o listener do botão final de envio seja configurado
+        setupUploadAllListener();
+    }
+
+    function closeAudioModal() {
+        document.getElementById('audioModal').classList.add('hidden');
+        // Para todos os players ao fechar para não ficar áudio tocando no fundo
+        Object.keys(audioPlayers).forEach(k => {
+            if (audioPlayers[k]) audioPlayers[k].pause();
+        });
+    }
+
+    /**
+     * Disparado automaticamente pelo onchange="handleFileSelection(this)" no HTML
+     */
+    function handleFileSelection(input) {
+        const files = Array.from(input.files || []);
+        if (files.length === 0) return;
+
+        files.forEach(file => {
+            // Validação básica de tamanho (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                return notyf.error(`Arquivo ${file.name} muito grande (Máx 5MB)`);
+            }
+
+            const id = crypto.randomUUID();
+            // Adiciona à fila com nome padrão (sem a extensão do arquivo)
+            manualAudios.push({
+                id,
+                name: file.name.replace(/\.[^/.]+$/, ""),
+                file: file,
+                progress: 0
+            });
+        });
+
+        input.value = ''; // Limpa para permitir selecionar o mesmo arquivo novamente se quiser
+        renderAudioQueue();
+    }
+
+    /**
+     * Renderiza a lista com Player e Input de nome para cada áudio selecionado
+     */
+    function renderAudioQueue() {
+        const list = document.getElementById('audioList');
+        if (!list) return;
+
+        if (manualAudios.length === 0) {
+            list.innerHTML = '<p class="text-xs text-slate-400 italic text-center p-4">Nenhum áudio selecionado</p>';
+            return;
+        }
+
+        list.innerHTML = manualAudios.map(audio => `
+        <div class="border rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50 mb-3 border-slate-200 dark:border-slate-700 shadow-sm transition-all">
+            <div class="flex flex-col sm:flex-row items-center gap-3 mb-3">
+
+                <div class="flex items-center gap-2 bg-white dark:bg-slate-700 px-3 py-2 rounded-full shadow-inner border dark:border-slate-600">
+                    <button onclick="window.toggleQueueAudio('${audio.id}')" id="btn-q-${audio.id}" class="bg-emerald-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:scale-110 transition shadow-md">
+                        <i class="fas fa-play text-[10px]" id="icon-q-${audio.id}"></i>
+                    </button>
+                    <div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-500 rounded-full overflow-hidden">
+                        <div id="bar-q-${audio.id}" class="h-full bg-emerald-500 w-0 transition-all"></div>
+                    </div>
+                </div>
+
+                <div class="flex-1 w-full">
+                    <input type="text" value="${audio.name}"
+                           oninput="window.updateAudioName('${audio.id}', this.value)"
+                           class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none focus:border-emerald-500 dark:bg-slate-800 dark:text-white transition-all"
+                           placeholder="Nome do áudio">
+                </div>
+
+                <button onclick="window.removeFromQueue('${audio.id}')" class="text-slate-300 hover:text-red-500 transition-colors p-2">
+                    <i class="fa fa-trash-alt"></i>
+                </button>
+            </div>
+
+            <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div id="progress-q-${audio.id}" class="h-full bg-blue-500 transition-all shadow-[0_0_8px_rgba(59,130,246,0.5)]" style="width:${audio.progress}%"></div>
+            </div>
+        </div>
+    `).join('');
+    }
+
+    // ======= AUXILIARES GLOBAIS PARA O MODAL =======
+
+    window.updateAudioName = (id, newName) => {
+        const audio = manualAudios.find(a => a.id === id);
+        if (audio) audio.name = newName;
+    };
+
+    window.removeFromQueue = (id) => {
+        manualAudios = manualAudios.filter(a => a.id !== id);
+        if (audioPlayers[id]) {
+            audioPlayers[id].pause();
+            delete audioPlayers[id];
+        }
+        renderAudioQueue();
+    };
+
+    window.toggleQueueAudio = (id) => {
+        const audioObj = manualAudios.find(a => a.id === id);
+        const btn = document.getElementById(`btn-q-${id}`);
+        const icon = document.getElementById(`icon-q-${id}`);
+
+        if (!audioPlayers[id]) {
+            audioPlayers[id] = new Audio(URL.createObjectURL(audioObj.file));
+            audioPlayers[id].ontimeupdate = () => {
+                const pct = (audioPlayers[id].currentTime / (audioPlayers[id].duration || 1)) * 100;
+                const bar = document.getElementById(`bar-q-${id}`);
+                if (bar) bar.style.width = pct + '%';
+            };
+            audioPlayers[id].onended = () => {
+                if (icon) icon.className = 'fas fa-play text-[10px]';
+            };
+        }
+
+        const p = audioPlayers[id];
+        if (p.paused) {
+            // Pausa outros players antes de tocar este
+            Object.keys(audioPlayers).forEach(k => {
+                if(k !== id) {
+                    audioPlayers[k].pause();
+                    const otherIcon = document.getElementById(`icon-q-${k}`);
+                    if (otherIcon) otherIcon.className = 'fas fa-play text-[10px]';
+                }
+            });
+            p.play();
+            if (icon) icon.className = 'fas fa-pause text-[10px]';
+        } else {
+            p.pause();
+            if (icon) icon.className = 'fas fa-play text-[10px]';
+        }
+    };
+
+    function setupUploadAllListener() {
+        const uploadAllBtn = document.getElementById('uploadAllBtn');
+        if (uploadAllBtn && !uploadAllBtn.dataset.bound) {
+            uploadAllBtn.dataset.bound = "1";
+            uploadAllBtn.onclick = async () => {
+                if (manualAudios.length === 0) return notyf.error('Selecione ao menos um áudio');
+
+                uploadAllBtn.disabled = true;
+                uploadAllBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Enviando...';
+
+                for (const audio of manualAudios.slice()) {
+                    const success = await processSingleUpload(audio);
+                    if (success) {
+                        manualAudios = manualAudios.filter(a => a.id !== audio.id);
+                        renderAudioQueue();
+                    }
+                }
+
+                uploadAllBtn.disabled = false;
+                uploadAllBtn.textContent = 'Enviar todos';
+                notyf.success("Upload finalizado!");
+                setTimeout(() => location.reload(), 1000);
+            };
+        }
+    }
+
+    async function processSingleUpload(audioObj) {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        return new Promise(resolve => {
+            const form = new FormData();
+            form.append('file', audioObj.file);
+            form.append('name', audioObj.name);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${baseUrl}/campaign/voice/audio-upload`);
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    const bar = document.getElementById(`progress-q-${audioObj.id}`);
+                    if(bar) bar.style.width = pct + '%';
+                }
+            };
+
+            xhr.onload = () => resolve(xhr.status === 200);
+            xhr.onerror = () => resolve(false);
+            xhr.send(form);
+        });
+    }
+
+    // ======= 4. EXCLUSÃO =======
+
+    async function deleteAudio(id, token, name) {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
         Swal.fire({
             title: "Excluir Áudio?",
-            html: `Tem certeza que deseja excluir o audio <strong>${name}</strong>?`,
+            html: `Deseja excluir permanentemente o áudio: <strong>${name}</strong>?`,
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Sim, excluir",
@@ -715,51 +640,20 @@
             confirmButtonColor: "#e3342f",
         }).then(async (result) => {
             if (!result.isConfirmed) return;
-
             try {
-                const res = await fetch(`${baseURL}/campaign/voice/audio-delete`, {
+                const res = await fetch(`${baseUrl}/campaign/voice/audio-delete`, {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({token, id}),
                 });
-
                 const json = await res.json();
-
-                // ============ 🛑 Tratamento de status HTTP ============
-                if (res.status === 401) {
-                    return notyf.error(json.message || "Usuário não autenticado.");
-                }
-
-                if (res.status === 400) {
-                    return notyf.error(json.message || "Requisição inválida.");
-                }
-
-                if (res.status >= 500) {
-                    return notyf.error(json.message || "Erro interno no servidor.");
-                }
-
-                // ============ ✅ Sucesso ============
                 if (json.success) {
-
-                    const qtd = json.deleted ?? 1;
-
-                    notyf.success(json.message || `${qtd} audio(s) excluído(s)!`);
-
-                    // Remove visualmente sem reload
-                    const row = btn.closest("tr");
-                    if (row) row.remove();
-                    setTimeout(() => location.reload(), 1000);
-
+                    notyf.success("Áudio removido!");
+                    setTimeout(() => location.reload(), 800);
                 } else {
-                    notyf.error(json.message || "Erro ao excluir audio.");
+                    notyf.error(json.message || "Erro ao excluir.");
                 }
-
-            } catch (error) {
-                console.error(error);
-                notyf.error("Falha ao comunicar com o servidor.");
-            }
-
-
+            } catch (e) { notyf.error("Erro de conexão."); }
         });
-    });
+    }
 </script>

@@ -178,9 +178,9 @@
                                 <th class="px-4 py-2 border border-slate-100 text-center">SipUser</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Tipo</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Taxa Serviço</th>
-                                <th class="px-4 py-2 border border-slate-100 text-center">Conta</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Custo</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Duração (s)</th>
+                                <th class="px-4 py-2 border border-slate-100 text-center">Conta</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Status</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Causa</th>
                                 <th class="px-4 py-2 border border-slate-100 text-center">Detalhes</th>
@@ -432,6 +432,16 @@
             const dest       = item.destination || "-";
             const channel       = item.channelNumber || "-";
             const cause       = item.cause_txt || "-";
+            const endpoints       = item.endpoints || "-";
+
+            const name = item.user_name || "";
+            const acc  = item.user_account_code || "";
+            const userInfo = item.user_name && item.user_account_code
+                ? `<div class="leading-tight">
+                       <div class="font-semibold text-slate-700">(${item.user_name})</div>
+                       <div class="text-[11px] text-slate-500">(${item.user_account_code})</div>
+                   </div>`
+                : "-";
 
             const payload    = encodeURIComponent(JSON.stringify(item));
 
@@ -440,12 +450,12 @@
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${started}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${channel}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${dest}</td>
-                <td class="px-4 py-2 border border-slate-100 text-center text-xs">3952879394</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${endpoints}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${typeHtml}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${taxaHtml}</td>
-                <td class="px-4 py-2 border border-slate-100 text-center text-xs">(Maxx)(6210646305)</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${costHtml}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${durHtml}</td>
+                <td class="px-4 py-2 border border-slate-100 text-center text-xs">${userInfo}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${statusHtml}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center text-xs">${cause}</td>
                 <td class="px-4 py-2 border border-slate-100 text-center">

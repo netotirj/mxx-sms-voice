@@ -2,7 +2,6 @@
 
 namespace App\Controller\Pages;
 
-
 use App\Http\Response;
 use App\Model\Entity\UserSearch;
 use App\Session\User as SessionUser;
@@ -11,6 +10,24 @@ use App\Utils\View;
 
 class RatesResellers extends ViewComponents
 {
+    // ==========================================================
+    // 🔐 PERMISSÃO CENTRAL
+    // ==========================================================
+    private static function canManageRate(array $obUser, array $rate): bool
+    {
+        $role = $obUser['function'] ?? '';
+
+        if (in_array($role, ['admin', 'super_admin'])) {
+            return true;
+        }
+
+        if ($role === 'reseller') {
+            return (int)$rate['user_id'] === (int)$obUser['id'];
+        }
+
+        return false;
+    }
+
     public static function getRates(): Response|string
     {
         $obUser = SessionUser::getLogged();
@@ -35,19 +52,19 @@ class RatesResellers extends ViewComponents
             ], 'application/json');
         }
 
-        // Busca todos os resellers
-        $usersResellers = UserSearch::getResellers($obUser['tenancy_id']);
+        $tenancyId = $obUser['tenancy_id'];
+        $role      = $obUser['function'] ?? 'agent';
 
-        // Busca todas as tarifas do tenancy
-        $ratesResellers = Rates::getRates($obUser['tenancy_id']);
+        $filterId = ($role === 'admin' || $role === 'super_admin') ? null : (int)$obUser['id'];
 
-        // Indexa tarifas por user_id para facilitar a junção
+        $usersResellers = UserSearch::getResellers($tenancyId, $filterId);
+        $ratesResellers = Rates::getRates($tenancyId, $filterId);
+
         $ratesByUser = [];
         foreach ($ratesResellers as $rate) {
             $ratesByUser[$rate['user_id']][] = $rate;
         }
 
-        // Monta resultado final: cada reseller com suas tarifas
         $result = [];
         foreach ($usersResellers as $reseller) {
             $userId = $reseller['id'];
@@ -55,85 +72,78 @@ class RatesResellers extends ViewComponents
                 'reseller_id'    => $userId,
                 'reseller_name'  => $reseller['name'],
                 'reseller_email' => $reseller['email'],
-                'rates'          => $ratesByUser[$userId] ?? [] // pode ser vazio
+                'rates'          => $ratesByUser[$userId] ?? []
             ];
         }
 
         return new Response(200, [
             'status' => 200,
-            'data'   => $result
+            'data'   => $result,
+            'meta'   => [
+                'role' => $role,
+                'id'   => $obUser['id']
+            ]
         ], 'application/json');
     }
 
-    /**
-     * Criar nova tarifa
-     */
+    // ==========================================================
+    // CREATE
+    // ==========================================================
     public static function setNewRatesUsers($request): Response|array
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
+            return new Response(401, ['status' => 401, 'message' => 'Usuário não autenticado.'], 'application/json');
         }
 
         $ratesData = $request->getPostVars();
 
-        //echo "<pre>";
-        //print_r($ratesData);
-        //echo "</pre>";exit();
-
         try {
 
-            $userId    = (int) ($ratesData['usuario_id'] ?? 0);
+            $role = $obUser['function'] ?? '';
+
+            // 🔒 TRAVA: reseller só cria para ele mesmo
+            if ($role === 'reseller') {
+                $userId = (int)$obUser['id'];
+            } else {
+                $userId = (int) ($ratesData['usuario_id'] ?? 0);
+            }
+
             $rateType  = (string) ($ratesData['type'] ?? '');
             $rateName  = (string) ($ratesData['nome_tarifa'] ?? '');
             $rateValue = (float) ($ratesData['valor_tarifa'] ?? 0);
 
-            if ($userId <= 0) {
-                throw new \Exception("Usuário inválido.");
-            }
-            if ($rateType === '') {
-                throw new \Exception("Tipo da tarifa é obrigatório.");
-            }
-            if (trim($rateName) === '') {
-                throw new \Exception("Nome da tarifa é obrigatório.");
-            }
+            if ($userId <= 0) throw new \Exception("Usuário inválido.");
+            if ($rateType === '') throw new \Exception("Tipo da tarifa é obrigatório.");
+            if (trim($rateName) === '') throw new \Exception("Nome da tarifa é obrigatório.");
 
-            // Campos extras (só usados para service_fee)
-            $serviceEvent = isset($ratesData['service_event']) ? (string) $ratesData['service_event'] : null;
-            $serviceScope = isset($ratesData['service_scope']) ? (string) $ratesData['service_scope'] : null;
+            $serviceEvent = $ratesData['service_event'] ?? null;
+            $serviceScope = $ratesData['service_scope'] ?? null;
 
             if ($rateType === 'service_fee') {
-                // Por enquanto só "answered"
                 $allowedEvent = ['answered'];
                 $allowedScope = ['reseller_trunks', 'all_trunks'];
 
-                if (!$serviceEvent || !in_array($serviceEvent, $allowedEvent, true)) {
-                    throw new \Exception("Evento de cobrança inválido.");
+                if (!in_array($serviceEvent, $allowedEvent, true)) {
+                    throw new \Exception("Evento inválido.");
                 }
-                if (!$serviceScope || !in_array($serviceScope, $allowedScope, true)) {
-                    throw new \Exception("Escopo da taxa inválido.");
+                if (!in_array($serviceScope, $allowedScope, true)) {
+                    throw new \Exception("Escopo inválido.");
                 }
             } else {
-                // qualquer outro tipo: força NULL no banco
                 $serviceEvent = null;
                 $serviceScope = null;
             }
-
-            $tenancyId = $obUser['tenancy_id'];
 
             $rateId = Rates::createRate(
                 $userId,
                 $rateType,
                 $rateName,
                 $rateValue,
-                $tenancyId,
+                $obUser['tenancy_id'],
                 $serviceEvent,
                 $serviceScope
             );
-
 
             return new Response(200, [
                 'status'  => 200,
@@ -144,229 +154,137 @@ class RatesResellers extends ViewComponents
         } catch (\Exception $e) {
             return new Response(500, [
                 'status'  => 500,
-                'message' => 'Erro ao criar tarifa: ' . $e->getMessage()
+                'message' => $e->getMessage()
             ], 'application/json');
         }
-
     }
 
-    /**
-     * @param $request
-     * @return Response|array
-     */
-
+    // ==========================================================
+    // UPDATE
+    // ==========================================================
     public static function setUpdateRatesUsers($request): Response|array
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
+            return new Response(401, ['status' => 401, 'message' => 'Usuário não autenticado.'], 'application/json');
         }
 
         $dataRates = $request->getPostVars();
 
-        if (empty($dataRates['id'])) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'ID da tarifa não fornecido.'
+        $rateId = (int)$dataRates['id'] ?? 0;
+        $current = Rates::getRateById($rateId);
+
+        if (!$current || !self::canManageRate($obUser, (array)$current)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Sem permissão para editar.'
             ], 'application/json');
         }
 
-        $rateId = (int)$dataRates['id'];
         unset($dataRates['id']);
 
-        // 🔎 descobrir o type efetivo (se não vier no POST, pega do banco)
-        $incomingType = isset($dataRates['type']) ? (string)$dataRates['type'] : null;
-
-        // você precisa de um método para pegar a tarifa atual
-        // (se já existir, use o seu; aqui está o nome sugerido)
-        $current = Rates::getRateById($rateId);
-        if (!$current) {
-            return new Response(404, [
-                'status' => 404,
-                'message' => 'Tarifa não encontrada.'
-            ], 'application/json');
-        }
-
-        $effectiveType = $incomingType ?: (string)($current->type ?? $current['type'] ?? '');
-
-        // Mapear os campos para o banco
         $fields = [];
-
-        if (isset($dataRates['nome_tarifa']))  $fields['name'] = $dataRates['nome_tarifa'];
-        if (isset($dataRates['type']))        $fields['type'] = $dataRates['type'];
+        if (isset($dataRates['nome_tarifa'])) $fields['name'] = $dataRates['nome_tarifa'];
+        if (isset($dataRates['type'])) $fields['type'] = $dataRates['type'];
         if (isset($dataRates['valor_tarifa'])) $fields['rate'] = $dataRates['valor_tarifa'];
-        if (isset($dataRates['usuario_id']))  $fields['user_id'] = $dataRates['usuario_id'];
 
-        // ✅ novos campos (service_fee)
-        $serviceEvent = isset($dataRates['service_event']) ? (string)$dataRates['service_event'] : null;
-        $serviceScope = isset($dataRates['service_scope']) ? (string)$dataRates['service_scope'] : null;
+        $success = Rates::updateRate($rateId, $fields);
 
-        if ($effectiveType === 'service_fee') {
-            // por enquanto só answered
-            $allowedEvent = ['answered'];
-            $allowedScope = ['reseller_trunks', 'all_trunks'];
+        return new Response(200, [
+            'status' => 200,
+            'message' => 'Atualizado com sucesso.'
+        ], 'application/json');
+    }
 
-            // se não veio no POST, tenta manter o atual do banco
-            $currentEvent = $current->service_event ?? $current['service_event'] ?? null;
-            $currentScope = $current->service_scope ?? $current['service_scope'] ?? null;
-
-            $finalEvent = $serviceEvent ?: $currentEvent;
-            $finalScope = $serviceScope ?: $currentScope;
-
-            if (!$finalEvent || !in_array($finalEvent, $allowedEvent, true)) {
-                return new Response(400, [
-                    'status' => 400,
-                    'message' => 'Evento de cobrança inválido.'
-                ], 'application/json');
-            }
-
-            if (!$finalScope || !in_array($finalScope, $allowedScope, true)) {
-                return new Response(400, [
-                    'status' => 400,
-                    'message' => 'Escopo da taxa inválido.'
-                ], 'application/json');
-            }
-
-            $fields['service_event'] = $finalEvent;
-            $fields['service_scope'] = $finalScope;
-
-        } else {
-            // se mudou de service_fee para outro tipo, zera campos no banco
-            $fields['service_event'] = null;
-            $fields['service_scope'] = null;
-        }
-
-        if (empty($fields)) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'Nenhum campo para atualizar.'
+    public static function getUsersForRateSelect(): Response|array
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
             ], 'application/json');
         }
+
+        $tenancyId = $obUser['tenancy_id'];
+        $role      = $obUser['function'] ?? 'agent';
+        $userId    = (int)$obUser['id'];
 
         try {
-            $success = Rates::updateRate($rateId, $fields);
-
-            if (!$success) {
-                return new Response(404, [
-                    'status' => 404,
-                    'message' => 'Tarifa não encontrada.'
-                ], 'application/json');
+            if (in_array($role, ['admin', 'super_admin'], true)) {
+                $users = UserSearch::getResellers($tenancyId, null);
+            } elseif ($role === 'reseller') {
+                $users = UserSearch::getUsersByReseller($tenancyId, $userId);
+            } else {
+                $users = [];
             }
 
             return new Response(200, [
                 'status' => 200,
-                'message' => 'Tarifa atualizada com sucesso.'
+                'data'   => $users,
+                'meta'   => [
+                    'role' => $role,
+                    'id'   => $userId
+                ]
             ], 'application/json');
 
         } catch (\Exception $e) {
             return new Response(500, [
                 'status' => 500,
-                'message' => 'Erro ao atualizar tarifa: ' . $e->getMessage()
+                'message' => 'Erro ao buscar usuários: ' . $e->getMessage()
             ], 'application/json');
         }
     }
 
-
-
-    /**
-     * Deletar tarifa
-     */
+    // ==========================================================
+    // DELETE
+    // ==========================================================
     public static function setDeleteRatesUsers($request, int $Id): Response|array
     {
         $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
+
+        $current = Rates::getRateById($Id);
+
+        if (!$current || !self::canManageRate($obUser, (array)$current)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Sem permissão para deletar.'
             ], 'application/json');
         }
 
-        $Id = (int)$Id;
-        if ($Id <= 0) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'ID inválido.'
-            ], 'application/json');
-        }
+        Rates::deleteRate($Id, $obUser['tenancy_id']);
 
-        try {
-            $success = Rates::deleteRate($Id, $obUser['tenancy_id']);
-
-            if (!$success) {
-                return new Response(404, [
-                    'status' => 404,
-                    'message' => 'Tarifa não encontrada.'
-                ], 'application/json');
-            }
-
-            return new Response(200, [
-                'status' => 200,
-                'message' => 'Tarifa deletada com sucesso.'
-            ], 'application/json');
-
-        } catch (\Exception $e) {
-            return new Response(500, [
-                'status' => 500,
-                'message' => 'Erro ao deletar tarifa: ' . $e->getMessage()
-            ], 'application/json');
-        }
+        return new Response(200, [
+            'status' => 200,
+            'message' => 'Deletado com sucesso.'
+        ], 'application/json');
     }
 
-
+    // ==========================================================
+    // STATUS
+    // ==========================================================
     public static function setStatusRatesUsers($request): Response
     {
         $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
+        $data = $request->getPostVars();
+
+        $rateId = (int)$data['id'];
+        $status = $data['status'];
+
+        $current = Rates::getRateById($rateId);
+
+        if (!$current || !self::canManageRate($obUser, (array)$current)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Sem permissão.'
             ], 'application/json');
         }
 
-        $dataStatus = $request->getPostVars();
+        Rates::updateStatusRate($rateId, $obUser['tenancy_id'], $status);
 
-        $rateId = isset($dataStatus['id']) ? (int)$dataStatus['id'] : 0;
-        $status = isset($dataStatus['status']) ? strtolower(trim((string)$dataStatus['status'])) : '';
-
-        if ($rateId <= 0) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'ID inválido.'
-            ], 'application/json');
-        }
-
-        if (!in_array($status, ['active', 'inactive'], true)) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'Status inválido.'
-            ], 'application/json');
-        }
-
-        try {
-            $success = Rates::updateStatusRate($rateId, $obUser['tenancy_id'], $status);
-
-            if (!$success) {
-                return new Response(404, [
-                    'status' => 404,
-                    'message' => 'Rate não encontrada.'
-                ], 'application/json');
-            }
-
-            return new Response(200, [
-                'status' => 200,
-                'message' => 'Status atualizado com sucesso.'
-            ], 'application/json');
-
-        } catch (\Exception $e) {
-            return new Response(500, [
-                'status' => 500,
-                'message' => 'Erro ao atualizar o status: ' . $e->getMessage()
-            ], 'application/json');
-        }
+        return new Response(200, [
+            'status' => 200,
+            'message' => 'Status atualizado.'
+        ], 'application/json');
     }
-
-
 }

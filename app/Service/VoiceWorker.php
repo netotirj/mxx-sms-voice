@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Config\TelephonyConfig;
 use App\Model\Entity\CampaignVoice;
 use App\RedisConn;
 use Exception;
@@ -26,12 +27,12 @@ class VoiceWorker
     public function __construct(array $opts = [])
     {
         $this->redis     = RedisConn::get();
-        $this->ariHost   = $opts['ari_host']   ?? '192.168.1.8';
-        $this->ariAuth   = $opts['ari_auth']   ?? ['maxx', 'mxx123'];
-        $this->stasisApp = $opts['stasis_app'] ?? 'app-asterisk';
+        $this->ariHost   = $opts['ari_host']   ?? TelephonyConfig::ariHost();
+        $this->ariAuth   = $opts['ari_auth']   ?? TelephonyConfig::ariAuth();
+        $this->stasisApp = $opts['stasis_app'] ?? TelephonyConfig::stasisApp();
 
         $this->http = new Client([
-            'base_uri'    => "http://{$this->ariHost}:8088/",
+            'base_uri'    => 'http://' . $this->ariHost . ':' . TelephonyConfig::ariPort() . '/',
             'timeout'     => 5.0,
             'http_errors' => false,
             'auth'        => $this->ariAuth,
@@ -242,45 +243,84 @@ class VoiceWorker
 
             if ($needsAgent && $endpoints) {
 
+                // 1. Consulta o status real no Redis/ARI
                 $agentsStatus = $agentManager->addFromPayload($endpoints, false);
 
                 $onlineEndpoints = [];
+                $counts = ['OFFLINE' => 0, 'PAUSA' => 0, 'OCUPADO' => 0];
 
+                // 2. Filtra apenas quem está ONLINE e LIVRE
                 foreach ((array)$agentsStatus as $r => $st) {
-                    // só exclui se for false explícito
-                    if (($st['online'] ?? null) !== false) {
+                    $isOnline = ($st['online'] ?? false) === true;
+                    $status   = strtoupper($st['status'] ?? 'OFFLINE');
+
+                    if ($isOnline && $status === 'LIVRE') {
                         $onlineEndpoints[] = (string)$r;
+                    } else {
+                        // Classifica o motivo do bloqueio para o log
+                        if (!$isOnline) {
+                            $counts['OFFLINE']++;
+                        } elseif ($status === 'PAUSA') {
+                            $counts['PAUSA']++;
+                        } else {
+                            $counts['OCUPADO']++;
+                        }
                     }
                 }
 
                 $onlineEndpoints = array_values(array_unique($onlineEndpoints));
 
+                // 3. Bloqueio de Fila e Reenfileiramento
                 if (empty($onlineEndpoints)) {
+                    // 1. Vamos descobrir o motivo predominante para mostrar no log
+                    $motivos = [];
+                    $snapshotAgentes = [];
+                    foreach ((array)$agentsStatus as $ramalStatus => $st) {
+                        $ramalStatus = (string)$ramalStatus;
+                        $statusReal = strtoupper((string)($st['status'] ?? ''));
+                        $nomePausa  = $st['status_name'] ?? null;
+                        $onlineFlag  = ($st['online'] ?? false) ? 'online' : 'offline';
 
-                    $this->logOnce(
-                        "no_agents_online:" . ($jobId ?: 'global'),
-                        10,
-                        "⚠ Nenhum agente ONLINE → reenfileirando"
-                    );
+                        if ($ramalStatus !== '') {
+                            $snapshotAgentes[] = trim($ramalStatus . ':' . $onlineFlag . '/' . ($statusReal ?: 'UNKNOWN'));
+                        }
 
-                    // ✅ se o ARI/Stasis tá fora, não trata como "sem agente"
-                    if (!$this->isStasisOnline(10)) {
-                        $this->notifyJob($jobId, 'stasis_offline', 'Stasis offline — aguardando', [
-                            'reason' => 'agent_check_blocked',
-                        ]);
-
-                        usleep(500_000);
-                        $this->redis->rpush('voice:queue', $raw);
-                        continue;
+                        if ($statusReal === 'PAUSA' && $nomePausa) {
+                            $motivos[] = $nomePausa;
+                        } elseif ($statusReal === 'OFFLINE') {
+                            $motivos[] = "OFFLINE";
+                        }
                     }
 
-                    // ✅ caso normal: realmente sem agente online
-                    $this->notifyJob($jobId, 'no_agents_online', 'Nenhum agente ONLINE → reenfileirando', [
-                        'endpoints' => $endpoints,
-                        'strategy' => $strategy,
-                    ]);
+                    // 2. Cria uma mensagem detalhada
+                    if (!empty($motivos)) {
+                        // Conta os motivos (Ex: 2 ALMOÇO, 1 BANHEIRO)
+                        $counts = array_count_values($motivos);
+                        $detalhe = [];
+                        foreach ($counts as $txt => $qtd) {
+                            $detalhe[] = "{$qtd} em {$txt}";
+                        }
+                        $msgFinal = "⚠ Bloqueio: " . implode(", ", $detalhe);
+                    } else {
+                        $msgFinal = "⚠ Aguardando agentes ficarem LIVRES (Fila de espera)";
+                    }
 
-                    usleep(500_000);
+                    if (!empty($endpoints)) {
+                        $msgFinal .= " | endpoints=" . implode(',', $endpoints);
+                    }
+
+                    if (!empty($snapshotAgentes)) {
+                        $msgFinal .= " | status=" . implode(' | ', $snapshotAgentes);
+                    }
+
+                    // 3. Grava o log que aparece na tela de campanhas
+                    $this->logOnce("block:".$jobId, 5, $msgFinal);
+
+                    // 🔥 A LINHA QUE FALTA É ESTA:
+                    // Ela pega a mensagem que você já montou ($msgFinal) e manda pro monitor da tela.
+                    $this->notifyJob($jobId, 'no_agents_available', $msgFinal);
+
+                    usleep(800000);
                     $this->redis->rpush('voice:queue', $raw);
                     continue;
                 }
@@ -331,18 +371,21 @@ class VoiceWorker
                 }
 
                 // =================================================
-                // 🧾 CONTEXTO POR CALL_ID
+                // 🧾 CONTEXTO POR CALL_ID (O Stasis consulta isso no UP)
                 // =================================================
                 $this->redis->setex(
                     "voice:call_context:{$callId}",
                     300,
                     json_encode([
-                        'endpoints' => $endpoints,
-                        'ramal' => $ramal,
-                        'strategy' => $strategy,
-                        'job_id' => $jobId,
-                        'call_id' => $callId,
-                        'ts' => time(),
+                        'endpoints'    => $endpoints,
+                        'ramal'        => $ramal,
+                        'strategy'     => $strategy,
+                        'job_id'       => $jobId,
+                        'call_id'      => $callId,
+                        'tenant_id'    => $data['tenant_id'] ?? '0', // 🚀 Essencial para o caminho da pasta
+                        'user_id'      => $data['user_id'] ?? '0',   // 🚀 Essencial para o caminho da pasta
+                        'record_calls' => (int)($data['record_calls'] ?? 0), // 🚀 O gatilho!
+                        'ts'           => time(),
                     ], JSON_UNESCAPED_UNICODE)
                 );
 
@@ -555,32 +598,34 @@ class VoiceWorker
 
         $now = time();
 
-        // 1) Contador por motivo (pra UI mostrar "aconteceu X vezes")
+        // 1) Contador por motivo - SEMPRE ATUALIZA
         $this->redis->hIncrBy("campaign:{$jobId}:requeue_counts", $code, 1);
         $this->redis->expire("campaign:{$jobId}:requeue_counts", 86400);
 
-        // 2) Status atual do runtime (pra UI mostrar "agora está em CPS_BLOCKED", etc.)
-        // Aqui você pode decidir prioridade depois (ex.: no_agents_* > cps_blocked)
+        // 2) Status atual do runtime - SEMPRE ATUALIZA
+        // Mover isso para antes do 'return' garante que a troca de ALMOÇO para BANHEIRO seja instantânea na tela
         $this->redis->setex("campaign:{$jobId}:runtime_status", 20, json_encode([
             'code' => $code,
-            'msg' => $message,
-            'ts' => $now,
-            'ctx' => $ctx,
+            'msg'  => $message,
+            'ts'   => $now,
+            'ctx'  => $ctx,
         ], JSON_UNESCAPED_UNICODE));
 
-        // 3) Throttle/Dedup: evita spam (mesmo code repetido a cada loop)
+        // 3) Throttle/Dedup: SÓ PARA O HISTÓRICO
         $throttleKey = "campaign:{$jobId}:notify_throttle:{$code}";
         if (!$this->redis->setnx($throttleKey, (string)$now)) {
-            return; // já notificou recentemente esse mesmo motivo
+            // Se já notificou nos últimos 3s, não grava no histórico/timeline de novo
+            // mas o "runtime_status" lá em cima já foi atualizado com a nova mensagem!
+            return;
         }
-        $this->redis->expire($throttleKey, 3); // 3s (ajuste)
+        $this->redis->expire($throttleKey, 3);
 
-        // 4) Histórico curto de eventos (pra UI listar timeline)
+        // 4) Histórico curto de eventos (Timeline)
         $event = json_encode([
             'code' => $code,
-            'msg' => $message,
-            'ts' => $now,
-            'ctx' => $ctx,
+            'msg'  => $message,
+            'ts'   => $now,
+            'ctx'  => $ctx,
         ], JSON_UNESCAPED_UNICODE);
 
         $k = "campaign:{$jobId}:events";

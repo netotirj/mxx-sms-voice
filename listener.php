@@ -1,13 +1,17 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
+use App\Config\TelephonyConfig;
 use React\EventLoop\Factory;
 use React\Http\HttpServer;
 use React\Http\Message\Response;
 use Predis\Client as RedisClient;
+use WilliamCosta\DotEnv\Environment;
+
+Environment::load(__DIR__);
 
 $loop = Factory::create();
-$redis = new RedisClient(['scheme'=>'tcp','host'=>'127.0.0.1','port'=>6379,'password'=>'mxx123']);
+$redis = new RedisClient(TelephonyConfig::redisConfig());
 
 $server = new HttpServer(function ($request) use ($redis, $loop) {
     if ($request->getUri()->getPath() !== '/sse') {

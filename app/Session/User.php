@@ -41,7 +41,9 @@ class User
             'email'         => $obUser->email,
             'account_code'  => $obUser->account_code ?? null, // ✅ sem espaço
             'function'      => $obUser->user_function ?? '',
+            'role_id'       => $obUser->role_id ?? 0, // 🚀 AQUI: Salvando o ID do papel
             'tenancy_id'    => $obUser->tenancy_id ?? null, // <-- adicionado
+            'timezone'      => $obUser->timezone ?? 'America/Sao_Paulo',
             'timeSession'   => time()
         ];
 
@@ -118,27 +120,29 @@ class User
      */
     private static function checkRememberMeToken(): bool
     {
-        if (!isset($_COOKIE['remember_me'])) {
+        if (empty($_COOKIE['remember_me'])) {
             return false;
         }
 
         $token = $_COOKIE['remember_me'];
-        $tenancyId = $_SESSION['user']['tenancy_id'] ?? ''; // ou do contexto do login
-        $obUser = UserAuthentication::getUserByRememberToken($token, $tenancyId);
+        $obUser = UserAuthentication::getUserByRememberToken($token);
 
         if ($obUser instanceof UserAuthentication) {
             $_SESSION['user'] = [
-                'id'    => $obUser->id,
-                'name'  => $obUser->name ?? '',
-                'email' => $obUser->email,
-                'account_code' => $obUser->account_code ?? null, // ✅ sem espaço
-                'tenancy_id' => $obUser->tenancy_id ?? null, // <-- adicionado
-                'timeSession' => time()
+                'id'           => $obUser->id,
+                'name'         => $obUser->name ?? '',
+                'email'        => $obUser->email,
+                'account_code' => $obUser->account_code ?? null,
+                'function'     => $obUser->user_function ?? '',
+                'role_id'      => $obUser->role_id ?? 0,
+                'tenancy_id'   => $obUser->tenancy_id ?? null,
+                'timezone'     => $obUser->timezone ?? 'America/Sao_Paulo',
+                'timeSession'  => time()
             ];
+
             return true;
         }
 
-        // Token inválido: limpa cookie
         setcookie('remember_me', '', time() - 3600, '/');
         return false;
     }

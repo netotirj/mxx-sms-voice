@@ -1,0 +1,641 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                            <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg">
+                                <i class="ni ni-badge"></i>
+                            </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Papéis de Acesso</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Gerencie perfis (Revendedor, Admin) e suas permissões</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openRoleModal()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-slate-800 to-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85">
+                            <i class="ni ni-fat-add text-sm"></i> Novo Papel
+                        </button>
+
+                        <button id="btnNovaRotaGlobal" onclick="openGlobalRouteModal()"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-600 to-teal-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85 {{btnGlobalHidden}}">
+                            <i class="ni ni-world-2 text-sm"></i> Nova Rota Global
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Perfis</p>
+                                <h5 id="totalRolesCount" class="mb-0 font-bold dark:text-white">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center">
+                                <i class="ni ni-badge text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Rotas Totais</p>
+                                <h5 id="totalRoutesCount" class="mb-0 font-bold text-emerald-500">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center">
+                                <i class="ni ni-world-2 text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Pendentes</p>
+                                <h5 id="pendingSyncCount" class="mb-0 font-bold text-orange-500">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-orange-500 to-yellow-400 flex items-center justify-center">
+                                <i class="ni ni-notification-70 text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Inativos</p>
+                                <h5 id="inactiveRolesCount" class="mb-0 font-bold text-red-600">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-red-600 to-orange-600 flex items-center justify-center">
+                                <i class="ni ni-button-power text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mostrar</label>
+                            <select id="afRowsPerPage" onchange="afCurrentPage=1; renderRolesTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Status</label>
+                            <select id="afStatusFilter" onchange="afCurrentPage=1; renderRolesTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="">Todos</option>
+                                <option value="y">Ativo</option>
+                                <option value="n">Inativo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Tipo de Papel</label>
+                            <select id="afTypeFilter" onchange="afCurrentPage=1; renderRolesTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="">Todos</option>
+                                <option value="system">Sistema</option>
+                                <option value="custom">Customizado</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-3">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar Perfil</label>
+                                <button type="button" onclick="resetarFiltrosRoles()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar Filtros
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="afSearchInput" oninput="afCurrentPage=1; renderRolesTable();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none" placeholder="Procurar por nome...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Perfil</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="rolesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="afPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">Mostrando perfis...</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="afPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50">Anterior</button>
+                        <div id="afPageNumbers" class="flex gap-1"></div>
+                        <button id="afNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="roleModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
+        <div class="p-6 pb-2 flex items-start justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="ni ni-badge text-xl"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-800 dark:text-white" id="roleModalTitle">Novo Papel</h3></div>
+            </div>
+            <button onclick="closeRoleModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100"><i class="fa fa-times text-sm"></i></button>
+        </div>
+        <form id="roleForm" class="p-6 space-y-4">
+            <input type="hidden" name="id" id="role_id">
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Identificador</label>
+                <input type="text" name="role_name" id="role_name" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" />
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Descrição</label>
+                <input type="text" name="description" id="description" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" />
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Status</label>
+                <select name="status" id="role_status" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none">
+                    <option value="y">Ativo</option>
+                    <option value="n">Inativo</option>
+                </select>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-6 border-t dark:border-slate-800">
+                <button type="button" onclick="closeRoleModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="saveRoleBtn" class="bg-gradient-to-tr from-blue-700 to-blue-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2"><i class="ni ni-check-bold text-[10px]"></i> Salvar Perfil</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="permissionsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+        <div class="p-6 pb-4 flex items-start justify-between border-b dark:border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="ni ni-settings-gear-65 text-xl"></i></div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" id="permModalTitle">Permissões</h3>
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider italic">Gerencie acessos por módulo</p>
+                </div>
+            </div>
+            <button onclick="closePermissionsModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100"><i class="fa fa-times text-sm"></i></button>
+        </div>
+        <div class="px-6 py-3 bg-slate-50 dark:bg-slate-900/50">
+            <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                <input type="text" id="searchRouteModal" oninput="filterRoutesInModal()" class="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 dark:text-white text-sm outline-none" placeholder="Procurar módulo ou rota...">
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto" style="max-height: 450px;" id="permissions-modal-content">
+        </div>
+
+        <div class="p-4 border-t dark:border-slate-800 text-right bg-slate-50 dark:bg-slate-800/50">
+            <button onclick="closePermissionsModal()" class="px-6 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-lg uppercase tracking-wider">Concluir</button>
+        </div>
+    </div>
+</div>
+
+<div id="globalRouteModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
+
+        <div class="p-6 pb-2 flex items-start justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg">
+                    <i class="ni ni-world-2 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white">Nova Rota Global</h3>
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider italic">Cadastro mestre do sistema</p>
+                </div>
+            </div>
+            <button onclick="closeGlobalRouteModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100 transition-colors">
+                <i class="fa fa-times text-sm"></i>
+            </button>
+        </div>
+
+        <form id="globalRouteForm" class="p-6 space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Identificador (ID Interno)</label>
+                <input type="text" name="name" placeholder="ex: gerenciar_usuarios" required
+                       class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20" />
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Nome Amigável (Label)</label>
+                <input type="text" name="label" placeholder="ex: Gerenciar Usuários" required
+                       class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20" />
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Rotas (Uma por linha ou vírgula)</label>
+                <textarea name="routes" placeholder="/usuarios&#10;/usuarios/save" required
+                          class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white dark:border-slate-700 outline-none h-24 focus:ring-2 focus:ring-emerald-500/20"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-6 border-t dark:border-slate-800">
+                <button type="button" onclick="closeGlobalRouteModal()" class="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">Cancelar</button>
+                <button type="submit" id="saveGlobalBtn"
+                        class="bg-gradient-to-tr from-emerald-600 to-teal-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2 hover:scale-[1.02] active:opacity-85 transition-all">
+                    <i class="ni ni-check-bold text-[10px]"></i> Salvar Rota Global
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 1. Variáveis Globais
+    let rawRolesData = [];
+    let filteredRolesData = [];
+    let afCurrentPage = 1;
+    let currentRoleId = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Tenta pegar a base URL do meta tag ou define como vazio
+        const metaBaseUrl = document.querySelector('meta[name="base-url"]');
+        window.baseUrl = metaBaseUrl ? metaBaseUrl.getAttribute('content') : '';
+
+        // --- SUBMIT DO FORMULÁRIO DE PAPEL ---
+        const roleForm = document.getElementById('roleForm');
+        if (roleForm) {
+            roleForm.onsubmit = function (e) {
+                e.preventDefault();
+                const saveBtn = document.getElementById('saveRoleBtn');
+                const originalText = saveBtn.innerHTML;
+
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+                fetch(`${baseUrl}/permissions/roles/save`, {
+                    method: 'POST',
+                    body: new FormData(this)
+                })
+                    .then(res => res.json())
+                    .then(resp => {
+                        if (resp.status === 'ok' || resp.status === 200) {
+                            closeRoleModal();
+                            loadRoles();
+                            roleForm.reset();
+                        } else {
+                            alert(resp.message || "Erro ao salvar papel.");
+                        }
+                    })
+                    .catch(err => console.error("Erro:", err))
+                    .finally(() => {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = originalText;
+                    });
+            };
+        }
+
+        // --- SUBMIT DO FORMULÁRIO DE ROTA GLOBAL ---
+        const globalRouteForm = document.getElementById('globalRouteForm');
+        if (globalRouteForm) {
+            globalRouteForm.onsubmit = async function (e) {
+                e.preventDefault();
+                const saveBtn = document.getElementById('saveGlobalBtn');
+                const originalContent = saveBtn.innerHTML;
+
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+                try {
+                    const response = await fetch(`${baseUrl}/permissions/global-routes/save`, {
+                        method: 'POST',
+                        body: new FormData(this)
+                    });
+                    const result = await response.json();
+                    if (result.status === 'ok' || result.status === 200) {
+                        globalRouteForm.reset();
+                        closeGlobalRouteModal();
+                        loadRoles(); // Recarrega para atualizar totais
+                    } else {
+                        throw new Error(result.message || "Erro ao salvar rota.");
+                    }
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalContent;
+                }
+            };
+        }
+
+        // --- PAGINAÇÃO ---
+        document.getElementById('afPrevPage')?.addEventListener('click', () => {
+            if(afCurrentPage > 1) { afCurrentPage--; renderRolesTable(); }
+        });
+        document.getElementById('afNextPage')?.addEventListener('click', () => {
+            const rowsPerPage = parseInt(document.getElementById('afRowsPerPage')?.value || 10);
+            const totalPages = Math.ceil(filteredRolesData.length / rowsPerPage);
+            if(afCurrentPage < totalPages) { afCurrentPage++; renderRolesTable(); }
+        });
+
+        loadRoles();
+    });
+
+    // 2. Fetch e Renderização
+    window.loadRoles = function() {
+        const tbody = document.getElementById('rolesTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 italic text-slate-400"><i class="fa fa-spinner fa-spin"></i> Buscando dados...</td></tr>';
+
+        fetch(`${baseUrl}/permissions/search`)
+            .then(res => res.json())
+            .then(result => {
+                rawRolesData = result.data || [];
+
+                // Atualiza Cards de Resumo
+                if(document.getElementById('totalRoutesCount'))
+                    document.getElementById('totalRoutesCount').innerText = result.totalRoutes || 0;
+
+                updateStats(rawRolesData);
+                renderRolesTable();
+            })
+            .catch(err => {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-red-500">Erro ao carregar dados.</td></tr>';
+            });
+    };
+
+    window.renderRolesTable = function() {
+        const tbody = document.getElementById('rolesTableBody');
+        const rowsPerPage = parseInt(document.getElementById('afRowsPerPage')?.value || 10);
+        const search = document.getElementById('afSearchInput')?.value.toLowerCase().trim() || "";
+        const statusF = document.getElementById('afStatusFilter')?.value || "";
+        const typeF = document.getElementById('afTypeFilter')?.value || "";
+
+        // Filtros Combinados
+        filteredRolesData = rawRolesData.filter(role => {
+            const matchesSearch = !search || (role.name + (role.label || '')).toLowerCase().includes(search);
+            const matchesStatus = !statusF || role.status === statusF;
+            const matchesType = !typeF || role.type === typeF; // Ajuste se o campo for diferente
+            return matchesSearch && matchesStatus && matchesType;
+        });
+
+        const total = filteredRolesData.length;
+        const totalPages = Math.ceil(total / rowsPerPage) || 1;
+
+        // Ajuste de segurança para página atual
+        if (afCurrentPage > totalPages) afCurrentPage = totalPages;
+        if (afCurrentPage < 1) afCurrentPage = 1;
+
+        const start = (afCurrentPage - 1) * rowsPerPage;
+        const slice = filteredRolesData.slice(start, start + rowsPerPage);
+
+        tbody.innerHTML = total === 0 ?
+            '<tr><td colspan="3" class="text-center p-8 text-slate-400">Nenhum papel encontrado</td></tr>' :
+            slice.map(role => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-b dark:border-slate-700">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                                <i class="ni ni-badge text-xs"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 text-sm font-semibold dark:text-white">${role.name}</h6>
+                                <p class="mb-0 text-xs text-slate-400">${role.description || role.label || ''}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold ${role.status === 'y' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'} uppercase">
+                            ${role.status === 'y' ? 'Ativo' : 'Inativo'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex justify-center gap-2">
+                            <button onclick="managePermissions(${role.id}, '${role.name}')" class="p-2 h-8 w-8 inline-flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Permissões">
+                                <i class="ni ni-settings-gear-65 text-xs"></i>
+                            </button>
+                            <button onclick="editRole(${role.id})" class="p-2 h-8 w-8 inline-flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-600 hover:text-white transition-all shadow-sm" title="Editar">
+                                <i class="fa fa-edit text-xs"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`).join('');
+
+        updatePaginationUI(totalPages);
+    };
+
+    function updatePaginationUI(totalPages) {
+        const info = document.getElementById('afPageInfo');
+        if(info) info.textContent = `Mostrando ${filteredRolesData.length} perfis (Pág. ${afCurrentPage}/${totalPages})`;
+
+        const prevBtn = document.getElementById('afPrevPage');
+        const nextBtn = document.getElementById('afNextPage');
+        if(prevBtn) prevBtn.disabled = (afCurrentPage === 1);
+        if(nextBtn) nextBtn.disabled = (afCurrentPage >= totalPages);
+
+        const numbers = document.getElementById('afPageNumbers');
+        if(!numbers) return;
+
+        numbers.innerHTML = "";
+        for (let p = 1; p <= totalPages; p++) {
+            if (p > afCurrentPage + 2 || p < afCurrentPage - 2) continue;
+            numbers.insertAdjacentHTML('beforeend', `
+                <button onclick="afCurrentPage=${p}; renderRolesTable();"
+                    class="px-3 py-1 text-xs font-bold border rounded-lg transition-colors ${p === afCurrentPage ? 'bg-blue-600 text-white border-blue-600' : 'dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700'}">
+                    ${p}
+                </button>`);
+        }
+    }
+
+    // 3. Modais e Ações
+    window.openRoleModal = () => {
+        document.getElementById('roleForm').reset();
+        document.getElementById('role_id').value = '';
+        document.getElementById('roleModalTitle').innerText = 'Novo Papel';
+        document.getElementById('roleModal').classList.replace('hidden', 'flex');
+    };
+
+    window.closeRoleModal = () => document.getElementById('roleModal').classList.replace('flex', 'hidden');
+    window.openGlobalRouteModal = () => document.getElementById('globalRouteModal').classList.replace('hidden', 'flex');
+    window.closeGlobalRouteModal = () => document.getElementById('globalRouteModal').classList.replace('flex', 'hidden');
+    window.closePermissionsModal = () => document.getElementById('permissionsModal').classList.replace('flex', 'hidden');
+
+    window.editRole = function(id) {
+        const role = rawRolesData.find(r => r.id === id);
+        if(!role) return;
+
+        document.getElementById('role_id').value = role.id;
+        document.getElementById('role_name').value = role.name;
+        document.getElementById('description').value = role.description || '';
+        document.getElementById('role_status').value = role.status;
+        document.getElementById('roleModalTitle').innerText = 'Editar Papel';
+        document.getElementById('roleModal').classList.replace('hidden', 'flex');
+    };
+
+    window.managePermissions = function (roleId, roleName) {
+        currentRoleId = roleId;
+        document.getElementById('permModalTitle').innerText = `Permissões: ${roleName}`;
+        const modal = document.getElementById('permissionsModal');
+        const content = document.getElementById('permissions-modal-content');
+
+        modal.classList.replace('hidden', 'flex');
+        content.innerHTML = '<div class="p-10 text-center text-slate-400 italic"><i class="fa fa-spinner fa-spin mr-2"></i> Carregando rotas...</div>';
+
+        fetch(`${baseUrl}/permissions/roles/list-all-routes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role_id: roleId })
+        })
+            .then(res => res.json())
+            .then(result => {
+                if(result.status === 'ok'){
+                    const grouped = result.data.reduce((acc, route) => {
+                        // Trava de segurança para label não vir undefined
+                        let label = route.label || 'Sem Rótulo';
+                        let moduleName = label.includes(':') ? label.split(':')[0].trim() : 'Geral';
+
+                        if (!acc[moduleName]) acc[moduleName] = [];
+                        acc[moduleName].push(route);
+                        return acc;
+                    }, {});
+
+                    let html = '';
+                    Object.keys(grouped).forEach((module, index) => {
+                        const routes = grouped[module];
+                        const allEnabled = routes.every(r => r.enabled == 1);
+
+                        html += `
+            <div class="module-group border-b dark:border-slate-800">
+                <div class="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30 cursor-pointer hover:bg-slate-100" onclick="toggleModuleAccordion('${index}')">
+                    <div class="flex items-center gap-3">
+                        <i id="arrow-${index}" class="fa fa-chevron-right text-[10px] text-slate-400 transition-transform"></i>
+                        <span class="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-white">${module}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-500">${routes.length} rotas</span>
+                    </div>
+                    <div onclick="event.stopPropagation()">
+                        <input class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" type="checkbox" ${allEnabled ? 'checked' : ''} onchange="toggleAllInModule('${index}', this.checked)">
+                    </div>
+                </div>
+                <div id="module-body-${index}" class="hidden bg-white dark:bg-slate-900 shadow-inner">
+                    ${routes.map(route => `
+                    <div class="flex items-center justify-between pl-14 pr-6 py-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/30">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-medium text-slate-600 dark:text-slate-300">${route.label || 'Sem Rótulo'}</span>
+
+                            <span class="text-[10px] font-mono text-slate-500">${route.name || ''}</span>
+                        </div>
+                        <input class="form-check-input h-5 w-10 cursor-pointer module-cb-${index}"
+                               type="checkbox"
+                               /* 3. AJUSTADO: Garante o uso do ID correto da rota */
+                               data-route-id="${route.route_id || route.id}"
+                               ${route.enabled == 1 ? 'checked' : ''}
+                               onchange="togglePermission(currentRoleId, ${route.route_id || route.id}, this.checked)">
+                    </div>`).join('')}
+                </div>
+            </div>`;
+                    });
+                    content.innerHTML = html || '<div class="p-10 text-center text-slate-400">Nenhuma rota encontrada.</div>';
+                }
+            });
+    };
+
+    window.toggleModuleAccordion = function(index) {
+        const body = document.getElementById(`module-body-${index}`);
+        const arrow = document.getElementById(`arrow-${index}`);
+        if(body) {
+            const isHidden = body.classList.toggle('hidden');
+            if(arrow) arrow.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(90deg)';
+        }
+    };
+
+    window.toggleAllInModule = function(index, isChecked) {
+        const checkboxes = document.querySelectorAll(`.module-cb-${index}`);
+        checkboxes.forEach(cb => {
+            if(cb.checked !== isChecked) {
+                cb.checked = isChecked;
+                const routeId = cb.getAttribute('data-route-id');
+                togglePermission(currentRoleId, routeId, isChecked);
+            }
+        });
+    };
+
+    window.togglePermission = function(roleId, routeId, active) {
+        const formData = new FormData();
+        formData.append('role_id', roleId);
+        formData.append('route_id', routeId);
+        formData.append('active', active ? 1 : 0);
+
+        fetch(`${baseUrl}/permissions/roles/toggle`, {
+            method: 'POST',
+            body: formData
+        }).then(res => res.json()).then(resp => {
+            if (resp.status !== 'ok') console.error('Erro ao salvar permissão');
+        });
+    };
+
+    window.resetarFiltrosRoles = function () {
+        document.getElementById('afSearchInput').value = '';
+        document.getElementById('afStatusFilter').value = '';
+        document.getElementById('afTypeFilter').value = '';
+        afCurrentPage = 1;
+        renderRolesTable();
+    };
+
+    function updateStats(data) {
+        if (document.getElementById('totalRolesCount'))
+            document.getElementById('totalRolesCount').innerText = data.length;
+
+        if (document.getElementById('inactiveRolesCount'))
+            document.getElementById('inactiveRolesCount').innerText = data.filter(r => r.status === 'n').length;
+    }
+
+    window.filterRoutesInModal = function() {
+        const searchValue = document.getElementById('searchRouteModal').value.toLowerCase();
+        const modules = document.querySelectorAll('.module-group');
+
+        modules.forEach(module => {
+            const routes = module.querySelectorAll('.flex.items-center.justify-between.pl-14');
+            let moduleHasVisibleRoute = false;
+
+            routes.forEach(route => {
+                const label = route.querySelector('.text-sm').textContent.toLowerCase();
+                const path = route.querySelector('.text-\\[10px\\]').textContent.toLowerCase();
+
+                if (label.includes(searchValue) || path.includes(searchValue)) {
+                    route.style.display = 'flex';
+                    moduleHasVisibleRoute = true;
+                } else {
+                    route.style.display = 'none';
+                }
+            });
+
+            // Se o usuário está pesquisando, abrimos o acordeon automaticamente para mostrar os resultados
+            const body = module.querySelector('div[id^="module-body-"]');
+            const arrow = module.querySelector('i[id^="arrow-"]');
+
+            if (searchValue.length > 0) {
+                if (moduleHasVisibleRoute) {
+                    module.style.display = 'block';
+                    body.classList.remove('hidden');
+                    if(arrow) arrow.style.transform = 'rotate(90deg)';
+                } else {
+                    module.style.display = 'none';
+                }
+            } else {
+                // Se limpar a busca, volta ao estado normal (escondido)
+                module.style.display = 'block';
+                body.classList.add('hidden');
+                if(arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        });
+    };
+
+    // Fechar modais ao clicar fora
+    window.onclick = function (event) {
+        if (event.target.classList.contains('fixed')) {
+            event.target.classList.replace('flex', 'hidden');
+        }
+    };
+</script>

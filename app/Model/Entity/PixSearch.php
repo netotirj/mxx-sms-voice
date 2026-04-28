@@ -18,8 +18,8 @@ class PixSearch
     public ?string $billingType = null;
     public int $invoiceNumber;
     public ?string $transactionReceiptUrl = null;
-    public string $dateCreated;
-    public string $confirmed_date;
+    public ?string $dateCreated = null;
+    public ?string $confirmed_date = null;
 
     public function createPix(): bool
     {
@@ -91,7 +91,7 @@ class PixSearch
                 } catch (\TypeError $e) {
                     // tentativa simples de coerção para tipos comuns
                     if (is_numeric($valor)) {
-                        $obj->{$prop} = (strpos((string)$valor, '.') !== false) ? (float)$valor : (int)$valor;
+                        $obj->{$prop} = (str_contains((string)$valor, '.')) ? (float)$valor : (int)$valor;
                         $atribuido = true;
                         break;
                     }
@@ -280,32 +280,28 @@ class PixSearch
             ->qtd ?? 0;
     }
 
-    public static function getWebhookAsaasPaginated(
-        string  $tenancyId,
-        ?string $searchValue,
-        int     $start,
-        int     $length,
-        string  $orderColumn = 'webhook_id',
-        string  $orderDir = 'DESC'
-    ): array {
-        $params = [':tenancy_id' => $tenancyId];
-        $where = "tenancy_id = :tenancy_id";
+    /**
+     * Método para buscar transações Pix (Padrão CDR)
+     * Removemos o Start/Length para permitir paginação fluida no Front-end
+     */
+    public static function getWebhookAsaas(array $filters = [], string $order = 'confirmed_date DESC'): array
+    {
+        $params = [];
+        $where = "1=1"; // Facilita a concatenação dos filtros
 
-        if (!empty($searchValue)) {
-            $where .= " AND (
-            webhook_id LIKE :search OR 
-            payment_status LIKE :search OR 
-            value LIKE :search OR 
-            invoiceNumber LIKE :search OR 
-            transactionReceiptUrl LIKE :search OR 
-            confirmed_date LIKE :search
-        )";
-            $params[':search'] = '%' . $searchValue . '%';
+        // Filtro de Tenancy (Obrigatório por segurança)
+        if (isset($filters['tenancy_id'])) {
+            $where .= " AND tenancy_id = :tenancy_id";
+            $params[':tenancy_id'] = $filters['tenancy_id'];
         }
 
-        $order = "{$orderColumn} {$orderDir}";
-        $limit = "{$start}, {$length}";
+        // Filtro de Usuário (Se houver)
+        if (isset($filters['user_id'])) {
+            $where .= " AND user_id = :user_id";
+            $params[':user_id'] = $filters['user_id'];
+        }
 
+        // Note que não aplicamos o LIMIT aqui para seguir o padrão CDR
         $query = "
         SELECT 
             webhook_id,
@@ -317,11 +313,10 @@ class PixSearch
         FROM webhook_pix
         WHERE {$where}
         ORDER BY {$order}
-        LIMIT {$limit}
     ";
 
         return (new Database)->execute($query, $params)
-            ->fetchAll(\PDO::FETCH_OBJ);
+            ->fetchAll(\PDO::FETCH_ASSOC); // Usando ASSOC para facilitar o array_map no Controller
     }
 
 

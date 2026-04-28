@@ -16,129 +16,6 @@ use Random\RandomException;
 
 class Refills extends ViewComponents
 {
-    /*public static function getRefills($request): string
-    {
-        $plans = UserPlans::getAllActivePlans();
-
-        //echo "<pre>";
-        //print_r($plans);
-        //echo "</pre>";exit;
-
-        // Abre o container flex antes do loop
-        $cards = '<div class="flex flex-wrap justify-center gap-6">';
-
-        foreach ($plans as $plan) {
-            // Calcula total de SMS
-            $total_sms = (int)($plan->amount_plan / $plan->value_sms);
-            $total = number_format($total_sms, 0, ',', '.');
-
-            $badge = htmlspecialchars($plan->name_plan); // exemplo: Basic, Pro, etc.
-            $title = htmlspecialchars($plan->title_plan ?? $plan->name_plan); // título do card
-            $description = htmlspecialchars($plan->description ?? 'Perfect for individuals and small teams.');
-            $price = number_format((float)$plan->amount_plan, 0, ',', '.');
-            $sms_info = $total . ' SMS';
-            // Renderização dinâmica de users_create (Y/N)
-            $users_create_icon = $plan->users_create === 'y'
-                ? '<svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-               </svg>'
-                : '<svg class="h-6 w-6 text-red-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-               </svg>';
-
-            $users_create_text = $plan->users_create === 'y' ? 'Criação de usuários' : 'Não permite criar usuários';
-            $access_qtd = ($plan->simultaneous_access == -1)
-                ? 'Acesso Ilimitado'
-                : $plan->simultaneous_access . ' Acesso por usuário';
-
-            $usersCamp = ($plan->camp_qtd == -1)
-                ? 'Campanhas Ilimitadas'
-                : 'Até ' . $plan->camp_qtd . ' campanhas por usuário';
-
-            $cards .= <<<HTML
-        <!-- Card -->
-        <div class="bg-purple-700 rounded-xl shadow-lg p-6 relative overflow-hidden w-full sm:w-80">
-            <div class="absolute top-0 right-0 m-4">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 animate-bounce">
-                    {$badge}
-                </span>
-            </div>                            
-            <div class="mb-8">
-                <h3 class="text-2xl font-semibold text-white">{$title} </h3>
-                <p class="mt-4 text-purple-200">{$description} </p>
-            </div>                            
-            <div class="mb-8">
-                <span class="text-5xl font-extrabold text-white">R\$ {$price}</span>
-                <span class="text-xs font-medium text-purple-200">/ {$plan->value_sms} </span>
-            </div>                            
-            <ul class="mb-8 space-y-4 text-purple-200">
-                <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Aproximado {$sms_info} </span>
-                </li>
-                <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span> {$access_qtd}</span>
-                </li>
-                
-                 <li class="flex items-center">
-                    {$users_create_icon}
-                    <span>{$users_create_text}</span>
-                </li>
-                
-                <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{$usersCamp} </span>
-                </li>
-                
-                <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{$plan->rports} </span>
-                </li>
-                 <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{$plan->type_plan} </span>
-                </li>
-                
-                 <li class="flex items-center">
-                    <svg class="h-6 w-6 text-green-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{$plan->payment_type} </span>
-                </li>
-            </ul>                            
-         <button type="button"
-                id="buyButton_{$plan->id}"
-                onclick="handleBuyClick(this, '{$plan->id}')"
-                class="relative block w-full py-3 px-6 text-center rounded-md text-white font-medium bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700">
-            Comprar
-        </button>
-
-
-
-        </div>                        
-HTML;
-        }
-
-        $cards .= '</div>'; // Fecha o container após o loop
-
-        // Renderiza a view
-        $content = View::render('refills/index', [
-            'cards' => $cards
-        ]);
-
-        return parent::getComponentsRefills('Maxx Solutions - SMS | Recargas', $content);
-    }*/
 
     public static function getRefills($request): string
     {
@@ -160,72 +37,25 @@ HTML;
         $formatted = [];
 
         foreach ($plans as $p) {
-
-            // Seleciona o valor correto conforme o tipo do plano
-            $unitCost = match ($p->type_plan) {
-                'sms'      => $p->value_sms,
-                'voice'    => $p->value_voice,
-                'torpedo'  => $p->value_torpedo,
-                'whatsapp' => $p->value_whatsapp,
-                default    => 0
-            };
-
-            // Calcula quantidade aproximada
-            $qtdEstimated = $unitCost > 0
-                ? floor($p->amount_plan / $unitCost)
-                : 0;
-
-            // Ícones
-            $iconCheck = '<svg class="h-5 w-5 text-green-400 mr-2" fill="none" stroke="currentColor"
-                    viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round"
-                    stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
-
-            $iconX = '<svg class="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor"
-                viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round"
-                stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
-
             $formatted[] = [
-                'id' => $p->id,
-                'title' => $p->name_plan,
-                'description' => $p->description,
-                'price' => $p->amount_plan,
-                'unit' => number_format($unitCost, 4, '.', ''),
-                'features' => [
-                    [
-                        'text' => "Aprox. {$qtdEstimated} {$p->type_plan}",
-                        'ok' => true
-                    ],
-                    [
-                        'text' => $p->simultaneous_access == -1
-                            ? "Acesso simultâneo ilimitado"
-                            : "{$p->simultaneous_access} acesso(s)",
-                        'ok' => true
-                    ],
-                    [
-                        'text' => $p->users_create == 'y'
-                            ? "Permite criar usuários"
-                            : "Não permite criar usuários",
-                        'ok' => ($p->users_create == 'y')
-                    ],
-                    [
-                        'text' => $p->camp_qtd == -1
-                            ? "Campanhas ilimitadas"
-                            : "{$p->camp_qtd} campanhas",
-                        'ok' => true
-                    ],
-                    [
-                        'text' => $p->rports,
-                        'ok' => true
-                    ],
-                    [
-                        'text' => "Tipo: {$p->type_plan}",
-                        'ok' => true
-                    ],
-                    [
-                        'text' => "Pagamento: {$p->payment_type}",
-                        'ok' => true
-                    ]
-                ]
+                'id'          => $p->id,
+                'name'        => $p->name_plan,
+                'desc'        => $p->description,
+                'price'       => number_format($p->amount_plan, 2, ',', '.'),
+                'is_popular'  => (bool)$p->is_popular,
+                'service_fee' => number_format($p->service_fee, 2, ',', '.'),
+                'price_raw'   => $p->amount_plan, // Para o Modal
+                'type'        => $p->type_plan,
+                // Tarifas para o Modal
+                'v_sms'       => number_format($p->value_sms, 4, ',', '.'),
+                'v_voice'     => number_format($p->value_voice, 4, ',', '.'),
+                'v_whatsapp'  => number_format($p->value_whatsapp, 4, ',', '.'),
+                'v_torpedo'   => number_format($p->value_torpedo, 4, ',', '.'),
+                // Detalhes Técnicos
+                'users_y_n'   => ($p->users_create == 'y' ? 'Sim' : 'Não'),
+                'access'      => ($p->simultaneous_access == -1 ? 'Ilimitados' : $p->simultaneous_access),
+                'camp'        => ($p->camp_qtd == -1 ? 'Ilimitadas' : $p->camp_qtd),
+                'reports'     => $p->rports,
             ];
         }
 
@@ -239,7 +69,7 @@ HTML;
     }
 
 
-    public static function getQrCodePix($request, $id): Response
+    /*public static function getQrCodePix($request, $id): Response
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
@@ -323,7 +153,90 @@ HTML;
             'data' => $pixResponse,
             'value' => $total
         ], 'application/json');
+    }*/
+
+    public static function getQrCodePix($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, [
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        // Instancia a API (Certifique-se que o ASASURL no seu .env seja https://sandbox.asaas.com/api/v3)
+        $obApiSaas = new AssasApiTest(getenv('ASASURLSANDBOX'), getenv('ASASSANDBOX'));
+
+        $obPlan = UserPlans::getPlanById($id);
+        if (!$obPlan instanceof UserPlans) {
+            return new Response(404, [
+                'status' => 404,
+                'message' => 'Plano não encontrado.'
+            ], 'application/json');
+        }
+
+        // Gerar um ID único de referência para o seu banco
+        $externalReference = uniqid('ref_');
+        // Pega a descrição do plano
+        $description = $obPlan->description;
+
+        // Limita a descrição para 30 caracteres (margem de segurança)
+        // e remove caracteres especiais que podem bugar a string PIX
+        $description = mb_substr($description, 0, 30);
+        $description = preg_replace('/[^A-Za-z0-0 ]/', '', $description); // Remove acentos/especiais
+
+        // Dados para requisição PIX conforme documentação Asaas
+        $pixRequest = [
+            'addressKey' => getenv('PIXKEYSANDBOX'), // Sua chave PIX cadastrada no Sandbox
+            'description' => $description,
+            'value' => floatval($obPlan->amount_plan),
+            'format' => 'ALL', // Retorna Imagem Base64 + Payload
+            'expirationSeconds' => 3600,
+            'externalReference' => $externalReference
+        ];
+
+        // 1. Enviar requisição para gerar a cobrança/QR Code na Asaas
+        $pixResponse = $obApiSaas->createCob($pixRequest);
+
+        // Validar se a API retornou erro
+        if (isset($pixResponse['error']) || isset($pixResponse['errors'])) {
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'Erro na API Asaas Sandbox.',
+                'details' => $pixResponse
+            ], 'application/json');
+        }
+
+        // Salvar no banco de dados com os dados REAIS vindos da API
+        $pix = new PixSearch();
+        $pix->user_id = $obUser['id'];
+        $pix->tenancy_id = $obUser['tenancy_id'];
+        $pix->user_plain_id = $obPlan->id;
+        $pix->payment_status = 'PENDING'; // Status inicial do Asaas
+        $pix->value = $obPlan->amount_plan;
+        $pix->pixQrCodeId = $pixResponse['id'] ?? '';
+        $pix->external_Reference = $externalReference;
+        $pix->billingType = "PIX";
+        $pix->invoiceNumber = $pixResponse['invoiceNumber'] ?? 0;
+        $pix->transactionReceiptUrl = $pixResponse['transactionReceiptUrl'] ?? null;
+        $pix->dateCreated = date('Y-m-d H:i:s');
+        $pix->createPix();
+
+        // Retornar resposta ao frontend (Agora com dados reais do Sandbox)
+        return new Response(200, [
+            'status' => 200,
+            'message' => 'Cobrança Pix gerada no Sandbox.',
+            'data' => [
+                'id' => $pixResponse['id'],
+                'encodedImage' => $pixResponse['encodedImage'], // Base64 real
+                'payload' => $pixResponse['payload'],       // Copia e cola real
+                'externalReference' => $externalReference
+            ],
+            'value' => $obPlan->amount_plan
+        ], 'application/json');
     }
+
 
     public static function getStatusPix($request, $pixQrCodeId): Response
     {
@@ -413,7 +326,7 @@ HTML;
     /**
      * @throws RandomException
      */
-    public static function setRefillsResellers(): Response
+    public static function setRefillsResellers($request): Response
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
@@ -423,13 +336,32 @@ HTML;
             ], 'application/json');
         }
 
-        $dataRefills = json_decode(file_get_contents("php://input"), true);
+        // --- 🛡️ TRAVA DE SEGURANÇA POR CARGO ---
+        // No PHP, usamos strtolower() e acessamos a chave direto do array
+        $roleLogged = strtolower($obUser['user_function'] ?? $obUser['function'] ?? '');
+
+        if (!in_array($roleLogged, ['admin', 'super_admin'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Acesso negado: Você não tem permissão para realizar recargas.'
+            ], 'application/json');
+        }
+        // ---------------------------------------
+
+        $dataRefills = $request->getPostVars();
 
         $userId = intval($dataRefills["usuario_id"] ?? 0);
         $value = floatval($dataRefills["valor_recarga"] ?? 0);
         $notes = trim($dataRefills["anotacao"] ?? "");
         $email = trim($dataRefills["usuario_email"] ?? "");
 
+        // Validação básica de valor para evitar recargas negativas ou zeradas
+        if ($value <= 0) {
+            return new Response(400, [
+                'status' => 400,
+                'message' => 'O valor da recarga deve ser maior que zero.'
+            ], 'application/json');
+        }
 
         // 🔹 Transaction ID randômico com 8 dígitos
         $transactionId = str_pad((string)random_int(0, 99999999), 8, "0", STR_PAD_LEFT);
@@ -440,7 +372,6 @@ HTML;
             ?? $_SERVER['REMOTE_ADDR']
             ?? '0.0.0.0';
 
-
         $refill = new RefillsResellers();
         $refill->user_id = $userId;
         $refill->tenancy_id = $obUser['tenancy_id'];
@@ -450,7 +381,7 @@ HTML;
         $refill->type = "manual";
         $refill->transaction_id = $transactionId;
         $refill->client_ip = $clientIp;
-        $refill->status = "completed"; // ou "pending"
+        $refill->status = "completed";
         $refill->created_at = date('Y-m-d H:i:s');
         $refill->updated_at = date('Y-m-d H:i:s');
 
@@ -460,36 +391,36 @@ HTML;
         $reseller->id = $refill->user_id;
         $reseller->tenancy_id = $refill->tenancy_id;
 
+        // Atualiza saldo no MySQL
         $updated = $reseller->updateRefillReseller($value);
 
-        $resellerBalanceAsterisk = UserSearch::getUserById($obUser['tenancy_id'], $obUser['id']);
-        $role = $resellerBalanceAsterisk['user_function'];
+        // Pega dados para o Asterisk
+        $resellerData = UserSearch::getUserById($refill->tenancy_id, $refill->user_id);
+        $roleReseller = $resellerData['user_function'] ?? 'reseller';
 
         $query = [
-            'user_id' => $obUser['id'],
-            'tenant_id' => $obUser['tenancy_id'],
+            'user_id' => $refill->user_id,
+            'tenant_id' => $refill->tenancy_id,
         ];
 
-        // 🧱 Monta payload para atualização
         $payload = [
             'user_id' => $refill->user_id,
             'tenant_id' => $refill->tenancy_id,
             'balance_reseller' => $value,
-            'role' => $role
+            'role' => $roleReseller
         ];
 
-        // 🔗 Chama a API Asterisk (rota update_extension)
+        // 🔗 Sincroniza com Asterisk
         $asterisk = new AsteriskExtensionsSip();
-        $response = $asterisk->updateBalance($query, $payload);
+        $responseAsterisk = $asterisk->updateBalance($query, $payload);
 
-        if ($updated && $response) {
-
+        if ($updated && $responseAsterisk) {
             Notifications::insertNotifications(
-                $refill->tenancy_id,        // Tenancy do reseller
-                $refill->user_id,           // ID do reseller
-                "Recarga Confirmada",       // Título da notificação
-                "A recarga no valor de <b>R$ " . number_format($refill->balance, 2, ',', '.') . "</b> foi confirmada com sucesso. Seu saldo foi atualizado.", // Mensagem
-                'notice'                   // Tipo de notificação
+                $refill->tenancy_id,
+                $refill->user_id,
+                "Recarga Confirmada",
+                "A recarga no valor de <b>R$ " . number_format($refill->balance, 2, ',', '.') . "</b> foi confirmada com sucesso. Seu saldo foi atualizado.",
+                'notice'
             );
 
             return new Response(200, [
@@ -501,10 +432,12 @@ HTML;
         } else {
             return new Response(500, [
                 'status' => 500,
-                'message' => 'Recarga registrada, mas falha ao atualizar saldo do revendedor.'
+                'message' => 'Erro ao processar atualização de saldo.'
             ], 'application/json');
         }
     }
+
+
 
 
 }

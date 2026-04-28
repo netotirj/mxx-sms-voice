@@ -1,264 +1,319 @@
 <div class="w-full px-6 py-6 mx-auto">
     <div class="flex flex-wrap -mx-3">
-        <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
 
-                <!-- Cabeçalho -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        Transações Pix
-                    </h6>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-blue-100 text-blue-700 text-lg">💰</span>
+                        <div>
+                            <h2 id="pixTitle" class="text-lg font-semibold text-slate-800">Transações Pix</h2>
+                            <p id="pixSubtitle" class="text-xs text-slate-400">Relatório consolidado de pagamentos e recargas</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+                        <button id="pixExportCsv" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+                        <button id="pixReloadBtn" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+                                <input id="pixAutoReload" type="checkbox" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all peer-checked:bg-blue-500"></div>
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-all peer-checked:translate-x-full"></div>
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+                            </label>
+                            <select id="pixReloadInterval" class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 outline-none">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tabela -->
-                <div class="p-6 overflow-x-auto">
-                    <table id="table-pix" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm center-header">
-                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                        <tr>
-                            <th class="px-4 py-3 ">ID</th>
-                            <th class="px-4 py-3 ">Status Pagamento</th>
-                            <th class="px-4 py-3 ">Valor</th>
-                            <th class="px-4 py-3 ">Número Fatura</th>
-                            <th class="px-4 py-3 ">Data Pagamento</th>
-                            <th class="px-4 py-3 ">Comprovantes</th>
-                        </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
-                        <!-- DataTables irá preencher -->
-                        </tbody>
-                    </table>
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="pixRowsPerPage" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="pixStatusFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="">Todos</option>
+                                <option value="PAYMENT_RECEIVED">Aprovado</option>
+                                <option value="PAYMENT_CREATED">Aguardando</option>
+                                <option value="PAYMENT_REFUNDED">Estornado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">ID / Fatura</label>
+                            <input id="pixSearchID" type="text" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ID...">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="pixDateFrom" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="pixDateTo" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">E-mail</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                                    <i class="fa fa-search"></i>
+                                </span>
+                                <input id="pixSearchEmail" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="cliente@email.com">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="pix-table" class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead id="pixTableHead" class="bg-slate-100 text-xs uppercase tracking-wide">
+                            </thead>
+                            <tbody id="pixTableBody">
+                            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400 italic">Carregando registros...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+                    <p id="pixPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="pixPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="pixPageNumbers" class="flex gap-1"></div>
+                        <button id="pixNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-
-<style>
-    /* Alinha menu e busca lado a lado */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .dataTables_wrapper .dataTables_length {
-        float: left;
-    }
-
-    .dataTables_wrapper .dataTables_filter {
-        float: right;
-    }
-
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-        margin-left: 0.5rem;
-    }
-
-    /* Remove margin lateral padrão */
-    #table-sms_wrapper {
-        margin-left: 0;
-        margin-right: 0;
-    }
-
-    /* Reduz fontes e padding do info abaixo */
-    .dataTables_wrapper .dataTables_info {
-        font-size: 0.75rem;
-        color: #475569; /* slate-600 */
-        padding-top: 0.5rem;
-    }
-
-    /* Remove float no responsivo */
-    @media (max-width: 640px) {
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter {
-            float: none;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-    }
-
-    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
-    .break-message {
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    /* Permite que a largura da célula se ajuste automaticamente */
-    .auto-width-message {
-        display: inline-block;
-        max-width: 100%;
-        width: auto;
-        min-width: 150px;
-    }
-</style>
-
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const tbody       = document.getElementById("pixTableBody");
+        const thead       = document.getElementById("pixTableHead");
+        const searchID    = document.getElementById("pixSearchID");
+        const searchEmail = document.getElementById("pixSearchEmail");
+        const statusFilt  = document.getElementById("pixStatusFilter");
+        const dateFrom    = document.getElementById("pixDateFrom");
+        const dateTo      = document.getElementById("pixDateTo");
+        const perPageSel  = document.getElementById("pixRowsPerPage");
+        const prevBtn     = document.getElementById("pixPrevPage");
+        const nextBtn     = document.getElementById("pixNextPage");
+        const pageInfo    = document.getElementById("pixPageInfo");
+        const pageNumbers = document.getElementById("pixPageNumbers");
+        const reloadBtn   = document.getElementById("pixReloadBtn");
+        const autoReload  = document.getElementById("pixAutoReload");
+        const intervalSel = document.getElementById("pixReloadInterval");
 
-        // 🔹 Colunas Admin (PixSearch)
-        const adminColumns = [
-            { data: 'webhook_id', className: "dt-head-center dt-body-center", render: d => `#${d}` },
-            { data: 'payment_status', className: "dt-head-center dt-body-center",
-                render: d => {
-                    const map = {
-                        'PAYMENT_RECEIVED': { text: 'Aprovado', classes: 'bg-green-100 text-black' },
-                        'PAYMENT_CREATED': { text: 'Aguardando', classes: 'bg-yellow-100 text-black' },
-                        'PAYMENT_REFUNDED': { text: 'Estornado', classes: 'bg-red-100 text-black' }
-                    };
-                    const status = map[d] || { text: d, classes: 'bg-gray-100 text-gray-800' };
-                    return `<span class="px-2 py-1 rounded-full text-sm font-semibold ${status.classes}">${status.text}</span>`;
-                }
-            },
-            { data: 'value', className: "dt-head-center dt-body-center",
-                render: d => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(d) },
-            { data: 'invoiceNumber', className: "dt-head-center dt-body-center" },
-            { data: 'confirmed_date', className: "dt-head-center dt-body-center",
-                render: d => d ? new Date(d).toLocaleString('pt-BR') : '-' },
-            {
-                data: 'transactionReceiptUrl',
-                className: "dt-head-center dt-body-center",
-                render: d => d
-                    ? `<a href="${d}" target="_blank" rel="noopener noreferrer"
-                class="inline-flex items-center justify-center p-2 text-red-600 hover:text-red-800 transition"
-                title="Ver comprovante (PDF)">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" fill="currentColor">
-                    <path d="M240 112L128 112C119.2 112 112 119.2 112 128L112 512C112 520.8 119.2 528 128 528L208 528L208 576L128 576C92.7 576 64 547.3 64 512L64 128C64 92.7 92.7 64 128 64L261.5 64C278.5 64 294.8 70.7 306.8 82.7L429.3 205.3C441.3 217.3 448 233.6 448 250.6L448 400.1L400 400.1L400 272.1L312 272.1C272.2 272.1 240 239.9 240 200.1L240 112.1zM380.1 224L288 131.9L288 200C288 213.3 298.7 224 312 224L380.1 224zM272 444L304 444C337.1 444 364 470.9 364 504C364 537.1 337.1 564 304 564L292 564L292 592C292 603 283 612 272 612C261 612 252 603 252 592L252 464C252 453 261 444 272 444zM304 524C315 524 324 515 324 504C324 493 315 484 304 484L292 484L292 524L304 524zM400 444L432 444C460.7 444 484 467.3 484 496L484 560C484 588.7 460.7 612 432 612L400 612C389 612 380 603 380 592L380 464C380 453 389 444 400 444zM432 572C438.6 572 444 566.6 444 560L444 496C444 489.4 438.6 484 432 484L420 484L420 572L432 572zM508 464C508 453 517 444 528 444L576 444C587 444 596 453 596 464C596 475 587 484 576 484L548 484L548 508L576 508C587 508 596 517 596 528C596 539 587 548 576 548L548 548L548 592C548 603 539 612 528 612C517 612 508 603 508 592L508 464z"/>
-                </svg>
-            </a>`
-                    : '-'
-            }
-        ];
+        let allItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        let perPage = 10;
+        let userType = 'admin';
+        let autoReloadTimer = null;
 
-        // 🔹 Colunas Reseller (RefillsResellers)
-        const resellerColumns = [
-            { data: 'id', className: "dt-head-center dt-body-center", render: d => `#${d}` },
-            { data: 'transaction_id', className: "dt-head-center dt-body-center" },
-            { data: 'email', className: "dt-head-center dt-body-center" },
-            { data: 'balance', className: "dt-head-center dt-body-center",
-                render: d => {
-                    const value = parseFloat(d || 0);
-                    const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-                    const classes = value >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                    return `<span class="px-2 py-1 rounded-full text-sm font-semibold ${classes}">${formatted}</span>`;
-                }
-            },
-            { data: 'type', className: "dt-head-center dt-body-center" },
-            { data: 'status', className: "dt-head-center dt-body-center",
-                render: d => {
-                    const map = {
-                        'completed': { text: 'Concluído', classes: 'bg-green-100 text-green-800' },
-                        'pending':   { text: 'Pendente', classes: 'bg-yellow-100 text-yellow-800' },
-                        'failed':    { text: 'Falhou',   classes: 'bg-red-100 text-red-800' }
-                    };
-                    const status = map[d?.toLowerCase()] || { text: d, classes: 'bg-gray-100 text-gray-800' };
-                    return `<span class="px-2 py-1 rounded-full text-sm font-semibold ${status.classes}">${status.text}</span>`;
-                }
-            },
-            { data: 'created_at', className: "dt-head-center dt-body-center",
-                render: d => d ? new Date(d).toLocaleString('pt-BR') : '-' }
-        ];
+        // Formatação de Moeda
+        const formatBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-        // 🔹 Atualiza título da tabela
-        function updateTitle(userType) {
-            const titleEl = document.querySelector('.p-4 h6');
-            if (!titleEl) return;
+        // Badges de Status
+        function getStatusBadge(status) {
+            const map = {
+                'PAYMENT_RECEIVED': { text: 'Aprovado',  cls: 'bg-green-100 text-green-700' },
+                'PAYMENT_CREATED':  { text: 'Aguardando', cls: 'bg-yellow-100 text-yellow-700' },
+                'PAYMENT_REFUNDED': { text: 'Estornado', cls: 'bg-red-100 text-red-700' },
+                'completed':        { text: 'Concluído', cls: 'bg-green-100 text-green-700' },
+                'pending':          { text: 'Pendente',  cls: 'bg-yellow-100 text-yellow-700' },
+                'failed':           { text: 'Falhou',    cls: 'bg-red-100 text-red-700' }
+            };
+            const s = map[status] || { text: status, cls: 'bg-gray-100 text-gray-700' };
+            return `<span class="px-2.5 py-1 rounded-full text-xs font-bold ${s.cls}">${s.text}</span>`;
+        }
+
+        // Gerador de Cabeçalho Dinâmico
+        function updateHeaders() {
             if (userType === 'reseller') {
-                titleEl.textContent = "💳 Recargas";
+                document.getElementById('pixTitle').textContent = "Recargas";
+                thead.innerHTML = `<tr>
+                <th class="px-4 py-2 border border-slate-100">ID</th>
+                <th class="px-4 py-2 border border-slate-100">ID Transação</th>
+                <th class="px-4 py-2 border border-slate-100">E-mail</th>
+                <th class="px-4 py-2 border border-slate-100">Valor</th>
+                <th class="px-4 py-2 border border-slate-100">Tipo</th>
+                <th class="px-4 py-2 border border-slate-100">Status</th>
+                <th class="px-4 py-2 border border-slate-100">Data</th>
+            </tr>`;
             } else {
-                titleEl.textContent = "📑 Transaçoes Pix";
+                document.getElementById('pixTitle').textContent = "Transações Pix";
+                thead.innerHTML = `<tr>
+                <th class="px-4 py-2 border border-slate-100">ID</th>
+                <th class="px-4 py-2 border border-slate-100">Status Pagamento</th>
+                <th class="px-4 py-2 border border-slate-100">Valor</th>
+                <th class="px-4 py-2 border border-slate-100">Número Fatura</th>
+                <th class="px-4 py-2 border border-slate-100">Data Pagamento</th>
+                <th class="px-4 py-2 border border-slate-100">Comprovante</th>
+            </tr>`;
             }
         }
 
-        // 🔹 Atualiza cabeçalho da tabela (thead)
-        function updateTableHead(userType) {
-            const thead = document.querySelector('#table-pix thead tr');
-            if (!thead) return;
-
-            let headers = '';
-
+        // Template de Linha
+        // Template de Linha (Ajustado para os nomes das chaves do seu JSON)
+        function rowTemplate(item) {
             if (userType === 'reseller') {
-                headers = `
-                    <th class="px-4 py-3">ID</th>
-                    <th class="px-4 py-3">ID Transação</th>
-                    <th class="px-4 py-3">E-mail</th>
-                    <th class="px-4 py-3">Valor</th>
-                    <th class="px-4 py-3">Tipo</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">Data</th>
-                    <th class="px-4 py-3">Comprovante</th>
-                `;
-            } else {
-                headers = `
-                    <th class="px-4 py-3">ID</th>
-                    <th class="px-4 py-3">Status Pagamento</th>
-                    <th class="px-4 py-3">Valor</th>
-                    <th class="px-4 py-3">Número Fatura</th>
-                    <th class="px-4 py-3">Data Pagamento</th>
-                    <th class="px-4 py-3">Comprovante</th>
-                `;
+                return `<tr>
+                        <td class="px-4 py-2 border border-slate-100">#${item.id}</td>
+                        <td class="px-4 py-2 border border-slate-100">${item.transaction_id || '-'}</td>
+                        <td class="px-4 py-2 border border-slate-100">${item.email || '-'}</td>
+                        <td class="px-4 py-2 border border-slate-100 font-bold">${formatBRL(item.value)}</td>
+                        <td class="px-4 py-2 border border-slate-100 text-xs uppercase">${item.type || '-'}</td>
+                        <td class="px-4 py-2 border border-slate-100">${getStatusBadge(item.status)}</td>
+                        <td class="px-4 py-2 border border-slate-100 text-xs">${item.date || '-'}</td>
+                    </tr>`;
             }
 
-            thead.innerHTML = headers;
+            // Ajuste aqui: usando item.receipt_url e item.invoice_number que vem no seu JSON
+            const receipt = item.receipt_url ? `<a href="${item.receipt_url}" target="_blank" class="text-red-600"><i class="fa fa-file-pdf"></i></a>` : '-';
+
+            return `<tr>
+                        <td class="px-4 py-2 border border-slate-100">#${item.id}</td>
+                        <td class="px-4 py-2 border border-slate-100">${getStatusBadge(item.status)}</td>
+                        <td class="px-4 py-2 border border-slate-100 font-bold">${formatBRL(item.value)}</td>
+                        <td class="px-4 py-2 border border-slate-100">${item.invoice_number || '-'}</td>
+                        <td class="px-4 py-2 border border-slate-100 text-xs">${item.date || '-'}</td>
+                        <td class="px-4 py-2 border border-slate-100">${receipt}</td>
+                    </tr>`;
         }
 
-        // 🔹 Função para inicializar DataTable
-        function initPixTable(userType) {
-            const columns = (userType === 'reseller') ? resellerColumns : adminColumns;
-
-            if ($.fn.DataTable.isDataTable('#table-pix')) {
-                $('#table-pix').DataTable().destroy();
-                $('#table-pix tbody').empty();
+        async function fetchData(showLoading = true) {
+            if (showLoading) tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">Carregando...</td></tr>';
+            try {
+                const r = await fetch('transactions-realtime');
+                const res = await r.json();
+                userType = res.user_type || 'admin';
+                allItems = res.data || [];
+                updateHeaders();
+                applyFilters();
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
             }
+        }
 
-            updateTitle(userType);
-            updateTableHead(userType);
+        function applyFilters() {
+            const idQ = searchID.value.toLowerCase();
+            const emailQ = searchEmail.value.toLowerCase();
+            const statusQ = statusFilt.value;
+            const dFrom = dateFrom.value;
+            const dTo = dateTo.value;
 
-            $('#table-pix').DataTable({
-                responsive: true,
-                serverSide: true,
-                processing: true,
-                pageLength: 10,
-                autoWidth: false,
-                ajax: {
-                    url: 'transactions-realtime',
-                    type: 'GET',
-                    dataSrc: function(json) {
-                        const currentType = $('#table-pix').data('user-type');
-                        if (currentType !== json.user_type) {
-                            $('#table-pix').data('user-type', json.user_type);
-                            initPixTable(json.user_type);
-                            return [];
-                        }
-                        return json.data || [];
-                    }
-                },
-                columns: columns,
-                order: [[0, 'desc']],
-                language: {
-                    lengthMenu: "_MENU_",
-                    zeroRecords: "Nenhum Registro encontrado",
-                    info: "_START_-_END_ de _TOTAL_",
-                    infoEmpty: "Nenhum Registro encontrado",
-                    infoFiltered: "(de _MAX_)",
-                    search: "🔍",
-                    paginate: { first: "«", last: "»", next: "›", previous: "‹" },
-                },
-                drawCallback: function(settings) {
-                    feather.replace();
+            filteredItems = allItems.filter(i => {
+                const matchesStatus = statusQ ? (i.payment_status === statusQ || i.status === statusQ) : true;
+                const matchesID = idQ ? (String(i.webhook_id || i.id || '').toLowerCase().includes(idQ) || String(i.invoiceNumber || '').toLowerCase().includes(idQ)) : true;
+                const matchesEmail = emailQ ? (String(i.email || '').toLowerCase().includes(emailQ)) : true;
+
+                // Filtro de data simples
+                if (dFrom || dTo) {
+                    const itemDate = new Date(i.confirmed_date || i.created_at || i.started);
+                    if (dFrom && itemDate < new Date(dFrom)) return false;
+                    if (dTo && itemDate > new Date(dTo + "T23:59:59")) return false;
                 }
+
+                return matchesStatus && matchesID && matchesEmail;
             });
+
+            currentPage = 1;
+            renderPage();
         }
 
-        // 🔹 Inicializa com admin (placeholder)
-        initPixTable('admin');
+        function renderPage() {
+            tbody.innerHTML = "";
+            const total = filteredItems.length;
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            const start = (currentPage - 1) * perPage;
 
+            if (!total) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400">Nenhum registro.</td></tr>';
+            } else {
+                filteredItems.slice(start, start + perPage).forEach(item => {
+                    tbody.insertAdjacentHTML("beforeend", rowTemplate(item));
+                });
+            }
+
+            // --- AJUSTE AQUI PARA MANTER O PADRÃO (1 usuários) ---
+            const labelRegistro = total === 1 ? 'transação' : 'transações';
+            pageInfo.textContent = `Página ${currentPage} de ${totalPages} (${total} ${labelRegistro})`;
+            // ------------------------------------------------------
+
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages;
+            renderPageNumbers(totalPages);
+        }
+
+        function renderPageNumbers(totalPages) {
+            pageNumbers.innerHTML = "";
+            for (let i = 1; i <= totalPages; i++) {
+                if (totalPages > 5 && (i > 3 && i < totalPages)) {
+                    if (i === 4) pageNumbers.insertAdjacentHTML("beforeend", `<span class="px-2">...</span>`);
+                    continue;
+                }
+                const btn = document.createElement("button");
+                btn.textContent = i;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg transition-all ${i === currentPage ? 'bg-blue-500 text-white border-blue-500' : 'border-slate-200 hover:bg-slate-100'}`;
+                btn.onclick = () => { currentPage = i; renderPage(); };
+                pageNumbers.appendChild(btn);
+            }
+        }
+
+        // Função para exportar os dados filtrados para CSV
+        document.getElementById('pixExportCsv').onclick = function() {
+            if (filteredItems.length === 0) return alert('Não há dados para exportar.');
+
+            let csv = 'ID;Status;Valor;Fatura;Data\n'; // Cabeçalho
+            filteredItems.forEach(item => {
+                csv += `${item.id};${item.status};${item.value};${item.invoice_number};${item.date}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "relatorio_pix.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // Eventos
+        reloadBtn.onclick = () => fetchData(true);
+        perPageSel.onchange = () => { perPage = Number(perPageSel.value); currentPage = 1; renderPage(); };
+        [searchID, searchEmail, statusFilt, dateFrom, dateTo].forEach(el => el.oninput = applyFilters);
+        prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderPage(); } };
+        nextBtn.onclick = () => { if (currentPage < Math.ceil(filteredItems.length / perPage)) { currentPage++; renderPage(); } };
+
+        // Auto Reload logic
+        autoReload.onchange = () => {
+            if (autoReloadTimer) clearInterval(autoReloadTimer);
+            if (autoReload.checked) {
+                autoReloadTimer = setInterval(() => fetchData(false), intervalSel.value);
+            }
+        };
+
+        fetchData();
     });
 </script>
-
-
-
-

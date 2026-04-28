@@ -1,0 +1,1072 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-200 text-lg">
+                            <i class="ni ni-bullet-list-67"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Filas de Espera</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Configure o fluxo de distribuição de chamadas</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="toggleQueueModal()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-orange-600 to-orange-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85">
+                            <i class="ni ni-fat-add text-sm"></i> Nova Fila
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap p-4 -mx-3">
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Em Espera</p>
+                                        <h5 id="cardWaiting" class="mb-0 font-bold text-red-600">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-red-600 to-orange-600 flex items-center justify-center">
+                                        <i class="ni ni-headphones text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Atendidas (Hoje)</p>
+                                        <h5 id="cardAnswered" class="mb-0 font-bold text-emerald-500">0</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center">
+                                        <i class="ni ni-check-bold text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">T.M.E</p>
+                                        <h5 id="cardTME" class="mb-0 font-bold dark:text-white">00:00s</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center">
+                                        <i class="ni ni-watch-time text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 md:w-1/4 xl:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                            <div class="flex-auto p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="mb-0 font-sans text-xs font-semibold leading-normal uppercase dark:text-white dark:opacity-60">Abandono</p>
+                                        <h5 id="cardAbandon" class="mb-0 font-bold text-orange-600">0%</h5>
+                                    </div>
+                                    <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-orange-500 to-yellow-400 flex items-center justify-center">
+                                        <i class="ni ni-chart-pie-35 text-white text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mostrar</label>
+                            <select id="qfRowsPerPage" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Estratégia</label>
+                            <select id="qfStrategyFilter" onchange="aplicarFiltrosQueues()" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="">Todas</option>
+                                <option value="ringall">Ring-All</option>
+                                <option value="leastrecent">Menos Recente</option>
+                                <option value="rrmemory">Round-Robin</option>
+                                <option value="linear">Linear</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Prioridade</label>
+                            <select id="qfPriorityFilter" onchange="aplicarFiltrosQueues()" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="">Todas</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Média">Média</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Gravação</label>
+                            <select id="qfRecordFilter" onchange="aplicarFiltrosQueues()" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="1">Apenas REC ON</option>
+                                <option value="0">Apenas REC OFF</option>
+                            </select>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400">Buscar</label>
+                                <button id="qfClearFilters" type="button"
+                                        onclick="resetarFiltrosFilas()"
+                                        class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 hover:text-red-700 uppercase transition-all inline-flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <i class="fa fa-search text-slate-400 text-xs"></i>
+                                </span>
+                                <input id="qfSearchInput" oninput="aplicarFiltrosQueues()" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none" placeholder="Nome ou ID da fila...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">Nome da Fila</th>
+                                <th class="px-6 py-3 pl-2 font-bold text-left uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">Estratégia</th>
+
+                                <th class="px-6 py-3 font-bold text-center uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">Atendidas (Hoje)</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">T.M.E</th>
+
+                                <th class="px-6 py-3 font-bold text-center uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">Agentes Logados</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase bg-transparent border-b text-xxs tracking-none text-slate-400 opacity-70">Prioridade</th>
+                                <th class="px-6 py-3 font-semibold capitalize bg-transparent border-b text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="tableQueuesBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="qfPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">
+                        Mostrando filas...
+                    </p>
+
+                    <div class="flex gap-1 items-center">
+                        <button id="qfPrevPage" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Anterior
+                        </button>
+
+                        <div id="qfPageNumbers" class="flex gap-1"></div>
+
+                        <button id="qfNextPage" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Próximo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalQueue" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all">
+
+    <div id="modalQueueContent" class="relative w-full max-w-xl bg-white dark:bg-slate-850 rounded-3xl shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0">
+
+        <div class="p-6 border-b border-slate-100 dark:border-slate-700/50 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 flex items-center justify-center bg-gradient-to-tr from-orange-600 to-orange-400 rounded-xl shadow-lg shadow-orange-500/20">
+                    <i class="ni ni-settings text-white text-xl"></i>
+                </div>
+                <div>
+                    <h5 class="text-base font-bold text-slate-800 dark:text-white mb-0">Configurar Fila</h5>
+                    <p class="text-[11px] text-slate-400 font-medium leading-tight">Gestão de distribuição de chamadas</p>
+                </div>
+            </div>
+            <button onclick="toggleQueueModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                <i class="fa fa-times text-slate-400 text-lg"></i>
+            </button>
+        </div>
+
+        <form id="formQueue" novalidate>
+            <div class="p-6 max-h-[70vh] overflow-y-auto custom-scroll">
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 mb-1 block">Nome da Fila</label>
+                        <input type="text" name="name" id="inputQueueName" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:border-orange-500 outline-none dark:text-white" placeholder="Ex: Vendas">
+                        <span id="error-name" class="text-[9px] text-red-500 font-bold ml-1 mt-1 hidden">O nome é obrigatório</span>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 mb-1 block">ID da Fila (Automático)</label>
+                        <input type="text" name="queue_id" readonly class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-500 outline-none cursor-not-allowed" placeholder="Gerando ID...">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="mb-5">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 tracking-wider">
+                                Estratégia de Distribuição
+                            </label>
+                            <span id="strategyChip"
+                                  class="hidden px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm border border-transparent transition-all duration-300">
+                            </span>
+                        </div>
+
+                        <div class="relative">
+                            <select name="strategy" id="selectStrategy"
+                                    onchange="updateStrategyChip(this.value)"
+                                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 outline-none dark:text-white transition-all appearance-none">
+                                <option value="">Selecione a estratégia...</option>
+                                <option value="ringall">Ring-All</option>
+                                <option value="leastrecent">Menos Recente</option>
+                                <option value="rrmemory">Round-Robin</option>
+                                <option value="linear">Linear</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-400">
+                                <i class="fa fa-chevron-down text-[10px]"></i>
+                            </div>
+                        </div>
+                        <span id="error-strategy" class="text-[9px] text-red-500 font-bold ml-1 mt-1 hidden">Selecione uma estratégia</span>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 mb-1 block">Prioridade</label>
+                        <div class="flex gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="priority" value="Média" class="hidden peer" checked>
+                                <div class="text-[10px] text-center py-1.5 font-bold rounded-lg peer-checked:bg-white dark:peer-checked:bg-slate-600 peer-checked:shadow-sm transition-all text-slate-500 dark:text-slate-300">Média</div>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="priority" value="Alta" class="hidden peer">
+                                <div class="text-[10px] text-center py-1.5 font-bold rounded-lg peer-checked:bg-orange-500 peer-checked:text-white transition-all text-slate-500 dark:text-slate-300">Alta</div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="col-span-2 mb-4">
+                        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded-lg">
+                                    <i class="fa fa-microphone text-red-500 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-[11px] font-bold text-slate-700 dark:text-white mb-0">Gravar Chamadas</p>
+                                    <p class="text-[9px] text-slate-400 leading-tight">Inicia a gravação apenas após o atendimento</p>
+                                </div>
+                            </div>
+
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="record_calls" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-orange-500"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 mb-2 block">Selecionar Agentes</label>
+                <div id="agentSelectionList" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2 custom-scroll">
+                </div>
+            </div>
+
+            <div class="p-5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/50 flex justify-end gap-3">
+                <button type="button" onclick="toggleQueueModal()" class="px-4 py-2 text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-orange-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all">
+                    Salvar Fila
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let listaAgentesGlobal = [];
+    let allQueues = [];
+    let filteredQueues = [];
+    let currentQueuePage = 1;
+    let queuesPerPage = 10;
+
+    // --- 1. BUSCA DADOS NO BANCO ---
+    async function renderQueues() {
+        const tableBody = document.getElementById('tableQueuesBody');
+        if (!tableBody) return;
+
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-xs font-bold uppercase text-slate-400">
+        <i class="fa fa-spinner fa-spin mr-2"></i> Carregando filas...</td></tr>`;
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/queues/list`);
+            const result = await response.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                allQueues = result.data;
+                aplicarFiltrosQueues(); // Filtra e Renderiza
+            }
+        } catch (error) {
+            console.error("Erro no render:", error);
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-red-500 text-xs font-bold uppercase">Erro ao carregar dados.</td></tr>`;
+        }
+    }
+
+    // --- 2. FILTRA OS DADOS EM MEMÓRIA (INSTANTÂNEO) ---
+    function aplicarFiltrosQueues() {
+        // 1. Captura os valores dos novos filtros
+        const termo = document.getElementById("qfSearchInput")?.value.toLowerCase() || "";
+        const estrategia = document.getElementById("qfStrategyFilter")?.value || "";
+        const prioridade = document.getElementById("qfPriorityFilter")?.value || "";
+        const gravacao = document.getElementById("qfRecordFilter")?.value || "";
+
+        // 2. Filtra o array allQueues baseado nas propriedades REAIS da fila
+        filteredQueues = allQueues.filter(q => {
+            const matchBusca = !termo ||
+                (q.name || "").toLowerCase().includes(termo) ||
+                (q.queue_id || "").toString().includes(termo);
+
+            const matchEstrategia = !estrategia || q.strategy === estrategia;
+
+            const matchPrioridade = !prioridade || q.priority === prioridade;
+
+            // Verifica se a gravação (0 ou 1) bate com o filtro
+            const matchGravacao = !gravacao || String(q.record_calls) === gravacao;
+
+            return matchBusca && matchEstrategia && matchPrioridade && matchGravacao;
+        });
+
+        // 3. Reseta para a página 1 e renderiza
+        currentQueuePage = 1;
+        renderQueuesTablePage();
+    }
+
+    // --- FUNÇÃO LIMPAR CORRIGIDA ---
+    function resetarFiltrosFilas() {
+        // 1. Limpa o campo de busca de texto
+        const searchInput = document.getElementById('qfSearchInput');
+        if (searchInput) searchInput.value = '';
+
+        // 2. Reseta todos os selects para o estado "Todas" ou valor padrão
+        const selectsParaResetar = [
+            'qfStrategyFilter',
+            'qfPriorityFilter',
+            'qfRecordFilter'
+        ];
+
+        selectsParaResetar.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = ''; // Volta para o <option value="">
+        });
+
+        // 3. Reseta a paginação e registros por página
+        const rowsPerPage = document.getElementById('qfRowsPerPage');
+        if (rowsPerPage) rowsPerPage.value = '10';
+
+        currentQueuePage = 1;
+        queuesPerPage = 10;
+
+        // 4. ESSENCIAL: Dispara a filtragem com os campos vazios para recarregar a tabela toda
+        aplicarFiltrosQueues();
+
+        // Feedback visual (opcional)
+        if (typeof notyf !== 'undefined') {
+            notyf.dismissAll();
+        }
+    }
+
+    // --- 3. DESENHA A PÁGINA ATUAL NA TABELA ---
+    function renderQueuesTablePage() {
+        const tableBody = document.getElementById('tableQueuesBody');
+        if (!tableBody) return;
+
+        const total = filteredQueues.length;
+        const totalPages = Math.max(1, Math.ceil(total / queuesPerPage));
+
+        if (currentQueuePage > totalPages) currentQueuePage = totalPages;
+
+        const start = (currentQueuePage - 1) * queuesPerPage;
+        const slice = filteredQueues.slice(start, start + queuesPerPage);
+
+        const strategyMap = {
+            rrmemory: "Round-Robin",
+            leastrecent: "Menos Recente",
+            linear: "Linear",
+            ringall: "Ring-All"
+        };
+
+        if (total === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhuma fila encontrada</td></tr>`;
+        } else {
+            tableBody.innerHTML = slice.map(queue => {
+                const qID = queue.queue_id;
+                const qName = queue.name || 'Sem nome';
+                const qStrategyKey = queue.strategy || 'ringall';
+                const qStrategyLabel = strategyMap[qStrategyKey] || qStrategyKey;
+                const qPriority = queue.priority || 'Média';
+                const qAgents = parseInt(queue.total_agents) || 0;
+                const qAtendidas = parseInt(queue.atendidas_hoje) || 0;
+                const qTme = queue.tme_fila ? parseInt(queue.tme_fila) : 0;
+                const qIsRecording = (queue.record_calls === 1 || queue.record_calls === "1") ? '1' : '0';
+
+                const recordStatus = (qIsRecording === '1')
+                    ? `<span onclick="event.stopPropagation(); updateQueueFeature('${qID}', 'record', '1')" class="cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-500 text-[9px] font-black border border-red-100 uppercase transition-all hover:scale-105"><i class="fa fa-circle animate-pulse text-[6px]"></i> REC ON</span>`
+                    : `<span onclick="event.stopPropagation(); updateQueueFeature('${qID}', 'record', '0')" class="cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-400 text-[9px] font-bold border border-transparent hover:border-slate-300 uppercase transition-all">REC OFF</span>`;
+
+                return `
+                <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="p-4 align-middle border-b dark:border-white/40">
+                        <div class="flex flex-col">
+                            <h6 class="mb-0 text-sm font-bold dark:text-white">${qName}</h6>
+                            <div class="flex items-center gap-2 mt-1">
+                                <p class="mb-0 text-[10px] text-slate-400 font-bold uppercase">ID: ${qID}</p>
+                                ${recordStatus}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-2 border-b dark:border-white/40 cursor-pointer hover:bg-orange-50/30 group" onclick="updateQueueFeature('${qID}', 'strategy', '${qStrategyKey}')">
+                        <span class="text-xs font-semibold dark:text-white uppercase">${qStrategyLabel}</span>
+                        <i class="fa fa-sync-alt text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-all ml-1"></i>
+                    </td>
+                    <td class="p-2 text-center border-b dark:border-white/40"><span class="text-xs font-black text-emerald-500">${qAtendidas}</span></td>
+                    <td class="p-2 text-center border-b dark:border-white/40"><span class="text-xs font-black text-blue-500">${qTme}s</span></td>
+                    <td class="p-2 text-center border-b dark:border-white/40 cursor-pointer hover:bg-blue-50/50 group" onclick="quickManageAgents('${qID}', event, this)">
+                        <span class="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-200 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all group-hover:bg-blue-500 group-hover:text-white shadow-sm">
+                            ${qAgents} Agentes
+                        </span>
+                    </td>
+                    <td class="p-2 text-center border-b dark:border-white/40 cursor-pointer hover:bg-orange-50/30 group" onclick="updateQueueFeature('${qID}', 'priority', '${qPriority}')">
+                        <span class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">${qPriority}</span>
+                    </td>
+                    <td class="p-2 border-b dark:border-white/40 text-center">
+                        <button onclick="deleteQueue('${qID}')" class="p-2 hover:bg-red-50 rounded-lg transition-all"><i class="fa fa-trash text-red-500"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        updateQueuePaginationUI(totalPages);
+    }
+
+    // --- 4. ATUALIZA OS CONTROLES VISUAIS DE PAGINAÇÃO ---
+    function updateQueuePaginationUI(totalPages) {
+        const info = document.getElementById('qfPageInfo');
+        const numbers = document.getElementById('qfPageNumbers');
+        if (info) info.textContent = `Página ${currentQueuePage} de ${totalPages} (${filteredQueues.length} filas)`;
+
+        document.getElementById('qfPrevPage').disabled = (currentQueuePage === 1);
+        document.getElementById('qfNextPage').disabled = (currentQueuePage >= totalPages);
+
+        if (numbers) {
+            numbers.innerHTML = "";
+            if (totalPages <= 1) return;
+            for (let p = Math.max(1, currentQueuePage - 1); p <= Math.min(totalPages, currentQueuePage + 1); p++) {
+                const btn = document.createElement("button");
+                btn.textContent = p;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg transition-all ${p === currentQueuePage ? "bg-orange-500 text-white border-orange-500" : "dark:text-white hover:bg-slate-100 border-slate-200 dark:border-slate-700"}`;
+                btn.onclick = () => { currentQueuePage = p; renderQueuesTablePage(); };
+                numbers.appendChild(btn);
+            }
+        }
+    }
+
+
+
+
+    function toggleQueueModal() {
+        const modal = document.getElementById('modalQueue');
+        const content = document.getElementById('modalQueueContent');
+        const inputId = document.querySelector('input[name="queue_id"]');
+
+        if (modal.classList.contains('hidden')) {
+            // 1. LIMPA o formulário
+            document.getElementById('formQueue').reset();
+
+            // 2. 🚀 LIMPA OS ERROS VISUAIS (Remove o vermelho ao abrir)
+            const fields = ['inputQueueName', 'selectStrategy'];
+            fields.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-900/10');
+                    el.classList.add('border-slate-200', 'dark:border-slate-700');
+                }
+            });
+            document.getElementById('error-name').classList.add('hidden');
+            document.getElementById('error-strategy').classList.add('hidden');
+
+            // 3. GERA ID E RESET DO CHIP
+            if (inputId) inputId.value = gerarIdFilaAleatorio();
+            const chip = document.getElementById("strategyChip");
+            if(chip) chip.classList.add("hidden");
+
+            // 4. CARREGA AGENTES E ABRE
+            carregarAgentesNoModal();
+            modal.classList.replace('hidden', 'flex');
+            setTimeout(() => {
+                content.classList.replace('scale-95', 'scale-100');
+                content.classList.replace('opacity-0', 'opacity-100');
+            }, 10);
+        } else {
+            content.classList.replace('scale-100', 'scale-95');
+            content.classList.replace('opacity-100', 'opacity-0');
+            setTimeout(() => modal.classList.replace('flex', 'hidden'), 200);
+        }
+    }
+
+    /**
+     * @param {Array} agentesAtuais - Array de ramais que já estão na fila (opcional)
+     */
+    async function carregarAgentesNoModal(agentesAtuais = []) {
+        const container = document.getElementById('agentSelectionList');
+        if (!container) return;
+
+        // Garantimos que agentesAtuais seja um array de strings para comparação
+        const ramaisNaFila = Array.isArray(agentesAtuais) ? agentesAtuais.map(String) : [];
+
+        container.innerHTML = `
+    <div class="col-span-1 sm:col-span-2 py-8 text-center">
+        <i class="fa fa-spinner fa-spin text-orange-500 text-2xl mb-2"></i>
+        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">Sincronizando Agentes...</p>
+    </div>`;
+
+        try {
+            const evtSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+            evtSource.addEventListener('update', function(event) {
+                try {
+                    const result = JSON.parse(event.data);
+                    const listaAgentes = result.agentes || [];
+
+                    if (listaAgentes.length === 0) {
+                        container.innerHTML = '<p class="col-span-2 text-center text-xs text-slate-400 p-4">Nenhum agente logado no sistema.</p>';
+                    } else {
+                        container.innerHTML = listaAgentes.map(agente => {
+                            const ramalAgente = String(agente.ramal);
+                            // 🔍 VERIFICAÇÃO: Se o ramal está na lista de agentes da fila
+                            const isChecked = ramaisNaFila.includes(ramalAgente) ? 'checked' : '';
+                            const activeClass = isChecked ? 'border-orange-500 bg-orange-50/30 dark:bg-orange-500/5' : 'border-slate-100 dark:border-slate-700';
+
+                            const dotColor = (agente.color === 'emerald') ? 'bg-emerald-500' :
+                                (agente.color === 'orange') ? 'bg-orange-500' : 'bg-slate-300';
+
+                            return `
+                        <label class="relative flex items-center p-3 border ${activeClass} rounded-2xl bg-white dark:bg-slate-800 cursor-pointer hover:border-orange-500/50 hover:shadow-md transition-all group">
+                            <div class="relative flex items-center justify-center">
+                                <input type="checkbox" name="agents[]" value="${ramalAgente}" ${isChecked}
+                                       class="w-5 h-5 rounded-lg border-slate-300 text-orange-500 focus:ring-orange-500/20 shadow-sm z-10">
+                                <span class="absolute -top-1 -left-1 w-2.5 h-2.5 ${dotColor} border-2 border-white dark:border-slate-800 rounded-full z-20"></span>
+                            </div>
+                            <div class="ml-3 overflow-hidden">
+                                <p class="text-[11px] font-black text-slate-700 dark:text-white mb-0 uppercase tracking-tighter truncate">${agente.nome}</p>
+                                <p class="text-[10px] text-slate-400 mb-0 font-bold uppercase tracking-widest">Ramal: ${ramalAgente}</p>
+                            </div>
+                            ${isChecked ? '<i class="fa fa-check-circle text-orange-500 absolute top-2 right-2 text-[10px]"></i>' : ''}
+                        </label>
+                    `;
+                        }).join('');
+                    }
+                    evtSource.close();
+                } catch (error) {
+                    console.error("Erro no parse:", error);
+                    evtSource.close();
+                }
+            });
+
+            evtSource.onerror = () => evtSource.close();
+
+        } catch (error) {
+            console.error("Erro EventSource:", error);
+        }
+    }
+
+    function updateStrategyChip(value) {
+        const chip = document.getElementById('strategyChip');
+        if (!chip) return;
+
+        if (!value || value === "") {
+            chip.classList.add('hidden');
+            return;
+        }
+
+        // Configuração de cores para cada estratégia
+        const configs = {
+            ringall:     { text: 'Ring-All',     bg: 'bg-orange-100',  textCol: 'text-orange-600', border: 'border-orange-200' },
+            leastrecent: { text: 'Menos Recente',bg: 'bg-blue-100',    textCol: 'text-blue-600',   border: 'border-blue-200' },
+            rrmemory:    { text: 'Round-Robin',  bg: 'bg-purple-100',  textCol: 'text-purple-600', border: 'border-purple-200' },
+            linear:      { text: 'Linear',       bg: 'bg-emerald-100', textCol: 'text-emerald-600',border: 'border-emerald-200' }
+        };
+
+        const config = configs[value];
+
+        if (config) {
+            chip.innerText = config.text;
+            // Limpa classes antigas e aplica as novas
+            chip.className = `px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm border ${config.bg} ${config.textCol} ${config.border} transition-all duration-300`;
+            chip.classList.remove('hidden');
+        }
+    }
+
+    function gerarIdFilaAleatorio() {
+        // Gera um número entre 1000 e 9999
+        return Math.floor(1000 + Math.random() * 9000);
+    }
+
+    // Listener para o envio do formulário
+    document.getElementById('formQueue').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const saveBtn = document.getElementById('saveQueueButton');
+        const formData = new FormData(this);
+        const strategy = formData.get('strategy');
+        const queueName = formData.get('name')?.trim();
+        let hasError = false;
+
+        // Função interna para validar visualmente
+        const validateField = (fieldId, errorId, condition) => {
+            const field = document.getElementById(fieldId);
+            const errorMsg = document.getElementById(errorId);
+            if (!field) return;
+
+            if (condition) {
+                field.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-900/10');
+                field.classList.remove('border-slate-200', 'dark:border-slate-700');
+                if (errorMsg) errorMsg.classList.remove('hidden');
+                hasError = true;
+            } else {
+                field.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-900/10');
+                field.classList.add('border-slate-200', 'dark:border-slate-700');
+                if (errorMsg) errorMsg.classList.add('hidden');
+            }
+        };
+
+        // 1. Validações Visuais (NOME E ESTRATÉGIA)
+        validateField('inputQueueName', 'error-name', !queueName);
+        validateField('selectStrategy', 'error-strategy', !strategy || strategy === "");
+
+        // 2. Validação Agentes (SEM NOTIFY - Agora pintamos o container de vermelho)
+        const selectedAgents = Array.from(document.querySelectorAll('input[name="agents[]"]:checked')).map(el => el.value);
+        const agentContainer = document.getElementById('agentSelectionList');
+
+        if (selectedAgents.length === 0) {
+            agentContainer.classList.add('border-2', 'border-red-500', 'rounded-2xl', 'p-2');
+            hasError = true;
+        } else {
+            agentContainer.classList.remove('border-2', 'border-red-500', 'p-2');
+        }
+
+        if (hasError) return;
+
+        // --- PROCESSO DE ENVIO ---
+        const payload = {
+            queue_id: formData.get('queue_id'),
+            name: queueName,
+            strategy: strategy,
+            priority: document.querySelector('input[name="priority"]:checked')?.value || 'Média',
+            record_calls: document.querySelector('input[name="record_calls"]')?.checked ? 1 : 0,
+            agents: selectedAgents
+        };
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>';
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/queues/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                // Apenas aqui o Notyf é permitido (Sucesso do servidor)
+                if (typeof notyf !== 'undefined') notyf.success("Fila salva!");
+                toggleQueueModal();
+                if (typeof renderQueues === 'function') renderQueues();
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = 'Salvar Fila';
+            }
+        }
+    });
+
+    // Listener unificado para inicialização
+    document.addEventListener('DOMContentLoaded', function() {
+        iniciarMonitoramentoCards();
+        renderQueues();
+
+        // Limpeza visual do Nome ao focar ou digitar
+        const inputNome = document.getElementById('inputQueueName');
+        if (inputNome) {
+            ['focus', 'input'].forEach(evt => {
+                inputNome.addEventListener(evt, function() {
+                    this.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-900/10');
+                    this.classList.add('border-slate-200', 'dark:border-slate-700');
+                    const err = document.getElementById('error-name');
+                    if (err) err.classList.add('hidden');
+                });
+            });
+        }
+
+        // Limpeza visual da Estratégia
+        const selectStrat = document.getElementById('selectStrategy');
+        if (selectStrat) {
+            ['focus', 'change'].forEach(evt => {
+                selectStrat.addEventListener(evt, function() {
+                    this.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-900/10');
+                    this.classList.add('border-slate-200', 'dark:border-slate-700');
+                    const err = document.getElementById('error-strategy');
+                    if (err) err.classList.add('hidden');
+                });
+            });
+        }
+
+        // Limpeza dos Agentes
+        const agentList = document.getElementById('agentSelectionList');
+        if (agentList) {
+            agentList.addEventListener('change', function() {
+                this.classList.remove('border-2', 'border-red-500', 'p-2');
+            });
+        }
+    });
+
+    function iniciarMonitoramentoCards() {
+        const sseUrl = `${baseUrl}/callcenter/monitoring-calls`;
+        const evtSource = new EventSource(sseUrl);
+
+        evtSource.addEventListener('update', function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                listaAgentesGlobal = data.agentes || [];
+
+                // Acessando as estatísticas conforme o seu JSON
+                const stats = data.stats || {};
+                const bi = stats.bi || {}; // BI contém atendidas, abandonadas, tma, tme
+
+                // 1. Em Espera (naFila no seu JSON está 0)
+                const waitingEl = document.getElementById('cardWaiting');
+                if(waitingEl) waitingEl.textContent = stats.naFila ?? 0;
+
+                // 2. Atendidas (Hoje) -> No seu JSON é bi.atendidas
+                const answeredEl = document.getElementById('cardAnswered');
+                if(answeredEl) answeredEl.textContent = bi.atendidas ?? 0;
+
+                // 3. T.M.E (Tempo Médio de Espera) -> No seu JSON é bi.tme
+                const tmeEl = document.getElementById('cardTME');
+                if(tmeEl) {
+                    const tmeValue = bi.tme ?? 0;
+                    tmeEl.textContent = tmeValue + 's';
+                }
+
+                // 4. Abandono -> No seu JSON é bi.abandonadas
+                // Se quiser em porcentagem, teria que calcular, mas vamos mostrar o total primeiro
+                const abandonEl = document.getElementById('cardAbandon');
+                if(abandonEl) {
+                    const totalCalls = bi.atendidas + bi.abandonadas;
+                    const percent = totalCalls > 0 ? ((bi.abandonadas / totalCalls) * 100).toFixed(1) : 0;
+                    abandonEl.textContent = percent + '%';
+                }
+
+            } catch (error) {
+                console.error("Erro ao processar real-time dos cards:", error);
+            }
+        });
+
+        evtSource.onerror = function() {
+            evtSource.close();
+            // Tenta reconectar após 5 segundos se cair
+            setTimeout(iniciarMonitoramentoCards, 5000);
+        };
+    }
+
+
+    let currentPopover = null;
+
+    async function quickManageAgents(queueId, event, element) {
+        // Previne abrir o modal de edição ao clicar aqui
+        if (event) event.stopPropagation();
+
+        // Se clicar no mesmo botão com ele aberto, apenas fecha
+        if (currentPopover && currentPopover.id === `popover-${queueId}`) {
+            currentPopover.remove();
+            currentPopover = null;
+            return;
+        }
+
+        // Fecha qualquer outro aberto
+        if (currentPopover) currentPopover.remove();
+
+        // 1. Cria o elemento com Tailwind
+        const popover = document.createElement('div');
+        popover.id = `popover-${queueId}`;
+        popover.className = `fixed z-[9999] w-72 max-h-80 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 transition-all duration-200 opacity-0 scale-95 custom-scroll`;
+
+        // 2. Posicionamento Inteligente
+        const rect = element.getBoundingClientRect();
+        const popoverWidth = 288;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openUp = spaceBelow < 280; // Se tiver pouco espaço embaixo, abre pra cima
+
+        let leftPos = rect.left + (rect.width / 2) - (popoverWidth / 2);
+        leftPos = Math.max(10, Math.min(leftPos, window.innerWidth - popoverWidth - 10));
+
+        if (openUp) {
+            popover.style.bottom = `${window.innerHeight - rect.top + 10}px`;
+            popover.style.transformOrigin = 'bottom';
+        } else {
+            popover.style.top = `${rect.bottom + 10}px`;
+            popover.style.transformOrigin = 'top';
+        }
+        popover.style.left = `${leftPos}px`;
+
+        popover.innerHTML = `<div class="flex justify-center p-4"><i class="fa fa-spinner fa-spin text-orange-500"></i></div>`;
+        document.body.appendChild(popover);
+        currentPopover = popover;
+
+        setTimeout(() => popover.classList.remove('opacity-0', 'scale-95'), 10);
+
+        try {
+            // Busca quem já está na fila
+            const response = await fetch(`${baseUrl}/callcenter/queues/get/${queueId}`);
+            const result = await response.json();
+            const agentesNaFila = result.data.agents || [];
+
+            // Usa a lista global do seu SSE
+            const agentesOnline = (typeof listaAgentesGlobal !== 'undefined') ? listaAgentesGlobal : [];
+
+            if (agentesOnline.length === 0) {
+                popover.innerHTML = `<div class="text-center p-2 text-[10px] font-bold text-slate-400 uppercase">Nenhum agente online agora</div>`;
+            } else {
+                popover.innerHTML = `
+            <div class="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">
+                <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Conectar Agentes</span>
+                <button onclick="currentPopover.remove(); currentPopover = null;" class="text-slate-300 hover:text-slate-500"><i class="fa fa-times text-[10px]"></i></button>
+            </div>
+            <div class="space-y-1">
+                ${agentesOnline.map(agente => {
+                    const isChecked = agentesNaFila.map(String).includes(String(agente.ramal)) ? 'checked' : '';
+                    return `
+                    <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-600 group">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-${agente.color}-500 shadow-sm"></div>
+                            <div class="leading-tight">
+                                <p class="text-[10px] font-black text-slate-700 dark:text-white m-0 uppercase">${agente.nome}</p>
+                                <p class="text-[9px] text-slate-400 m-0 font-bold uppercase">Ramal: ${agente.ramal}</p>
+                            </div>
+                        </div>
+                        <input type="checkbox" ${isChecked}
+                               onchange="toggleAgent('${queueId}', '${agente.ramal}', this)"
+                               class="w-4 h-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500/20 cursor-pointer">
+                    </label>`;
+                }).join('')}
+            </div>`;
+            }
+        } catch (error) {
+            popover.innerHTML = `<p class="text-[10px] text-red-500 text-center font-bold p-2">Erro ao carregar</p>`;
+        }
+
+        // Fecha ao clicar fora
+        const clickOutside = (e) => {
+            if (currentPopover && !currentPopover.contains(e.target) && !element.contains(e.target)) {
+                currentPopover.remove();
+                currentPopover = null;
+                document.removeEventListener('click', clickOutside);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', clickOutside), 100);
+    }
+
+    async function toggleAgent(queueId, ramal, checkbox) {
+        checkbox.disabled = true;
+        const action = checkbox.checked ? 'add' : 'remove';
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/queues/update-agents-quick`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ queue_id: queueId, ramal: ramal, action: action })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Sucesso total
+                if (typeof notyf !== 'undefined') notyf.success(result.message);
+                // Atualiza apenas o contador na tabela principal
+                await renderQueues();
+            } else {
+                // O PHP barrou (ex: Dono da fila diferente do dono do ramal)
+                checkbox.checked = !checkbox.checked; // Volta o checkbox para o estado anterior
+                if (typeof notyf !== 'undefined') {
+                    notyf.error(result.message || "Erro ao atualizar agente");
+                }
+            }
+        } catch (err) {
+            // Erro de rede ou erro fatal no PHP
+            checkbox.checked = !checkbox.checked;
+            console.error("Erro crítico:", err);
+            if (typeof notyf !== 'undefined') notyf.error("Erro de comunicação com o servidor");
+        } finally {
+            checkbox.disabled = false;
+        }
+    }
+
+    async function updateQueueFeature(id, type, current) {
+        // Debug para certificar que o ID da linha clicada é o correto
+        console.log(`[Update] Fila: ${id} | Tipo: ${type} | Valor Atual: ${current}`);
+
+        let payload = { queue_id: id };
+
+        if (type === 'strategy') {
+            const strategies = ['ringall', 'leastrecent', 'rrmemory', 'linear'];
+            // Garante que o índice seja encontrado mesmo com espaços
+            const cleanCurrent = current.trim();
+            const nextIndex = (strategies.indexOf(cleanCurrent) + 1) % strategies.length;
+            payload.strategy = strategies[nextIndex];
+        }
+        else if (type === 'priority') {
+            // Alterna prioridade garantindo a comparação correta
+            payload.priority = (current.trim() === 'Alta' ? 'Média' : 'Alta');
+        }
+        else if (type === 'record') {
+            // 🔥 AJUSTE AQUI: Convertemos para Number para evitar erro de '1' (string) vs 1 (int)
+            payload.record_calls = (Number(current) === 1 ? 0 : 1);
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/queues/update-feature`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            // Verifica se a resposta é JSON antes de processar
+            const result = await response.json();
+
+            if (result.success) {
+                if (typeof notyf !== 'undefined') {
+                    // Feedback mais específico para o usuário
+                    const label = payload.strategy || payload.priority || (payload.record_calls === 1 ? 'Gravação Ativada' : 'Gravação Desativada');
+                    notyf.success(`Atualizado: ${label}`);
+                }
+
+                // Recarrega a tabela para refletir a mudança visualmente
+                await renderQueues();
+            } else {
+                if (typeof notyf !== 'undefined') notyf.error(result.message || "Erro ao atualizar");
+            }
+        } catch (err) {
+            console.error("Erro crítico ao atualizar fila:", err);
+            if (typeof notyf !== 'undefined') notyf.error("Erro de conexão com o servidor");
+        }
+    }
+
+    async function deleteQueue(queueId) {
+        // Alerta de confirmação estilizado
+        const result = await Swal.fire({
+            title: 'Tem certeza?',
+            text: `A fila ${queueId} e todos os seus vínculos de agentes serão removidos permanentemente.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444', // Red-500 do Tailwind
+            cancelButtonColor: '#64748b',  // Slate-500
+            confirmButtonText: 'Sim, excluir!',
+            cancelButtonText: 'Cancelar',
+            background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
+            color: document.documentElement.classList.contains('dark') ? '#fff' : '#000'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                // Chamada para a rota de exclusão
+                const response = await fetch(`${baseUrl}/callcenter/queues/delete/${queueId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (typeof notyf !== 'undefined') {
+                        notyf.success(data.message);
+                    }
+                    // Recarrega a tabela para a linha sumir sem dar F5
+                    await renderQueues();
+                } else {
+                    Swal.fire('Erro!', data.message || 'Não foi possível excluir.', 'error');
+                }
+            } catch (err) {
+                console.error("Erro ao deletar fila:", err);
+                notyf.error("Erro de conexão com o servidor.");
+            }
+        }
+    }
+
+
+    // --- LISTENERS DE EVENTOS ATUALIZADOS ---
+    document.addEventListener('DOMContentLoaded', function() {
+        iniciarMonitoramentoCards();
+        renderQueues();
+
+        // Listener para busca por texto (Nome/ID)
+        document.getElementById("qfSearchInput")?.addEventListener("input", () => {
+            currentQueuePage = 1;
+            aplicarFiltrosQueues();
+        });
+
+        // Listener para quantidade por página
+        document.getElementById("qfRowsPerPage")?.addEventListener("change", (e) => {
+            queuesPerPage = Number(e.target.value);
+            currentQueuePage = 1;
+            renderQueuesTablePage();
+        });
+
+        // Listeners para os novos filtros (Estratégia, Prioridade, Gravação)
+        // Nota: No seu HTML você já usa 'onchange="aplicarFiltrosQueues()"',
+        // mas reforçar aqui garante que o JavaScript capture qualquer mudança.
+        ['qfStrategyFilter', 'qfPriorityFilter', 'qfRecordFilter'].forEach(id => {
+            document.getElementById(id)?.addEventListener("change", () => {
+                currentQueuePage = 1;
+                aplicarFiltrosQueues();
+            });
+        });
+
+        // Paginação
+        document.getElementById("qfPrevPage")?.addEventListener("click", () => {
+            if (currentQueuePage > 1) {
+                currentQueuePage--;
+                renderQueuesTablePage();
+            }
+        });
+        document.getElementById("qfNextPage")?.addEventListener("click", () => {
+            const total = Math.ceil(filteredQueues.length / queuesPerPage);
+            if (currentQueuePage < total) {
+                currentQueuePage++;
+                renderQueuesTablePage();
+            }
+        });
+    });
+
+
+</script>

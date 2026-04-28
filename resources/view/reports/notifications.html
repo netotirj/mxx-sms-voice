@@ -1,40 +1,169 @@
 <div class="w-full px-6 py-6 mx-auto">
-    <div class="flex flex-wrap -mx-3">
-        <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
 
-                <!-- Cabeçalho -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        Relatório de Notificações
-                    </h6>
-                    <!--<a href="{{URL}}/campaign/new"
-                       class="inline-flex items-center gap-2 bg-gradient-to-tr from-green-600 to-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Criar Campanha
-                    </a>-->
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-orange-100 text-orange-700 text-lg">
+                            🔔
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Notificações</h2>
+                            <p class="text-xs text-slate-400">Gerenciamento de alertas e comunicados do sistema</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <button id="notifExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <button id="notifReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="notifAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                peer-checked:bg-orange-500"></div>
+
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+                            <select id="notifReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tabela -->
-                <div class="p-6 overflow-x-auto">
-                    <table id="table-notifications" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm center-header">
-                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                        <tr>
-                            <th class="px-4 py-3 ">ID</th>
-                            <th class="px-4 py-3 ">Titulo</th>
-                            <th class="px-4 py-3 ">Mensagem</th>
-                            <th class="px-4 py-3 ">Tipo</th>
-                            <th class="px-4 py-3 ">Lida Em</th>
-                            <th class="px-4 py-3 ">Data</th>
-                        </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
-                        <!-- DataTables irá preencher -->
-                        </tbody>
-                    </table>
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="notifRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Tipo</label>
+                            <select id="notifTypeFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="info">Informativo</option>
+                                <option value="warning">Aviso</option>
+                                <option value="error">Crítico</option>
+                                <option value="success">Sucesso</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="notifStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="unread">Não lidas</option>
+                                <option value="read">Lidas</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="notifDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="notifDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="notifSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                                       placeholder="Título ou mensagem...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="notif-table"
+                               class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th class="px-4 py-2 border border-slate-100">Data</th>
+                                <th class="px-4 py-2 border border-slate-100">Tipo</th>
+                                <th class="px-4 py-2 border border-slate-100 text-left">Título/Assunto</th>
+                                <th class="px-4 py-2 border border-slate-100 text-left">Mensagem</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                                <th class="px-4 py-2 border border-slate-100">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="notifTableBody">
+                            <tr>
+                                <td colspan="6"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando notificações...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="notifStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="notifPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="notifPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="notifPageNumbers" class="flex gap-1"></div>
+                        <button id="notifNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
 
             </div>
@@ -42,273 +171,247 @@
     </div>
 </div>
 
-<style>
-    /* Alinha menu e busca lado a lado */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
+<div id="notifViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">📩</span>
+                <h3 class="text-lg font-semibold text-slate-700 dark:text-white" id="notifModalTitle">Notificação</h3>
+            </div>
+            <button onclick="closeNotifViewModal()" class="text-slate-400 hover:text-slate-600">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
 
-    .dataTables_wrapper .dataTables_length {
-        float: left;
-    }
+        <div class="p-6">
+            <p id="notifModalBody" class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            </p>
+        </div>
 
-    .dataTables_wrapper .dataTables_filter {
-        float: right;
-    }
+        <div class="flex justify-end p-4 bg-slate-50 dark:bg-slate-800/50">
+            <button onclick="closeNotifViewModal()" class="px-6 py-2 text-xs font-bold text-blue-600 uppercase tracking-widest hover:bg-blue-50 rounded-xl transition-all">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>
 
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-        margin-left: 0.5rem;
-    }
-
-    /* Remove margin lateral padrão */
-    #table-sms_wrapper {
-        margin-left: 0;
-        margin-right: 0;
-    }
-
-    /* Reduz fontes e padding do info abaixo */
-    .dataTables_wrapper .dataTables_info {
-        font-size: 0.75rem;
-        color: #475569; /* slate-600 */
-        padding-top: 0.5rem;
-    }
-
-    /* Remove float no responsivo */
-    @media (max-width: 640px) {
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter {
-            float: none;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-    }
-
-    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
-    .break-message {
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    /* Permite que a largura da célula se ajuste automaticamente */
-    .auto-width-message {
-        display: inline-block;
-        max-width: 100%;
-        width: auto;
-        min-width: 150px;
-    }
-</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const tbody       = document.getElementById("notifTableBody");
+        const searchInput = document.getElementById("notifSearchInput");
+        const typeFilter  = document.getElementById("notifTypeFilter");
+        const statusFilter = document.getElementById("notifStatusFilter");
+        const dateFrom    = document.getElementById("notifDateFrom");
+        const dateTo      = document.getElementById("notifDateTo");
+        const perPageSel  = document.getElementById("notifRowsPerPage");
+        const reloadBtn   = document.getElementById("notifReloadBtn");
+        const autoReload  = document.getElementById("notifAutoReload");
+        const intervalSel = document.getElementById("notifReloadInterval");
 
-        const table = $('#table-notifications').DataTable({
-            responsive: true,
-            serverSide: true,
-            processing: true,
-            pageLength: 10,
-            autoWidth: false,
-            ajax: 'notifications-realtime',
-            language: {
-                lengthMenu: "_MENU_",
-                zeroRecords: "Nenhum Registro econtrado",
-                info: "_START_-_END_ de _TOTAL_",
-                infoEmpty: "Nenhum Registro econtrado",
-                infoFiltered: "(de _MAX_)",
-                search: "🔍",
-                loadingRecords: "Carregando...",
-                processing: "Processando...",
-                paginate: {
-                    first: "«",
-                    last: "»",
-                    next: "›",
-                    previous: "‹"
+        let allNotifications = [];
+        let filteredNotifications = [];
+        let currentPage = 1;
+        let autoReloadTimer = null;
+
+        // 1. Busca os dados (Padrão Pix)
+        async function fetchNotifications(showLoading = true) {
+            if (showLoading) tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400 italic">Carregando...</td></tr>';
+            try {
+                const r = await fetch('notifications-realtime'); // Rota que criamos no Controller
+                const res = await r.json();
+                allNotifications = res.data || [];
+                applyFilters();
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-red-500 font-bold">Erro ao carregar dados do servidor.</td></tr>';
+            }
+        }
+
+        // 2. Filtros Locais
+        function applyFilters() {
+            const query = searchInput.value.toLowerCase();
+            const type = typeFilter.value;
+            const status = statusFilter.value;
+
+            filteredNotifications = allNotifications.filter(n => {
+                const matchesSearch = n.title.toLowerCase().includes(query) || n.message.toLowerCase().includes(query);
+                const matchesType = type ? n.type === type : true;
+                const matchesStatus = status === 'read' ? n.read_at : (status === 'unread' ? !n.read_at : true);
+
+                // Filtro de Data (Converte d/m/Y para Date object)
+                if (dateFrom.value || dateTo.value) {
+                    const parts = n.created_at.split(' ')[0].split('/');
+                    const nDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    if (dateFrom.value && nDate < new Date(dateFrom.value)) return false;
+                    if (dateTo.value && nDate > new Date(dateTo.value)) return false;
                 }
-            },
-            columnDefs: [
-                { targets: 5, type: 'datetime' } // Força a coluna 5 a ser tratada como data
-            ],
-            columns: [
-                {
-                    data: 'id',
-                    //className: "text-left",
-                    className: "dt-head-center dt-body-center",
-                    render: data => `#${data}`
-                },
-                {
-                    data: 'title',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `${data}`
-                },
-                {
-                    data: 'message',
-                    className: "dt-head-center dt-body-left break-message",
-                    render: data => `
-                    <div class="auto-width-message">
-                        ${data}
-                    </div>
-                `
-                },
-                {
-                    data: 'type',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        const op = data.toLowerCase();
-                        let badgeClass = '';
-                        let label = '';
+                return matchesSearch && matchesType && matchesStatus;
+            });
 
-                        switch (op) {
-                            case 'notice':
-                                badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-300';
-                                label = 'Aviso';
-                                break;
-                            case 'info':
-                                badgeClass = 'bg-gradient-to-r from-green-700 to-emerald-300';
-                                label = 'Info';
-                                break;
-                            case 'alert':
-                                badgeClass = 'bg-gradient-to-r from-red-700 to-rose-300';
-                                label = 'Alerta';
-                                break;
-                        }
+            currentPage = 1;
+            renderTable();
+        }
 
-                        return `
-                        <span class="whitespace-nowrap inline-block text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${badgeClass}">
-                            ${label}
-                        </span>
-                    `;
-                    },
-                },
+        // 3. Renderização
+        function renderTable() {
+            tbody.innerHTML = "";
+            const perPage = parseInt(perPageSel.value);
+            const start = (currentPage - 1) * perPage;
+            const slice = filteredNotifications.slice(start, start + perPage);
 
-
-                {
-                    data: 'read_at',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        if (!data) return `<span class="italic text-slate-400">-</span>`;
-
-                        const date = new Date(data);
-                        if (isNaN(date)) return `<span class="italic text-slate-400">-</span>`;
-
-                        const iso = date.toISOString();
-                        const formatted = `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
-                        })}`;
-
-                        return `<span class="font-medium" data-order="${iso}">${formatted}</span>`;
-                    }
-                },
-                {
-                    data: 'created_at',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        if (!data) return `<span class="italic text-slate-400">-</span>`;
-
-                        const date = new Date(data);
-                        if (isNaN(date)) return `<span class="italic text-slate-400">-</span>`;
-
-                        const iso = date.toISOString();
-                        const formatted = `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
-                        })}`;
-
-                        return `<span class="font-medium" data-order="${iso}">${formatted}</span>`;
-                    }
-                }
-
-            ],
-
-            order: [[0, 'desc']],
-            //drawCallback: function () {
-            //   feather.replace();
-            //},
-            drawCallback: function () {
-                feather.replace();
-
-                const wrapper = $('#table-notifications_wrapper');
-                const paginate = $('#table-notifications_paginate');
-                const length = $('#table-notifications_length label');
-                const info = $('#table-notifications_info');
-                const filter = $('#table-notifications_filter input');
-                const select = $('#table-notifications_length select');
-
-                wrapper.addClass('w-full text-slate-700 dark:text-slate-200 text-sm');
-
-                paginate.find('a').each(function () {
-                    const $this = $(this);
-                    const text = $this.text().trim();
-                    let svg = '';
-
-                    if (text === '‹') {
-                        svg = `<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
-                    } else if (text === '›') {
-                        svg = `<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
-                    } else {
-                        svg = text;
-                    }
-
-                    $this
-                        .html(svg)
-                        .addClass(`
-                inline-flex items-center justify-center text-xs font-medium rounded-md
-                bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300
-                border border-slate-300 dark:border-slate-600
-                px-2 py-1 mx-0.5 hover:bg-slate-100 dark:hover:bg-slate-600 transition
-            `);
-                });
-
-                paginate.find('.current')
-                    .addClass('bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white');
-
-                length.addClass('text-xs');
-                info.addClass('text-xs');
-
-                filter
-                    .addClass('text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200')
-                    .attr('placeholder', 'Buscar...');
-
-                select
-                    .addClass('text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200');
+            if (slice.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400 italic">Nenhuma notificação encontrada.</td></tr>';
+                return;
             }
 
-        });
+            slice.forEach(n => {
+                let badgeClass = 'bg-slate-400';
+                let label = 'Info';
 
+                if (n.type === 'notice') { badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-300'; label = 'Aviso'; }
+                else if (n.type === 'info' || n.type === 'success') { badgeClass = 'bg-gradient-to-r from-green-700 to-emerald-300'; label = 'Info'; }
+                else if (n.type === 'alert' || n.type === 'error' || n.type === 'warning') { badgeClass = 'bg-gradient-to-r from-red-700 to-rose-300'; label = 'Alerta'; }
+
+                const row = `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="px-4 py-3 text-xxs font-bold text-slate-400 font-mono">${n.created_at}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="whitespace-nowrap inline-block text-white px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${badgeClass}">
+                            ${label}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-left font-bold text-slate-700 text-xs">${n.title}</td>
+                    <td class="px-4 py-3 text-left text-xs text-slate-500">
+                        <div class="max-w-xs truncate" title="${n.message}">${n.message}</div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="text-[10px] font-bold ${n.read_at ? 'text-emerald-500' : 'text-orange-400'}">
+                            ${n.read_at ? 'LIDA' : 'NÃO LIDA'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex justify-center gap-2">
+                             <button onclick="openNotifModal(${n.id})" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-all"><i class="fa fa-eye"></i></button>
+                             <button onclick="markAsRead(${n.id})" class="text-emerald-500 hover:bg-emerald-50 p-1.5 rounded-lg transition-all ${n.read_at ? 'hidden' : ''}"><i class="fa fa-check"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+
+            // Atualiza Informações de Paginação
+            const totalPages = Math.ceil(filteredNotifications.length / perPage) || 1;
+            document.getElementById("notifPageInfo").textContent = `Página ${currentPage} de ${totalPages} (${filteredNotifications.length} registros)`;
+            document.getElementById('notifPrevPage').disabled = (currentPage === 1);
+            document.getElementById('notifNextPage').disabled = (currentPage >= totalPages);
+        }
+
+        // 4. Ações (Sincronizadas com o Header)
+        window.markAsRead = function(id) {
+            // Ajustado para o padrão do seu Controller: POST com JSON {id}
+            axios.post(`${baseUrl}/notifications`, { id: id })
+                .then(res => {
+                    const index = allNotifications.findIndex(n => n.id === id);
+                    if (index !== -1) {
+                        allNotifications[index].read_at = new Date().toISOString();
+                    }
+                    renderTable();
+                    if (typeof notyf !== 'undefined') notyf.success("Notificação lida!");
+                })
+                .catch(err => console.error("Erro ao marcar lida:", err));
+        };
+
+        /**
+         * Abre a modal de notificação e preenche os dados
+         */
+        // Função para Abrir a Modal
+        window.openNotifModal = function(id) {
+            const notif = allNotifications.find(n => n.id === id);
+            if (!notif) return;
+
+            const elTitle = document.getElementById('notifModalTitle');
+            const elBody  = document.getElementById('notifModalBody');
+
+            if (elTitle) elTitle.innerText = notif.title;
+
+            // AJUSTE AQUI: Mudamos de innerText para innerHTML
+            if (elBody)  elBody.innerHTML = notif.message;
+
+            if (!notif.read_at) {
+                markAsRead(id);
+            }
+
+            const modal = document.getElementById('notifViewModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        // Função para Fechar a Modal
+        window.closeNotifViewModal = function() {
+            const modal = document.getElementById('notifViewModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        // Listeners
+        reloadBtn.onclick = () => fetchNotifications(true);
+        [searchInput, typeFilter, statusFilter, dateFrom, dateTo].forEach(el => el.oninput = applyFilters);
+        perPageSel.onchange = applyFilters;
+
+        document.getElementById('notifPrevPage').onclick = () => { if (currentPage > 1) { currentPage--; renderTable(); } };
+        document.getElementById('notifNextPage').onclick = () => { if (currentPage < Math.ceil(filteredNotifications.length / parseInt(perPageSel.value))) { currentPage++; renderTable(); } };
+
+        autoReload.onchange = () => {
+            if (autoReloadTimer) clearInterval(autoReloadTimer);
+            if (autoReload.checked) {
+                autoReloadTimer = setInterval(() => fetchNotifications(false), intervalSel.value);
+            }
+        };
+
+        window.exportNotifCsv = function() {
+            if (filteredNotifications.length === 0) {
+                if (typeof notyf !== 'undefined') notyf.error("Não há dados para exportar.");
+                return;
+            }
+
+            // 1. Cabeçalho do CSV
+            const headers = ["Data", "Tipo", "Titulo", "Mensagem", "Status"];
+
+            // 2. Mapeia os dados filtrados para as linhas do CSV
+            const rows = filteredNotifications.map(n => [
+                n.created_at,
+                n.type.toUpperCase(),
+                `"${n.title.replace(/"/g, '""')}"`,   // Aspas para evitar quebra no CSV se tiver vírgula
+                `"${n.message.replace(/"/g, '""')}"`, // Limpa as aspas dentro do texto
+                n.read_at ? "Lida" : "Nao Lida"
+            ]);
+
+            // 3. Junta tudo com ponto e vírgula (padrão Excel Brasil)
+            const csvContent = [
+                headers.join(";"),
+                ...rows.map(row => row.join(";"))
+            ].join("\n");
+
+            // 4. Cria o arquivo para download (UTF-8 com BOM para o Excel ler acentos)
+            const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.setAttribute("href", url);
+            link.setAttribute("download", `relatorio_notificacoes_${new Date().toLocaleDateString()}.csv`);
+            link.style.visibility = 'hidden';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // Vincula ao botão que já existe no seu HTML
+        document.getElementById('notifExportCsv').onclick = exportNotifCsv;
+
+        fetchNotifications();
     });
 </script>
-
-<!--<script>
-    function fetchSmsData() {
-        fetch(`${baseUrl}/reports/notifications-realtime`)
-            .then(res => res.json())
-            .then(data => {
-                console.log('SMS atualizado:', data);
-
-                if (data?.message) {
-                    notyf.success(data.message);
-                }
-                reloadSmsTable()
-
-                // Atualize elementos da UI com os dados recebidos
-                // Exemplo: document.querySelector('#total-sms').innerText = data.detail;
-            })
-            .catch(err => {
-                //console.error('Erro ao buscar SMS:', err);
-
-            });
-    }
-
-    function reloadSmsTable() {
-        if ($.fn.DataTable.isDataTable('#table-sms')) {
-            $('#table-sms').DataTable().ajax.reload(null, false);
-        }
-    }
-</script>-->
 

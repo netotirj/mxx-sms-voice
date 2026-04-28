@@ -2,20 +2,26 @@
 
 namespace App\Controller\Pages;
 
+use App\Config\TelephonyConfig;
 use App\Http\Response;
+use App\RedisConn;
 use App\Model\Entity\CampaignSearch;
 use App\Model\Entity\CampaignVoice;
+use App\Model\Entity\CampaignVoiceSchedule;
 use App\Model\Entity\CdrVoice;
 use App\Model\Entity\Rates;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Session\User as SessionUser;
+use App\Utils\TenancyHelper;
 use App\Utils\View;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\RefillsResellers;
+use GuzzleHttp\Client;
+use WilliamCosta\DatabaseManager\Database;
 
 class Dashboard extends ViewComponents
 {
@@ -38,6 +44,7 @@ class Dashboard extends ViewComponents
         $pausadaVoz      = (int)($voiceRaw['n'] ?? 0);
         $finalizadaVoz   = (int)($voiceRaw['f'] ?? 0);
         $canceladaVoz    = (int)($voiceRaw['c'] ?? 0);
+        $agendadaVoz     = (int)($voiceRaw['s'] ?? 0);
 
         return [
             // 👇 cards principais
@@ -49,7 +56,419 @@ class Dashboard extends ViewComponents
             'processando' => $processandoVoz,
             'pausada'     => $pausadaVoz,
             'cancelada'   => $canceladaVoz,
+            'agendada'    => $agendadaVoz,
         ];
+    }
+
+    private static function formatDuration(int $seconds): string
+    {
+        $seconds = max(0, $seconds);
+        $minutes = intdiv($seconds, 60);
+        $remaining = $seconds % 60;
+
+        return sprintf('%02d:%02ds', $minutes, $remaining);
+    }
+
+    private static function countFreshActiveCalls(array $activeData, bool $asteriskOnline): int
+    {
+        if (!$asteriskOnline) {
+            return 0;
+        }
+
+        $snapshotTs = (int)($activeData['server_now'] ?? 0);
+
+        if ($snapshotTs <= 0 && !empty($activeData['timestamp'])) {
+            $snapshotTs = strtotime((string)$activeData['timestamp']) ?: 0;
+        }
+
+        if ($snapshotTs <= 0 || (time() - $snapshotTs) > 20) {
+            return 0;
+        }
+
+        $calls = is_array($activeData['chamadas'] ?? null) ? $activeData['chamadas'] : [];
+
+        return count(array_filter($calls, static function ($call) {
+            return is_array($call) && empty($call['ended']);
+        }));
+    }
+
+    private static function measureAsteriskLatencyMs(): ?int
+    {
+        try {
+            $client = new Client([
+                'base_uri' => 'http://' . TelephonyConfig::ariHost() . ':' . TelephonyConfig::ariPort() . '/',
+                'timeout' => 1.5,
+                'connect_timeout' => 1.0,
+                'http_errors' => false,
+            ]);
+
+            $start = microtime(true);
+            $response = $client->get('ari/asterisk/info', [
+                'auth' => [TelephonyConfig::ariUser(), TelephonyConfig::ariPass()],
+                'query' => ['only' => 'system'],
+                'headers' => ['Accept' => 'application/json'],
+            ]);
+
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 500) {
+                return null;
+            }
+
+            return max(1, (int)round((microtime(true) - $start) * 1000));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private static function buildDashboardHealth(array $filters, object $cdr, array $obUser): array
+    {
+        $redisStatus = 'warning';
+        $redisDetail = 'Sem conexao';
+        $activeCalls = 0;
+        $lastCheck = date('H:i:s');
+
+        try {
+            $redis = RedisConn::get();
+            $redis->ping();
+            $redisStatus = 'ok';
+            $redisDetail = 'Conectado';
+
+            $activeRaw = $redis->get('asterisk:active_calls');
+            $activeData = $activeRaw ? json_decode($activeRaw, true) : [];
+
+            $asteriskLatencyMs = self::measureAsteriskLatencyMs();
+            $asteriskOnline = $asteriskLatencyMs !== null;
+            $activeCalls = self::countFreshActiveCalls(is_array($activeData) ? $activeData : [], $asteriskOnline);
+        } catch (\Throwable) {
+            $asteriskOnline = false;
+            $asteriskLatencyMs = null;
+        }
+
+        $trunkSummary = self::buildTrunkSummary($obUser);
+        $trunkOnline = (int)($trunkSummary['online'] ?? 0);
+        $trunkTotal = (int)($trunkSummary['total'] ?? 0);
+        $trunkStatus = $trunkOnline > 0 ? 'ok' : 'critical';
+        $trunkDetail = $trunkTotal > 0
+            ? $trunkOnline . ' tronco(s) online'
+            : 'Nenhum tronco cadastrado';
+        $lastCallDetail = self::buildLastCallDetail(self::getLastCallSummary($filters));
+
+        return [
+            'last_check' => $lastCheck,
+            'metrics' => [
+                'asterisk' => [
+                    'status' => $asteriskOnline ? 'ok' : 'warning',
+                    'detail' => $asteriskLatencyMs !== null ? $asteriskLatencyMs . ' ms' : '-- ms'
+                ],
+                'redis' => [
+                    'status' => $redisStatus,
+                    'detail' => $redisDetail
+                ],
+                'trunks' => [
+                    'status' => $trunkStatus,
+                    'detail' => $trunkDetail,
+                    'items' => []
+                ],
+                'calls' => [
+                    'status' => $activeCalls > 0 ? 'ok' : 'warning',
+                    'value' => $activeCalls,
+                    'detail' => $activeCalls > 0
+                        ? $activeCalls . ' chamada(s) em andamento'
+                        : $lastCallDetail
+                ]
+            ]
+        ];
+    }
+
+    private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser): array
+    {
+        $totalVoice = max(0, (int)($cdr->total ?? 0));
+        $answeredVoice = max(0, (int)($cdr->answer ?? 0));
+        $asr = $totalVoice > 0 ? round(($answeredVoice / $totalVoice) * 100, 1) : 0;
+        $acd = $answeredVoice > 0 ? intdiv((int)($cdr->duration_total ?? 0), $answeredVoice) : 0;
+
+        $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
+        $whatsTotal = max(0, (int)($data['whatsappEnviados'] ?? 0));
+
+        $data['health'] = self::buildDashboardHealth($filters, $cdr, $obUser);
+        $data['operational_cards'] = [
+            'voip' => [
+                'title' => 'VoIP Performance',
+                'metric_label' => 'ASR / ACD',
+                'primary_value' => $asr,
+                'secondary_text' => self::formatDuration($acd),
+                'progress' => $asr,
+                'status' => $asr >= 60 ? 'ok' : ($asr > 0 ? 'warning' : 'critical')
+            ],
+            'sms' => [
+                'title' => 'SMS Gateway',
+                'metric_label' => 'Enviados / Consumo',
+                'primary_value' => $smsTotal > 0 ? 100 : 0,
+                'secondary_text' => (string)$smsTotal,
+                'progress' => $smsTotal > 0 ? 100 : 0,
+                'status' => $smsTotal > 0 ? 'ok' : 'warning'
+            ],
+            'whatsapp' => [
+                'title' => 'WhatsApp',
+                'metric_label' => 'Campanhas / Consumo',
+                'primary_value' => $whatsTotal,
+                'secondary_text' => 'R$ ' . ($data['consumoWhats'] ?? '0,00'),
+                'progress' => min(100, $whatsTotal),
+                'status' => $whatsTotal > 0 ? 'ok' : 'warning'
+            ]
+        ];
+
+        return $data;
+    }
+
+    private static function buildTrunkNameMap(array $obUser): array
+    {
+        $role = strtolower((string)($obUser['function'] ?? ''));
+        $query = ['role' => $role];
+
+        if ($role !== 'super_admin') {
+            $query['tenant_id'] = $obUser['tenancy_id'] ?? null;
+        }
+
+        try {
+            $result = (new AsteriskExtensionsSip())->listTrunks($query);
+            if (empty($result['ok'])) {
+                return [];
+            }
+
+            $rows = $result['data']['data'] ?? $result['data'] ?? [];
+            $map = [];
+
+            foreach ($rows as $trunk) {
+                $name = trim((string)($trunk['name'] ?? $trunk['trunk_id'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+
+                foreach (['trunk_id', 'id', 'name'] as $field) {
+                    $key = trim((string)($trunk[$field] ?? ''));
+                    if ($key !== '' && $key !== '-' && !isset($map[$key])) {
+                        $map[$key] = $name;
+                    }
+                }
+            }
+
+            return $map;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private static function labelTrunkCounts(array $counts, array $nameMap): array
+    {
+        $labeled = [];
+
+        foreach ($counts as $key => $total) {
+            $label = $nameMap[(string)$key] ?? (string)$key;
+            $labeled[$label] = (int)$total;
+        }
+
+        foreach (array_unique(array_values($nameMap)) as $label) {
+            if ($label !== '' && !isset($labeled[$label])) {
+                $labeled[$label] = 0;
+            }
+        }
+
+        return $labeled;
+    }
+
+    private static function isTrunkOnline(array $trunk): bool
+    {
+        $truthyFields = ['online', 'is_online', 'asterisk_up'];
+        foreach ($truthyFields as $field) {
+            if (isset($trunk[$field]) && filter_var($trunk[$field], FILTER_VALIDATE_BOOLEAN)) {
+                return true;
+            }
+        }
+
+        $status = strtoupper((string)($trunk['sip_status'] ?? $trunk['sip_status_text'] ?? ''));
+        return in_array($status, ['OK', 'ONLINE', 'UP', 'REGISTERED'], true);
+    }
+
+    private static function buildTrunkSummary(array $obUser): array
+    {
+        $role = strtolower((string)($obUser['function'] ?? ''));
+        $query = ['role' => $role];
+
+        if ($role !== 'super_admin') {
+            $query['tenant_id'] = $obUser['tenancy_id'] ?? null;
+        }
+
+        try {
+            $result = (new AsteriskExtensionsSip())->listTrunks($query);
+            if (empty($result['ok'])) {
+                return ['online' => 0, 'total' => 0];
+            }
+
+            $rows = $result['data']['data'] ?? $result['data'] ?? [];
+            $online = 0;
+
+            foreach ($rows as $trunk) {
+                if (is_array($trunk) && self::isTrunkOnline($trunk)) {
+                    $online++;
+                }
+            }
+
+            return ['online' => $online, 'total' => count($rows)];
+        } catch (\Throwable) {
+            return ['online' => 0, 'total' => 0];
+        }
+    }
+
+    private static function buildLastCallDetail(?array $lastCall): string
+    {
+        if (!$lastCall || empty($lastCall['started'])) {
+            return 'Sem chamadas registradas';
+        }
+
+        $time = date('H:i', strtotime((string)$lastCall['started']));
+        $status = strtoupper((string)($lastCall['dialstatus'] ?? ''));
+        $status = $status !== '' ? $status : 'SEM STATUS';
+
+        return "Ultima {$time} - {$status}";
+    }
+
+    private static function dashboardSecurityFilter(array $filters, string $alias = 'cdr'): string
+    {
+        $userContext = [
+            'tenancy_id'    => $filters['tenancy_id'] ?? null,
+            'id'            => $filters['user_id'] ?? null,
+            'user_function' => $filters['user_function'] ?? ''
+        ];
+
+        $where = TenancyHelper::applyCdrSecurityFilter($userContext, $alias);
+        return $where . " AND {$alias}.type IN ('normal','outbound','inbound','service_fee')";
+    }
+
+    private static function hasCdrColumn(string $column): bool
+    {
+        static $cache = [];
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        try {
+            $row = (new Database())->execute("SHOW COLUMNS FROM cdr LIKE :column", [
+                ':column' => $column
+            ])->fetch(\PDO::FETCH_ASSOC);
+            $cache[$column] = !empty($row);
+        } catch (\Throwable) {
+            $cache[$column] = false;
+        }
+
+        return $cache[$column];
+    }
+
+    private static function countSipCodes(array $filters, string $period = 'month'): array
+    {
+        $where = self::dashboardSecurityFilter($filters, 'cdr');
+        $dateCondition = match ($period) {
+            'day' => 'DATE(cdr.started) = CURDATE()',
+            'week' => 'YEARWEEK(cdr.started, 1) = YEARWEEK(CURDATE(), 1)',
+            default => 'MONTH(cdr.started) = MONTH(CURDATE()) AND YEAR(cdr.started) = YEAR(CURDATE())',
+        };
+
+        $sipCodeExpression = self::hasCdrColumn('sip_code')
+            ? "COALESCE(NULLIF(cdr.sip_code, ''), CAST(cdr.cause AS CHAR), '0')"
+            : "COALESCE(NULLIF(CAST(cdr.cause AS CHAR), ''), '0')";
+
+        $query = "
+            SELECT sip_code, cause_txt, COUNT(*) AS total
+            FROM (
+                SELECT
+                    {$sipCodeExpression} AS sip_code,
+                    COALESCE(NULLIF(cdr.cause_txt, ''), NULLIF(cdr.dialstatus, ''), 'Desconhecido') AS cause_txt
+                FROM cdr
+                WHERE {$dateCondition} AND {$where}
+            ) t
+            GROUP BY sip_code, cause_txt
+            ORDER BY total DESC
+            LIMIT 8
+        ";
+
+        try {
+            $rows = (new Database())->execute($query)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(string)($row['sip_code'] ?? '0')] = [
+                'qtd' => (int)($row['total'] ?? 0),
+                'label' => (string)($row['cause_txt'] ?? 'Desconhecido')
+            ];
+        }
+
+        return $result;
+    }
+
+    private static function countGroupedByTrunk(array $filters, string $period = 'month'): array
+    {
+        $where = self::dashboardSecurityFilter($filters, 'cdr');
+        $dateCondition = match ($period) {
+            'day' => 'DATE(cdr.started) = CURDATE()',
+            'week' => 'YEARWEEK(cdr.started, 1) = YEARWEEK(CURDATE(), 1)',
+            default => 'MONTH(cdr.started) = MONTH(CURDATE()) AND YEAR(cdr.started) = YEAR(CURDATE())',
+        };
+
+        $query = "
+            SELECT
+                COALESCE(
+                    NULLIF(NULLIF(TRIM(cdr.trunk), ''), '-'),
+                    NULLIF(NULLIF(TRIM(cdr.trunk_id), ''), '-')
+                ) AS trunk,
+                COUNT(*) AS total
+            FROM cdr
+            WHERE {$dateCondition}
+              AND {$where}
+              AND COALESCE(
+                    NULLIF(NULLIF(TRIM(cdr.trunk), ''), '-'),
+                    NULLIF(NULLIF(TRIM(cdr.trunk_id), ''), '-')
+                  ) IS NOT NULL
+            GROUP BY trunk
+            ORDER BY total DESC
+            LIMIT 8
+        ";
+
+        try {
+            $rows = (new Database())->execute($query)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(string)($row['trunk'] ?? 'Sem tronco')] = (int)($row['total'] ?? 0);
+        }
+
+        return $result;
+    }
+
+    private static function getLastCallSummary(array $filters): ?array
+    {
+        $where = self::dashboardSecurityFilter($filters, 'cdr');
+        $query = "
+            SELECT cdr.started, cdr.dialstatus, cdr.destination, cdr.number
+            FROM cdr
+            WHERE {$where}
+              AND cdr.started IS NOT NULL
+            ORDER BY cdr.started DESC
+            LIMIT 1
+        ";
+
+        try {
+            $row = (new Database())->execute($query)->fetch(\PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $row ?: null;
     }
 
 
@@ -66,13 +485,10 @@ class Dashboard extends ViewComponents
 
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, [
-                'status'  => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
+            return new Response(401, ['status' => 401, 'message' => 'Usuário não autenticado.'], 'application/json');
         }
 
-        $role = $obUser['function'] ?? null;
+        $role         = $obUser['function'] ?? null;
         $isReseller   = $role === 'reseller';
         $isAdmin      = $role === 'admin';
         $isSuperAdmin = $role === 'super_admin';
@@ -80,13 +496,10 @@ class Dashboard extends ViewComponents
         $calcBalanceVariation = function(array $previousBalances, float $currentBalance): string {
             $gastos = array_map(fn($log) => abs((float)($log->gasto_mes ?? 0)), $previousBalances);
             if (count($gastos) === 0) return '+0%';
-
             $average = array_sum($gastos) / count($gastos);
             if ($average <= 0) return '+0%';
-
             $percent = (($currentBalance - $average) / $average) * 100;
             $percent = max(-100, min(100, $percent));
-
             return ($percent >= 0 ? '+' : '') . round($percent) . '%';
         };
 
@@ -94,42 +507,33 @@ class Dashboard extends ViewComponents
         // SUPER ADMIN
         // ============================
         if ($isSuperAdmin) {
-
             $currentBalance = DisproClient::getBalanceDISPRO() ?: 0;
-
-            $dataPix = PixSearch::getPixLast(null, null);
-            $currentPix  = $dataPix && isset($dataPix->value)
-                ? str_replace('.', ',', sprintf("%05.2f", (float)$dataPix->value))
-                : '00,00';
-            $currentData = (!empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date))
-                ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date))
-                : '--/--/---- --:--';
+            $dataPix = PixSearch::getPixLast($obUser['id'], $obUser['tenancy_id']);
+            $currentPix = ($dataPix && isset($dataPix->value)) ? str_replace('.', ',', sprintf("%0.2f", (float)$dataPix->value)) : '00,00';
+            $currentData = ($dataPix && !empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date)) ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date)) : '--/--/---- --:--';
 
             $dataSms = CallbackSms::countSentSms(null, null);
             $currentSms = $dataSms->qtd ?? 0;
             $valueSms   = (float)(BalanceSms::getBalanceSms(null, null)->value_sms ?? 0);
             $dataValue  = $currentSms * $valueSms;
 
-            // CDR (já sem ramais, conforme seu ajuste no countCdrVoice)
-            $cdr = CdrVoice::countCdrVoice(null, null);
+            $cdrFilters = ['user_function' => 'super_admin'];
+            $cdr = CdrVoice::countCdrVoice($cdrFilters);
             $cdrDisposition = $cdr->answer ?? 0;
-
             $cdrValue = (float)($cdr->value_total ?? 0);
-            $cdrTaxa  = (float)($cdr->taxa_total ?? 0); // ok manter aqui
+            $cdrTaxa  = (float)($cdr->taxa_total ?? 0);
             $cdrTotal = $cdrValue + $cdrTaxa;
 
-            // Campanhas SMS + VOZ
-            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus(null, null); // ativa/finalizada/inativa
-            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus(null, null);  // y/p/n/f/c
-
+            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus(null, null);
+            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus(null, null);
+            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, null, null);
             $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
-
             $totalCampaigns = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
             $totalConsumo   = $dataValue + $cdrTotal;
 
             $data = [
                 'saldoAtual'     => number_format($currentBalance, 4, ',', '.'),
-                'saldoVariacao'  => '',
+                'saldoVariacao'  => $percentChange ?? '',
                 'smsEnviados'    => $currentSms,
                 'smsTarifados'   => $currentSms,
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
@@ -141,17 +545,23 @@ class Dashboard extends ViewComponents
 
                 'totalConsumo'   => 'R$ ' . number_format($totalConsumo, 4, ',', '.'),
 
+                // 🚀 ADICIONE ESTAS 3 LINHAS AQUI ABAIXO:
+                'consumoSms'     => number_format($dataValue, 2, ',', '.'),
+                'consumoVoz'     => number_format($cdrTotal, 2, ',', '.'),
+                'consumoWhats'   => '0,00',
+                'whatsappEnviados'=> 0,
+
                 'disposition'    => $cdrDisposition,
                 'cdrTaxa'        => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                 'cdrValue'       => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
             ];
+            $data = self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
         }
 
         // ============================
         // RESELLER
         // ============================
         elseif ($isReseller) {
-
             $resellerBalance  = BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id']);
             $currentBalance   = (float)($resellerBalance->balance ?? 0);
             $previousBalances = BalanceSms::getBalanceSmsForPreviousMonths($obUser['id'], $obUser['tenancy_id']);
@@ -159,33 +569,32 @@ class Dashboard extends ViewComponents
 
             $rateData  = Rates::getLatestActiveRate($obUser['tenancy_id'], $obUser['id']);
             $valueSms  = (float)($rateData['rate'] ?? 0);
-
             $dataSms   = CallbackSms::countSentSms($obUser['id'], $obUser['tenancy_id']);
             $currentSms = $dataSms->qtd ?? 0;
             $dataValue  = $currentSms * $valueSms;
 
-            $cdr = CdrVoice::countCdrVoice($obUser['id'], $obUser['tenancy_id']);
-            $cdrDisposition = $cdr->answer ?? 0;
+            $cdrFilters = [
+                'tenancy_id'    => $obUser['tenancy_id'],
+                'user_id'       => $obUser['id'],
+                'user_function' => 'reseller'
+            ];
+            $cdr = CdrVoice::countCdrVoice($cdrFilters);
 
+            $cdrDisposition = $cdr->answer ?? 0;
             $cdrValue = (float)($cdr->value_total ?? 0);
-            $cdrTaxa  = (float)($cdr->taxa_total ?? 0); // taxa do reseller/owner
+            $cdrTaxa  = (float)($cdr->taxa_total ?? 0);
             $cdrTotal = $cdrValue + $cdrTaxa;
 
             $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], $obUser['id']);
             $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], $obUser['id']);
-
+            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], $obUser['id']);
             $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
             $totalCampaigns  = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
-
             $totalConsumo = $dataValue + $cdrTotal;
 
             $dataPix = RefillsResellers::getLastRefill($obUser['id'], $obUser['tenancy_id']);
-            $currentPix  = $dataPix && isset($dataPix->balance)
-                ? number_format((float)$dataPix->balance, 2, ',', '')
-                : '00,00';
-            $currentData = (!empty($dataPix->created_at) && strtotime($dataPix->created_at))
-                ? date('d/m/Y H:i', strtotime($dataPix->created_at))
-                : '--/--/---- --:--';
+            $currentPix  = $dataPix && isset($dataPix->balance) ? number_format((float)$dataPix->balance, 2, ',', '') : '00,00';
+            $currentData = (!empty($dataPix->created_at) && strtotime($dataPix->created_at)) ? date('d/m/Y H:i', strtotime($dataPix->created_at)) : '--/--/---- --:--';
 
             $data = [
                 'saldoAtual'     => number_format($currentBalance, 4, ',', '.'),
@@ -195,54 +604,56 @@ class Dashboard extends ViewComponents
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
                 'ultimoPixValor' => $currentPix,
                 'ultimoPixData'  => $currentData,
-
                 'campanhasHoje'  => $totalCampaigns,
                 'campanhas'      => $mergedCampaigns,
-
                 'totalConsumo'   => 'R$ ' . number_format($totalConsumo, 4, ',', '.'),
+
+                // 🔥 ADICIONADO PARA O CARD DE CONSUMO PEQUENO
+                'consumoSms'     => number_format($dataValue, 2, ',', '.'),
+                'consumoVoz'     => number_format($cdrTotal, 2, ',', '.'),
+                'consumoWhats'   => '0,00',
+                'whatsappEnviados'=> 0,
 
                 'disposition'    => $cdrDisposition,
                 'cdrTaxa'        => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                 'cdrValue'       => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
             ];
+            $data = self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
         }
 
         // ============================
         // ADMIN / USER
         // ============================
         else {
-
             $currentBalance   = BalanceSms::getSumBalanceSms($obUser['id'], $obUser['tenancy_id']);
             $previousBalances = BalanceSms::getBalanceSmsForPreviousMonths($obUser['id'], $obUser['tenancy_id']);
             $percentChange    = $calcBalanceVariation($previousBalances, $currentBalance);
 
             $dataPix = PixSearch::getPixLast($obUser['id'], $obUser['tenancy_id']);
-            $currentPix  = $dataPix && isset($dataPix->value)
-                ? str_replace('.', ',', sprintf("%05.2f", (float)$dataPix->value))
-                : '00,00';
-            $currentData = (!empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date))
-                ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date))
-                : '--/--/---- --:--';
+            $currentPix  = $dataPix && isset($dataPix->value) ? str_replace('.', ',', sprintf("%05.2f", (float)$dataPix->value)) : '00,00';
+            $currentData = (!empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date)) ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date)) : '--/--/---- --:--';
 
             $dataSms = CallbackSms::countSentSms($isAdmin ? null : $obUser['id'], $obUser['tenancy_id']);
             $currentSms = $dataSms->qtd ?? 0;
             $valueSms   = (float)(BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'])->value_sms ?? 0);
             $dataValue  = $currentSms * $valueSms;
 
-            $cdr = CdrVoice::countCdrVoice(null, $obUser['tenancy_id']);
+            $cdrFilters = [
+                'tenancy_id'    => $obUser['tenancy_id'],
+                'user_id'       => $isAdmin ? null : $obUser['id'],
+                'user_function' => $role
+            ];
+            $cdr = CdrVoice::countCdrVoice($cdrFilters);
+
             $cdrDisposition = $cdr->answer ?? 0;
-
             $cdrValue = (float)($cdr->value_total ?? 0);
-
-            // ✅ taxa do ADMIN vem dos logs
             $cdrTaxa  = BalanceSms::sumAdminServiceFeeFromLogs($obUser['tenancy_id'], (int)$obUser['id']);
-
             $cdrTotal = $cdrValue + $cdrTaxa;
             $totalConsumo = $dataValue + $cdrTotal;
 
             $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], null);
             $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], null);
-
+            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], null);
             $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
             $totalCampaigns  = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
 
@@ -254,16 +665,21 @@ class Dashboard extends ViewComponents
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
                 'ultimoPixValor' => $currentPix,
                 'ultimoPixData'  => $currentData,
-
                 'campanhasHoje'  => $totalCampaigns,
                 'campanhas'      => $mergedCampaigns,
-
                 'totalConsumo'   => 'R$ ' . number_format($totalConsumo, 4, ',', '.'),
+
+                // 🔥 ADICIONADO PARA O CARD DE CONSUMO PEQUENO
+                'consumoSms'     => number_format($dataValue, 2, ',', '.'),
+                'consumoVoz'     => number_format($cdrTotal, 2, ',', '.'),
+                'consumoWhats'   => '0,00',
+                'whatsappEnviados'=> 0,
 
                 'disposition'    => $cdrDisposition,
                 'cdrTaxa'        => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                 'cdrValue'       => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
             ];
+            $data = self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
         }
 
         echo "data: " . json_encode($data) . "\n\n";
@@ -296,18 +712,26 @@ class Dashboard extends ViewComponents
             $isAdmin      = $role === 'admin';
             $isSuperAdmin = $role === 'super_admin';
 
+            $tenancyId = $obUser['tenancy_id'];
+            $userId    = $obUser['id'];
+
             $data = [
                 'statusMes'       => [],
+                'statusSemana'    => [],
                 'statusDia'       => [],
                 'totalMesAtual'   => 0,
                 'totalMesAnterior'=> 0,
+                'totalSemanaAtual'=> 0,
+                'totalSemanaAnterior'=> 0,
                 'totalDiaAtual'   => 0,
                 'totalDiaAnterior'=> 0,
-
-                'statusMesVoice'       => [],
-                'statusDiaVoice'       => [],
+                'statusMesVoice'  => [],
+                'statusSemanaVoice' => [],
+                'statusDiaVoice'  => [],
                 'totalMesAtualVoice'   => 0,
                 'totalMesAnteriorVoice'=> 0,
+                'totalSemanaAtualVoice'=> 0,
+                'totalSemanaAnteriorVoice'=> 0,
                 'totalDiaAtualVoice'   => 0,
                 'totalDiaAnteriorVoice'=> 0
             ];
@@ -316,251 +740,129 @@ class Dashboard extends ViewComponents
             $dataValuesPix = [];
             $dataValuesPixRefill = [];
 
-
             // ======================================================
-            // 🔹 SUPER ADMIN — sem filtros
+            // 🔹 SUPER ADMIN
             // ======================================================
             if ($isSuperAdmin) {
                 $data = CallbackSms::fetchStatusCountsWithDay(null, null, null);
-                $dataOperator = CallbackSms::countGroupedByOperatorAllStatus(null, null, null);
+                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus(null, null, null);
+                $dataOperatorDay = $dataOperatorMonth;
+                $dataOperatorWeek = $dataOperatorMonth;
                 $dataValuesPix = PixSearch::getValuesPixCurrentMonth(null, null);
                 $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, null);
                 $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay(null, null, null);
 
-                //echo "<pre>";
-                //print_r($dataVoice);
-                //echo "</pre>";
-
-                // Normalizar PIX (já faz)
-                $dataValuesPix = array_map(function($item) {
-                    return [
-                        'data'  => date('d/m', strtotime($item->confirmed_date)),
-                        'value' => (float)$item->value
-                    ];
-                }, $dataValuesPix);
-
-                // Normalizar REFILLS
-                $dataValuesPixRefill = array_map(function($item) {
-                    return [
-                        'data'  => date('d/m', strtotime($item->created_at)),
-                        'value' => (float)$item->balance
-                    ];
-                }, $dataValuesPixRefill);
+                $dataValuesPix = array_map(fn($item) => ['data' => date('d/m', strtotime($item->confirmed_date)), 'value' => (float)$item->value], $dataValuesPix);
+                $dataValuesPixRefill = array_map(fn($item) => ['data' => date('d/m', strtotime($item->created_at)), 'value' => (float)$item->balance], $dataValuesPixRefill);
             }
 
             // ======================================================
             // 🔹 ADMIN
             // ======================================================
             elseif ($isAdmin) {
-                $data = CallbackSms::fetchStatusCountsWithDay($obUser['tenancy_id'], null, null);
-                $dataOperator = CallbackSms::countGroupedByOperatorAllStatus($obUser['tenancy_id'], null, null);
-                $dataValuesPix = PixSearch::getValuesPixCurrentMonth($obUser['id'], $obUser['tenancy_id']);
-                $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, $obUser['tenancy_id']);
-                $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay( $obUser['tenancy_id'], null
-                );
-                // Normalizar PIX (já faz)
-                $dataValuesPix = array_map(function($item) {
-                    return [
-                        'data'  => date('d/m', strtotime($item->confirmed_date)),
-                        'value' => (float)$item->value
-                    ];
-                }, $dataValuesPix);
+                $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, null);
+                $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null);
+                $dataOperatorDay = $dataOperatorMonth;
+                $dataOperatorWeek = $dataOperatorMonth;
+                $dataValuesPix = PixSearch::getValuesPixCurrentMonth($userId, $tenancyId);
+                $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, $tenancyId);
 
-                // Normalizar REFILLS
-                $dataValuesPixRefill = array_map(function($item) {
-                    return [
-                        'data'  => date('d/m', strtotime($item->created_at)),
-                        'value' => (float)$item->balance
-                    ];
-                }, $dataValuesPixRefill);
+                // 🔥 Filtro ADMIN: Tenancy preenchida, mas IDs nulos para ver tudo da empresa
+                $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($tenancyId, null, null);
+
+                $dataValuesPix = array_map(fn($item) => ['data' => date('d/m', strtotime($item->confirmed_date)), 'value' => (float)$item->value], $dataValuesPix);
+                $dataValuesPixRefill = array_map(fn($item) => ['data' => date('d/m', strtotime($item->created_at)), 'value' => (float)$item->balance], $dataValuesPixRefill);
             }
 
             // ======================================================
-            // 🔹 RESELLER
+            // 🔹 RESELLER / USUÁRIO (Lívia)
             // ======================================================
-            elseif ($isReseller) {
-                $data = CallbackSms::fetchStatusCountsWithDay($obUser['tenancy_id'], null, $obUser['id']);
-                $dataOperator = CallbackSms::countGroupedByOperatorAllStatus($obUser['tenancy_id'], $obUser['id'], null);
-                $dataValuesPix = RefillsResellers::getValuesRefillCurrentMonth($obUser['id'], $obUser['tenancy_id']);
-                $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($obUser['tenancy_id'], $obUser['id'], $obUser['id']);
+            else {
+                if ($isReseller) {
+                    $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, $userId);
+                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null);
+                    $dataOperatorDay = $dataOperatorMonth;
+                    $dataOperatorWeek = $dataOperatorMonth;
+                    $dataValuesPix = RefillsResellers::getValuesRefillCurrentMonth($userId, $tenancyId);
 
-                $dataValuesPix = array_map(function($item) {
-                    return [
-                        'data'  => date('d/m', strtotime($item->created_at)),
-                        'value' => (float)$item->balance
-                    ];
-                }, $dataValuesPix);
+                    // 🔥 Filtro RESELLER: Trava no ID dele para ver ele + clientes dele
+                    $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($tenancyId, $userId, $userId);
+                } else {
+                    // Aqui entra a LÍVIA (usuário comum)
+                    $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, $userId, null);
+                    $dataOperatorDay = [];
+                    $dataOperatorWeek = [];
+                    $dataOperatorMonth = [];
+                    $dataValuesPix = [];
+
+                    // 🔥 Filtro LÍVIA: Trava no ID dela para ela não ver os outros agentes
+                    $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($tenancyId, $userId, null);
+                }
+
+                $dataValuesPix = array_map(fn($item) => ['data' => date('d/m', strtotime($item->created_at)), 'value' => (float)$item->balance], $dataValuesPix);
             }
+
+            $cdrFilters = [
+                'tenancy_id' => $isSuperAdmin ? null : $tenancyId,
+                'user_id' => ($isAdmin || $isSuperAdmin) ? null : $userId,
+                'user_function' => $isSuperAdmin ? 'super_admin' : ($role ?: 'agent')
+            ];
+
+            $sipCodesDay = self::countSipCodes($cdrFilters, 'day');
+            $sipCodesWeek = self::countSipCodes($cdrFilters, 'week');
+            $sipCodesMonth = self::countSipCodes($cdrFilters, 'month');
+            $trunkNameMap = self::buildTrunkNameMap($obUser);
+            $trunkCountsDay = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'day'), $trunkNameMap);
+            $trunkCountsWeek = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'week'), $trunkNameMap);
+            $trunkCountsMonth = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'month'), $trunkNameMap);
 
             $response = [
-                'statusMapMes'      => $data['statusMes'],
-                'statusMapDia'      => $data['statusDia'],
-                'totalMesAtual'     => $data['totalMesAtual'],
-                'totalMesAnterior'  => $data['totalMesAnterior'],
-                'totalDiaAtual'     => $data['totalDiaAtual'],
-                'totalDiaAnterior'  => $data['totalDiaAnterior'],
+                'statusMapMes'           => $data['statusMes'],
+                'statusMapDia'           => $data['statusDia'],
+                'statusMapSemana'        => $data['statusSemana'] ?? $data['statusDia'],
+                'totalMesAtual'          => $data['totalMesAtual'],
+                'totalMesAnterior'       => $data['totalMesAnterior'],
+                'totalDiaAtual'          => $data['totalDiaAtual'],
+                'totalDiaAnterior'       => $data['totalDiaAnterior'],
+                'totalSemanaAtual'       => $data['totalSemanaAtual'] ?? $data['totalDiaAtual'],
+                'totalSemanaAnterior'    => $data['totalSemanaAnterior'] ?? $data['totalDiaAnterior'],
 
                 'statusMapMesVoice'      => $dataVoice['statusMes'],
                 'statusMapDiaVoice'      => $dataVoice['statusDia'],
+                'statusMapSemanaVoice'   => $dataVoice['statusSemana'] ?? $dataVoice['statusDia'],
                 'totalMesAtualVoice'     => $dataVoice['totalMesAtual'],
                 'totalMesAnteriorVoice'  => $dataVoice['totalMesAnterior'],
                 'totalDiaAtualVoice'     => $dataVoice['totalDiaAtual'],
                 'totalDiaAnteriorVoice'  => $dataVoice['totalDiaAnterior'],
+                'totalSemanaAtualVoice'  => $dataVoice['totalSemanaAtual'] ?? $dataVoice['totalDiaAtual'],
+                'totalSemanaAnteriorVoice'=> $dataVoice['totalSemanaAnterior'] ?? $dataVoice['totalDiaAnterior'],
 
-                'totalOperator'     => $dataOperator,
-                'totalPixValueMonth'=> $dataValuesPix,
-                // 🔹 PIX
-                'pixValues'         => $dataValuesPix,
+                'sipCodeCountsDay'        => $sipCodesDay,
+                'sipCodeCountsWeek'       => $sipCodesWeek,
+                'sipCodeCountsMonth'      => $sipCodesMonth,
+                'trunkCountsDay'          => $trunkCountsDay,
+                'trunkCountsWeek'         => $trunkCountsWeek,
+                'trunkCountsMonth'        => $trunkCountsMonth,
 
-                // 🔹 RECARGA
-                'refillValues'      => $dataValuesPixRefill
+                'totalOperator'          => $dataOperatorMonth ?? [],
+                'totalOperatorDay'       => $dataOperatorDay ?? [],
+                'totalOperatorWeek'      => $dataOperatorWeek ?? [],
+                'totalOperatorMonth'     => $dataOperatorMonth ?? [],
+                'totalPixValueMonth'     => $dataValuesPix,
+                'pixValues'              => $dataValuesPix,
+                'refillValues'           => $dataValuesPixRefill
             ];
 
             echo "data: " . json_encode($response) . "\n\n";
             flush();
 
         } catch (\Exception $e) {
-            error_log("Erro ao buscar status SMS: " . $e->getMessage());
-            echo "event: error\n";
-            echo "data: " . json_encode(['error' => 'Erro ao buscar status SMS']) . "\n\n";
+            error_log("Erro Dashboard: " . $e->getMessage());
+            echo "event: error\ndata: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
             flush();
         }
-
         exit;
     }
-
-    /*public static function setUpdatePlan($request): Response
-    {
-        $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'status'  => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
-        }
-
-        $raw = file_get_contents('php://input');
-        $params = json_decode($raw, true);
-        $tenancyId = $obUser['tenancy_id'] ?? null;
-        $planId    = $params['plan_id'] ?? null;
-        if (!$tenancyId || !$planId) {
-            return new Response(400, [
-                'status' => 400,
-                'error'  => 'Dados inválidos'
-            ], 'application/json');
-        }
-        RegisterTenancies::updateActivePlan($tenancyId, $planId);
-
-        return new Response(200, json_encode([
-            'status' => 200,
-            'message' => 'Plano alterado com sucesso!'
-        ]), 'application/json');
-    }*/
-
-    /*public static function setUpdatePlan($request): Response
-    {
-        $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'success' => false,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
-        }
-
-        $input = json_decode(file_get_contents('php://input'), true);
-
-        $tenancyId = $obUser['tenancy_id'] ?? null;
-        $planId    = $input['plan_id'] ?? null;
-
-        if (!$tenancyId || !$planId) {
-            return new Response(400, [
-                'success' => false,
-                'message' => 'Dados inválidos'
-            ], 'application/json');
-        }
-
-        // 1) Atualiza plano ativo no painel
-        RegisterTenancies::updateActivePlan($tenancyId, $planId);
-
-        try {
-            $asterisk = new AsteriskExtensionsSip();
-
-            // 2) ADMIN (saldo e tarifa do painel)
-            $adminId = (int)$obUser['id'];
-
-            $panelAdmin = BalanceSms::getBalanceSms($adminId, $tenancyId, $planId);
-            if (!$panelAdmin) {
-                return new Response(404, [
-                    'success' => false,
-                    'message' => 'Saldo do admin não encontrado.'
-                ], 'application/json');
-            }
-
-            $adminBalance = (float)$panelAdmin->balance;
-            $adminTariff  = (float)$panelAdmin->value_voice;
-
-            // 3) Resellers (saldo painel + tarifa via Rates)
-            $resellers = UserSearch::getResellers($tenancyId) ?? [];
-            $resellerPayload = [];
-
-            foreach ($resellers as $r) {
-                $rid = (int)($r['id'] ?? 0);
-                if ($rid <= 0) continue;
-
-                $ratesAll = Rates::getActiveRatesByUser($tenancyId, $rid, 'voice');
-                $tariff   = (float)($ratesAll['voice'] ?? 0);
-
-                $resellerPayload[] = [
-                    'user_id'          => $rid,
-                    'balance_admin'    => $adminBalance,
-                    'balance_reseller' => (float)($r['reseller_balance'] ?? 0),
-                    'call_minute_cost' => $tariff,
-                ];
-            }
-
-            // ✅ Query padrão (igual trunk)
-            $query = [
-                'user_id'   => $adminId,
-                'tenant_id' => $tenancyId,
-            ];
-
-            // ✅ Payload único “reajusta tudo”
-            $payload = [
-                'tenant_id' => $tenancyId,
-
-                // ADMIN
-                'admin' => [
-                    'user_id'          => $adminId,
-                    'balance_admin'    => $adminBalance,  // SET absoluto
-                    'call_minute_cost' => $adminTariff,
-                ],
-
-                // RESELLERS
-                'resellers' => $resellerPayload,
-            ];
-
-            $resp = $asterisk->updateTariff($query, $payload);
-
-            if (!empty($resp['ok'])) {
-                return new Response(200, [
-                    'success' => true,
-                    'message' => 'Plano alterado e Asterisk sincronizado com sucesso!',
-                    'data'    => $resp['data'] ?? []
-                ], 'application/json');
-            }
-
-            return new Response(500, [
-                'success' => false,
-                'message' => $resp['error'] ?? 'Falha ao sincronizar Asterisk.'
-            ], 'application/json');
-
-        } catch (\Throwable $e) {
-            return new Response(500, [
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 'application/json');
-        }
-    }*/
 
     public static function setUpdatePlan($request): Response
     {

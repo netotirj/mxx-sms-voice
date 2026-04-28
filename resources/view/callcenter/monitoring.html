@@ -1,0 +1,973 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <!-- Header -->
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-200 text-lg">
+              <i class="ni ni-tv-2"></i>
+            </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">
+                                Monitoramento Real-Time
+                            </h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">
+                                Acompanhamento ao vivo de chamadas e agentes
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="ccBtnListenCalls"
+                                type="button"
+                                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition">
+                            <i class="fa fa-headphones"></i>
+                            Escutar Chamadas
+                        </button>
+                        <span class="flex items-center gap-1 text-xs font-bold text-emerald-500 animate-pulse">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> LIVE
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Cards -->
+                <div class="flex flex-wrap p-4 -mx-3">
+
+                    <div class="w-full px-3 mb-6 sm:w-1/2 md:w-1/4">
+                        <div class="bg-slate-50 dark:bg-slate-800 border rounded-2xl">
+                            <div class="p-4 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase dark:text-white dark:opacity-60">Em Curso</p>
+                                    <h5 id="stat-em-curso" class="mb-0 font-bold text-blue-600" data-last-value="0">0</h5>
+                                </div>
+                                <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-tl from-blue-600 to-cyan-400">
+                                    <i class="ni ni-curved-next text-white text-sm"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full px-3 mb-6 sm:w-1/2 md:w-1/4">
+                        <div class="bg-slate-50 dark:bg-slate-800 border rounded-2xl">
+                            <div class="p-4 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase dark:text-white dark:opacity-60">Na Fila</p>
+                                    <h5 id="stat-na-fila" class="mb-0 font-bold text-red-600" data-last-value="0">0</h5>
+                                </div>
+                                <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-tl from-red-600 to-orange-500">
+                                    <i class="ni ni-waiting-list text-white text-sm"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full px-3 mb-6 sm:w-1/2 md:w-1/4">
+                        <div class="bg-slate-50 dark:bg-slate-800 border rounded-2xl border-slate-100 dark:border-slate-700">
+                            <div class="p-4 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase dark:text-white dark:opacity-60">Agentes On</p>
+                                    <h5 class="mb-0 font-bold text-emerald-500 flex items-center gap-1">
+                                        <span id="stat-agents-online" data-last-value="0">0</span>
+                                        <span class="text-slate-300 mx-0.5">/</span>
+                                        <span id="stat-agents-total" class="text-slate-400 text-sm" data-last-value="0">0</span>
+                                    </h5>
+                                </div>
+                                <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400">
+                                    <i class="ni ni-badge text-white text-sm"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full px-3 mb-6 sm:w-1/2 md:w-1/4">
+                        <div class="bg-slate-50 dark:bg-slate-800 border rounded-2xl p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase dark:text-white dark:opacity-60">SLA (Hoje)</p>
+                                    <h5 id="sla-hoje-count" class="mb-0 font-bold text-emerald-500" data-last-value="0">100%</h5>
+                                </div>
+                                <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-tl from-purple-700 to-violet-500">
+                                    <i class="ni ni-chart-bar-32 text-white text-sm"></i>
+                                </div>
+                            </div>
+                            <div class="relative h-16 w-full">
+                                <canvas id="slaTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mostrar</label>
+                            <select id="cfRowsPerPage" onchange="callsPage=1; renderCallsTableManual();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="5" selected>5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Agente</label>
+                            <select id="cfAgentFilter" onchange="callsPage=1; renderCallsTableManual();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Agentes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Ramal</label>
+                            <select id="cfExtensionFilter" onchange="callsPage=1; renderCallsTableManual();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Ramais</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Estado</label>
+                            <select id="cfStatusFilter" onchange="callsPage=1; renderCallsTableManual();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos os Estados</option>
+                                <option value="Conversando">Conversando</option>
+                                <option value="Chamando">Chamando</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-2">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400">Pesquisar na Tabela</label>
+                                <button type="button" onclick="resetarFiltrosChamadas()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 hover:text-red-700 uppercase transition-all inline-flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <i class="fa fa-search text-slate-400 text-xs"></i>
+                </span>
+                                <input id="cfSearchInput" oninput="callsPage=1; renderCallsTableManual();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Origem, destino ou campanha...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="px-6 py-4">
+                    <h6 class="text-sm font-bold uppercase mb-4 dark:text-white">
+                        Chamadas em Curso
+                    </h6>
+                </div>
+
+                <div class="overflow-x-auto px-6 pb-4">
+                    <table class="w-full text-slate-500">
+                        <thead>
+                        <tr class="text-xs uppercase text-slate-400">
+                            <th class="text-left py-3">Origem / Destino</th>
+                            <th class="text-left py-3">Tipo / Campanha</th>
+                            <th class="text-center py-3">Duração</th>
+                            <th class="text-center py-3">Estado</th>
+                            <th class="text-center py-3">Ações</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="calls-table-body">
+                        <tr>
+                            <td colspan="5" class="text-center p-6 text-xs text-slate-400 uppercase">
+                                Aguardando chamadas...
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="px-6 py-3 flex justify-between items-center border-t border-slate-50 dark:border-slate-700">
+                    <span id="calls-page-info" class="text-xxs font-bold text-slate-400 uppercase"></span>
+                    <div class="flex gap-2">
+                        <button onclick="changeCallsPage(-1)" class="px-3 py-1 border rounded-lg text-xs hover:bg-slate-100 dark:text-white">Anterior</button>
+                        <button onclick="changeCallsPage(1)" class="px-3 py-1 border rounded-lg text-xs hover:bg-slate-100 dark:text-white">Próximo</button>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700">
+                    <h6 class="text-sm font-bold uppercase mb-4 dark:text-white">Agentes Logados</h6>
+                </div>
+                <div id="agents-list-container" class="flex flex-wrap p-4 -mx-3"></div>
+
+                <div class="px-6 py-3 flex justify-between items-center">
+                    <span id="agents-page-info" class="text-xxs font-bold text-slate-400 uppercase"></span>
+                    <div class="flex gap-2">
+                        <button onclick="changeAgentsPage(-1)" class="px-3 py-1 border rounded-lg text-xs hover:bg-slate-100 dark:text-white">Anterior</button>
+                        <button onclick="changeAgentsPage(1)" class="px-3 py-1 border rounded-lg text-xs hover:bg-slate-100 dark:text-white">Próximo</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== Modal de Escuta no Monitoring ===================== -->
+<div id="ccListenModal"
+     class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+    <div class="bg-white dark:bg-slate-850 rounded-2xl shadow-xl w-full max-w-md p-6 relative border border-slate-100 dark:border-slate-700">
+        <h2 class="text-lg font-semibold text-slate-700 dark:text-white mb-4 flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center gap-2">
+                <i class="fa fa-headphones text-blue-600"></i>
+                Escutar Chamadas Ativas
+            </span>
+            <span id="ccListenBadge"
+                  class="hidden text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg items-center gap-1">
+                Escutando <span id="ccListenTimer">00:00</span>
+            </span>
+        </h2>
+
+        <div class="mb-3">
+            <label for="ccAdminExtension" class="text-sm text-slate-600 dark:text-slate-300 font-medium">
+                Ramal do Admin
+            </label>
+            <input type="text"
+                   id="ccAdminExtension"
+                   placeholder="Digite seu ramal..."
+                   class="mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div id="ccActiveCallsList"
+             class="border border-slate-200 dark:border-slate-600 rounded-lg p-3 h-44 overflow-y-auto text-sm text-slate-600 dark:text-slate-300">
+            <p class="italic text-center text-slate-400">Aguardando dados...</p>
+        </div>
+
+        <button id="ccStopListening"
+                type="button"
+                class="hidden w-full items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition-all mt-3 mb-3">
+            <span class="animate-pulse">⛔</span>
+            Parar Escuta
+        </button>
+
+        <div class="grid grid-cols-3 gap-2 mt-3">
+            <button id="ccBtnWhisper"
+                    type="button"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm hover:bg-green-700 transition-all">
+                <span>🗣️</span>
+                Interagir
+            </button>
+
+            <button id="ccBtnListenOnly"
+                    type="button"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-700 transition-all">
+                <span>🎧</span>
+                Escutar
+            </button>
+
+            <button id="ccCancelListen"
+                    type="button"
+                    class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-200 text-slate-700 text-sm hover:bg-slate-300 transition-all">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Variáveis globais de controle
+    const animations = new Map();
+    let timersStarted = false;
+
+    // Dados e Paginação
+    let lastCallsData = [];
+    let lastAgentsData = [];
+    let callsPage = 1;
+    let agentsPage = 1;
+    let ccListenModalOpen = false;
+    let ccIsListening = false;
+    let ccListeningCallId = null;
+    let ccListenStartTime = null;
+    let ccListenTimerInterval = null;
+    let ccListenModalUpdateTimeout = null;
+
+    // Configurações
+    let selectsPopulados = false;
+
+    // --- FUNÇÕES DE NAVEGAÇÃO (Globais para os botões HTML) ---
+    window.changeCallsPage = (dir) => {
+        callsPage += dir;
+        if (callsPage < 1) callsPage = 1;
+        renderCallsTableManual();
+    };
+
+    window.changeAgentsPage = (dir) => {
+        agentsPage += dir;
+        if (agentsPage < 1) agentsPage = 1;
+        renderAgentsCardsManual();
+    };
+
+    window.resetarFiltrosChamadas = () => {
+        document.getElementById('cfSearchInput').value = '';
+        document.getElementById('cfAgentFilter').value = '';
+        document.getElementById('cfExtensionFilter').value = '';
+        document.getElementById('cfStatusFilter').value = '';
+        callsPage = 1;
+        renderCallsTableManual();
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        startTimers();
+        setupCallcenterListeningModal();
+
+        const eventSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+        eventSource.addEventListener('update', function(e) {
+            const data = JSON.parse(e.data);
+
+            // Salva dados para os filtros
+            lastCallsData = data.chamadas || [];
+            lastAgentsData = data.agentes || [];
+
+            // 1. ATUALIZA OS CARDS DE DESTAQUE
+            animateCountUp(document.getElementById('stat-em-curso'), data.stats.emCurso || 0);
+            animateCountUp(document.getElementById('stat-na-fila'), data.stats.naFila || 0);
+            animateCountUp(document.getElementById('stat-agents-online'), data.stats.agentesOnline || 0);
+            animateCountUp(document.getElementById('stat-agents-total'), data.stats.totalAgentes || 0);
+
+            // SLA e BI
+            if (data.stats.bi) updateCdrStats(data.stats.bi);
+            if (data.stats.sla_trend) updateSlaChart(data.stats.sla_trend.values, data.stats.sla_trend.labels);
+
+            // 2. RENDERIZAÇÃO ÚNICA (Filtros + Paginação)
+            renderCallsTableManual();
+            renderAgentsCardsManual();
+            syncCallcenterListeningModal();
+        });
+
+        // --- LÓGICA DE FILTRO DE CHAMADAS ---
+        window.renderCallsTableManual = function() {
+            const container = document.getElementById('calls-table-body');
+            const rowsPerPage = parseInt(document.getElementById('cfRowsPerPage').value);
+            const search = document.getElementById('cfSearchInput').value.toLowerCase();
+            const filterAgent = document.getElementById('cfAgentFilter').value;
+            const filterStatus = document.getElementById('cfStatusFilter').value.toLowerCase();
+
+            // 1. Filtrar
+            let filtered = lastCallsData.filter(call => {
+                const matchesSearch = !search || call.caller.includes(search) || call.dest.includes(search) || (call.campanha_nome || '').toLowerCase().includes(search);
+                const matchesAgent = !filterAgent || String(call.agente) === String(filterAgent);
+                const matchesStatus = !filterStatus || call.status.toLowerCase().includes(filterStatus);
+                return matchesSearch && matchesAgent && matchesStatus;
+            });
+
+            // 2. Paginar
+            const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1;
+            if (callsPage > totalPages) callsPage = totalPages;
+
+            const start = (callsPage - 1) * rowsPerPage;
+            const paginated = filtered.slice(start, start + rowsPerPage);
+
+            // 3. Renderizar na tabela
+            renderCallsTable(container, paginated, lastAgentsData);
+
+            // 4. Info da página
+            document.getElementById('calls-page-info').innerText = `Página ${callsPage} de ${totalPages} (${filtered.length} chamadas)`;
+            popularSelects();
+        };
+
+        // --- LÓGICA DE AGENTES ---
+        window.renderAgentsCardsManual = function() {
+            const container = document.getElementById('agents-list-container');
+            const perPage = 8;
+
+            const totalPages = Math.ceil(lastAgentsData.length / perPage) || 1;
+            if (agentsPage > totalPages) agentsPage = totalPages;
+
+            const paginated = lastAgentsData.slice((agentsPage - 1) * perPage, agentsPage * perPage);
+
+            renderAgentsCards(container, paginated);
+            document.getElementById('agents-page-info').innerText = `Página ${agentsPage} de ${totalPages} (${lastAgentsData.length} agentes)`;
+        };
+
+        function popularSelects() {
+            if (selectsPopulados || lastAgentsData.length === 0) return;
+            const selAgent = document.getElementById('cfAgentFilter');
+            const selExt = document.getElementById('cfExtensionFilter');
+
+            lastAgentsData.forEach(a => {
+                selAgent.add(new Option(a.nome, a.ramal));
+                selExt.add(new Option(a.ramal, a.ramal));
+            });
+            selectsPopulados = true;
+        }
+
+
+        // 1. DECLARAÇÃO GLOBAL (Essencial para o 'else' da função funcionar)
+        let slaChart = null;
+
+        function updateSlaChart(pontosSLA, labelsSLA) {
+            const canvas = document.getElementById('slaTrendChart');
+            if (!canvas || !pontosSLA || pontosSLA.length === 0) return;
+
+            const ctx = canvas.getContext('2d');
+
+            // Tratamento para garantir que sempre existam pelo menos 2 pontos
+            let chartData = [...pontosSLA];
+            let chartLabels = [...labelsSLA];
+            if (chartData.length === 1) {
+                chartData.push(chartData[0]);
+                chartLabels.push(chartLabels[0]);
+            }
+
+            const ultimoValor = chartData[chartData.length - 1];
+            const isRed = (ultimoValor < 80);
+            const mainColor = isRed ? '#ef4444' : '#10b981';
+
+            if (!slaChart) {
+                slaChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: 'SLA',
+                            data: chartData,
+                            borderColor: mainColor,
+                            borderWidth: 3,
+                            pointRadius: 3, // Aumentei um pouco para destaque
+                            pointBackgroundColor: mainColor,
+                            fill: true,
+                            tension: 0.4, // Curva suave
+                            spanGaps: true,
+                            // Gradiente dinâmico
+                            backgroundColor: (context) => {
+                                const chart = context.chart;
+                                const {ctx, chartArea} = chart;
+                                if (!chartArea) return 'transparent';
+                                const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                                if (isRed) {
+                                    gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
+                                    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
+                                } else {
+                                    gradient.addColorStop(0, 'rgba(16, 185, 129, 0)');
+                                    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.2)');
+                                }
+                                return gradient;
+                            }
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: true } // Para você validar os dados ao passar o mouse
+                        },
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 110,
+                                display: false
+                            },
+                            x: { display: false }
+                        },
+                        animation: { duration: 500 }
+                    }
+                });
+            } else {
+                // Atualização fluida
+                slaChart.data.labels = chartLabels;
+                slaChart.data.datasets[0].data = chartData;
+                slaChart.data.datasets[0].borderColor = mainColor;
+                slaChart.data.datasets[0].pointBackgroundColor = mainColor;
+
+                // Importante: Recalcular o gradiente se a cor mudar
+                slaChart.update();
+            }
+        }
+
+        // 2. FUNÇÃO QUE ESTAVA FALTANDO (Para resolver o erro de ReferenceError)
+        function updateCdrStats(stats) {
+            if (!stats) return;
+
+            animateCountUp(document.getElementById('stat-bi-atendidas'), stats.atendidas || 0);
+            animateCountUp(document.getElementById('stat-bi-abandonadas'), stats.abandonadas || 0);
+
+            const tmaEl = document.getElementById('stat-bi-tma');
+            const tmeEl = document.getElementById('stat-bi-tme');
+
+            if (tmaEl) tmaEl.innerText = typeof stats.tma === 'number' ? formatTime(stats.tma) : stats.tma;
+            if (tmeEl) tmeEl.innerText = typeof stats.tme === 'number' ? formatTime(stats.tme) : stats.tme;
+        }
+
+        eventSource.onerror = function() {
+            console.warn("Monitoramento offline. Tentando reconectar automaticamente...");
+        };
+    });
+
+    function ccNotify(type, message) {
+        if (window.notyf && typeof notyf[type] === 'function') {
+            notyf[type](message);
+            return;
+        }
+        alert(message);
+    }
+
+    function ccEscapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[char]);
+    }
+
+    function ccGetCallId(call) {
+        return String(call?.id ?? call?.name ?? call?.channel_id ?? '');
+    }
+
+    function ccIsCallAnswered(call) {
+        const status = String(call?.status ?? '').toLowerCase();
+        return !!call?.is_up
+            || String(call?.state ?? '').toLowerCase() === 'up'
+            || status.includes('atendida')
+            || status.includes('conversando')
+            || status.includes('em chamada');
+    }
+
+    function ccGetActiveCalls() {
+        return (Array.isArray(lastCallsData) ? lastCallsData : [])
+            .filter(call => ccGetCallId(call) && ccIsCallAnswered(call));
+    }
+
+    function ccStartListenTimer() {
+        const timerEl = document.getElementById('ccListenTimer');
+        ccListenStartTime = Date.now();
+
+        if (ccListenTimerInterval) clearInterval(ccListenTimerInterval);
+
+        ccListenTimerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - ccListenStartTime) / 1000);
+            const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const seconds = String(elapsed % 60).padStart(2, '0');
+            if (timerEl) timerEl.textContent = `${minutes}:${seconds}`;
+        }, 1000);
+    }
+
+    function ccStopListenTimer() {
+        if (ccListenTimerInterval) {
+            clearInterval(ccListenTimerInterval);
+            ccListenTimerInterval = null;
+        }
+
+        const timerEl = document.getElementById('ccListenTimer');
+        if (timerEl) timerEl.textContent = '00:00';
+    }
+
+    function ccSetListeningUi(active) {
+        const badge = document.getElementById('ccListenBadge');
+        const stopBtn = document.getElementById('ccStopListening');
+
+        if (badge) {
+            badge.classList.toggle('hidden', !active);
+            badge.classList.toggle('flex', active);
+        }
+
+        if (stopBtn) {
+            stopBtn.classList.toggle('hidden', !active);
+            stopBtn.classList.toggle('flex', active);
+        }
+    }
+
+    function ccResetListeningUi() {
+        ccIsListening = false;
+        ccListeningCallId = null;
+        ccSetListeningUi(false);
+        ccStopListenTimer();
+        ccLoadActiveCalls();
+    }
+
+    function ccLoadActiveCalls() {
+        const list = document.getElementById('ccActiveCallsList');
+        if (!list) return;
+
+        const activeCalls = ccGetActiveCalls();
+        list.innerHTML = '';
+
+        if (!activeCalls.length) {
+            list.innerHTML = '<p class="italic text-center text-slate-400">Nenhuma chamada atendida no momento</p>';
+            return;
+        }
+
+        activeCalls.forEach(call => {
+            const callId = ccGetCallId(call);
+            const selected = ccIsListening && ccListeningCallId === callId;
+            const origin = call.caller ?? call.number ?? '—';
+            const destination = call.dest ?? call.destination ?? '—';
+            const campaign = call.campanha_nome ?? call.campaign_name ?? 'Chamada Manual';
+            const status = call.status ?? '—';
+            const trunk = call.trunk ?? call.tronco ?? '';
+
+            list.insertAdjacentHTML('beforeend', `
+                <label class="flex items-center gap-3 p-2 border-b last:border-none cursor-pointer rounded-lg
+                       ${selected ? 'bg-blue-50 border-blue-300' : 'hover:bg-slate-50'}">
+                    <input type="radio"
+                           name="ccSelectedCall"
+                           value="${ccEscapeHtml(callId)}"
+                           ${selected ? 'checked' : ''}
+                           class="text-blue-600">
+                    <div class="flex flex-col min-w-0">
+                        <span class="font-medium text-slate-700 dark:text-white truncate">
+                            ${ccEscapeHtml(origin)} → ${ccEscapeHtml(destination)}
+                        </span>
+                        <span class="text-xs text-slate-500 truncate">
+                            ${ccEscapeHtml(status)} • ${ccEscapeHtml(campaign)}${trunk ? ' • ' + ccEscapeHtml(trunk) : ''}
+                        </span>
+                    </div>
+                    ${selected ? '<span class="ml-auto text-blue-600 text-xs font-semibold animate-pulse">ESCUTANDO</span>' : ''}
+                </label>
+            `);
+        });
+    }
+
+    async function ccStartSpy(mode = 'listen') {
+        const selected = document.querySelector('input[name="ccSelectedCall"]:checked');
+        const adminExtension = document.getElementById('ccAdminExtension')?.value.trim() || '';
+
+        if (!adminExtension || !selected) {
+            ccNotify('error', 'Preencha seu ramal e selecione uma chamada.');
+            return;
+        }
+
+        const selectedCall = ccGetActiveCalls().find(call => ccGetCallId(call) === selected.value);
+        if (!selectedCall) {
+            ccNotify('error', 'Não foi possível encontrar essa chamada ativa.');
+            ccLoadActiveCalls();
+            return;
+        }
+
+        const payload = {
+            admin_extension: adminExtension,
+            spy_mode: mode,
+            call_id: selected.value,
+            call_number: selectedCall.caller ?? selectedCall.number ?? null,
+            call_destination: selectedCall.dest ?? selectedCall.destination ?? null,
+            call_trunk: selectedCall.trunk ?? selectedCall.tronco ?? null,
+            call_type: selectedCall.variable_type ?? selectedCall.type ?? null
+        };
+
+        try {
+            const res = await fetch(`${baseUrl}/campaign/voice/listening`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await res.json();
+
+            if (!res.ok || !result.success) {
+                throw new Error(result.message || 'Erro ao iniciar escuta.');
+            }
+
+            ccIsListening = true;
+            ccListeningCallId = selected.value;
+            ccSetListeningUi(true);
+            ccStopListenTimer();
+            ccStartListenTimer();
+            ccLoadActiveCalls();
+
+            ccNotify(
+                'success',
+                mode === 'whisper'
+                    ? 'Interação habilitada. Você pode falar com o consultor.'
+                    : 'Escuta iniciada.'
+            );
+        } catch (err) {
+            console.error(err);
+            ccNotify('error', err.message || 'Erro ao conectar ao backend.');
+        }
+    }
+
+    async function ccStopListening(silent = false) {
+        ccResetListeningUi();
+
+        try {
+            const res = await fetch(`${baseUrl}/campaign/voice/stop-listening`, {
+                method: 'POST'
+            });
+            const result = await res.json().catch(() => ({}));
+
+            if (!res.ok || result.success === false) {
+                throw new Error(result.message || 'Erro ao parar escuta.');
+            }
+
+            if (!silent) ccNotify('success', 'Escuta finalizada.');
+        } catch (err) {
+            if (!silent) ccNotify('error', err.message || 'Erro ao conectar.');
+        }
+    }
+
+    function syncCallcenterListeningModal() {
+        if (ccIsListening && ccListeningCallId) {
+            const stillActive = ccGetActiveCalls().some(call => ccGetCallId(call) === ccListeningCallId);
+            if (!stillActive) {
+                ccStopListening(true);
+                ccNotify('success', 'Escuta finalizada: a chamada foi encerrada.');
+                return;
+            }
+        }
+
+        if (!ccListenModalOpen) return;
+
+        clearTimeout(ccListenModalUpdateTimeout);
+        ccListenModalUpdateTimeout = setTimeout(() => ccLoadActiveCalls(), 300);
+    }
+
+    function setupCallcenterListeningModal() {
+        const modal = document.getElementById('ccListenModal');
+        const openBtn = document.getElementById('ccBtnListenCalls');
+        const closeBtn = document.getElementById('ccCancelListen');
+        const listenBtn = document.getElementById('ccBtnListenOnly');
+        const whisperBtn = document.getElementById('ccBtnWhisper');
+        const stopBtn = document.getElementById('ccStopListening');
+
+        openBtn?.addEventListener('click', () => {
+            modal?.classList.remove('hidden');
+            ccListenModalOpen = true;
+            ccLoadActiveCalls();
+        });
+
+        closeBtn?.addEventListener('click', () => {
+            modal?.classList.add('hidden');
+            ccListenModalOpen = false;
+        });
+
+        modal?.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.classList.add('hidden');
+                ccListenModalOpen = false;
+            }
+        });
+
+        listenBtn?.addEventListener('click', () => ccStartSpy('listen'));
+        whisperBtn?.addEventListener('click', () => ccStartSpy('whisper'));
+        stopBtn?.addEventListener('click', () => ccStopListening(false));
+    }
+
+    // Função para desenhar a tabela de chamadas (com suporte a cronômetro local)
+    // 1. RENDERIZAÇÃO DA TABELA DE CHAMADAS (Identifica quem está falando)
+    function renderCallsTable(container, chamadas, agentes) {
+        container.innerHTML = '';
+        if (chamadas.length === 0) {
+            container.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-xs text-slate-400 uppercase">Nenhuma chamada ativa</td></tr>';
+            return;
+        }
+
+        // Mapa rápido de Ramal -> Nome para exibição amigável
+        const nomesAgentes = {};
+        if (agentes) {
+            agentes.forEach(a => { nomesAgentes[a.ramal] = a.nome; });
+        }
+
+        chamadas.forEach(call => {
+            const isUp = call.is_up;
+            const stateColor = isUp ? 'from-blue-500 to-cyan-400' : 'from-orange-500 to-yellow-400';
+
+            // Lógica para exibir o Nome do Agente em vez de apenas o número do ramal
+            let identificadorAgente = call.agente || '';
+            let nomeParaExibir = nomesAgentes[identificadorAgente] || identificadorAgente;
+
+            // Filtro para não repetir a Bina se for chamada externa pura
+            const ehBina = (nomeParaExibir === call.caller || nomeParaExibir === call.dest);
+            if (ehBina && !nomesAgentes[identificadorAgente]) nomeParaExibir = null;
+
+            const partes = call.duracao.split(':');
+            const segundosIniciais = (+partes[0]) * 3600 + (+partes[1]) * 60 + (+partes[2]);
+
+            container.innerHTML += `
+            <tr class="border-b dark:border-slate-700">
+                <td class="p-4 text-sm dark:text-white">
+                    <b>${call.caller}</b><br><small class="text-slate-400">${call.dest || '---'}</small>
+                </td>
+                <td class="p-4 text-xs dark:text-white">
+                    <div class="font-bold mb-1">${call.campanha_nome || 'Chamada Manual'}</div>
+                    <div class="flex items-center gap-1">
+                        <span class="px-1.5 py-0.5 rounded border text-[9px] font-black uppercase bg-emerald-100 text-emerald-700">📞 VOZ</span>
+                        ${nomeParaExibir ? `<span class="text-slate-400">/</span><small class="text-blue-600 font-extrabold uppercase">${nomeParaExibir}</small>` : ''}
+                    </div>
+                </td>
+                <td class="p-4 text-center">
+                    <span class="text-sm font-bold dynamic-timer ${isUp ? 'text-blue-600' : 'text-orange-500 animate-pulse'}" data-seconds="${segundosIniciais}">
+                        ${call.duracao}
+                    </span>
+                </td>
+                <td class="p-4 text-center">
+                    <span class="bg-gradient-to-tl ${stateColor} px-2.5 py-1 rounded-md text-xxs font-bold text-white uppercase">${call.status}</span>
+                </td>
+                <td class="p-4 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                        ${isUp ? `<button onclick="snoop('${call.id}', 'both')" class="text-emerald-500"><i class="fa fa-headphones"></i></button>` : ''}
+                        <button onclick="hangup('${call.id}')" class="text-red-500"><i class="fa fa-phone-slash"></i></button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+    }
+
+    // 2. RENDERIZAÇÃO DOS CARDS DE AGENTES (Prioriza Status 'Em Chamada')
+    function renderAgentsCards(container, agentes) {
+        container.innerHTML = '';
+
+        agentes.forEach(agente => {
+            const ramal = String(agente.ramal);
+
+            // 1. 🚀 CRUZAMENTO EM TEMPO REAL:
+            // Verifica se este ramal específico está em alguma chamada ativa no array global
+            const chamadaAtiva = (lastCallsData || []).find(c =>
+                String(c.agente) === ramal ||
+                String(c.dest) === ramal ||
+                String(c.caller) === ramal
+            );
+
+            // 2. DEFINE STATUS E COR PRIORITÁRIOS
+            let statusExibicao = agente.status;
+            let corBase = agente.color;
+            let tempoExibicao = agente.tempo;
+
+            if (chamadaAtiva) {
+                statusExibicao = "EM CHAMADA";
+                corBase = "blue"; // Força azul para o card
+                tempoExibicao = chamadaAtiva.duracao;
+            }
+
+            // Mapeamento de classes de borda e texto
+            const borderClasses = {
+                'emerald': 'border-emerald-500',
+                'blue': 'border-blue-500',
+                'orange': 'border-orange-500',
+                'slate': 'border-slate-300'
+            };
+
+            const statusTextColor = (corBase === 'blue') ? 'text-blue-600' :
+                (corBase === 'emerald') ? 'text-green-500' : 'text-slate-500';
+
+            // Estilo do Card: Borda lateral ou borda completa com pulsação se ocupado
+            const cardStyle = (corBase === 'blue')
+                ? `bg-white dark:bg-slate-800 border-2 border-blue-500 rounded-2xl p-4 shadow-lg animate-pulse`
+                : `bg-white dark:bg-slate-800 border-l-4 ${borderClasses[corBase] || 'border-slate-200'} rounded-2xl p-4 shadow-sm`;
+
+            // Converte o tempo para segundos para o cronômetro JS
+            const partes = tempoExibicao.split(':');
+            const segundosIniciais = (+partes[0]) * 3600 + (+partes[1]) * 60 + (+partes[2]);
+
+            container.innerHTML += `
+        <div class="w-full px-3 mb-6 sm:w-1/2 md:w-1/4">
+            <div class="${cardStyle} transition-all duration-300">
+                <div class="flex justify-between items-center">
+                    <div class="overflow-hidden">
+                        <p class="text-xxs uppercase font-bold opacity-60 dark:text-white truncate">${ramal}</p>
+                        <h6 class="text-sm font-bold dark:text-white mb-0 truncate">${agente.nome}</h6>
+                        <small class="${statusTextColor} font-bold uppercase text-[10px] flex items-center gap-1">
+                            ${corBase === 'blue' ? '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span>' : ''}
+                            ${statusExibicao}
+                        </small>
+                    </div>
+                    <div class="text-right min-w-[70px]">
+                        <div class="text-[9px] font-bold opacity-50 dark:text-white uppercase">Duração</div>
+                        <div class="text-xs font-bold dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded dynamic-timer ${corBase === 'blue' ? 'text-blue-700' : ''}"
+                             data-seconds="${segundosIniciais}">
+                            ${tempoExibicao}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        });
+    }
+
+
+    // --- MOTOR DOS CRONÔMETROS (Incremento Local) ---
+    function startTimers() {
+        if (timersStarted) return;
+        timersStarted = true;
+        setInterval(() => {
+            document.querySelectorAll('.dynamic-timer').forEach(el => {
+                // Garante que o valor base seja um número (previne NaN no incremento)
+                let seconds = parseInt(el.dataset.seconds);
+                if (isNaN(seconds)) seconds = 0;
+
+                seconds++;
+                el.dataset.seconds = seconds;
+                el.innerText = formatTime(seconds);
+            });
+        }, 1000);
+    }
+
+    // --- FUNÇÕES DE ANIMAÇÃO DE CARDS ---
+    function animateCountUp(el, rawValue, prefix = '', suffix = '') {
+        if (!el) return;
+        const endValue = parseFloat(rawValue) || 0;
+        const lastValue = parseFloat(el.dataset.lastValue) || 0;
+
+        // Se o valor não mudou, não faz nada
+        if (lastValue === endValue && el.innerHTML.includes(suffix)) return;
+
+        if (animations.has(el)) cancelAnimationFrame(animations.get(el));
+        el.dataset.lastValue = endValue;
+
+        const duration = 1200;
+        const startValue = lastValue;
+        const startTime = performance.now();
+
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Easing suave (opcional, para a contagem não ser linear e dura)
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const current = startValue + (endValue - startValue) * easeProgress;
+
+            const valFormatado = Math.floor(current).toLocaleString('pt-BR');
+
+            // INJEÇÃO DE HTML: O sufixo (ex: %) fica menor e com opacidade
+            if (suffix === '%') {
+                el.innerHTML = `${prefix}${valFormatado}<span class="text-sm font-medium opacity-70 ml-0.5">%</span>`;
+            } else {
+                el.textContent = prefix + valFormatado + suffix;
+            }
+
+            if (progress < 1) {
+                animations.set(el, requestAnimationFrame(update));
+            }
+        }
+        animations.set(el, requestAnimationFrame(update));
+    }
+
+    function formatTime(seconds) {
+        // 🛡️ Prevenção contra NaN ou valores inválidos
+        if (isNaN(seconds) || seconds === null || seconds === undefined) return "00:00:00";
+
+        const sec = parseInt(seconds, 10);
+        if (sec < 0) return "00:00:00";
+
+        const days = Math.floor(sec / 86400);
+        const h = Math.floor((sec % 86400) / 3600).toString().padStart(2, '0');
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+        const sc = (sec % 60).toString().padStart(2, '0');
+
+        // Se tiver mais de 24 horas, exibe o dia antes (Ex: 2d 04:30:15)
+        if (days > 0) {
+            return `${days}d ${h}:${m}:${sc}`;
+        }
+
+        return `${h}:${m}:${sc}`;
+    }
+
+    // Funções de ação com Feedback
+    window.hangup = (id) => {
+        if(confirm('Deseja realmente derrubar esta chamada?')) {
+            fetch(`${baseUrl}/telefonia/hangup`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({channelId: id})
+            }).then(r => !r.ok && alert('Erro ao executar comando.'));
+        }
+    };
+
+    window.snoop = (id, mode) => {
+        fetch(`${baseUrl}/telefonia/snoop`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({channelId: id, mode: mode})
+        }).then(r => !r.ok && alert('Erro ao iniciar escuta.'));
+    };
+</script>

@@ -117,29 +117,6 @@ class RefillsResellers
     /**
      * Contagem de transações do reseller
      */
-    /*public static function getTransactionsCount(int $resellerId, ?string $searchValue = null): int
-    {
-        $query = "SELECT COUNT(*) as qtd FROM refills WHERE user_id = :user_id";
-        $params = [':user_id' => $resellerId];
-
-        if (!empty($searchValue)) {
-            $query .= " AND (
-                email LIKE :search OR 
-                balance LIKE :search OR 
-                notes LIKE :search OR 
-                type LIKE :search OR 
-                transaction_id LIKE :search OR 
-                client_ip LIKE :search OR 
-                status LIKE :search OR 
-                created_at LIKE :search
-            )";
-            $params[':search'] = '%' . $searchValue . '%';
-        }
-
-        return (new Database)->execute($query, $params)
-            ->fetchObject()
-            ->qtd ?? 0;
-    }*/
 
     public static function getTransactionsCount(?int $resellerId = null, ?string $searchValue = null, ?string $tenancyId = null): int
     {
@@ -177,98 +154,29 @@ class RefillsResellers
             ->qtd ?? 0;
     }
 
-
     /**
-     * Lista transações paginadas do reseller
+     * Método para buscar transações de recarga (Padrão CDR)
+     * Removemos o Start/Length para permitir a paginação total no Front-end
      */
-    /*public static function getTransactionsPaginated(
-        int     $resellerId,
-        ?string $searchValue,
-        int     $start,
-        int     $length,
-        string  $orderColumn = 'id',
-        string  $orderDir = 'DESC'
-    ): array {
-        $params = [':user_id' => $resellerId];
-        $where = "user_id = :user_id";
-
-        if (!empty($searchValue)) {
-            $where .= " AND (
-                email LIKE :search OR 
-                balance LIKE :search OR 
-                notes LIKE :search OR 
-                type LIKE :search OR 
-                transaction_id LIKE :search OR 
-                client_ip LIKE :search OR 
-                status LIKE :search OR 
-                created_at LIKE :search
-            )";
-            $params[':search'] = '%' . $searchValue . '%';
-        }
-
-        $order = "{$orderColumn} {$orderDir}";
-        $limit = "{$start}, {$length}";
-
-        $query = "
-            SELECT 
-                id,
-                email,
-                balance,
-                notes,
-                type,
-                transaction_id,
-                client_ip,
-                status,
-                created_at,
-                updated_at
-            FROM refills
-            WHERE {$where}
-            ORDER BY {$order}
-            LIMIT {$limit}
-        ";
-
-        return (new Database)->execute($query, $params)
-            ->fetchAll(\PDO::FETCH_OBJ);
-    }*/
-    public static function getTransactionsPaginated(
-        ?int    $resellerId,
-        ?string $searchValue,
-        int     $start,
-        int     $length,
-        string  $orderColumn = 'id',
-        string  $orderDir = 'DESC',
-        ?string    $tenancyId = null
-    ): array {
+    public static function getTransactions(array $filters = [], string $order = 'created_at DESC'): array
+    {
         $params = [];
         $where = "1=1";
 
-        if (!is_null($resellerId)) {
+        // Filtro por Reseller (User ID)
+        if (isset($filters['reseller_id'])) {
             $where .= " AND user_id = :user_id";
-            $params[':user_id'] = $resellerId;
+            $params[':user_id'] = $filters['reseller_id'];
         }
 
-        if (is_null($resellerId) && !is_null($tenancyId)) {
+        // Filtro por Tenancy (Obrigatório para Admin)
+        if (isset($filters['tenancy_id'])) {
             $where .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
+            $params[':tenancy_id'] = $filters['tenancy_id'];
         }
 
-        if (!empty($searchValue)) {
-            $where .= " AND (
-            email LIKE :search OR 
-            balance LIKE :search OR 
-            notes LIKE :search OR 
-            type LIKE :search OR 
-            transaction_id LIKE :search OR 
-            client_ip LIKE :search OR 
-            status LIKE :search OR 
-            created_at LIKE :search
-        )";
-            $params[':search'] = '%' . $searchValue . '%';
-        }
-
-        $order = "{$orderColumn} {$orderDir}";
-        $limit = "{$start}, {$length}";
-
+        // Note que não aplicamos o LIMIT nem o Search aqui,
+        // seguindo o padrão que você definiu para o CDR.
         $query = "
         SELECT 
             id,
@@ -284,11 +192,10 @@ class RefillsResellers
         FROM refills
         WHERE {$where}
         ORDER BY {$order}
-        LIMIT {$limit}
     ";
 
         return (new Database)->execute($query, $params)
-            ->fetchAll(\PDO::FETCH_OBJ);
+            ->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public static function getById(int $id): ?\stdClass

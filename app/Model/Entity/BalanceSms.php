@@ -8,68 +8,44 @@ class BalanceSms
 {
     public int $id;
     public string $tenancy_id;
-    public int $user_id;
+    public ?int $user_id = null;
+    public ?int $plan_id = null;
     public float $balance = 0.0;
     public float $value_sms = 0.0;
     public float $value_voice  = 0.0;
     public float $value_torpedo = 0.0;
     public float $value_whatsapp = 0.0;
+    public float $service_fee = 0.0;
+
     public string $updated_at;
 
 
     public static function getBalanceSms(?int $userId, ?string $tenancyId, ?int $planId = null): ?self
     {
-        // 🔹 Super Admin → pega o último registro geral
-        if ($userId === null && empty($tenancyId)) {
-            $query = "
-            SELECT id, tenancy_id, user_id, plan_id, balance,
-                   value_sms, value_voice, value_torpedo, value_whatsapp, service_fee,
-                   updated_at
-            FROM tenancy_balance
-            ORDER BY updated_at DESC
-            LIMIT 1
-        ";
+        $db = new Database();
 
-            return (new Database())->execute($query)->fetchObject(self::class) ?: null;
+        // 1. Super Admin
+        if ($userId === null && empty($tenancyId)) {
+            $query = "SELECT * FROM tenancy_balance ORDER BY updated_at DESC LIMIT 1";
+            return $db->execute($query)->fetchObject(self::class) ?: null;
         }
 
-        // 🔹 Saldo total da tenancy
+        // 2. Tenancy Total (Agregado)
         if ($userId === null && !empty($tenancyId)) {
-            $query = "
-            SELECT id, tenancy_id,
-                   NULL as user_id, NULL as plan_id,
-                   SUM(balance) as balance,
-                   SUM(value_sms) as value_sms,
-                   SUM(value_voice) as value_voice,
-                   SUM(value_torpedo) as value_torpedo,
-                   SUM(value_whatsapp) as value_whatsapp,
-                   SUM(service_fee) as service_fee,
-                   MAX(updated_at) as updated_at
-            FROM tenancy_balance
-            WHERE tenancy_id = :tenancy_id
-        ";
-
+            $query = "SELECT tenancy_id, SUM(balance) as balance, MAX(updated_at) as updated_at 
+                  FROM tenancy_balance WHERE tenancy_id = :tenancy_id";
             $params = [':tenancy_id' => $tenancyId];
 
-            if ($planId !== null) {
+            if ($planId) {
                 $query .= " AND plan_id = :plan_id";
                 $params[':plan_id'] = $planId;
             }
-
             $query .= " GROUP BY tenancy_id";
-
-            return (new Database())->execute($query, $params)->fetchObject(self::class) ?: null;
+            return $db->execute($query, $params)->fetchObject(self::class) ?: null;
         }
 
-        // 🔹 Usuário normal
-        $query = "
-        SELECT id, tenancy_id, user_id, plan_id, balance,
-               value_sms, value_voice, value_torpedo, value_whatsapp, service_fee,
-               updated_at
-        FROM tenancy_balance
-        WHERE user_id = :user_id
-    ";
-
+        // 3. Usuário Específico
+        $query = "SELECT * FROM tenancy_balance WHERE user_id = :user_id";
         $params = [':user_id' => $userId];
 
         if (!empty($tenancyId)) {
@@ -77,31 +53,15 @@ class BalanceSms
             $params[':tenancy_id'] = $tenancyId;
         }
 
-        if ($planId !== null) {
-            $query .= " AND plan_id = :plan_id";
-            $params[':plan_id'] = $planId;
-        }
+        $result = $db->execute($query . " ORDER BY updated_at DESC LIMIT 1", $params)->fetchObject(self::class);
 
-        $query .= " ORDER BY updated_at DESC LIMIT 1";
-
-        $result = (new Database())->execute($query, $params)->fetchObject(self::class);
-
-        // 🔁 Caso não exista → tenta pegar saldo de revendedor
-        if (!$result) {
-            $queryReseller = "
-            SELECT id as user_id, reseller_balance as balance
-            FROM users
-            WHERE id = :user_id
-        ";
-
-            $reseller = (new Database())->execute($queryReseller, [':user_id' => $userId])->fetchObject(self::class);
-
+        // Fallback para tabela Users (Saldo de revendedor)
+        if (!$result && $userId) {
+            $reseller = $db->execute("SELECT id as user_id, reseller_balance as balance FROM users WHERE id = :id", [':id' => $userId])->fetchObject(self::class);
             if ($reseller) {
                 $reseller->tenancy_id = $tenancyId;
                 return $reseller;
             }
-
-            return null;
         }
 
         return $result;

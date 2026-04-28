@@ -2,10 +2,14 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
+use App\Config\TelephonyConfig;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;
 use WebSocket\Client as WsClient;
 use Predis\Client as RedisClient;
+use WilliamCosta\DotEnv\Environment;
+
+Environment::load(__DIR__ . '/../../../');
 
 
 class StasisListenerAsterisk
@@ -33,15 +37,10 @@ class StasisListenerAsterisk
         $this->stasisApp = $stasisApp;
 
         $this->http = new HttpClient(['auth' => [$ariUser, $ariPass]]);
-        $this->ws = new WsClient("ws://{$ariUser}:{$ariPass}@{$ariHost}:8088/ari/events?app={$stasisApp}&subscribeAll=true");
+        $this->ws = new WsClient("ws://{$ariUser}:{$ariPass}@{$ariHost}:" . TelephonyConfig::ariPort() . "/ari/events?app={$stasisApp}&subscribeAll=true");
 
         // 🔹 Redis
-        $this->redis = new RedisClient([
-            'scheme' => 'tcp',
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'password' => 'mxx123'
-        ]);
+        $this->redis = new RedisClient(TelephonyConfig::redisConfig());
     }
 
     public function run(): void
@@ -161,60 +160,133 @@ class StasisListenerAsterisk
         $channelId = $event['channel']['id'] ?? null;
         $var       = $event['variable'] ?? null;
         $value     = $event['value'] ?? null;
+
         if (!$channelId || !$var) return;
 
-        // ✅ TUMBA: ignora varset de canal morto e limpa lixo
+        // 🔥 Ignora varset de canal morto
         if (!empty($this->deadChannels[$channelId]) && $this->deadChannels[$channelId] > time()) {
             unset($this->pendingVars[$channelId]);
             return;
         }
 
-        // Atualiza variáveis em canal ativo ou pendente
-        if (isset($this->channelData[$channelId])) {
-            $this->channelData[$channelId]['vars'][$var] = $value;
-        } else {
-            // Apenas guarda, sem recriar o canal ainda
-            $this->pendingVars[$channelId][$var] = $value;
-            echo "[VARSET ⏳] Guardando {$var}={$value} até canal {$channelId} existir\n";
+        // ==========================================================
+        // ✅ GARANTE QUE O CANAL EXISTA (não depende mais do onStart)
+        // ==========================================================
+        if (!isset($this->channelData[$channelId])) {
+            $this->channelData[$channelId] = [
+                'id'       => $channelId,
+                'name'     => $event['channel']['name'] ?? null,
+                'started'  => time(), // ESSENCIAL para updateRedis não ignorar
+                'state'    => strtolower($event['channel']['state'] ?? 'ringing'),
+                'status'   => 'Chamando...',
+                'duration' => '00:00',
+                'vars'     => [],
+            ];
         }
 
-        // Loga variáveis importantes
-        if (in_array($var, ['OWNER_ID', 'TENANT_ID', 'TYPE', 'ROLE', 'JOB_ID', 'TAXA_OF_SERVICE', 'CALL_ID', 'CAMPAIGN_ID', 'CAMPAIGN_TYPE'], true)) {
+        if (!isset($this->channelData[$channelId]['vars']) || !is_array($this->channelData[$channelId]['vars'])) {
+            $this->channelData[$channelId]['vars'] = [];
+        }
+
+        // ==========================================================
+        // ✅ MERGE pendingVars (se existirem)
+        // ==========================================================
+        if (!empty($this->pendingVars[$channelId])) {
+            $this->channelData[$channelId]['vars'] = array_merge(
+                $this->pendingVars[$channelId],
+                $this->channelData[$channelId]['vars']
+            );
+            unset($this->pendingVars[$channelId]);
+        }
+
+        // ==========================================================
+        // ✅ GRAVA VAR NO CANAL
+        // ==========================================================
+        $this->channelData[$channelId]['vars'][$var] = $value;
+
+        // ==========================================================
+        // ✅ COPIA IDENTIDADE PRO TOPO (para filtro SSE funcionar)
+        // ==========================================================
+        $v = $this->channelData[$channelId]['vars'];
+
+        $this->channelData[$channelId]['owner_id'] =
+            $this->channelData[$channelId]['owner_id']
+            ?? $v['OWNER_ID'] ?? $v['__OWNER_ID'] ?? null;
+
+        $this->channelData[$channelId]['tenant_id'] =
+            $this->channelData[$channelId]['tenant_id']
+            ?? $v['TENANT_ID'] ?? $v['__TENANT_ID'] ?? null;
+
+        $this->channelData[$channelId]['role'] =
+            $this->channelData[$channelId]['role']
+            ?? $v['ROLE'] ?? $v['__ROLE'] ?? null;
+
+        // ==========================================================
+        // 📞 COPIA CALLERID PARA O TOPO (sempre atualiza quando chegar)
+        // ==========================================================
+        if ($var === 'CALLERID(num)') {
+            $this->channelData[$channelId]['caller_number'] = $value;
+        } else {
+            $this->channelData[$channelId]['caller_number'] =
+                $this->channelData[$channelId]['caller_number']
+                ?? $v['CALLERID(num)'] ?? null;
+        }
+
+        if ($var === 'CALLERID(name)') {
+            $this->channelData[$channelId]['caller_name'] = $value;
+        } else {
+            $this->channelData[$channelId]['caller_name'] =
+                $this->channelData[$channelId]['caller_name']
+                ?? $v['CALLERID(name)'] ?? null;
+        }
+
+        // ==========================================================
+        // 🔎 LOG VARS IMPORTANTES (incluindo __)
+        // ==========================================================
+        if (in_array($var, [
+            'OWNER_ID','__OWNER_ID',
+            'TENANT_ID','__TENANT_ID',
+            'TYPE','VARIABLE_TYPE','__VARIABLE_TYPE',
+            'ROLE','__ROLE',
+            'JOB_ID','CALL_ID','CAMPAIGN_ID','TECHPREFIX','CAMPAIGN_TYPE',
+            'TAXA_OF_SERVICE','CALL_MINUTE_COST',
+            'TRUNK','__TRUNK',
+            'CALLERID(num)',
+            'CALLERID(name)',
+        ], true)) {
             error_log("[VARS] Canal={$channelId} → {$var}={$value}");
         }
 
-        // Se OWNER/TENANT chegaram e há FAIL-CDR pendente, tenta salvar agora
-        if (
-            in_array($var, ['OWNER_ID', 'TENANT_ID'], true) &&
-            isset($this->channelData[$channelId])
-        ) {
+        // ==========================================================
+        // 🔁 FAIL-CDR (mantido intacto)
+        // ==========================================================
+        if (in_array($var, ['OWNER_ID', 'TENANT_ID', '__OWNER_ID', '__TENANT_ID'], true)) {
             $this->trySavePendingFailCdr($channelId);
         }
 
-        // Se existe FAIL-CDR pendente, atualiza TYPE nele
         if (
             in_array($var, [
-                'TYPE',
-                'VARIABLE_TYPE',
-                'CAMPAIGN_ID',
-                'CAMPAIGN_TYPE',
-                'CALL_ID',
-                'TAXA_OF_SERVICE',
-                'JOB_ID'], true) &&
-            isset($this->channelData[$channelId]['pending_fail_cdr'])
+                'TYPE','VARIABLE_TYPE','CAMPAIGN_ID','CAMPAIGN_TYPE',
+                'CALL_ID','TAXA_OF_SERVICE','TECHPREFIX','JOB_ID',
+                'CALLERID(num)','CALLERID(name)',
+            ], true)
+            && isset($this->channelData[$channelId]['pending_fail_cdr'])
         ) {
+
             $keyMap = [
                 'TYPE'            => 'variable_type',
                 'VARIABLE_TYPE'   => 'variable_type',
                 'CAMPAIGN_ID'     => 'campaign_id',
                 'CAMPAIGN_TYPE'   => 'variable_type',
                 'CALL_ID'         => 'call_id',
+                'TECHPREFIX'      => 'techprefix',
                 'TAXA_OF_SERVICE' => 'taxa_of_service',
                 'JOB_ID'          => 'job_id',
+                'CALLERID(num)'   => 'caller_number',
+                'CALLERID(name)'  => 'caller_name',
             ];
 
             $field = $keyMap[$var] ?? null;
-
 
             if ($field) {
                 $this->channelData[$channelId]['pending_fail_cdr'][$field] = $value;
@@ -223,76 +295,26 @@ class StasisListenerAsterisk
                 $this->redis->setex(
                     $failKey,
                     180,
-                    json_encode(
-                        $this->channelData[$channelId]['pending_fail_cdr'],
-                        JSON_UNESCAPED_UNICODE
-                    )
+                    json_encode($this->channelData[$channelId]['pending_fail_cdr'], JSON_UNESCAPED_UNICODE)
                 );
 
                 error_log("[CDR] 🔄 FAIL-CDR atualizado {$field}={$value} canal={$channelId}");
             }
+        }
 
-        }
-        // Atualiza painel se canal ainda existe
-        if (isset($this->channelData[$channelId])) {
-            $this->updateRedis();
-        }
+        // ==========================================================
+        // 🔄 Atualiza painel
+        // ==========================================================
+        $this->updateRedis();
     }
+
 
     private function handleChannelDestroyed(array $event): void
     {
         $channelId = $event['channel']['id'] ?? null;
         if (!$channelId) return;
 
-        // =============================================================
-        // 🟣 CHAMADA MANUAL — regra especial de encerramento
-        // =============================================================
-
-        $vars = $this->channelData[$channelId]['vars'] ?? [];
-
-        $isManual = !empty($vars['__IS_MANUAL']) || !empty($vars['IS_MANUAL']);
-        $leg      = $vars['ARI_LEG'] ?? $vars['__ARI_LEG'] ?? null;
-        $callId   = $vars['CALL_ID'] ?? null;
-
-        // 🅰 A-leg manual
-        if ($isManual && $leg === 'A' && $callId) {
-
-            // verifica se ainda existe B-leg vivo para ESTE call_id
-            $hasBLeg = false;
-
-            foreach ($this->channelData as $cid => $data) {
-                $v = $data['vars'] ?? [];
-                if (
-                    ($v['CALL_ID'] ?? null) === $callId &&
-                    (($v['ARI_LEG'] ?? null) === 'B' || ($v['__ARI_LEG'] ?? null) === 'B')
-                ) {
-                    $hasBLeg = true;
-                    break;
-                }
-            }
-
-            if ($hasBLeg) {
-                error_log("[MANUAL] ⏭ Ignorando destroy A-leg {$channelId} (B-leg ativo)");
-                return;
-            }
-
-            // B-leg já morreu → agora pode limpar
-            error_log("[MANUAL] 🧹 Limpando A-leg manual {$channelId} (B-leg finalizado)");
-            // NÃO retorna — deixa cair no cleanup normal
-        }
-
-
-
-
-        // 🔥 RINGALL LOSER → remove imediatamente
-        if (!empty($this->channelData[$channelId]['ringall_loser'])) {
-            unset($this->channelData[$channelId]);
-            $this->updateRedis();
-            error_log("[RINGALL] 🧹 Canal {$channelId} removido (loser ringall)");
-            return;
-        }
-
-        // ✅ se já está morto (loser), só some e não processa CDR
+        // ✅ Se já era canal "morto" (ringall loser etc) não recria nem processa
         if (!empty($this->deadChannels[$channelId]) && $this->deadChannels[$channelId] > time()) {
             unset($this->pendingVars[$channelId]);
             unset($this->channelData[$channelId]);
@@ -300,23 +322,31 @@ class StasisListenerAsterisk
             return;
         }
 
-
-        // causa / cause_txt
-        $causeCode = $event['cause'] ?? null;
-        $causeText = $event['cause_txt'] ?? null;
-
-        if (isset($this->channelData[$channelId])) {
-            $this->channelData[$channelId]['ended']     = $this->channelData[$channelId]['ended']     ?? time();
-            $this->channelData[$channelId]['cause']     = $this->channelData[$channelId]['cause']     ?? $causeCode;
-            $this->channelData[$channelId]['cause_txt'] = $this->channelData[$channelId]['cause_txt'] ?? $causeText;
+        // Se não existe no mapa, nada a fazer (mas limpa pending)
+        if (!isset($this->channelData[$channelId])) {
+            unset($this->pendingVars[$channelId]);
+            return;
         }
 
-        // ✅ se esse canal (main) morreu e tinha transferência em andamento, destrava o próprio canal
-        if (!empty($this->channelData[$channelId]['transfer_in_progress'])) {
-            $this->unlockDtmfTransfer($channelId, 'main_channel_destroyed');
+        // =============================================================
+        // ✅ Merge vars + pending (pra não perder __IS_MANUAL/__ARI_LEG etc)
+        // =============================================================
+        if (!isset($this->channelData[$channelId]['vars']) || !is_array($this->channelData[$channelId]['vars'])) {
+            $this->channelData[$channelId]['vars'] = [];
+        }
+        if (!empty($this->pendingVars[$channelId]) && is_array($this->pendingVars[$channelId])) {
+            $this->channelData[$channelId]['vars'] = array_merge(
+                $this->channelData[$channelId]['vars'],
+                $this->pendingVars[$channelId]
+            );
+            unset($this->pendingVars[$channelId]);
         }
 
-        // resolve peer
+        $vars = $this->channelData[$channelId]['vars'] ?? [];
+
+        // =============================================================
+        // ✅ resolve peer (direto ou reverso)
+        // =============================================================
         $peer = $this->channelData[$channelId]['peer'] ?? null;
 
         if (!$peer) {
@@ -328,17 +358,104 @@ class StasisListenerAsterisk
             }
         }
 
-        // ==============================================================
-        // ✅ RINGALL CLEANUP (APENAS COMPLEMENTO - NÃO MUDA ESTRUTURA)
-        // - Se INBOUND morreu: derruba todos OUTBOUNDS que ainda existem (para de tocar)
-        // - Se OUTBOUND ringall morreu: remove do mapa do inbound (não tarifa tronco aqui)
-        // ==============================================================
+        // =============================================================
+        // ✅ MANUAL: segura A-leg enquanto peer (B-leg) existir
+        // - NÃO depende de CALL_ID (porque manual agora pode ser só args)
+        // =============================================================
+        $isManual = (
+            !empty($vars['MANUAL_CALL']) ||
+            !empty($vars['__MANUAL_CALL']) ||
+            !empty($vars['IS_MANUAL']) ||
+            !empty($vars['__IS_MANUAL']) ||
+            // opcional: se você salvou isso no onStart:
+            !empty($this->channelData[$channelId]['stasis_mode']) && $this->channelData[$channelId]['stasis_mode'] === 'manual'
+        );
 
+        $leg = $vars['ARI_LEG'] ?? $vars['__ARI_LEG'] ?? null;
+
+        // Se for A-leg manual e ainda existe peer vivo -> não remove do mapa agora
+        if ($isManual && $leg === 'A' && $peer && isset($this->channelData[$peer])) {
+            error_log("[MANUAL] ⏭ Ignorando destroy A-leg {$channelId} (peer vivo={$peer})");
+            return;
+        }
+
+        // =============================================================
+        // 🔥 RINGALL LOSER → remove imediatamente (sem CDR)
+        // =============================================================
+        if (!empty($this->channelData[$channelId]['ringall_loser'])) {
+            unset($this->channelData[$channelId]);
+            $this->updateRedis();
+            error_log("[RINGALL] 🧹 Canal {$channelId} removido (loser ringall)");
+            return;
+        }
+
+        // =============================================================
+        // causa / cause_txt (CORREÇÃO PARA EVITAR 503 GENÉRICO)
+        // =============================================================
+
+        // 1. Pega a causa ISDN direto do evento ARI (Obrigatório)
+        $ariCause = (int)($event['cause'] ?? 0);
+
+        // 2. Mapeamento de Tradução (Seu Dicionário)
+        $isdnToSip = [
+            1   => ['code' => '404', 'txt' => 'Number Not Found'],
+            3   => ['code' => '404', 'txt' => 'No Route'],
+            16  => ['code' => '200', 'txt' => 'Normal Clearing'],
+            17  => ['code' => '486', 'txt' => 'Busy'],
+            18  => ['code' => '408', 'txt' => 'No Response (Timeout)'],
+            19  => ['code' => '480', 'txt' => 'No Answer'],
+            21  => ['code' => '403', 'txt' => 'Rejected (IP/Auth)'],
+            27  => ['code' => '502', 'txt' => 'Destination Out of Order'],
+            28  => ['code' => '484', 'txt' => 'Invalid Number Format'],
+            34  => ['code' => '503', 'txt' => 'Circuit Congestion'],
+            38  => ['code' => '503', 'txt' => 'Network Outage'],
+            41  => ['code' => '503', 'txt' => 'Temporary Failure'],
+            102 => ['code' => '408', 'txt' => 'Protocol Timeout'],
+        ];
+
+        // 3. Define os valores iniciais baseados no ARI (Precedência Máxima)
+        $causeCode = $isdnToSip[$ariCause]['code'] ?? null;
+        $causeText = $isdnToSip[$ariCause]['txt'] ?? null;
+
+        // 4. SÓ busca na API se o ARI não mapeou ou se o cause for 0 (Otimização)
+        if (!$causeCode) {
+            try {
+                $response = $this->http->get("channels/{$channelId}/variable", [
+                    'query' => ['variable' => 'PJSIP_RESPONSE_CODE'],
+                    'timeout' => 0.2
+                ]);
+                $resData = json_decode((string)$response->getBody(), true);
+                if (!empty($resData['value']) && $resData['value'] != "0") {
+                    $causeCode = $resData['value'];
+                    $causeText = "SIP Response Code";
+                }
+            } catch (\Throwable $e) { /* Canal já era */ }
+        }
+
+        // 5. Atribuição Final com Fallback
+        if (isset($this->channelData[$channelId])) {
+            $this->channelData[$channelId]['ended']     = time();
+            $this->channelData[$channelId]['cause']     = $causeCode ?: "503";
+            $this->channelData[$channelId]['cause_txt'] = $causeText ?: ($event['cause_txt'] ?? "Service Unavailable");
+        }
+
+        // 6. Dispara o CDR imediatamente se for falha (Garante o 480 no banco)
+        $dialStatus = $this->channelData[$channelId]['dialstatus'] ?? 'NOANSWER';
+        $this->recordImmediateFailCdr($channelId, $dialStatus, [
+            'code' => $this->channelData[$channelId]['cause'],
+            'txt'  => $this->channelData[$channelId]['cause_txt']
+        ]);
+
+
+        // se esse canal morreu e tinha transferência em andamento, destrava ele mesmo
+        if (!empty($this->channelData[$channelId]['transfer_in_progress'])) {
+            $this->unlockDtmfTransfer($channelId, 'main_channel_destroyed');
+        }
+
+        // =============================================================
+        // ✅ RINGALL CLEANUP (complemento)
+        // =============================================================
         try {
-
-            // 1) Detecta se ESTE canal é um outbound ringall (marca via vars ou appArgs)
-            $vars = $this->channelData[$channelId]['vars'] ?? [];
-
             $isRingallOutbound =
                 (($vars['RINGALL'] ?? '') === '1') ||
                 (!empty($vars['RINGALL_INBOUND']) && !empty($vars['RINGALL_BRIDGE']));
@@ -348,10 +465,7 @@ class StasisListenerAsterisk
                 $inbound = trim((string)($vars['RINGALL_INBOUND'] ?? ''));
                 $bridge  = trim((string)($vars['RINGALL_BRIDGE']  ?? ''));
 
-                // remove do mapa de outbound no inbound (se existir)
                 if ($inbound && isset($this->channelData[$inbound]['ringall']['outbound'])) {
-
-                    // tenta achar por channelId
                     foreach (($this->channelData[$inbound]['ringall']['outbound'] ?? []) as $ramal => $ch) {
                         if ($ch === $channelId) {
                             unset($this->channelData[$inbound]['ringall']['outbound'][$ramal]);
@@ -360,12 +474,9 @@ class StasisListenerAsterisk
                     }
                 }
 
-                // 👉 Importante: outbound ringall NÃO deve acionar "tarifar tronco" via peer.
-                // Então "zera" o peer daqui pra frente, mas sem mexer no resto da estrutura.
-                // (Isso evita cair no bloco 3) Ramal encerrou antes → tarifar tronco)
+                // outbound ringall NÃO deve forçar tronco via peer
                 $peer = null;
 
-                // opcional: remove do bridge (não quebra se falhar)
                 if ($bridge) {
                     try {
                         $this->http->delete("http://{$this->ariHost}:8088/ari/bridges/{$bridge}/removeChannel", [
@@ -376,22 +487,18 @@ class StasisListenerAsterisk
                 }
             }
 
-            // 2) Se ESTE canal é inbound com ringall ativo -> mata todo mundo
             if (!empty($this->channelData[$channelId]['ringall'])) {
 
-                $ring = $this->channelData[$channelId]['ringall'];
+                $ring     = $this->channelData[$channelId]['ringall'];
                 $bridgeId = $ring['bridge'] ?? null;
                 $winnerCh = $ring['winner']['channel'] ?? null;
+                $outs     = $ring['outbound'] ?? [];
 
-                $outs = $ring['outbound'] ?? [];
                 if (is_array($outs)) {
                     foreach ($outs as $ramal => $outCh) {
                         if (!$outCh) continue;
-
-                        // não derruba winner se ainda está vivo
                         if ($winnerCh && $outCh === $winnerCh) continue;
 
-                        // remove da bridge se tiver (best-effort)
                         if ($bridgeId) {
                             try {
                                 $this->http->delete("http://{$this->ariHost}:8088/ari/bridges/{$bridgeId}/removeChannel", [
@@ -401,151 +508,112 @@ class StasisListenerAsterisk
                             } catch (\Throwable) {}
                         }
 
-                        // derruba o canal outbound (best-effort)
                         try {
                             $this->http->delete("http://{$this->ariHost}:8088/ari/channels/{$outCh}", [
                                 'http_errors' => false
                             ]);
                         } catch (\Throwable) {}
 
-                        // limpa o que for possível do seu mapa local
                         unset($this->channelData[$outCh]);
                     }
                 }
 
-                // limpa estrutura ringall do inbound (não interfere em CDR)
                 unset($this->channelData[$channelId]['ringall']);
             }
 
         } catch (\Throwable $e) {
-            error_log("[RINGALL] ⚠ cleanup falhou: ".$e->getMessage());
+            error_log("[RINGALL] ⚠ cleanup falhou: " . $e->getMessage());
         }
 
-
-        // ==============================================================
-        // 🔓 LIBERAÇÃO CORRETA DE AGENTE (RAMAL)
-        // ==============================================================
-
+        // =============================================================
+        // 🔓 LIBERAÇÃO DE AGENTE
+        // =============================================================
         $channelType = $this->channelData[$channelId]['type'] ?? null;
 
         if ($channelType === 'AGENT' && empty($this->channelData[$channelId]['agent_released'])) {
 
             $this->markDead($channelId, 30);
 
-            $vars = $this->channelData[$channelId]['vars'] ?? [];
-
-            // ✅ ringall outbound também é AGENT -> não pode destravar transfer/origin por engano
             $isRingallAgent =
                 (($vars['RINGALL'] ?? '') === '1') ||
                 (!empty($vars['RINGALL_INBOUND']) && !empty($vars['RINGALL_BRIDGE']));
 
-            // ✅ se esse AGENT veio de uma transferência (e NÃO é ringall), destrava o origin
             if (!$isRingallAgent) {
                 $origin = $this->channelData[$channelId]['transfer_origin'] ?? null;
-
                 if ($origin) {
-                    // ✅ para MOH no cliente/origem (se estiver tocando)
                     $this->stopMoh($origin, 'agent_channel_destroyed');
-
                     $this->unlockDtmfTransfer($origin, 'agent_channel_destroyed');
                     unset($this->channelData[$origin]['transfer_in_progress']);
-
                     error_log("[TRANSFER] 🔓 Unlock origin={$origin} (agent destroyed={$channelId})");
                 }
             }
 
-            // ✅ libera o ramal SEMPRE (transfer ou ringall)
             $agentId = $this->channelData[$channelId]['agent_id'] ?? null;
-
             if ($agentId) {
                 $this->releaseAgentByChannel($channelId, 'agent_channel_destroyed');
                 $this->channelData[$channelId]['agent_released'] = true;
-
                 error_log("[AGENT] 🔓 Ramal {$agentId} liberado (canal {$channelId})");
             }
         }
 
-
-
-
+        // =============================================================
         // identifica canal principal
+        // =============================================================
         $isMain =
             isset($this->channelData[$channelId]['vars']['OWNER_ID']) ||
-            isset($this->channelData[$channelId]['vars']['TYPE']);
+            isset($this->channelData[$channelId]['vars']['TYPE']) ||
+            isset($this->channelData[$channelId]['vars']['__OWNER_ID']) ||
+            isset($this->channelData[$channelId]['vars']['__TYPE']);
 
         // detecta tronco
         $name = $this->channelData[$channelId]['name'] ?? '';
-        $vars = $this->channelData[$channelId]['vars'] ?? [];
 
-        // 1️⃣ prioridade máxima: var explícita do dialplan
         $isTrunkByVar =
-            !empty($vars['TRUNK']) ||
-            !empty($vars['TRUNK_ID']);
+            !empty($vars['TRUNK']) || !empty($vars['TRUNK_ID']) ||
+            !empty($vars['__TRUNK']) || !empty($vars['__TRUNK_ID']);
 
-        // 2️⃣ compatibilidade antiga (mxx*)
-        $isTrunkByName =
-            preg_match('/^PJSIP\/mxx\d+-/i', $name);
-
-        // 3️⃣ fallback: tudo que NÃO for ramal numérico (8 dígitos)
-        $isRamalNumerico =
-            preg_match('/^PJSIP\/\d{8}-/i', $name);
+        $isTrunkByName = (bool)preg_match('/^PJSIP\/mxx\d+-/i', $name);
+        $isRamalNumerico = (bool)preg_match('/^PJSIP\/\d{8}-/i', $name);
 
         $isTrunk = $isTrunkByVar || $isTrunkByName || !$isRamalNumerico;
-
 
         // evita duplicata
         $dupKey  = "cdr-saved:{$channelId}";
         $failKey = "cdr-falha-pendente:{$channelId}";
 
-        // ==============================================================
+        // =============================================================
         // 1) FAIL-CDR pendente
-        // ==============================================================
+        // =============================================================
         try {
             $failJson = $this->redis->get($failKey);
-
             if ($failJson) {
 
                 $failEvent  = json_decode($failJson, true) ?: [];
                 $dialStatus = $failEvent['dialstatus'] ?? 'FAILED';
 
                 if ($dialStatus === 'PROGRESS') {
-                    // ignorar parcial
                     error_log("[CDR] ⏭️ Ignorando CDR PROGRESS (canal {$channelId})");
                     $this->redis->del($failKey);
-
                 } else {
-                    // armazenar pendência na memória e tentar salvar
                     $this->channelData[$channelId]['pending_fail_cdr'] = $failEvent;
 
                     $saved = $this->trySavePendingFailCdr($channelId);
-
                     if (!$saved) {
-                        // precisa esperar VARSET (OWNER/TENANT)
                         error_log("[CDR] ⏳ Aguardando VARSET para salvar FAIL-CDR canal {$channelId}");
                         return;
                     }
                 }
             }
-
         } catch (\Throwable $e) {
-            error_log("[CDR] ⚠ Falha no FAIL-CDR: ".$e->getMessage());
+            error_log("[CDR] ⚠ Falha no FAIL-CDR: " . $e->getMessage());
         }
 
-        $vars = $this->channelData[$channelId]['vars'] ?? [];
-
-        $isManual = (
-            !empty($vars['MANUAL_CALL']) ||
-            !empty($vars['IS_MANUAL']) ||
-            !empty($vars['__IS_MANUAL'])
-        );
-
-
-        // ==============================================================
+        // =============================================================
         // 2) Chamadas atendidas → tarifação
-        // ==============================================================
+        // =============================================================
         if ($isMain && !empty($this->channelData[$channelId]['answered'])) {
 
-            // 🚫 ramal do discador não tarifa
+            // 🚫 ramal do discador não tarifa (MAS manual pode)
             if (!$isTrunk && !$isManual) {
                 error_log("[CDR] ⏭ Ramal do discador ignorado {$channelId}");
             } else {
@@ -554,20 +622,17 @@ class StasisListenerAsterisk
                     $this->channelData[$channelId]['tariff_done'] = true;
                     $this->redis->setex($dupKey, 300, 1);
                 } catch (\Throwable $e) {
-                    error_log("[CDR] ❌ Erro ao tarifar canal {$channelId}: ".$e->getMessage());
+                    error_log("[CDR] ❌ Erro ao tarifar canal {$channelId}: " . $e->getMessage());
                 }
             }
         }
 
-
-        // ==============================================================
+        // =============================================================
         // 3) Ramal encerrou antes → tarifar tronco
-        // ==============================================================
-
+        // =============================================================
         $isDiscadorRamal = (!$isTrunk && !$isManual);
 
-        if (!$isManual && !$isDiscadorRamal && $peer && isset($this->channelData[$peer]))
-        {
+        if (!$isDiscadorRamal && $peer && isset($this->channelData[$peer])) {
 
             foreach (['started', 'answered', 'ended', 'vars'] as $k) {
                 if (empty($this->channelData[$peer][$k]) && !empty($this->channelData[$channelId][$k])) {
@@ -585,17 +650,15 @@ class StasisListenerAsterisk
 
                 error_log("[CDR] 💰 Tarifação forçada do tronco {$peer}");
             } catch (\Throwable $e) {
-                error_log("[CDR] ⚠ Erro no tronco forçado: ".$e->getMessage());
+                error_log("[CDR] ⚠ Erro no tronco forçado: " . $e->getMessage());
             }
         }
 
-        // ==============================================================
-        // 🔎 FALLBACK — cliente encerrou, ramal ainda existe
-        // ==============================================================
-
+        // =============================================================
+        // 4) FALLBACK — cliente encerrou, ramal ainda existe
+        // =============================================================
         if ($isMain && $peer && isset($this->channelData[$peer])) {
 
-            // ✅ se o cliente morreu durante transfer, garante que não fica MOH preso nele
             $this->stopMoh($channelId, 'main_channel_destroyed');
 
             if (empty($this->channelData[$peer]['agent_released'])) {
@@ -609,7 +672,6 @@ class StasisListenerAsterisk
                         (($pvars['RINGALL'] ?? '') === '1') ||
                         (!empty($pvars['RINGALL_INBOUND']) && !empty($pvars['RINGALL_BRIDGE']));
 
-                    // ✅ ringall: só libera ramal, não mexe em lock de transferência
                     $agentId = $this->channelData[$peer]['agent_id'] ?? null;
 
                     if ($agentId) {
@@ -623,30 +685,23 @@ class StasisListenerAsterisk
             }
         }
 
+        // =============================================================
+        // 5) LIMPEZA FINAL
+        // =============================================================
+        $cdrSaved = (bool)$this->redis->exists($dupKey);
 
-
-        // ==============================================================
-        // 5) LIMPEZA FINAL — **REMOVER SEMPRE SE O CDR FOI SALVO**
-        // ==============================================================
-
-        $cdrSaved = $this->redis->exists($dupKey);
-
-        // remover canal SE:
-        //   - FAIL-CDR salvo
-        //   - OU canal não está aguardando info crítica
         $needsWait =
             empty($this->channelData[$channelId]['dialstatus']) ||
             ($this->channelData[$channelId]['dialstatus'] === 'PROGRESS') ||
             !empty($this->channelData[$channelId]['pending_fail_cdr']);
 
         if ($cdrSaved || !$needsWait) {
-            // ✅ TUMBA antes de remover (evita recriar por statechange/dial/varset atrasado)
+
             $this->markDead($channelId, 30);
 
-            unset($this->pendingVars[$channelId]);
             unset($this->channelData[$channelId]);
-
             error_log("[CDR] 🧹 Canal {$channelId} removido com segurança.");
+
         } else {
             error_log("[CDR] ⏳ NÃO removido — aguardando eventos finais (canal {$channelId})");
         }
@@ -654,43 +709,79 @@ class StasisListenerAsterisk
         $this->updateRedis();
     }
 
+
     private function handleChannelStateChange(array $event): void
     {
         $channelId = $event['channel']['id'] ?? null;
         if (!$channelId) return;
 
-        // ✅ TUMBA: não recria canal morto (ringall loser etc.)
-        if (!empty($this->deadChannels[$channelId]) && $this->deadChannels[$channelId] > time()) {
-            return;
-        }
+        $now = time();
 
-        // PATCH — registra o nome do canal
-        if (isset($this->channelData[$channelId])) {
-            $this->channelData[$channelId]['name'] = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
+        // ✅ TUMBA: não recria canal morto (ringall loser etc.)
+        if (!empty($this->deadChannels[$channelId]) && $this->deadChannels[$channelId] > $now) {
+            return;
         }
 
         $state  = strtolower($event['channel']['state'] ?? '');
         $caller = $event['channel']['caller']['number'] ?? 'Desconhecido';
-        $oldState = $this->channelData[$channelId]['state'] ?? '(novo)';
 
-        // 🔹 Se o canal ainda não existir, inicializa corretamente
+        // ==========================================================
+        // ✅ Se o canal ainda não existir, cria skeleton completo
+        // ==========================================================
         if (!isset($this->channelData[$channelId])) {
             $this->channelData[$channelId] = [
                 'id'       => $channelId,
                 'number'   => $caller,
+                'name'     => $event['channel']['name'] ?? null,
                 'status'   => '📞 Tocando',
-                'state'    => $state,
-                'started'  => time(),
+                'state'    => $state ?: 'ringing',
+                'started'  => $now,      // importante pro painel
                 'duration' => '00:00',
                 'vars'     => [],
             ];
-            // nome do canal
-            $this->channelData[$channelId]['name'] = $event['channel']['name'] ?? null;
 
             echo "[+] Novo canal criado em handleChannelStateChange: {$channelId} ({$caller})\n";
+        } else {
+            // PATCH — registra/atualiza nome do canal
+            $this->channelData[$channelId]['name'] = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
+            if (!isset($this->channelData[$channelId]['vars']) || !is_array($this->channelData[$channelId]['vars'])) {
+                $this->channelData[$channelId]['vars'] = [];
+            }
+            if (empty($this->channelData[$channelId]['started'])) {
+                $this->channelData[$channelId]['started'] = $now; // evita stub sem started
+            }
         }
 
+        $oldState = $this->channelData[$channelId]['state'] ?? '(novo)';
+
+        // ==========================================================
+        // ✅ Associa pendingVars ANTES (pra já ter identidade no painel)
+        // ==========================================================
+        if (isset($this->pendingVars[$channelId]) && is_array($this->pendingVars[$channelId])) {
+            $this->channelData[$channelId]['vars'] = array_merge(
+                $this->channelData[$channelId]['vars'] ?? [],
+                $this->pendingVars[$channelId]
+            );
+            unset($this->pendingVars[$channelId]);
+        }
+
+        // ==========================================================
+        // ✅ Copia identidade do vars pro topo (SSE filtra por isso)
+        // ==========================================================
+        $v = $this->channelData[$channelId]['vars'] ?? [];
+
+        $this->channelData[$channelId]['owner_id'] = $this->channelData[$channelId]['owner_id']
+            ?? $v['OWNER_ID'] ?? $v['__OWNER_ID'] ?? null;
+
+        $this->channelData[$channelId]['tenant_id'] = $this->channelData[$channelId]['tenant_id']
+            ?? $v['TENANT_ID'] ?? $v['__TENANT_ID'] ?? null;
+
+        $this->channelData[$channelId]['role'] = $this->channelData[$channelId]['role']
+            ?? $v['ROLE'] ?? $v['__ROLE'] ?? null;
+
+        // ==========================================================
         // 🔹 Atualiza estado e status humanos
+        // ==========================================================
         $this->channelData[$channelId]['state'] = $state;
 
         switch ($state) {
@@ -698,14 +789,19 @@ class StasisListenerAsterisk
                 $this->channelData[$channelId]['status'] = '📞 Tocando';
                 break;
 
+            case 'progress':
+                // ✅ seu painel usa "Progress..." em alguns fluxos
+                $this->channelData[$channelId]['status'] = '📡 Progress...';
+                break;
+
             case 'up':
                 if (!isset($this->channelData[$channelId]['answered'])) {
-                    $this->channelData[$channelId]['answered'] = time();
+                    $this->channelData[$channelId]['answered'] = $now;
                 }
                 $this->channelData[$channelId]['status'] = '✅ Atendida';
                 $this->channelData[$channelId]['duration'] = gmdate(
                     "i:s",
-                    time() - ($this->channelData[$channelId]['answered'] ?? $this->channelData[$channelId]['started'])
+                    $now - ($this->channelData[$channelId]['answered'] ?? $this->channelData[$channelId]['started'])
                 );
                 echo "[✔] Canal {$channelId} agora está ATENDIDO\n";
                 break;
@@ -716,20 +812,11 @@ class StasisListenerAsterisk
 
             case 'down':
                 $this->channelData[$channelId]['status'] = '🔚 Finalizada';
-                $this->channelData[$channelId]['ended'] = time();
+                $this->channelData[$channelId]['ended'] = $now;
                 $this->channelData[$channelId]['duration'] = isset($this->channelData[$channelId]['answered'])
                     ? gmdate("i:s", $this->channelData[$channelId]['ended'] - $this->channelData[$channelId]['answered'])
                     : '00:00';
                 break;
-        }
-
-        // 🔹 Associa variáveis pendentes
-        if (isset($this->pendingVars[$channelId])) {
-            $this->channelData[$channelId]['vars'] = array_merge(
-                $this->channelData[$channelId]['vars'] ?? [],
-                $this->pendingVars[$channelId]
-            );
-            unset($this->pendingVars[$channelId]);
         }
 
         // 🔹 Atualiza Redis
@@ -751,29 +838,25 @@ class StasisListenerAsterisk
                 $bridgeId = $vars['RINGALL_BRIDGE']  ?? null;
                 $ramal    = $vars['RINGALL_RAMAL']   ?? null;
 
-                // ✅ normaliza inbound (evita "1769... " com lixo)
                 $inbound = $inbound ? trim((string)$inbound) : null;
 
                 if ($inbound && $bridgeId && $ramal && isset($this->channelData[$inbound])) {
 
-                    // ✅ garante estrutura ringall no inbound (e preserva outbound já preenchido)
                     if (!isset($this->channelData[$inbound]['ringall'])) {
                         $this->channelData[$inbound]['ringall'] = [
                             'bridge'   => $bridgeId,
-                            'targets'  => [],              // opcional (se você tiver)
-                            'outbound' => [],              // ramal => channelId
+                            'targets'  => [],
+                            'outbound' => [],
                             'winner'   => null,
-                            'started'  => $this->channelData[$inbound]['started'] ?? time(),
-                            'deadline' => time() + 20,
+                            'started'  => $this->channelData[$inbound]['started'] ?? $now,
+                            'deadline' => $now + 20,
                         ];
                     }
 
-                    // ✅ registra esse outbound caso ainda não esteja no mapa
                     if (empty($this->channelData[$inbound]['ringall']['outbound'][$ramal])) {
                         $this->channelData[$inbound]['ringall']['outbound'][$ramal] = $channelId;
                     }
 
-                    // ✅ já tem winner? então esse é perdedor (hangup seguro)
                     if (!empty($this->channelData[$inbound]['ringall']['winner'])) {
                         echo "[RINGALL] Perdedor {$channelId} (winner já definido)\n";
                         try {
@@ -782,16 +865,14 @@ class StasisListenerAsterisk
                         return;
                     }
 
-                    // ✅ define winner
                     $this->channelData[$inbound]['ringall']['winner'] = [
                         'ramal'   => $ramal,
                         'channel' => $channelId,
-                        'ts'      => time(),
+                        'ts'      => $now,
                     ];
 
                     echo "[RINGALL] ✅ Winner {$ramal} channel={$channelId} inbound={$inbound} bridge={$bridgeId}\n";
 
-                    // ✅ adiciona winner no bridge existente (usa query, não json)
                     try {
                         $this->http->post("http://{$this->ariHost}:8088/ari/bridges/{$bridgeId}/addChannel", [
                             'query'       => ['channel' => $channelId],
@@ -799,23 +880,15 @@ class StasisListenerAsterisk
                         ]);
                     } catch (\Throwable) {}
 
-                    // ✅ derruba perdedores (hangup seguro)
                     $outs = $this->channelData[$inbound]['ringall']['outbound'] ?? [];
                     foreach ($outs as $r => $ch) {
                         if ($ch && $ch !== $channelId) {
-
-                            // 1) derruba no Asterisk
                             try {
                                 $this->http->delete("http://{$this->ariHost}:8088/ari/channels/{$ch}", ['http_errors' => false]);
                             } catch (\Throwable) {}
 
-                            // 2) marca como morto pra não recriar
                             $this->markDead($ch, 30);
-
-                            // 3) limpa pendingVars (VARSET que chega depois)
                             unset($this->pendingVars[$ch]);
-
-                            // 4) remove do painel imediatamente
                             unset($this->channelData[$ch]);
 
                             error_log("[RINGALL] 🧹 Perdedor removido do painel: {$ch} (ramal {$r})");
@@ -824,27 +897,21 @@ class StasisListenerAsterisk
 
                     $this->updateRedis();
 
-
-
-                    // ✅ mantém o “peer flow”
                     $this->channelData[$inbound]['peer']   = $channelId;
                     $this->channelData[$channelId]['peer'] = $inbound;
 
-                    // ✅ impede bridge normal (fluxo 1-1) de criar outra bridge
                     $this->channelData[$inbound]['bridge']   = $bridgeId;
                     $this->channelData[$channelId]['bridge'] = $bridgeId;
 
-                    // ✅ memória rrmemory (o inbound guarda a RR_MEM_KEY)
                     $memKey = $this->channelData[$inbound]['vars']['RR_MEM_KEY'] ?? null;
                     if ($memKey) {
                         $this->redis->setex($memKey, 86400, $ramal);
                     }
 
                     $this->updateRedis();
-                    return; // ringall resolvido
+                    return;
                 }
 
-                // debug útil quando não entra
                 echo "[RINGALL ⚠️] Outbound UP sem contexto completo: "
                     . "inbound=" . ($inbound ?: 'null')
                     . " bridge=" . ($bridgeId ?: 'null')
@@ -854,13 +921,11 @@ class StasisListenerAsterisk
             }
         }
 
-
         // =====================================================
         // 🔹 Bridge normal (transfer de 1 ramal) — sem duplicar
         // =====================================================
         if ($state === 'up' && isset($this->channelData[$channelId]['peer'])) {
 
-            // ✅ Ringall outbound não entra no fluxo normal de bridge
             $vars = $this->channelData[$channelId]['vars'] ?? [];
             if (($vars['RINGALL'] ?? '') === '1') {
                 return;
@@ -870,7 +935,6 @@ class StasisListenerAsterisk
 
             if (!isset($this->channelData[$channelId]['bridge'])) {
                 try {
-                    // ✅ Cria bridge mixing
                     $bridgeResp = $this->http->post("http://{$this->ariHost}:8088/ari/bridges", [
                         'json' => ['type' => 'mixing']
                     ]);
@@ -878,8 +942,6 @@ class StasisListenerAsterisk
                     $bridgeId = $bridge['id'] ?? null;
 
                     if ($bridgeId) {
-
-                        // ✅ Adiciona ambos os canais via QUERY (ARI correto)
                         $this->http->post("http://{$this->ariHost}:8088/ari/bridges/{$bridgeId}/addChannel", [
                             'query'       => ['channel' => "{$channelId},{$peer}"],
                             'http_errors' => false,
@@ -898,16 +960,12 @@ class StasisListenerAsterisk
                             ?? null;
 
                         if ($origin) {
-                            // ✅ para MOH só no cliente
                             $this->stopMoh($origin, 'bridge_created_origin');
-
-                            // ✅ libera lock/in-progress do cliente
                             $this->unlockDtmfTransfer($origin, 'bridge_created');
                             unset($this->channelData[$origin]['transfer_in_progress']);
                         }
                     }
 
-                    // ✅ Após criar bridge, encerra o canal de origem (tronco) se não for o do ramal
                     $isRingall = !empty($this->channelData[$channelId]['ringall'])
                         || ((($this->channelData[$channelId]['vars'] ?? [])['RINGALL'] ?? '') === '1')
                         || !empty(($this->channelData[$peer] ?? [])['ringall'])
@@ -932,7 +990,6 @@ class StasisListenerAsterisk
                 } catch (\Throwable $e) {
                     echo "[BRIDGE ⚠️] Erro ao criar bridge entre {$channelId} e {$peer}: {$e->getMessage()}\n";
 
-                    // ✅ não deixar lock preso se falhou bridge
                     $origin =
                         $this->channelData[$channelId]['transfer_origin']
                         ?? $this->channelData[$peer]['transfer_origin']
@@ -946,486 +1003,13 @@ class StasisListenerAsterisk
                     }
                 }
             }
-
         }
-
     }
+
 
     private function markDead(string $channelId, int $ttl = 15): void
     {
         $this->deadChannels[$channelId] = time() + $ttl;
-    }
-
-
-
-
-
-
-
-
-
-    /*private function onStart(array $event): void
-    {
-        $channelId = $event['channel']['id'] ?? null;
-        if (!$channelId) return;
-
-        // -----------------------------
-        // Variáveis vindas do originate / dialplan
-        // -----------------------------
-        $ariVars = $event['variables'] ?? [];
-
-        $jobId        = $ariVars['JOB_ID']        ?? null;
-        $campaignId   = $ariVars['CAMPAIGN_ID']   ?? null;
-        $campaignType = $ariVars['CAMPAIGN_TYPE'] ?? null;
-
-        // ✅ CALL_ID pode vir no onStart OU por VARSET (race)
-        $callId = $ariVars['CALL_ID'] ?? null;
-
-        // fallback: VARSET chegou antes
-        if (!$callId && !empty($this->pendingVars[$channelId]['CALL_ID'])) {
-            $callId = $this->pendingVars[$channelId]['CALL_ID'];
-        }
-
-        // se já existe channelData vars (raro aqui, mas seguro)
-        if (!$callId && !empty($this->channelData[$channelId]['vars']['CALL_ID'])) {
-            $callId = $this->channelData[$channelId]['vars']['CALL_ID'];
-        }
-
-        $callId = $callId ? trim((string)$callId) : null;
-
-        echo "[DEBUG] CALL_ID={$callId}\n";
-
-        // -----------------------------
-        // Extrai appArgs
-        // -----------------------------
-        $appArgsRaw = trim($event['channel']['dialplan']['app_data'] ?? '');
-        if (str_contains($appArgsRaw, ',')) {
-            $parts = explode(',', $appArgsRaw, 2);
-            $appArgsRaw = $parts[1] ?? '';
-        }
-        $appArgsRaw = trim($appArgsRaw, "\"'");
-        $appArgs = json_decode($appArgsRaw, true);
-        if (!is_array($appArgs)) $appArgs = [];
-
-        // -----------------------------
-        // Detecta ringall outbound pelo appArgs
-        // -----------------------------
-        $mode = null;
-        $inboundFromArgs = null;
-        $bridgeFromArgs  = null;
-
-        $raw = trim($event['channel']['dialplan']['app_data'] ?? '');
-        $raw = trim($raw, "\"'");
-
-        // seu appArgs do originate: "ringall,inbound,bridge"
-        if ($raw !== '') {
-            $parts = array_map('trim', explode(',', $raw));
-            $mode = $parts[0] ?? null;
-            if ($mode === 'ringall') {
-                $inboundFromArgs = $parts[1] ?? null;
-                $bridgeFromArgs  = $parts[2] ?? null;
-            }
-        }
-
-        if ($mode === 'ringall') {
-
-            // ✅ garante que channelData exista antes de setar vars
-            if (!isset($this->channelData[$channelId])) {
-                $this->channelData[$channelId] = [
-                    'id'       => $channelId,
-                    'name'     => $event['channel']['name'] ?? null,
-                    'peer'     => $inboundFromArgs,   // inbound = peer lógico
-                    'started'  => time(),
-                    'state'    => strtolower($event['channel']['state'] ?? 'ringing'),
-                    'status'   => '📞 RingAll',
-                    'duration' => '00:00',
-                    'vars'     => [],
-                ];
-            } else {
-                $this->channelData[$channelId]['name'] = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
-                $this->channelData[$channelId]['peer'] = $inboundFromArgs ?: ($this->channelData[$channelId]['peer'] ?? null);
-                if (!isset($this->channelData[$channelId]['vars'])) $this->channelData[$channelId]['vars'] = [];
-            }
-
-            // ✅ ramal do OUTBOUND: pega do nome do canal (PJSIP/02911642-xxxxx)
-            $ramal = null;
-            $nm = $event['channel']['name'] ?? '';
-            if (preg_match('/PJSIP\/(\d{8})/i', $nm, $m)) {
-                $ramal = $m[1];
-            }
-
-            // injeta vars pro stateChange eleger winner
-            $this->channelData[$channelId]['vars']['RINGALL']         = '1';
-            $this->channelData[$channelId]['vars']['RINGALL_INBOUND'] = $inboundFromArgs;
-            $this->channelData[$channelId]['vars']['RINGALL_BRIDGE']  = $bridgeFromArgs;
-            $this->channelData[$channelId]['vars']['RINGALL_RAMAL']   = $ramal;
-
-            // ✅ MUITO IMPORTANTE: não tocar áudio, não answer, não rodar transfer_only
-            echo "[RINGALL] onStart outbound {$channelId} inbound={$inboundFromArgs} bridge={$bridgeFromArgs} ramal=" . ($ramal ?: "null") . "\n";
-
-            // salva logo (evita race)
-            try {
-                $this->redis->hset('discador:stasis:channels', $channelId, json_encode($this->channelData[$channelId]));
-            } catch (\Throwable $e) {}
-
-            return;
-        }
-
-        $mainAudios = $appArgs['audio'] ?? [];
-        if (!is_array($mainAudios)) $mainAudios = [$mainAudios];
-
-        $dtmf   = $appArgs['dtmf'] ?? [];
-        $action = $appArgs['action'] ?? null;
-
-        echo "[DEBUG] ACTION={$action}\n";
-
-        // -----------------------------
-        // CallerID normalizado
-        // -----------------------------
-        $callerNumber = $event['channel']['caller']['number'] ?? 'anonymous';
-        $callerName   = $event['channel']['caller']['name'] ?? $callerNumber;
-
-        if (strlen($callerNumber) > 11) {
-            $callerNumber = substr($callerNumber, -11);
-        }
-
-        // -----------------------------
-        // ✅ Inicializa canal COMPLETO sempre
-        // (não faça "vars-only" antes, senão nunca entra aqui)
-        // -----------------------------
-        if (!isset($this->channelData[$channelId])) {
-            $this->channelData[$channelId] = [
-                'id'            => $channelId,
-                'name'          => $event['channel']['name'] ?? null,
-                'extension'     => $callerNumber,
-                'caller_name'   => $callerName,
-                'mainAudios'    => $mainAudios,
-                'dtmf'          => $dtmf,
-                'action'        => $action,
-                'play_only'     => ($action === 'play_only') ? 'play_only' : null,
-                'dtmf_received' => false,
-                'handled_dtmf'  => [],
-                'peer'          => null,
-                'started'       => time(),
-                'status'        => 'Chamando...',
-                'state'         => 'ringing',
-                'duration'      => '00:00',
-                'vars'          => [],
-            ];
-            echo "[📞] Novo canal iniciado: {$callerNumber} ({$channelId})\n";
-        } else {
-            // Atualiza campos principais
-            $this->channelData[$channelId]['name']        = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
-            $this->channelData[$channelId]['mainAudios']  = $mainAudios;
-            $this->channelData[$channelId]['dtmf']        = $dtmf;
-            $this->channelData[$channelId]['caller_name'] = $callerName;
-            $this->channelData[$channelId]['action']      = $action;
-            $this->channelData[$channelId]['play_only']   = ($action === 'play_only') ? 'play_only' : null;
-        }
-
-        // -----------------------------
-        // Injeta explicitamente vars "core" (evita race com VARSET)
-        // -----------------------------
-        if ($jobId)        $this->channelData[$channelId]['vars']['JOB_ID'] = $jobId;
-        if ($campaignId)   $this->channelData[$channelId]['vars']['CAMPAIGN_ID'] = $campaignId;
-        if ($campaignType) $this->channelData[$channelId]['vars']['CAMPAIGN_TYPE'] = $campaignType;
-        if ($callId)       $this->channelData[$channelId]['vars']['CALL_ID'] = $callId;
-
-        // Merge variáveis do Dialplan/Originate
-        $this->channelData[$channelId]['vars'] = array_merge(
-            $this->channelData[$channelId]['vars'] ?? [],
-            $ariVars
-        );
-
-        // Se tinha pendingVars, injeta também (resolve varset antes do canal existir)
-        if (!empty($this->pendingVars[$channelId])) {
-            $this->channelData[$channelId]['vars'] = array_merge(
-                $this->channelData[$channelId]['vars'],
-                $this->pendingVars[$channelId]
-            );
-            unset($this->pendingVars[$channelId]);
-        }
-
-        // -----------------------------
-        // ✅ Contexto por CALL_ID (mesmo com ramal NULL)
-        // -----------------------------
-        if ($callId) {
-            $ccRaw = $this->redis->get("voice:call_context:{$callId}");
-            if ($ccRaw) {
-                $cc = json_decode($ccRaw, true) ?: [];
-
-                $this->redis->setex(
-                    "voice:channel_context:{$channelId}",
-                    300,
-                    json_encode([
-                        'call_id'        => $callId,
-                        'job_id'         => $jobId,
-                        'reserved_ramal' => $cc['ramal'] ?? null,
-                        'ramal'          => $cc['ramal'] ?? null,
-                        'strategy'       => $cc['strategy'] ?? ($this->channelData[$channelId]['vars']['STRATEGY'] ?? 'rrmemory'),
-                        'endpoints'      => $cc['endpoints'] ?? [],
-                        'ts'             => time(),
-                    ], JSON_UNESCAPED_UNICODE)
-                );
-            }
-        }
-
-        // -----------------------------
-        // SALVAR IMEDIATAMENTE NO REDIS (evita race)
-        // -----------------------------
-        try {
-            $redisKey = 'discador:stasis:channels';
-            $this->redis->hset($redisKey, $channelId, json_encode($this->channelData[$channelId]));
-            echo "[REDIS] Canal {$channelId} salvo em {$redisKey}\n";
-        } catch (\Throwable $e) {
-            echo "[REDIS ⚠️] Falha ao salvar canal: {$e->getMessage()}\n";
-        }
-
-        // -----------------------------
-        // Toca áudio inicial se existir
-        // -----------------------------
-        if (!empty($mainAudios)) {
-            $this->playMainAudio($channelId);
-        }
-
-        // -----------------------------
-        // Atender canal
-        // -----------------------------
-        try {
-            $this->http->post("http://{$this->ariHost}:8088/ari/channels/{$channelId}/answer");
-            usleep(200000);
-            $this->channelData[$channelId]['state']    = 'up';
-            $this->channelData[$channelId]['answered'] = time();
-        } catch (\Exception $e) {
-            echo "[⚠️] Falha ao atender canal {$channelId}: {$e->getMessage()}\n";
-        }
-
-        // -----------------------------
-        // ✅ TRANSFER_ONLY: transfere direto (sem DTMF)
-        // -----------------------------
-        if ($action === 'transfer_only') {
-
-            echo "[TRANSFER_ONLY] Iniciando transferência automática (canal {$channelId})\n";
-
-            // ✅ MOH enquanto o worker decide/espera agente
-            $this->stopMoh($channelId, 'transfer_only_start_guard'); // idempotente
-            $this->playMoh($channelId, 'default', 'transfer_only_wait_agent_answer');
-
-            // garante call_id
-            if (!$callId) {
-                $callId = $this->channelData[$channelId]['vars']['CALL_ID'] ?? null;
-                $callId = $callId ? trim((string)$callId) : null;
-            }
-
-            $ramalSolicitado = null;
-
-            // 1) call_context por CALL_ID
-            if ($callId) {
-                $ccRaw = $this->redis->get("voice:call_context:{$callId}");
-                if ($ccRaw) {
-                    $cc = json_decode($ccRaw, true) ?: [];
-                    $ramalSolicitado = $cc['ramal'] ?? null; // pode ser null no transfer_only
-                }
-            }
-
-            // 2) RESERVED_AGENT
-            if (!$ramalSolicitado) {
-                $ramalSolicitado = $this->channelData[$channelId]['vars']['RESERVED_AGENT'] ?? null;
-            }
-
-            // 3) EXTENSION só se for ramal
-            if (!$ramalSolicitado) {
-                $ext = $this->channelData[$channelId]['vars']['EXTENSION'] ?? null;
-                $ext = preg_replace('/\D/', '', (string)$ext);
-                if (preg_match('/^\d{8}$/', $ext)) {
-                    $ramalSolicitado = $ext;
-                }
-            }
-
-            // normaliza e valida
-            $ramalSolicitado = $ramalSolicitado ? preg_replace('/\D/', '', (string)$ramalSolicitado) : null;
-            if ($ramalSolicitado && !preg_match('/^\d{8}$/', $ramalSolicitado)) {
-                $ramalSolicitado = null;
-            }
-
-            echo "[TRANSFER_ONLY] 🔍 Validando agente " . ($ramalSolicitado ?: "AUTO")
-                . " call_id=" . ($callId ?: "null") . "\n";
-
-            $tent     = 0;
-            $maxTent  = 2;
-
-            // janela de espera por tentativa (segundos)
-            $timeoutTotal = 2; //8.0;
-
-            while ($tent < $maxTent) {
-
-                if (!$this->channelExists($channelId)) {
-                    echo "[TRANSFER_ONLY] ⚠ Canal destruído durante espera\n";
-                    $this->stopMoh($channelId);
-                    return;
-                }
-
-                // ✅ tenta enviar check (pode ser bloqueado pelo debounce)
-                $reqId = $this->notifyWorkerCheckRequest($channelId, $ramalSolicitado, $callId);
-
-                if (!$reqId) {
-                    // debounce bloqueou: NÃO existe resposta nova -> só espera pouco e tenta de novo
-                    usleep(200_000); // 200ms
-                    continue;
-                }
-
-                // ✅ só espera se enviou (req_id existe)
-                $resp = $this->waitWorkerResponse($channelId, 2, $reqId);
-
-                if ($resp && !empty($resp['ok'])) {
-
-                    // ✅ RINGALL (Opção A) — vem sem ramal
-                    if (($resp['mode'] ?? '') === 'ringall') {
-
-                        $targets = $resp['targets'] ?? [];
-                        $targets = is_array($targets) ? $targets : [];
-
-                        echo "[TRANSFER_ONLY] ✅ Ringall autorizado (" . count($targets) . " alvos)\n";
-
-                        // ringall vai controlar o resto -> garante que não fica MOH “preso”
-                        $this->stopMoh($channelId);
-
-                        if (!empty($resp['rr_mem_key'])) {
-                            $this->channelData[$channelId]['vars']['RR_MEM_KEY'] = $resp['rr_mem_key'];
-                        }
-                        if (!empty($resp['call_id'])) {
-                            $this->channelData[$channelId]['vars']['CALL_ID'] = $resp['call_id'];
-                        }
-
-                        $this->ringallToRamais($channelId, $targets);
-                        return;
-                    }
-
-                    // ✅ modo normal (1 ramal)
-                    $ramal = $resp['ramal'] ?? $ramalSolicitado;
-
-                    echo "[TRANSFER_ONLY] ✅ Aprovado → {$ramal}\n";
-
-                    try {
-                        // ✅ MOH no canal do cliente enquanto o ramal está sendo chamado
-                        usleep(200000);
-                        $this->playMoh($channelId, 'default');
-
-                        $this->transferToRamal($channelId, $ramal);
-
-                    } catch (\Throwable $e) {
-                        echo "[TRANSFER_ONLY] ❌ ERRO: {$e->getMessage()}\n";
-
-                        // ✅ se falhou, para o MOH pra não deixar o cliente preso em música
-                        $this->stopMoh($channelId);
-
-                        $this->stopMoh($channelId, 'before_agents_busy');
-                        $this->playWorkerAudio($channelId, "agents-busy");
-                        $this->ChannelFinishDestroyed($channelId, "Erro ao transferir", true);
-                        return;
-                    }
-
-                    return; // ✅ não seguir fluxo normal
-                }
-
-                // aqui: ou não veio resp, ou veio ok=false
-                $tent++;
-                $reason = $resp['reason'] ?? 'no_response';
-
-                echo "[TRANSFER_ONLY] ❌ Indisponível ({$tent}/{$maxTent}) reason={$reason}\n";
-
-                // antes de tocar áudio, garante que MOH não está ativo
-                $this->stopMoh($channelId);
-
-                // toca áudio em tentativas ímpares
-                if ($tent % 2 === 1) {
-                    $this->stopMoh($channelId, 'before_agents_busy');
-                    $this->playWorkerAudio($channelId, "agents-busy");
-                    $this->waitPlaybackFinish($channelId);
-                }
-
-                // ✅ espera “humana” antes de tentar de novo, mas sem flood
-                $inicio = microtime(true);
-                while (microtime(true) - $inicio < $timeoutTotal) {
-
-                    if (!$this->channelExists($channelId)) {
-                        echo "[TRANSFER_ONLY] ⚠ Canal destruído durante espera\n";
-                        $this->stopMoh($channelId);
-                        return;
-                    }
-
-                    // tenta enviar (respeita debounce)
-                    $reqId = $this->notifyWorkerCheckRequest($channelId, $ramalSolicitado, $callId);
-                    if ($reqId) {
-                        $resp = $this->waitWorkerResponse($channelId, 1, $reqId);
-                        if ($resp && !empty($resp['ok'])) {
-
-                            // ringall
-                            if (($resp['mode'] ?? '') === 'ringall') {
-                                $targets = $resp['targets'] ?? [];
-                                $targets = is_array($targets) ? $targets : [];
-                                echo "[TRANSFER_ONLY] ✅ Ringall autorizado (" . count($targets) . " alvos)\n";
-                                $this->stopMoh($channelId);
-                                $this->ringallToRamais($channelId, $targets);
-                                return;
-                            }
-
-                            $ramal = $resp['ramal'] ?? $ramalSolicitado;
-
-                            echo "[TRANSFER_ONLY] ✅ Aprovado → {$ramal}\n";
-
-                            try {
-                                usleep(200000);
-                                $this->playMoh($channelId, 'default');
-
-                                $this->transferToRamal($channelId, $ramal);
-
-                            } catch (\Throwable $e) {
-                                echo "[TRANSFER_ONLY] ❌ ERRO: {$e->getMessage()}\n";
-                                $this->stopMoh($channelId);
-                                $this->playWorkerAudio($channelId, "agents-busy");
-                                $this->ChannelFinishDestroyed($channelId, "Erro ao transferir", true);
-                                return;
-                            }
-
-                            return;
-                        }
-                    }
-
-                    usleep(250_000); // 250ms entre re-tentativas dentro da janela
-                }
-
-                // cai pro próximo tent
-            }
-
-            echo "[TRANSFER_ONLY] ❌ Nenhum agente livre\n";
-            $this->stopMoh($channelId);
-            $this->playWorkerAudio($channelId, "agents-busy");
-            $this->ChannelFinishDestroyed($channelId, "Falha na transferência", true);
-            return;
-        }
-
-        // -----------------------------
-        // Atualiza no Redis após atender
-        // -----------------------------
-        try {
-            $this->redis->hset('discador:stasis:channels', $channelId, json_encode($this->channelData[$channelId]));
-        } catch (\Throwable $e) {}
-    }*/
-
-    private function getLeg(string $channelId, array $ariVars = []): ?string
-    {
-        $vars = $ariVars;
-
-        if (!empty($this->channelData[$channelId]['vars'])) {
-            $vars = array_merge($vars, $this->channelData[$channelId]['vars']);
-        }
-        if (!empty($this->pendingVars[$channelId])) {
-            $vars = array_merge($vars, $this->pendingVars[$channelId]);
-        }
-
-        $leg = $vars['ARI_LEG'] ?? $vars['__ARI_LEG'] ?? null;
-        return $leg ? strtoupper(trim($leg)) : null; // 'A' ou 'B'
     }
 
 
@@ -1435,93 +1019,81 @@ class StasisListenerAsterisk
         $channelId = $event['channel']['id'] ?? null;
         if (!$channelId) return;
 
+        $now = time();
+
         // =====================================================
         // 🔁 CONTINUE ONCE (evita double continue no Stasis)
         // =====================================================
-        $continueOnce = function(array $event, bool $forceNoQuery = false) use ($channelId) {
-            try {
-                if (!empty($this->channelData[$channelId]['vars']['STASIS_CONTINUED'])) return;
 
-                if (!isset($this->channelData[$channelId])) {
-                    $this->channelData[$channelId] = ['id'=>$channelId,'vars'=>[]];
+        $continueOnce = function(array $event) use ($channelId) {
+
+            try {
+                if (!empty($this->channelData[$channelId]['vars']['STASIS_CONTINUED'])) {
+                    return;
                 }
 
                 $this->channelData[$channelId]['vars']['STASIS_CONTINUED'] = '1';
 
-                // marca no canal (best effort)
-                $this->http->post(
-                    "http://{$this->ariHost}:8088/ari/channels/{$channelId}/variable",
-                    [
-                        'query'       => ['variable' => 'STASIS_CONTINUED', 'value' => '1'],
-                        'http_errors' => false,
-                    ]
-                );
-
-                if ($forceNoQuery) {
-                    $res = $this->http->post(
-                        "http://{$this->ariHost}:8088/ari/channels/{$channelId}/continue",
-                        ['http_errors' => false]
+                // marca variável no canal (best effort)
+                try {
+                    $this->http->post(
+                        "http://{$this->ariHost}:8088/ari/channels/{$channelId}/variable",
+                        [
+                            'query'       => ['variable' => 'STASIS_CONTINUED', 'value' => '1'],
+                            'http_errors' => false,
+                        ]
                     );
+                } catch (\Throwable) {}
 
-                    $code = method_exists($res, 'getStatusCode') ? $res->getStatusCode() : null;
-                    echo "[CONTINUE] channel={$channelId} (noquery) http=" . ($code ?? 'null') . "\n";
-                    return;
-                }
-
-                $dp  = $event['channel']['dialplan'] ?? [];
-                $ctx = $dp['context'] ?? null;
-                $ext = $dp['exten']   ?? null;
-                $pri = isset($dp['priority']) ? ((int)$dp['priority'] + 1) : null;
-
-                $q = [];
-                if ($ctx && $ext && $pri) {
-                    $q = ['context' => $ctx, 'extension' => $ext, 'priority' => $pri];
-                }
-
+                // continua automaticamente
                 $res = $this->http->post(
                     "http://{$this->ariHost}:8088/ari/channels/{$channelId}/continue",
-                    [
-                        'query'       => $q,
-                        'http_errors' => false,
-                    ]
+                    ['http_errors' => false]
                 );
 
-                $code = method_exists($res, 'getStatusCode') ? $res->getStatusCode() : null;
-                echo "[CONTINUE] channel={$channelId} ctx={$ctx} exten={$ext} pri={$pri} http=" . ($code ?? 'null') . "\n";
+                $code = method_exists($res, 'getStatusCode')
+                    ? $res->getStatusCode()
+                    : null;
+
+                echo "[CONTINUE] channel={$channelId} http=" . ($code ?? 'null') . "\n";
 
             } catch (\Throwable $e) {
                 echo "[CONTINUE ⚠️] {$e->getMessage()}\n";
             }
         };
 
+
         // -----------------------------
         // Variáveis vindas do originate / dialplan
         // -----------------------------
-        $ariVars = $event['variables'] ?? [];
+        $ariVars = is_array($event['variables'] ?? null) ? $event['variables'] : [];
 
-        $jobId        = $ariVars['JOB_ID']        ?? null;
-        $campaignId   = $ariVars['CAMPAIGN_ID']   ?? null;
-        $campaignType = $ariVars['CAMPAIGN_TYPE'] ?? null;
+        // ✅ merge antecipado de pendingVars (evita race)
+        $pending = !empty($this->pendingVars[$channelId]) && is_array($this->pendingVars[$channelId])
+            ? $this->pendingVars[$channelId]
+            : [];
 
-        // ✅ CALL_ID pode vir no onStart OU por VARSET (race)
-        $callId = $ariVars['CALL_ID'] ?? null;
+        $allVars = array_merge($ariVars, $pending);
 
-        // fallback: VARSET chegou antes
-        if (!$callId && !empty($this->pendingVars[$channelId]['CALL_ID'])) {
-            $callId = $this->pendingVars[$channelId]['CALL_ID'];
-        }
+        // -----------------------------
+        // Core vars (com suporte a __)
+        // -----------------------------
+        $jobId        = $allVars['JOB_ID']        ?? $allVars['__JOB_ID']        ?? null;
+        $campaignId   = $allVars['CAMPAIGN_ID']   ?? $allVars['__CAMPAIGN_ID']   ?? null;
+        $campaignType = $allVars['CAMPAIGN_TYPE'] ?? $allVars['__CAMPAIGN_TYPE'] ?? null;
+        $techPrefix   = $allVars['TECHPREFIX']    ?? $allVars['__TECHPREFIX']    ?? null;
 
-        // se já existe channelData vars (raro aqui, mas seguro)
+        // ✅ CALL_ID pode vir no onStart OU por VARSET
+        $callId = $allVars['CALL_ID'] ?? $allVars['__CALL_ID'] ?? null;
         if (!$callId && !empty($this->channelData[$channelId]['vars']['CALL_ID'])) {
             $callId = $this->channelData[$channelId]['vars']['CALL_ID'];
         }
-
         $callId = $callId ? trim((string)$callId) : null;
 
         echo "[DEBUG] CALL_ID={$callId}\n";
 
         // -----------------------------
-        // Extrai appArgs
+        // appArgs (mantido)
         // -----------------------------
         $appArgsRaw = trim($event['channel']['dialplan']['app_data'] ?? '');
         if (str_contains($appArgsRaw, ',')) {
@@ -1532,12 +1104,60 @@ class StasisListenerAsterisk
         $appArgs = json_decode($appArgsRaw, true);
         if (!is_array($appArgs)) $appArgs = [];
 
+        // -----------------------------
+        // ✅ STASIS args (manual) - NÃO depende de VARSET (evita race)
+        // dialplan: Stasis(app-asterisk,manual)
+        // -----------------------------
+        $args = $event['args'] ?? [];
+        $stasisMode = strtolower((string)($args[0] ?? ''));
 
-        $allVars = $ariVars;
-        if (!empty($this->pendingVars[$channelId])) {
-            $allVars = array_merge($allVars, $this->pendingVars[$channelId]);
+        if ($stasisMode === 'manual') {
+            // força manual independente de variables/pendingVars
+            $allVars['__IS_MANUAL']  = '1';
+            $allVars['IS_MANUAL']    = '1';
+            $allVars['MANUAL_CALL']  = '1';
+            $allVars['__MANUAL_CALL']= '1';
         }
 
+        // ============================================
+        // 🚨 FAIL FLOW: canal entrou no Stasis só pra registrar falha e encerrar
+        // ============================================
+        if ($stasisMode === 'fail') {
+
+            if (!isset($this->channelData[$channelId])) {
+                $this->channelData[$channelId] = ['id' => $channelId, 'vars' => []];
+            }
+
+            $ariVars = is_array($event['variables'] ?? null) ? $event['variables'] : [];
+            $pending = !empty($this->pendingVars[$channelId]) && is_array($this->pendingVars[$channelId])
+                ? $this->pendingVars[$channelId]
+                : [];
+
+            $allVars = array_merge($ariVars, $pending);
+
+            $this->channelData[$channelId]['vars'] = array_merge(
+                $this->channelData[$channelId]['vars'] ?? [],
+                $allVars
+            );
+
+            unset($this->pendingVars[$channelId]);
+
+            $v    = $this->channelData[$channelId]['vars'] ?? [];
+            $code = $v['CERROR_CODE'] ?? $v['__CERROR_CODE'] ?? 'FAIL';
+            $msg  = "{$code}";
+
+            // ✅ cria CDR de falha
+            $this->recordImmediateFailCdr($channelId, 'CONGESTION', $msg);
+
+            // ✅ libera o dialplan para executar Playback + Hangup
+            $continueOnce($event);
+
+            return;
+        }
+
+        // -----------------------------
+        // flags
+        // -----------------------------
         $leg = $allVars['ARI_LEG'] ?? $allVars['__ARI_LEG'] ?? null;
         $isPreDial = ($leg === 'B');
 
@@ -1555,9 +1175,8 @@ class StasisListenerAsterisk
         echo "[DEBUG] IS_PREDIAL=" . ($isPreDial ? '1' : '0') . " leg=" . ($leg ?: "null") . "\n";
         echo "[DEBUG] IS_MANUAL=" . ($isManual ? '1' : '0') . "\n";
 
-
         // -----------------------------
-        // Detecta ringall outbound pelo appArgs
+        // Detecta ringall outbound (mantido)
         // -----------------------------
         $mode = null;
         $inboundFromArgs = null;
@@ -1566,7 +1185,6 @@ class StasisListenerAsterisk
         $raw = trim($event['channel']['dialplan']['app_data'] ?? '');
         $raw = trim($raw, "\"'");
 
-        // seu appArgs do originate: "ringall,inbound,bridge"
         if ($raw !== '') {
             $parts = array_map('trim', explode(',', $raw));
             $mode = $parts[0] ?? null;
@@ -1578,13 +1196,12 @@ class StasisListenerAsterisk
 
         if ($mode === 'ringall') {
 
-            // ✅ garante que channelData exista antes de setar vars
             if (!isset($this->channelData[$channelId])) {
                 $this->channelData[$channelId] = [
                     'id'       => $channelId,
                     'name'     => $event['channel']['name'] ?? null,
-                    'peer'     => $inboundFromArgs,   // inbound = peer lógico
-                    'started'  => time(),
+                    'peer'     => $inboundFromArgs,
+                    'started'  => $now,
                     'state'    => strtolower($event['channel']['state'] ?? 'ringing'),
                     'status'   => '📞 RingAll',
                     'duration' => '00:00',
@@ -1593,29 +1210,37 @@ class StasisListenerAsterisk
             } else {
                 $this->channelData[$channelId]['name'] = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
                 $this->channelData[$channelId]['peer'] = $inboundFromArgs ?: ($this->channelData[$channelId]['peer'] ?? null);
-                if (!isset($this->channelData[$channelId]['vars'])) $this->channelData[$channelId]['vars'] = [];
+                if (!isset($this->channelData[$channelId]['vars']) || !is_array($this->channelData[$channelId]['vars'])) {
+                    $this->channelData[$channelId]['vars'] = [];
+                }
+                if (empty($this->channelData[$channelId]['started'])) {
+                    $this->channelData[$channelId]['started'] = $now;
+                }
             }
 
-            // ✅ ramal do OUTBOUND: pega do nome do canal (PJSIP/02911642-xxxxx)
             $ramal = null;
             $nm = $event['channel']['name'] ?? '';
             if (preg_match('/PJSIP\/(\d{8})/i', $nm, $m)) {
                 $ramal = $m[1];
             }
 
-            // injeta vars pro stateChange eleger winner
             $this->channelData[$channelId]['vars']['RINGALL']         = '1';
             $this->channelData[$channelId]['vars']['RINGALL_INBOUND'] = $inboundFromArgs;
             $this->channelData[$channelId]['vars']['RINGALL_BRIDGE']  = $bridgeFromArgs;
             $this->channelData[$channelId]['vars']['RINGALL_RAMAL']   = $ramal;
 
-            // ✅ MUITO IMPORTANTE: não tocar áudio, não answer, não rodar transfer_only
+            // ✅ injeta ALLVARS aqui também (pra identity não sumir)
+            $this->channelData[$channelId]['vars'] = array_merge(
+                $this->channelData[$channelId]['vars'],
+                $allVars
+            );
+            unset($this->pendingVars[$channelId]);
+
             echo "[RINGALL] onStart outbound {$channelId} inbound={$inboundFromArgs} bridge={$bridgeFromArgs} ramal=" . ($ramal ?: "null") . "\n";
 
-            // salva logo (evita race)
             try {
                 $this->redis->hset('discador:stasis:channels', $channelId, json_encode($this->channelData[$channelId]));
-            } catch (\Throwable $e) {}
+            } catch (\Throwable) {}
 
             return;
         }
@@ -1639,8 +1264,7 @@ class StasisListenerAsterisk
         }
 
         // -----------------------------
-        // ✅ Inicializa canal COMPLETO sempre
-        // (não faça "vars-only" antes, senão nunca entra aqui)
+        // ✅ Inicializa/atualiza canal
         // -----------------------------
         if (!isset($this->channelData[$channelId])) {
             $this->channelData[$channelId] = [
@@ -1655,7 +1279,7 @@ class StasisListenerAsterisk
                 'dtmf_received' => false,
                 'handled_dtmf'  => [],
                 'peer'          => null,
-                'started'       => time(),
+                'started'       => $now,
                 'status'        => 'Chamando...',
                 'state'         => 'ringing',
                 'duration'      => '00:00',
@@ -1663,40 +1287,53 @@ class StasisListenerAsterisk
             ];
             echo "[📞] Novo canal iniciado: {$callerNumber} ({$channelId})\n";
         } else {
-            // Atualiza campos principais
             $this->channelData[$channelId]['name']        = $event['channel']['name'] ?? ($this->channelData[$channelId]['name'] ?? null);
             $this->channelData[$channelId]['mainAudios']  = $mainAudios;
             $this->channelData[$channelId]['dtmf']        = $dtmf;
             $this->channelData[$channelId]['caller_name'] = $callerName;
             $this->channelData[$channelId]['action']      = $action;
             $this->channelData[$channelId]['play_only']   = ($action === 'play_only') ? 'play_only' : null;
+
+            if (empty($this->channelData[$channelId]['started'])) {
+                $this->channelData[$channelId]['started'] = $now;
+            }
+            if (!isset($this->channelData[$channelId]['vars']) || !is_array($this->channelData[$channelId]['vars'])) {
+                $this->channelData[$channelId]['vars'] = [];
+            }
         }
 
         // -----------------------------
-        // Injeta explicitamente vars "core" (evita race com VARSET)
+        // Injeta explicitamente vars "core"
         // -----------------------------
         if ($jobId)        $this->channelData[$channelId]['vars']['JOB_ID'] = $jobId;
         if ($campaignId)   $this->channelData[$channelId]['vars']['CAMPAIGN_ID'] = $campaignId;
         if ($campaignType) $this->channelData[$channelId]['vars']['CAMPAIGN_TYPE'] = $campaignType;
         if ($callId)       $this->channelData[$channelId]['vars']['CALL_ID'] = $callId;
+        if ($techPrefix)   $this->channelData[$channelId]['vars']['TECHPREFIX'] = $techPrefix;
 
-        // Merge variáveis do Dialplan/Originate
+        // ✅ merge geral (ari + pending)
         $this->channelData[$channelId]['vars'] = array_merge(
             $this->channelData[$channelId]['vars'] ?? [],
-            $ariVars
+            $allVars
         );
+        unset($this->pendingVars[$channelId]);
 
-        // Se tinha pendingVars, injeta também (resolve varset antes do canal existir)
-        if (!empty($this->pendingVars[$channelId])) {
-            $this->channelData[$channelId]['vars'] = array_merge(
-                $this->channelData[$channelId]['vars'],
-                $this->pendingVars[$channelId]
-            );
-            unset($this->pendingVars[$channelId]);
-        }
+        // ==========================================================
+        // ✅ Copia identidade pro topo (SSE filtra por isso)
+        // ==========================================================
+        $v = $this->channelData[$channelId]['vars'] ?? [];
+
+        $this->channelData[$channelId]['owner_id'] = $this->channelData[$channelId]['owner_id']
+            ?? $v['OWNER_ID'] ?? $v['__OWNER_ID'] ?? null;
+
+        $this->channelData[$channelId]['tenant_id'] = $this->channelData[$channelId]['tenant_id']
+            ?? $v['TENANT_ID'] ?? $v['__TENANT_ID'] ?? null;
+
+        $this->channelData[$channelId]['role'] = $this->channelData[$channelId]['role']
+            ?? $v['ROLE'] ?? $v['__ROLE'] ?? null;
 
         // -----------------------------
-        // ✅ Contexto por CALL_ID (mesmo com ramal NULL)
+        // ✅ Contexto por CALL_ID (mantido)
         // -----------------------------
         if ($callId) {
             $ccRaw = $this->redis->get("voice:call_context:{$callId}");
@@ -1713,7 +1350,7 @@ class StasisListenerAsterisk
                         'ramal'          => $cc['ramal'] ?? null,
                         'strategy'       => $cc['strategy'] ?? ($this->channelData[$channelId]['vars']['STRATEGY'] ?? 'rrmemory'),
                         'endpoints'      => $cc['endpoints'] ?? [],
-                        'ts'             => time(),
+                        'ts'             => $now,
                     ], JSON_UNESCAPED_UNICODE)
                 );
             }
@@ -1733,83 +1370,15 @@ class StasisListenerAsterisk
         // ============================================
         // 🚦 MANUAL / PRE-DIAL DEVEM SAIR ANTES DO FLOW NORMAL
         // ============================================
-
         if ($isManual) {
             echo "[MANUAL] A-only (não publicar) channel={$channelId}\n";
-
-            // você pode manter channelData mínimo se quiser
-            $this->channelData[$channelId] = $this->channelData[$channelId] ?? [
-                'id' => $channelId,
-                'name' => $event['channel']['name'] ?? null,
-                'started' => time(),
-                'vars' => [],
-            ];
-
-            $this->channelData[$channelId]['vars'] = array_merge(
-                $this->channelData[$channelId]['vars'],
-                $ariVars,
-                $this->pendingVars[$channelId] ?? []
-            );
-            unset($this->pendingVars[$channelId]);
-
-            // ✅ NÃO faz hset no discador:stasis:channels pro A
-            // $this->redis->hset(...)
-
-            // ✅ só libera dialplan
             $continueOnce($event, true);
             return;
         }
 
-
-        // -----------------------------
-        // ✅ PRE-DIAL (canal B)
-        // NÃO answer (evita 412)
-        // -----------------------------
         if ($isPreDial) {
-
-            if (!isset($this->channelData[$channelId])) {
-                $callerNumber = $event['channel']['caller']['number'] ?? 'anonymous';
-                $callerName   = $event['channel']['caller']['name'] ?? $callerNumber;
-
-                $this->channelData[$channelId] = [
-                    'id'          => $channelId,
-                    'name'        => $event['channel']['name'] ?? null,
-                    'extension'   => $callerNumber,
-                    'caller_name' => $callerName,
-                    'peer'        => null,
-                    'started'     => time(),
-                    'status'      => '📌 Pre-dial',
-                    'state'       => strtolower($event['channel']['state'] ?? 'ringing'),
-                    'duration'    => '00:00',
-                    'vars'        => [],
-                ];
-            }
-
-            // merge vars
-            $this->channelData[$channelId]['vars'] = array_merge(
-                $this->channelData[$channelId]['vars'],
-                $ariVars
-            );
-
-            if (!empty($this->pendingVars[$channelId])) {
-                $this->channelData[$channelId]['vars'] = array_merge(
-                    $this->channelData[$channelId]['vars'],
-                    $this->pendingVars[$channelId]
-                );
-                unset($this->pendingVars[$channelId]);
-            }
-
-            try {
-                $this->redis->hset(
-                    'discador:stasis:channels',
-                    $channelId,
-                    json_encode($this->channelData[$channelId])
-                );
-            } catch (\Throwable $e) {}
-
             echo "[PREDIAL] channel={$channelId} -> continue(noquery)\n";
 
-            // flag p/ dialplan
             try {
                 $this->http->post(
                     "http://{$this->ariHost}:8088/ari/channels/{$channelId}/variable",
@@ -1818,9 +1387,8 @@ class StasisListenerAsterisk
                         'http_errors' => false,
                     ]
                 );
-            } catch (\Throwable $e) {}
+            } catch (\Throwable) {}
 
-            // libera o canal B
             $continueOnce($event, true);
             return;
         }
@@ -2049,14 +1617,11 @@ class StasisListenerAsterisk
             return;
         }
 
-        // -----------------------------
         // Atualiza no Redis após atender
-        // -----------------------------
         try {
             $this->redis->hset('discador:stasis:channels', $channelId, json_encode($this->channelData[$channelId]));
-        } catch (\Throwable $e) {}
+        } catch (\Throwable) {}
     }
-
 
 
     private function playMainAudio(string $channelId, int $index = 0): void
@@ -3047,9 +2612,6 @@ class StasisListenerAsterisk
             }
 
 
-
-            //$this->playMoh($newChannelId);
-
             $this->updateRedis();
 
             echo "[TRANSFER] ✅ Transferência iniciada. Aguardando ANSWER para criar bridge.\n";
@@ -3422,10 +2984,14 @@ class StasisListenerAsterisk
         $dialStatus = strtoupper(trim($event['dialstatus'] ?? ''));
         $dialString = $event['dialstring'] ?? '';
 
-        $originId = $event['channel']['id'] ?? null;   // canal origem (ramal ou local/sub-rotina)
-        $peerId   = $event['peer']['id'] ?? null;      // canal tronco (PJSIP/mxx...)
+        $originId = $event['channel']['id'] ?? null;
+        $peerId   = $event['peer']['id'] ?? null;
+        $callerId = $event['caller']['id'] ?? null;
+        $chanId   = $event['channel']['id'] ?? $peerId;
 
-        // PATCH — salva nome do canal origem e do peer
+        if (!$chanId) return;
+
+        // 1. PATCH — salva nome do canal origem e do peer
         if ($originId) {
             $this->channelData[$originId]['name'] = $event['channel']['name'] ?? ($this->channelData[$originId]['name'] ?? null);
         }
@@ -3433,82 +2999,43 @@ class StasisListenerAsterisk
             $this->channelData[$peerId]['name'] = $event['peer']['name'] ?? ($this->channelData[$peerId]['name'] ?? null);
         }
 
-
-        // 🔥 SE O DIAL CRIOU UM NOVO CANAL (TRONCO)
-        // COPIA VARS DO ORIGEM → TRONCO
+        // 2. 🔥 HERANÇA DE VARIÁVEIS (Essencial para 100% ARI)
         if ($originId && $peerId && $originId !== $peerId) {
-
             if (isset($this->channelData[$originId]['vars'])) {
-
                 if (!isset($this->channelData[$peerId])) {
-                    $this->channelData[$peerId] = [
-                        'id' => $peerId,
-                        'vars' => []
-                    ];
+                    $this->channelData[$peerId] = ['id' => $peerId, 'vars' => []];
                 }
-
-                if (!isset($this->channelData[$peerId]['vars'])) {
-                    $this->channelData[$peerId]['vars'] = [];
-                }
-
-                foreach ($this->channelData[$originId]['vars'] as $k => $v) {
-                    $this->channelData[$peerId]['vars'][$k] = $v;
-                }
-
-                error_log("[VARS] 🔁 Copiados VARSET do canal origem {$originId} → tronco {$peerId}");
+                // Copia OWNER_ID, TENANT_ID, etc do Canal A para o Canal B
+                $this->channelData[$peerId]['vars'] = array_merge(
+                    $this->channelData[$peerId]['vars'] ?? [],
+                    $this->channelData[$originId]['vars']
+                );
+                error_log("[VARS] 🔁 Contexto copiado: {$originId} → {$peerId}");
             }
         }
 
-        // ###############################################
-        // ### A PARTIR DAQUI É O SEU CÓDIGO ORIGINAL  ###
-        // ###############################################
-
-        $peerNum = $event['peer']['caller']['number']
-            ?? $event['peer']['caller']['extension']
-            ?? null;
-
-        $chanId = $event['channel']['id'] ?? $peerId;
-        if (!$chanId) {
-            echo "[Dial] Ignorado: sem ID de canal.\n";
-            return;
-        }
-
-        // Criar canal se não existir
+        // 3. INICIALIZAÇÃO DO CANAL
         if (!isset($this->channelData[$chanId])) {
+            $peerNum = $event['peer']['caller']['number'] ?? $event['peer']['caller']['extension'] ?? 'Desconhecido';
             $this->channelData[$chanId] = [
                 'id' => $chanId,
-                'number' => $peerNum ?? 'Desconhecido',
+                'number' => $peerNum,
                 'status' => '📞 Ligando...',
                 'state' => 'dialing',
                 'started' => time(),
                 'duration' => '00:00',
             ];
-        } else {
-            if (empty($this->channelData[$chanId]['number']) && $peerNum) {
-                $this->channelData[$chanId]['number'] = $peerNum;
-            }
-            if (empty($this->channelData[$chanId]['started'])) {
-                $this->channelData[$chanId]['started'] = time();
-            }
         }
-
-        $this->channelData[$chanId]['last_dial_event'] = $event;
 
         if ($dialString) {
-            $dest = explode('@', $dialString)[0];
-            $this->channelData[$chanId]['destination'] = $dest;
+            $this->channelData[$chanId]['destination'] = explode('@', $dialString)[0];
         }
 
+        // 4. PROCESSAMENTO DO STATUS E ERROS REAIS
         switch ($dialStatus) {
-            case '':
-                $this->channelData[$chanId]['status'] = '🔄 Conectando...';
-                $this->channelData[$chanId]['state'] = 'dialing';
-                break;
-
             case 'PROGRESS':
                 $this->channelData[$chanId]['status'] = '📡 Progress...';
                 $this->channelData[$chanId]['state'] = 'progress';
-                $this->channelData[$chanId]['progress_time'] = time();
                 break;
 
             case 'ANSWER':
@@ -3518,143 +3045,164 @@ class StasisListenerAsterisk
                 break;
 
             case 'BUSY':
-                $this->channelData[$chanId]['status'] = '⛔ Ocupada';
-                $this->channelData[$chanId]['state'] = 'busy';
-                $this->recordImmediateFailCdr($chanId, 'BUSY', 'Chamada ocupada');
-                break;
-
             case 'CONGESTION':
-                $this->channelData[$chanId]['status'] = '⚠️ Congestionamento';
-                $this->channelData[$chanId]['state'] = 'congestion';
-                $this->recordImmediateFailCdr($chanId, 'CONGESTION', 'Falha de rede / congestionamento');
-                break;
-
             case 'NOANSWER':
-                $this->channelData[$chanId]['status'] = '❌ Não Atendida';
-                $this->channelData[$chanId]['state'] = 'noanswer';
-                $this->recordImmediateFailCdr($chanId, 'NOANSWER');
+            case 'CANCEL':
+                $this->channelData[$chanId]['dialstatus'] = $dialStatus;
+                // Busca causa SIP real em vez de usar texto estático
+                $sipDetails = $this->getSipCause($peerId ?? $callerId ?? $chanId);
+                $this->recordImmediateFailCdr($chanId, $dialStatus, $sipDetails);
                 break;
 
-            case 'CANCEL':
-                $this->channelData[$chanId]['status'] = '🚫 Cancelada';
-                $this->channelData[$chanId]['state'] = 'canceled';
-                $this->recordImmediateFailCdr($chanId, 'CANCEL');
+            case '':
+                $this->channelData[$chanId]['status'] = '🔄 Conectando...';
                 break;
 
             default:
-                $this->channelData[$chanId]['status'] = '📞 Chamando...';
-                $this->channelData[$chanId]['state'] = 'dialing';
+                $this->channelData[$chanId]['status'] = "📞 {$dialStatus}";
                 break;
         }
 
-        if ($dialStatus !== '') {
-            $this->channelData[$chanId]['dialstatus'] = $dialStatus;
-        }
-
-        // Se o Destroyed veio antes → agora é hora de gravar o CDR pendente
-        if (!empty($this->channelData[$chanId]['wait_dialstatus'])) {
+        // 5. TRATAMENTO PÓS-DESTROYED (Corrida de eventos)
+        if (!empty($this->channelData[$chanId]['wait_dialstatus']) && $dialStatus !== '') {
             unset($this->channelData[$chanId]['wait_dialstatus']);
+            error_log("[CDR] ▶ Consolidando após Destroyed (canal={$chanId})");
 
-            error_log("[CDR] ▶ Recebido dialstatus FINAL após Destroyed — consolidando CDR (canal={$chanId})");
-
-            // Agora sim chama o CDR de falha
-            if (!empty($this->channelData[$chanId]['pending_fail_cdr'])) {
-                $p = $this->channelData[$chanId]['pending_fail_cdr'];
-                $this->recordImmediateFailCdr($chanId, $p['status'], $p['msg']);
-            } else {
-                // fallback: CDR direto
-                $this->recordImmediateFailCdr($chanId, $dialStatus);
-            }
+            $sipDetails = $this->getSipCause($peerId ?? $callerId ?? $chanId);
+            $this->recordImmediateFailCdr($chanId, $dialStatus, $sipDetails);
         }
 
+        // 6. TENTATIVA DE SALVAMENTO (Caso as variáveis tenham chegado agora)
+        $this->trySavePendingFailCdr($chanId);
 
         try {
             $this->updateRedis();
         } catch (\Throwable $e) {
-            error_log("[Redis] ⚠️ Falha ao atualizar Redis no Dial: " . $e->getMessage());
+            error_log("[Redis] ⚠️ Falha: " . $e->getMessage());
         }
-
-        echo "[Dial] Atualizado: canal={$chanId}, status='{$dialStatus}', destino=" .
-            ($this->channelData[$chanId]['destination'] ?? '—') . "\n";
     }
 
-    private function recordImmediateFailCdr(string $chanId, string $status, string $msg = 'Falhada'): void
+    /**
+     * Busca a causa real no Asterisk para evitar erros estáticos
+     */
+    private function getSipCause(string $chanId): array
+    {
+
+        $isdnToSip = [
+            1   => ['code' => '404', 'txt' => 'Number Not Found'],
+            3   => ['code' => '404', 'txt' => 'No Route'],
+            16  => ['code' => '200', 'txt' => 'Normal Clearing'],
+            17  => ['code' => '486', 'txt' => 'Busy'],
+            18  => ['code' => '408', 'txt' => 'No Response (Timeout)'],
+            19  => ['code' => '480', 'txt' => 'No Answer'],
+            21  => ['code' => '403', 'txt' => 'Rejected (IP/Auth)'],
+            27  => ['code' => '502', 'txt' => 'Destination Out of Order'],
+            28  => ['code' => '484', 'txt' => 'Invalid Number Format'],
+            34  => ['code' => '503', 'txt' => 'Circuit Congestion'],
+            38  => ['code' => '503', 'txt' => 'Network Outage'],
+            41  => ['code' => '503', 'txt' => 'Temporary Failure'],
+            102 => ['code' => '408', 'txt' => 'Protocol Timeout'],
+        ];
+
+        $varsToTry = ['PJSIP_RESPONSE_CODE', 'HANGUPCAUSE'];
+
+        foreach ($varsToTry as $varName) {
+            try {
+                $response = $this->http->get("channels/{$chanId}/variable", ['query' => ['variable' => $varName], 'timeout' => 0.2]);
+                $val = json_decode((string)$response->getBody(), true)['value'] ?? '';
+
+                if (!empty($val) && $val != "0") {
+                    // Se for HANGUPCAUSE, tenta traduzir. Se for PJSIP, usa o código direto.
+                    if ($varName === 'HANGUPCAUSE' && isset($isdnToSip[(int)$val])) {
+                        return $isdnToSip[(int)$val];
+                    }
+                    return ['code' => $val, 'txt' => $varName];
+                }
+            } catch (\Throwable $e) { continue; }
+        }
+
+        // Se o canal já morreu e não pegamos a variável, tentamos ver se o ARI salvou o 'cause' no channelData
+        $ariCause = $this->channelData[$chanId]['cause'] ?? 0;
+        return $isdnToSip[(int)$ariCause] ?? ['code' => '503', 'txt' => 'Service Unavailable'];
+    }
+
+    private function recordImmediateFailCdr($chanOrEvent, string $status = '', $msg = null): void
     {
         try {
-            $chan = $this->channelData[$chanId] ?? [];
-            $vars = $chan['vars'] ?? [];
+            // 1. Identificação robusta do ID do canal
+            $chanId = is_array($chanOrEvent)
+                ? ($chanOrEvent['peer']['id'] ?? $chanOrEvent['channel']['id'] ?? null)
+                : $chanOrEvent;
 
-            $failKey = "cdr-falha-pendente:{$chanId}";
-            $dupKey  = "cdr-saved:{$chanId}";
+            if (!$chanId) return;
 
-            // já salvo? não duplica
+            // Verifica se o canal já foi processado/salvo para evitar duplicidade
+            $dupKey = "cdr-saved:{$chanId}";
             if ($this->redis->exists($dupKey)) {
-                error_log("[CDR] ⏭️ FAIL-CDR já salvo anteriormente ({$chanId})");
+                // error_log("[CDR] ⏭️ Canal {$chanId} já salvo. Ignorando tentativa de Fail-CDR.");
                 return;
             }
 
-            // ==============================
-            // PREPARA O EVENTO DE FALHA PENDENTE
-            // ==============================
+            $chan = $this->channelData[$chanId] ?? [];
+            $vars = $chan['vars'] ?? [];
+            $failKey = "cdr-falha-pendente:{$chanId}";
 
-            // TYPE pode vir do canal OU ter chegado antes
+            // 2. Tradução da Causa SIP e Mensagem
+            $sipCode = '503'; // Default para falhas
+            $statusMsg = 'Desconhecida';
+
+            if (is_array($msg)) {
+                // Prioridade para o array vindo do mapeamento ISDN/SIP
+                $sipCode   = (string)($msg['code'] ?? '503');
+                $statusMsg = ($msg['txt'] ?? 'Erro');
+            } elseif (is_string($msg) && !empty($msg)) {
+                $statusMsg = $msg;
+            } elseif (!empty($status)) {
+                $statusMsg = "Falha: " . strtoupper($status);
+            }
+
+            // 3. Montagem do Payload (Reintegrando campos financeiros e de contexto)
             $payload = [
-                'dialstatus'  => strtoupper($status),
-                'msg'         => $msg,
-                'started'     => $chan['started'] ?? time(),
-                'ended'       => time(),
-                'number'      => $chan['number'] ?? ($vars['CALLERID(num)'] ?? null),
-                'destination' => $chan['destination'] ?? ($chan['dialstring'] ?? null),
-                'job_id' => $vars['JOB_ID'] ?? ($chan['job_id'] ?? null) ?? ($this->pendingVars[$chanId]['JOB_ID'] ?? null),
-                'campaign_id' => $vars['CAMPAIGN_ID']
-                    ?? ($chan['campaign_id'] ?? null)
-                        ?? ($this->pendingVars[$chanId]['CAMPAIGN_ID'] ?? null),
+                'dialstatus'    => strtoupper($status),
+                'sip_code'      => $sipCode,
+                'msg'           => $statusMsg,
+                'started'       => $chan['started'] ?? time(),
+                'ended'         => time(),
+                'number'        => $chan['number'] ?? ($vars['CALLERID(num)'] ?? null),
+                'destination'   => $chan['destination'] ?? ($chan['dialstring'] ?? null),
 
-                'campaign_type' => $vars['CAMPAIGN_TYPE']
-                    ?? ($chan['campaign_type'] ?? null)
-                        ?? ($this->pendingVars[$chanId]['CAMPAIGN_TYPE'] ?? null),
+                // IDs de Contexto (Prioriza variáveis de canal, depois pendentes)
+                'owner_id'      => $vars['OWNER_ID'] ?? $this->pendingVars[$chanId]['OWNER_ID'] ?? null,
+                'tenant_id'     => $vars['TENANT_ID'] ?? $this->pendingVars[$chanId]['TENANT_ID'] ?? null,
+                'job_id'        => $vars['JOB_ID'] ?? $this->pendingVars[$chanId]['JOB_ID'] ?? null,
+                'campaign_id'   => $vars['CAMPAIGN_ID'] ?? $this->pendingVars[$chanId]['CAMPAIGN_ID'] ?? null,
+                'campaign_type' => $vars['CAMPAIGN_TYPE'] ?? $this->pendingVars[$chanId]['CAMPAIGN_TYPE'] ?? null,
+                'variable_type' => $vars['VARIABLE_TYPE'] ?? $vars['TYPE'] ?? $this->pendingVars[$chanId]['VARIABLE_TYPE'] ?? null,
 
-                'variable_type' => $vars['VARIABLE_TYPE'] ?? $vars['TYPE'] ?? null,
+                // Campos Financeiros (Essenciais para tarifação de falhas)
+                'call_minute_cost' => (float)($vars['CALL_MINUTE_COST'] ?? $chan['call_minute_cost'] ?? 0),
+                'taxa_of_service'  => (float)($vars['TAXA_OF_SERVICE'] ?? $chan['taxa_of_service'] ?? 0.1),
+                'trunk'            => $vars['TRUNK'] ?? $chan['trunk'] ?? null,
+                'trunk_id'         => $vars['TRUNK_ID'] ?? $chan['trunk_id'] ?? ($vars['TRUNK'] ?? null),
+                'techprefix'       => $vars['TECHPREFIX'] ?? $chan['techprefix'] ?? null,
 
-                'call_minute_cost' => $vars['CALL_MINUTE_COST'] ?? null,
-                'sms_cost'         => $vars['SMS_COST'] ?? null,
-                'torpedo_cost'     => $vars['TORPEDO_COST'] ?? null,
-                'taxa_of_service'  => 0,
-                'owner_id'  => $vars['OWNER_ID'] ?? null,
-                'tenant_id' => $vars['TENANT_ID'] ?? null,
-
-                'application' => 'app-asterisk',
+                'application'      => 'app-asterisk',
             ];
 
-            // 🔥 injeta TYPE que chegou antes
-            if (!empty($this->pendingVars[$chanId]['VARIABLE_TYPE'])) {
-                $payload['variable_type'] = $this->pendingVars[$chanId]['VARIABLE_TYPE'];
-            } elseif (!empty($this->pendingVars[$chanId]['TYPE'])) {
-                $payload['variable_type'] = $this->pendingVars[$chanId]['TYPE'];
-            }
-            if (!empty($this->pendingVars[$chanId]['CAMPAIGN_ID'])) {
-                $payload['campaign_id'] = $this->pendingVars[$chanId]['CAMPAIGN_ID'];
-            }
-
-            if (!empty($this->pendingVars[$chanId]['CAMPAIGN_TYPE'])) {
-                $payload['campaign_type'] = $this->pendingVars[$chanId]['CAMPAIGN_TYPE'];
-            }
-
-
-            // agora SIM salva
+            // 4. Persistência temporária e tentativa de fechamento
+            // Salvamos no Redis por 180s caso os OWNER_ID/TENANT_ID ainda não tenham chegado
             $this->redis->setex($failKey, 180, json_encode($payload, JSON_UNESCAPED_UNICODE));
             $this->channelData[$chanId]['pending_fail_cdr'] = $payload;
 
-
-            // logs amigáveis
-            if (empty($vars['OWNER_ID']) || empty($vars['TENANT_ID'])) {
-                error_log("[CDR] ⏳ FAIL-CDR aguardando VARSET canal={$chanId}");
+            // Se já temos o Owner, tentamos consolidar o CDR no banco/fila agora mesmo
+            if (!empty($payload['owner_id'])) {
+                $this->trySavePendingFailCdr($chanId);
             } else {
-                error_log("[CDR] 🟡 FAIL-CDR criou evento pendente (VARS presentes), aguardando Destroyed");
+                error_log("[CDR] ⏳ FAIL-CDR em cache para {$chanId}, aguardando IDs via Varset (Status: {$statusMsg})");
             }
 
         } catch (\Throwable $e) {
-            error_log("[CDR] ⚠️ Erro ao registrar FAIL-CDR: ".$e->getMessage());
+            error_log("[CDR] ⚠️ Erro em recordImmediateFailCdr: ".$e->getMessage());
         }
     }
 
@@ -3664,160 +3212,155 @@ class StasisListenerAsterisk
      * Retorna true se conseguiu salvar, false se ainda está aguardando OWNER/TENANT
      * ou se não há falha pendente.
      */
+
     private function trySavePendingFailCdr(string $channelId): bool
     {
         $call = $this->channelData[$channelId] ?? null;
+        $failKey = "cdr-falha-pendente:{$channelId}";
+        $dupKey = "cdr-saved:{$channelId}";
+
+        // 1. CHECAGEM DE ESTADO (Proteção contra Atendidas)
+        // Se o canal já está como 'up', deletamos qualquer rastro de falha e saímos.
+        if ($call && ($call['state'] ?? '') === 'up') {
+            $this->redis->del($failKey);
+            // Marcamos como salvo para que nenhuma thread tardia tente processar
+            $this->redis->set($dupKey, "1", "EX", 300, "NX");
+            unset($this->channelData[$channelId]['pending_fail_cdr']);
+            return true;
+        }
+
+        // 2. TRAVA ATÔMICA (Anti-Duplicidade entre Threads)
+        $isLocked = $this->redis->set($dupKey, "1", "EX", 300, "NX");
+
+        if (!$isLocked) {
+            $this->redis->del($failKey);
+            unset($this->channelData[$channelId]['pending_fail_cdr']);
+            return true;
+        }
+
         if (!$call) {
-            error_log("[CDR] ⚠ trySavePendingFailCdr sem channelData para {$channelId}");
+            $this->redis->del($dupKey);
             return false;
         }
 
-        $failKey  = "cdr-falha-pendente:{$channelId}";
+        // 3. RECUPERAÇÃO DO EVENTO
         $failJson = $this->redis->get($failKey);
-
-        // pode estar em memória (pending_fail_cdr) ou só no Redis
         $failEvent = $call['pending_fail_cdr'] ?? null;
         if (!$failEvent && $failJson) {
             $failEvent = json_decode($failJson, true) ?: null;
         }
+
         if (!$failEvent) {
-            // não há falha pendente pra esse canal
+            $this->redis->del($dupKey);
             return false;
         }
 
-        // normaliza o status (tanto faz 'status' ou 'dialstatus')
-        $dialStatus = $failEvent['dialstatus'] ?? ($failEvent['status'] ?? 'FAILED');
+        // 4. VALIDAÇÃO DE STATUS (Se o evento de falha diz PROGRESS ou ANSWER, ignore)
+        $dialStatus = strtoupper((string)($failEvent['dialstatus'] ?? 'FAILED'));
 
-        // se ainda for apenas PROGRESS, não salva — só mantém pendente
-        if ($dialStatus === 'PROGRESS') {
-            error_log("[CDR] ⏳ FAIL-CDR ainda em PROGRESS canal={$channelId}");
-            $payloadToKeep = $failJson ?: json_encode($failEvent, JSON_UNESCAPED_UNICODE);
-            $this->redis->setex($failKey, 180, $payloadToKeep);
-            return false;
-        }
-
-        $vars = $call['vars'] ?? [];
-
-        // OWNER/TENANT podem vir do próprio canal ou do pendingVars
-        $ownerId  = $vars['OWNER_ID']  ?? ($this->pendingVars[$channelId]['OWNER_ID']  ?? null);
-        $tenantId = $vars['TENANT_ID'] ?? ($this->pendingVars[$channelId]['TENANT_ID'] ?? null);
-
-        if (empty($ownerId) || empty($tenantId)) {
-            // ainda não dá pra salvar, só renova o TTL do pendente
-            error_log("[CDR] ⏳ FAIL-CDR aguardando VARSET OWNER_ID/TENANT_ID canal={$channelId}");
-            $payloadToKeep = $failJson ?: json_encode($failEvent, JSON_UNESCAPED_UNICODE);
-            $this->redis->setex($failKey, 180, $payloadToKeep);
-            // mantém channelData vivo pra quando o VARSET chegar
-            return false;
-        }
-
-        // Já temos OWNER/TENANT → agora monta o CDR de falha
-        $type = strtolower(
-            $failEvent['variable_type']
-            ?? ($vars['VARIABLE_TYPE']
-            ?? ($this->pendingVars[$channelId]['VARIABLE_TYPE'] ?? null)
-            ?? ($vars['TYPE']
-                ?? ($this->pendingVars[$channelId]['TYPE'] ?? 'normal')
-            )
-        )
-        );
-
-        $jobId = $failEvent['job_id']
-            ?? ($vars['JOB_ID'] ?? null)
-            ?? ($this->pendingVars[$channelId]['JOB_ID'] ?? null);
-
-        $campaignId = $failEvent['campaign_id']
-            ?? ($vars['CAMPAIGN_ID'] ?? null)
-            ?? ($this->pendingVars[$channelId]['CAMPAIGN_ID'] ?? null);
-
-        $campaignType = $failEvent['campaign_type']
-            ?? ($vars['CAMPAIGN_TYPE'] ?? null)
-            ?? ($this->pendingVars[$channelId]['CAMPAIGN_TYPE'] ?? null);
-
-
-
-        $minuteCost  = (float)($failEvent['call_minute_cost']      ?? ($vars['CALL_MINUTE_COST'] ?? 0));
-        $smsCost     = (float)($failEvent['sms_cost']              ?? ($vars['SMS_COST']         ?? 0));
-        $torpedoCost = (float)($failEvent['torpedo_cost']          ?? ($vars['TORPEDO_COST']     ?? 0));
-        $taxaOfService = 0.0;
-
-        $number = $call['number']
-            ?? ($call['extension'] ?? ($vars['CALLERID(num)'] ?? 'Desconhecido'));
-
-        $destination = $call['destination'] ?? ($call['dialstring'] ?? '—');
-
-        $causeCode = $call['cause']     ?? null;
-        $causeText = $call['cause_txt'] ?? null;
-
-        $started = $call['started'] ?? time();
-        $ended   = $call['ended']   ?? time();
-
-        $cdr = [
-            'channel_id'       => $channelId,
-            'job_id'           => $jobId,
-            'campaign_id'      => $campaignId,
-            'campaign_type'    => $campaignType,
-            'owner_id'         => $ownerId,
-            'tenant_id'        => $tenantId,
-            'number'           => $number,
-            'destination'      => $destination,
-            'type'             => $type,
-            'state'            => 'failed',
-            'dialstatus'       => $dialStatus,
-            'cause'            => $causeCode,
-            'cause_txt'        => $causeText,
-            'duration'         => 0,
-            'value'            => '0.0000',
-            'taxa_of_service'   => $taxaOfService,
-            'call_minute_cost'  => $minuteCost,
-            'sms_cost'         => $smsCost,
-            'torpedo_cost'     => $torpedoCost,
-            'started'          => $started,
-            'ended'            => $ended,
-            'timestamp'        => date('Y-m-d H:i:s'),
-            'application'      => $failEvent['application'] ?? 'app-asterisk',
-        ];
-
-        $dupKey = "cdr-saved:{$channelId}";
-        if ($this->redis->exists($dupKey)) {
-            error_log("[CDR] ⏭️ FAIL-CDR já salvo previamente canal={$channelId}");
+        if ($dialStatus === 'ANSWER' || $dialStatus === 'PROGRESS' || ($call['state'] ?? '') === 'up') {
+            error_log("[CDR] 🚫 Abortando Fail-CDR: Chamada atendida ou em progresso canal={$channelId}");
+            $this->redis->del($failKey);
+            // Mantemos a trava dupKey para garantir que a tarifação normal seja a única
             return true;
         }
 
+        $vars = $call['vars'] ?? [];
+        $pending = $this->pendingVars[$channelId] ?? [];
+
+        $ownerId  = $failEvent['owner_id']  ?? $vars['OWNER_ID']  ?? $pending['OWNER_ID']  ?? null;
+        $tenantId = $failEvent['tenant_id'] ?? $vars['TENANT_ID'] ?? $pending['TENANT_ID'] ?? null;
+
+        if (empty($ownerId) || empty($tenantId)) {
+            $this->redis->del($dupKey);
+            $this->redis->setex($failKey, 180, $failJson ?: json_encode($failEvent));
+            return false;
+        }
+
+        // 5. HELPER E DESTINO
+        $firstNonEmpty = function (...$vals) {
+            foreach ($vals as $v) {
+                $v = is_string($v) ? trim($v) : $v;
+                if ($v !== null && $v !== '' && $v !== '—') return $v;
+            }
+            return '—';
+        };
+
+        $destination = $firstNonEmpty(
+            $failEvent['destination'] ?? null,
+            $call['destination'] ?? null,
+            $vars['EXTENSION'] ?? null
+        );
+
+        // Limpeza de prefixo dinâmica
+        $prefix = $vars['TECHPREFIX'] ?? '';
+        if (!empty($prefix) && str_starts_with($destination, $prefix)) {
+            $destination = substr($destination, strlen($prefix));
+        }
+
+        // 6. MONTAGEM E ENVIO
+        $cdr = [
+            'channel_id'        => $channelId,
+            'job_id'            => $failEvent['job_id'] ?? $vars['JOB_ID'] ?? $pending['JOB_ID'] ?? null,
+            'campaign_id'       => $failEvent['campaign_id'] ?? $vars['CAMPAIGN_ID'] ?? null,
+            'owner_id'          => $ownerId,
+            'tenant_id'         => $tenantId,
+            'number'            => $firstNonEmpty($call['number'] ?? null, $vars['CALLERID(num)'] ?? null, '-'),
+            'endpoint'          => $vars['__ENDPOINT'] ?? $vars['OUT_CLI'] ?? '-',
+            'destination'       => $destination,
+            'type'              => strtolower((string)($failEvent['variable_type'] ?? $vars['VARIABLE_TYPE'] ?? 'normal')),
+            'state'             => 'failed',
+            'dialstatus'        => $dialStatus,
+            'cause'             => (int)($failEvent['sip_code'] ?? $failEvent['cause'] ?? 0),
+            'sip_code'          => $failEvent['sip_code'] ?? null,
+            'cause_txt'         => $failEvent['msg'] ?? $failEvent['cause_txt'] ?? 'Normal Clearing',
+            'trunk'             => $failEvent['trunk'] ?? ($vars['TRUNK'] ?? null),
+            'trunk_id'          => $failEvent['trunk_id'] ?? ($vars['TRUNK_ID'] ?? ($vars['TRUNK'] ?? null)),
+            'techprefix'        => $failEvent['techprefix'] ?? ($vars['TECHPREFIX'] ?? null),
+            'duration'          => 0,
+            'billsec'           => 0,
+            'value'             => '0.0000',
+            'started'           => (int)($failEvent['started'] ?? $call['started'] ?? time()),
+            'ended'             => (int)($failEvent['ended'] ?? time()),
+            'timestamp'         => date('Y-m-d H:i:s'),
+            'application'       => $failEvent['application'] ?? 'app-asterisk',
+        ];
+
         $this->redis->rpush('asterisk:tarifacoes', json_encode($cdr, JSON_UNESCAPED_UNICODE));
-        $this->redis->setex($dupKey, 300, 1);
         $this->redis->del($failKey);
         unset($this->channelData[$channelId]['pending_fail_cdr']);
 
-        error_log("[CDR] ❗ FAIL-CDR salvo com OWNER/TENANT canal={$channelId}");
+        error_log("[CDR] ❗ FAIL-CDR salvo (Não Atendida) canal={$channelId}");
 
         return true;
     }
 
+
     private function calculateTariff(string $channelId): void
     {
         $call = $this->channelData[$channelId] ?? null;
-        if (!$call) return;
+        if (!$call) {
+            return;
+        }
 
-        // memória
+        // ===================================================
+        // 🚫 Evita duplicação (memória)
+        // ===================================================
         if (!empty($call['tariff_done'])) {
             error_log("[CDR] ⏭ Já tarifado (memória) canal={$channelId}");
             return;
         }
 
-        if (empty($call['ended'])) {
-            error_log("[CDR] ❌ Ignorado — chamada não finalizada canal={$channelId}");
-            return;
-        }
-
+        // ===================================================
+        // ✅ MANUAL: detectar manual + ignorar A-leg
+        // ===================================================
         $vars = $call['vars'] ?? [];
 
-        // ✅ MANUAL: só B-leg tarifa
         $isManual = (
             !empty($vars['MANUAL_CALL']) ||
+            !empty($vars['__MANUAL_CALL']) ||
             !empty($vars['IS_MANUAL']) ||
-            !empty($vars['__IS_MANUAL']) ||
-            !empty($vars['__MANUAL_CALL'])
+            !empty($vars['__IS_MANUAL'])
         );
 
         $leg = $vars['ARI_LEG'] ?? $vars['__ARI_LEG'] ?? null;
@@ -3826,245 +3369,21 @@ class StasisListenerAsterisk
             return;
         }
 
-        // ✅ dedupe forte: por CALL_ID quando existir (principalmente manual)
+        // ===================================================
+        // 🚫 Evita duplicação (Redis) — sempre por canal
+        // ===================================================
+        $dupKey = "tarifacao:ja_registrada:{$channelId}";
+
+        // ✅ CALL_ID existe, mas dedupe por CALL_ID só para MANUAL
         $callId = $vars['CALL_ID'] ?? null;
         $callId = $callId ? trim((string)$callId) : null;
 
-        $dupKeyChan = "tarifacao:ja_registrada:chan:{$channelId}";
-        $dupKeyCall = $callId ? "tarifacao:ja_registrada:call:{$callId}" : null;
+        $dupKeyCall = ($isManual && $callId)
+            ? "tarifacao:ja_registrada:call:{$callId}"
+            : null;
 
-        if ($this->redis->exists($dupKeyChan) || ($dupKeyCall && $this->redis->exists($dupKeyCall))) {
-            error_log("[CDR] ⏭ Já tarifado (Redis) canal={$channelId}" . ($callId ? " call_id={$callId}" : ""));
-            return;
-        }
-
-        // tempos
-        $started  = $call['started']  ?? time();
-        $answered = $call['answered'] ?? null;
-        $ended    = $call['ended']    ?? time();
-
-        // ✅ só tarifa atendidas
-        if (empty($answered)) {
-            error_log("[CDR] ⏭ calculateTariff ignorado para canal sem ANSWER (canal={$channelId})");
-            return;
-        }
-
-        // ----- resto do seu código (type/owner/tenant/custo/cause etc) -----
-
-        $type = strtolower($vars['VARIABLE_TYPE'] ?? $vars['TYPE'] ?? $call['type'] ?? 'normal');
-
-        $ownerId  = $vars['OWNER_ID']  ?? $call['owner_id']  ?? null;
-        $tenantId = $vars['TENANT_ID'] ?? $call['tenant_id'] ?? null;
-        $role     = $vars['ROLE']      ?? $call['role']      ?? null;
-
-        $jobId = $vars['JOB_ID'] ?? null;
-
-        $campaignId = $vars['CAMPAIGN_ID']
-            ?? ($call['campaign_id'] ?? null)
-            ?? ($this->pendingVars[$channelId]['CAMPAIGN_ID'] ?? null);
-
-        $campaignType = $vars['CAMPAIGN_TYPE']
-            ?? ($call['campaign_type'] ?? null)
-            ?? ($this->pendingVars[$channelId]['CAMPAIGN_TYPE'] ?? null);
-
-        if (empty($ownerId) || empty($tenantId)) {
-            error_log("[CDR] ⏳ Aguardando OWNER_ID/TENANT_ID antes de tarifar canal={$channelId}");
-            $this->channelData[$channelId]['wait_vars_for_tariff'] = true;
-            return;
-        }
-
-        // custos dinâmicos
-        $minuteCost  = isset($vars['CALL_MINUTE_COST']) ? (float)$vars['CALL_MINUTE_COST'] : 0.0;
-        $smsCost     = isset($vars['SMS_COST'])         ? (float)$vars['SMS_COST']         : 0.0;
-        $torpedoCost = isset($vars['TORPEDO_COST'])     ? (float)$vars['TORPEDO_COST']     : 0.0;
-        $taxaOfService = isset($vars['TAXA_OF_SERVICE'])     ? (float)$vars['TAXA_OF_SERVICE']     : 0.0;
-
-        $number = $call['number']
-            ?? $vars['CALLERID_NUM']
-            ?? $vars['CALLERID(num)']
-            ?? null;
-
-        $destination = $call['destination']
-            ?? ($vars['EXTENSION'] ?? null)  // ou $vars['DESTINATION'] se usar assim
-            ?? ($call['dialstring'] ?? null);
-
-
-
-        $state = $call['state'] ?? 'unknown';
-
-        // ===================================================
-        // 🔹 CAUSA FINAL
-        // ===================================================
-        $cause = $call['cause'] ?? null;
-        $causeText = $call['cause_txt'] ?? null;
-
-        $redisCause = $this->redis->hget("asterisk:causes", $channelId);
-        if ($redisCause) {
-            $parsed = json_decode($redisCause, true);
-            if (!empty($parsed)) {
-                $cause     = $parsed['cause']     ?? $cause;
-                $causeText = $parsed['cause_txt'] ?? $causeText;
-            }
-        }
-
-        // ===================================================
-        // 🔹 Map de causas → dialstatus
-        // ===================================================
-        $causeMap = [
-            16 => ['NORMAL_CLEARING', 'ANSWER', 'Normal Clearing'],
-            17 => ['USER_BUSY', 'BUSY', 'Ocupado'],
-            18 => ['NO_USER_RESPONDING', 'NOANSWER', 'Sem resposta'],
-            19 => ['NO_ANSWER', 'NOANSWER', 'Não Atendida'],
-            21 => ['CALL_REJECTED', 'CANCEL', 'Rejeitada'],
-            28 => ['INVALID_NUMBER_FORMAT', 'FAILED', 'Número inválido'],
-            34 => ['CONGESTION', 'CONGESTION', 'Congestionamento'],
-            41 => ['TEMPORARY_FAILURE', 'FAILED', 'Falha temporária'],
-            47 => ['RESOURCE_UNAVAILABLE', 'FAILED', 'Recurso indisponível'],
-            486 => ['BUSY_HERE', 'BUSY', 'Ocupado'],
-            487 => ['REQUEST_TERMINATED', 'CANCEL', 'Cancelada'],
-            603 => ['DECLINE', 'CANCEL', 'Recusada'],
-            0  => ['UNKNOWN', 'FAILED', 'Desconhecido'],
-        ];
-
-        if (!empty($call['answered'])) {
-            $dialStatus = 'ANSWER';
-            $causeName = 'NORMAL_CLEARING';
-            $causeText = 'Normal Clearing';
-        } elseif (!empty($causeMap[(int)$cause])) {
-            [$causeName, $dialStatus, $causeText] = $causeMap[(int)$cause];
-        } else {
-            $dialStatus = strtoupper($call['dialstatus'] ?? 'FAILED');
-            $causeName = 'UNKNOWN';
-            $causeText = $causeText ?? 'Desconhecido';
-        }
-
-        // ===================================================
-        // 🔸 Tempos
-        // ===================================================
-        $started  = $call['started']  ?? time();
-        $answered = $call['answered'] ?? null;
-        $ended    = $call['ended']    ?? time();
-
-        // 👇 Adicione ISSO:
-        if (empty($answered)) {
-            // não foi atendida → quem grava é o fluxo de falha (cdr-falha-pendente)
-            error_log("[CDR] ⏭ calculateTariff ignorado para canal sem ANSWER (canal={$channelId})");
-            return;
-        }
-
-        // ===================================================
-        // 🔥 DETECÇÃO CORRETA DE RAMAL (6–8 dígitos)
-        // ===================================================
-
-        $chName = strtolower($call['name'] ?? '');
-        $isRamalNumerico = preg_match('/^pjsip\/([0-9]{6,8})-/i', $chName, $match);
-        $isRamal = $isRamalNumerico && !$isManual;
-
-        if ($isRamal) {
-            $taxaOfService = 0.0;
-        }
-
-        $channelNumber = $match[1] ?? null;
-
-
-        // ===================================================
-        // 🔸 Cálculo de custo
-        // ===================================================
-        $durationSec = 0;
-        $cost = 0;
-
-        if ($answered) {
-            $durationSec = max(0, $ended - $answered);
-
-            if ($durationSec > 0) {
-
-                if ($type === 'torpedo') {
-
-                    // Torpedo só tarifa se NÃO for ramal
-                    if (!$isRamal) {
-                        $cost = $this->calculateTorpedoTariff($durationSec, $torpedoCost, $minuteCost);
-                    }
-
-                } elseif ($type === 'outbound') {
-
-                    // Outbound sempre tarifa
-                    $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
-
-                } elseif (!$isRamal) {
-
-                    // Normal só tarifa se não for ramal
-                    $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
-                }
-            }
-        }
-
-        // ===================================================
-        // 🔹 CDR FINAL
-        // ===================================================
-        $cdr = [
-            'channel_id'       => $channelId,
-            'job_id'           => $jobId,
-            'call_id'          => $callId,
-            'campaign_id'      => $campaignId,
-            'campaign_type'    => $campaignType,
-            'owner_id'         => $ownerId,
-            'tenant_id'        => $tenantId,
-            'role'             => $role,
-            'number'           => $number,
-            'destination'      => $destination,
-            'channelNumber'    => $channelNumber,
-            'type'             => $type,
-            'state'            => $state,
-            'dialstatus'       => $dialStatus,
-            'cause'            => $cause,
-            'cause_txt'        => $causeText,
-            'duration'         => $durationSec,
-            'value'            => number_format($cost, 4, '.', ''),
-            'taxa_of_service'  => number_format($taxaOfService, 4, '.', ''),
-            'call_minute_cost' => $minuteCost,
-            'sms_cost'         => $smsCost,
-            'started'          => $started,
-            'answered'         => $answered,
-            'ended'            => $ended,
-            'timestamp'        => date('Y-m-d H:i:s'),
-        ];
-
-        // ===================================================
-        // 🔥 Salva no Redis
-        // ===================================================
-        $this->redis->rpush('asterisk:tarifacoes', json_encode($cdr, JSON_UNESCAPED_UNICODE));
-
-        // ✅ grava as 2 chaves (chan + call) — call_id é a mais importante
-        $this->redis->setex($dupKeyChan, 180, 1);
-        if ($dupKeyCall) $this->redis->setex($dupKeyCall, 180, 1);
-
-        $this->channelData[$channelId]['tariff_done'] = true;
-
-        error_log("[CDR] 💰 Tarifação OK canal={$channelId} tipo={$type} dur={$durationSec}s = R$ {$cdr['value']}");
-
-    }
-
-
-
-
-    /*private function calculateTariff(string $channelId): void
-    {
-        $call = $this->channelData[$channelId] ?? null;
-        if (!$call) {
-            return;
-        }
-
-        // ===================================================
-        // 🚫 Evita duplicação
-        // ===================================================
-        if (!empty($call['tariff_done'])) {
-            error_log("[CDR] ⏭ Já tarifado (memória) canal={$channelId}");
-            return;
-        }
-
-        $dupKey = "tarifacao:ja_registrada:{$channelId}";
-        if ($this->redis->exists($dupKey)) {
-            error_log("[CDR] ⏭ Já tarifado (Redis) canal={$channelId}");
+        if ($this->redis->exists($dupKey) || ($dupKeyCall && $this->redis->exists($dupKeyCall))) {
+            error_log("[CDR] ⏭ Já tarifado (Redis) canal={$channelId}" . ($dupKeyCall ? " call_id={$callId}" : ""));
             return;
         }
 
@@ -4074,10 +3393,8 @@ class StasisListenerAsterisk
         }
 
         // ===================================================
-        // 🔸 Extrai variáveis
+        // 🔸 Extrai variáveis (continua como era)
         // ===================================================
-        $vars = $call['vars'] ?? [];
-
         $type = strtolower(
             $vars['VARIABLE_TYPE']
             ?? $vars['TYPE']
@@ -4090,7 +3407,6 @@ class StasisListenerAsterisk
         $role     = $vars['ROLE']      ?? $call['role']      ?? null;
 
         $jobId = $vars['JOB_ID'] ?? null;
-        $callId = $vars['CALL_ID'] ?? null;
 
         $campaignId = $vars['CAMPAIGN_ID']
             ?? ($call['campaign_id'] ?? null)
@@ -4100,9 +3416,6 @@ class StasisListenerAsterisk
             ?? ($call['campaign_type'] ?? null)
             ?? ($this->pendingVars[$channelId]['CAMPAIGN_TYPE'] ?? null);
 
-
-
-        // ⚠️ Somente AGORA podemos validar OWNER/TENANT
         if (empty($ownerId) || empty($tenantId)) {
             error_log("[CDR] ⏳ Aguardando OWNER_ID/TENANT_ID antes de tarifar canal={$channelId}");
             $this->channelData[$channelId]['wait_vars_for_tariff'] = true;
@@ -4110,59 +3423,95 @@ class StasisListenerAsterisk
         }
 
         // custos dinâmicos
-        $minuteCost  = isset($vars['CALL_MINUTE_COST']) ? (float)$vars['CALL_MINUTE_COST'] : 0.0;
-        $smsCost     = isset($vars['SMS_COST'])         ? (float)$vars['SMS_COST']         : 0.0;
-        $torpedoCost = isset($vars['TORPEDO_COST'])     ? (float)$vars['TORPEDO_COST']     : 0.0;
-        $taxaOfService = isset($vars['TAXA_OF_SERVICE'])     ? (float)$vars['TAXA_OF_SERVICE']     : 0.0;
+        $minuteCost    = isset($vars['CALL_MINUTE_COST']) ? (float)$vars['CALL_MINUTE_COST'] : 0.0;
+        $smsCost       = isset($vars['SMS_COST'])         ? (float)$vars['SMS_COST']         : 0.0;
+        $torpedoCost   = isset($vars['TORPEDO_COST'])     ? (float)$vars['TORPEDO_COST']     : 0.0;
+        $taxaOfService = isset($vars['TAXA_OF_SERVICE'])  ? (float)$vars['TAXA_OF_SERVICE']  : 0.0;
 
 
-
-        $number = $call['number']
+        // ✅ CID (caller) — prioriza OUT_CLI / CALLERID_NUM (dialplan)
+        $number =
+            $vars['OUT_CLI']
             ?? $vars['CALLERID_NUM']
             ?? $vars['CALLERID(num)']
-            ?? null;
+            ?? ($call['number'] ?? null);
 
-        $destination = $call['destination']
-            ?? ($vars['EXTENSION'] ?? null)  // ou $vars['DESTINATION'] se usar assim
+        $endpoint = $vars['__RAMAL']  ?? $vars['__ENDPOINT'] ?? $vars['OUT_CLI'] ?? '-';
+
+        // ✅ DESTINO — prioriza DESTINATION / DIAL_DEST (dialplan)
+        $destination =
+            $vars['DESTINATION']
+            ?? $vars['DIAL_DEST']
+            ?? $vars['__DIAL_DEST']
+            ?? $vars['EXTENSION']
+            ?? ($call['destination'] ?? null)
             ?? ($call['dialstring'] ?? null);
-
-
 
         $state = $call['state'] ?? 'unknown';
 
+
         // ===================================================
-        // 🔹 CAUSA FINAL
+        // 🔹 CAUSA FINAL (Q.850)
         // ===================================================
-        $cause = $call['cause'] ?? null;
+
+        // 0) pega a causa do call e pode ser sobrescrita pelo Redis
+        $cause     = $call['cause']     ?? null;
         $causeText = $call['cause_txt'] ?? null;
 
         $redisCause = $this->redis->hget("asterisk:causes", $channelId);
         if ($redisCause) {
             $parsed = json_decode($redisCause, true);
-            if (!empty($parsed)) {
+            if (is_array($parsed)) {
                 $cause     = $parsed['cause']     ?? $cause;
                 $causeText = $parsed['cause_txt'] ?? $causeText;
             }
         }
 
-        // ===================================================
-        // 🔹 Map de causas → dialstatus
-        // ===================================================
-        $causeMap = [
-            16 => ['NORMAL_CLEARING', 'ANSWER', 'Normal Clearing'],
-            17 => ['USER_BUSY', 'BUSY', 'Ocupado'],
-            18 => ['NO_USER_RESPONDING', 'NOANSWER', 'Sem resposta'],
-            19 => ['NO_ANSWER', 'NOANSWER', 'Não Atendida'],
-            21 => ['CALL_REJECTED', 'CANCEL', 'Rejeitada'],
-            28 => ['INVALID_NUMBER_FORMAT', 'FAILED', 'Número inválido'],
-            34 => ['CONGESTION', 'CONGESTION', 'Congestionamento'],
-            41 => ['TEMPORARY_FAILURE', 'FAILED', 'Falha temporária'],
-            47 => ['RESOURCE_UNAVAILABLE', 'FAILED', 'Recurso indisponível'],
-            486 => ['BUSY_HERE', 'BUSY', 'Ocupado'],
-            487 => ['REQUEST_TERMINATED', 'CANCEL', 'Cancelada'],
-            603 => ['DECLINE', 'CANCEL', 'Recusada'],
-            0  => ['UNKNOWN', 'FAILED', 'Desconhecido'],
+        // 1) normaliza para int (se vier null/'' vira 0)
+        $cause = (int)($cause ?? 0);
+
+        // 2) Converter SIP -> Q.850 (não misturar chaves)
+        $sipToQ850 = [
+            486 => 17, // Busy Here -> USER_BUSY
+            487 => 16, // Request Terminated -> NORMAL_CLEARING (ou 31 se você preferir)
+            603 => 21, // Decline -> CALL_REJECTED
         ];
+
+        if (isset($sipToQ850[$cause])) {
+            $cause = $sipToQ850[$cause];
+        }
+
+        // 3) map apenas Q.850
+        $causeMap = [
+            16 => ['NORMAL_CLEARING',      'ANSWER',      'Normal Clearing'],
+            17 => ['USER_BUSY',            'BUSY',        'Ocupado'],
+            18 => ['NO_USER_RESPONDING',   'NOANSWER',    'Sem resposta'],
+            19 => ['NO_ANSWER',            'NOANSWER',    'Não Atendida'],
+            21 => ['CALL_REJECTED',        'CANCEL',      'Rejeitada'],
+            28 => ['INVALID_NUMBER_FORMAT','FAILED',      'Número inválido'],
+            34 => ['CONGESTION',           'CONGESTION',  'Congestionamento'],
+            41 => ['TEMPORARY_FAILURE',    'FAILED',      'Falha temporária'],
+            47 => ['RESOURCE_UNAVAILABLE', 'FAILED',      'Recurso indisponível'],
+            0  => ['UNKNOWN',              'FAILED',      'Desconhecido'],
+        ];
+
+        // 4) se atendeu, força sucesso
+        if (!empty($call['answered'])) {
+            $cause     = 16;
+            $causeName = 'NORMAL_CLEARING';
+            $dialStatus= 'ANSWER';
+            $causeText = 'Normal Clearing';
+        } else {
+            [$causeName, $dialStatus, $mapText] = $causeMap[$cause] ?? $causeMap[0];
+
+            // se já veio um texto do Redis/call, mantém; senão usa o do map
+            $causeText = $causeText ?: $mapText;
+
+            // se seu call já trouxe dialstatus, você pode manter como fallback:
+            $dialStatus = strtoupper($call['dialstatus'] ?? $dialStatus ?? 'FAILED');
+        }
+
+
 
         if (!empty($call['answered'])) {
             $dialStatus = 'ANSWER';
@@ -4183,25 +3532,22 @@ class StasisListenerAsterisk
         $answered = $call['answered'] ?? null;
         $ended    = $call['ended']    ?? time();
 
-        // 👇 Adicione ISSO:
         if (empty($answered)) {
-            // não foi atendida → quem grava é o fluxo de falha (cdr-falha-pendente)
             error_log("[CDR] ⏭ calculateTariff ignorado para canal sem ANSWER (canal={$channelId})");
             return;
         }
 
         // ===================================================
-        // 🔥 DETECÇÃO CORRETA DE RAMAL (6–8 dígitos)
+        // 🔥 DETECÇÃO DE RAMAL (6–8 dígitos)
         // ===================================================
         $chName = strtolower($call['name'] ?? '');
         $isRamal = preg_match('/^pjsip\/([0-9]{6,8})-/i', $chName, $match);
 
-        if ($isRamal) {
+        if ($isRamal && !$isManual) {
             $taxaOfService = 0.0;
         }
 
         $channelNumber = $match[1] ?? null;
-
 
         // ===================================================
         // 🔸 Cálculo de custo
@@ -4209,28 +3555,20 @@ class StasisListenerAsterisk
         $durationSec = 0;
         $cost = 0;
 
-        if ($answered) {
-            $durationSec = max(0, $ended - $answered);
+        $durationSec = max(0, $ended - $answered);
 
-            if ($durationSec > 0) {
+        if ($durationSec > 0) {
 
-                if ($type === 'torpedo') {
-
-                    // Torpedo só tarifa se NÃO for ramal
-                    if (!$isRamal) {
-                        $cost = $this->calculateTorpedoTariff($durationSec, $torpedoCost, $minuteCost);
-                    }
-
-                } elseif ($type === 'outbound') {
-
-                    // Outbound sempre tarifa
-                    $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
-
-                } elseif (!$isRamal) {
-
-                    // Normal só tarifa se não for ramal
-                    $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
+            if ($type === 'torpedo') {
+                if (!$isRamal) {
+                    $cost = $this->calculateTorpedoTariff($durationSec, $torpedoCost, $minuteCost);
                 }
+
+            } elseif ($type === 'outbound') {
+                $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
+
+            } elseif (!$isRamal) {
+                $cost = $this->calculateNormalTariff($durationSec, $minuteCost);
             }
         }
 
@@ -4247,6 +3585,7 @@ class StasisListenerAsterisk
             'tenant_id'        => $tenantId,
             'role'             => $role,
             'number'           => $number,
+            'endpoint'         => $endpoint,
             'destination'      => $destination,
             'channelNumber'    => $channelNumber,
             'type'             => $type,
@@ -4254,33 +3593,38 @@ class StasisListenerAsterisk
             'dialstatus'       => $dialStatus,
             'cause'            => $cause,
             'cause_txt'        => $causeText,
+            'sip_code'         => !empty($call['answered']) ? 200 : null,
+            'trunk'            => $vars['TRUNK'] ?? $vars['__TRUNK'] ?? null,
+            'trunk_id'         => $vars['TRUNK_ID'] ?? $vars['__TRUNK_ID'] ?? ($vars['TRUNK'] ?? null),
+            'techprefix'       => $vars['TECHPREFIX'] ?? $vars['__TECHPREFIX'] ?? null,
             'duration'         => $durationSec,
+            'billsec'          => $durationSec,
             'value'            => number_format($cost, 4, '.', ''),
             'taxa_of_service'  => number_format($taxaOfService, 4, '.', ''),
             'call_minute_cost' => $minuteCost,
             'sms_cost'         => $smsCost,
+            'torpedo_cost'     => $torpedoCost,
             'started'          => $started,
             'answered'         => $answered,
             'ended'            => $ended,
             'timestamp'        => date('Y-m-d H:i:s'),
+            'application'      => 'app-asterisk',
         ];
 
-        //$cdr['campaign_id']   = $campaignId;
-        //$cdr['campaign_type'] = 'voice';
-        //$cdr['job_id']        = $jobId;
-
-        // ===================================================
-        // 🔥 Salva no Redis
-        // ===================================================
         $this->redis->rpush('asterisk:tarifacoes', json_encode($cdr, JSON_UNESCAPED_UNICODE));
+
+        // ✅ sempre dedupe por canal
         $this->redis->setex($dupKey, 180, 1);
+
+        // ✅ somente manual grava dedupe por call_id
+        if ($dupKeyCall) {
+            $this->redis->setex($dupKeyCall, 180, 1);
+        }
 
         $this->channelData[$channelId]['tariff_done'] = true;
 
         error_log("[CDR] 💰 Tarifação OK canal={$channelId} tipo={$type} dur={$durationSec}s = R$ {$cdr['value']}");
-    }*/
-
-
+    }
 
 
     /**
@@ -4349,193 +3693,6 @@ class StasisListenerAsterisk
         $billedDuration = 60 + $extra;
         return round(($billedDuration / 60) * $minuteRate, 4);
     }
-
-
-    /*private function updateRedis(): void
-    {
-        try {
-            $now = time();
-            $payload = [
-                'statusGeral' => 'OK',
-                'totalChamadas' => count($this->channelData),
-                'chamadas' => [],
-                'timestamp' => date('Y-m-d H:i:s'),
-                'server_now' => $now
-            ];
-
-            foreach ($this->channelData as $id => $c) {
-
-                $started  = $c['started']  ?? $now;
-                $answered = $c['answered'] ?? null;
-                $ended    = $c['ended']    ?? null;
-                $dur = 0;
-
-                // cálculo de duração
-                if ($answered && empty($ended)) {
-                    $dur = $now - $answered;
-                } elseif ($answered && $ended) {
-                    $dur = $ended - $answered;
-                }
-
-                // nome do canal
-                $name = $c['name'] ?? null;
-
-                // fallback via ARI
-                if (!$name && $id) {
-                    try {
-                        $res = $this->http->get("http://{$this->ariHost}:8088/ari/channels/{$id}", [
-                            'auth' => [$this->ariUser, $this->ariPass],
-                            'headers' => ['Accept' => 'application/json']
-                        ]);
-
-                        $chanData = json_decode($res->getBody(), true);
-                        $name = $chanData['name'] ?? null;
-                        $this->channelData[$id]['name'] = $name;
-
-                    } catch (\Throwable $e) {
-                        $name = null;
-                    }
-                }
-
-                // variáveis do canal
-                $vars = $c['vars'] ?? [];
-
-
-                // --- Suporte às variáveis vindas do dialplan (somente adiciona, não substitui nada) ---
-                $callerIdNum  = $vars['CALLERID_NUM']
-                    ?? $vars['CALLERID(num)']
-                    ?? ($c['callerid_num'] ?? null);
-
-                $callerIdName = $vars['CALLERID_NAME']
-                    ?? $vars['CALLERID(name)']
-                    ?? ($c['callerid_name'] ?? null);
-
-                $extension    = $vars['EXTENSION']
-                    ?? ($c['extension'] ?? null);
-
-                $dest         = $vars['DESTINATION']
-                    ?? ($c['destination'] ?? null);
-
-
-
-                $context  = strtolower($vars['CONTEXT'] ?? ($c['context'] ?? ''));
-                $ownerId  = $vars['OWNER_ID'] ?? null;
-                $tenantId = $vars['TENANT_ID'] ?? null;
-                $role     = $vars['ROLE'] ?? null;
-
-                $minuteCost  = (float)($vars['CALL_MINUTE_COST'] ?? 0);
-                $torpedoCost = (float)($vars['TORPEDO_COST'] ?? 0);
-                $type = strtoupper($vars['VARIABLE_TYPE'] ?? ($vars['TYPE'] ?? ''));
-                $taxaOfService = (float)($vars['TAXA_OF_SERVICE'] ?? 0);
-
-                // se não atendeu, zera (painel)
-                if (empty($answered)) {
-                    $taxaOfService = 0.0;
-                }
-
-                // detectar canal de spy
-                $isSpy = ($context === 'spy-control' || isset($vars['SPY_CHANNEL']));
-
-                // =======================================================
-                // 🔥 DETECÇÃO CORRETA DE TIPOS DE CANAIS
-                // =======================================================
-                $chName = strtolower($name ?? '');
-
-                // tronco real (ex: PJSIP/mxx001-...)
-                $isTrunk = preg_match('/^pjsip\/mxx/i', $chName);
-
-                // ramal real (ex: PJSIP/123456-0000abc) → exatamente 6 dígitos!
-                $isRamal = preg_match('/^pjsip\/([0-9]{8})-/i', $chName);
-
-                if ($isRamal) {
-                    $taxaOfService = 0.0;
-                }
-
-                // canal local (com segurança)
-                $isLocal = (!$isTrunk && !$isRamal && preg_match('/^local\//i', $chName));
-
-                if ($isLocal) {
-
-                    $trunk = 'LOCAL';
-                    $displayCost = 0.0;
-
-                } elseif ($isTrunk) {
-
-                    $trunk = $vars['TRUNK'] ?? 'TRONCO';
-                    $displayCost = ($type === 'TORPEDO') ? $torpedoCost : $minuteCost;
-
-                } elseif ($isRamal) {
-
-                    // 👉 Se for OUTBOUND, mesmo sendo ramal, exibe TRONCO
-                    if ($type === 'OUTBOUND') {
-                        $trunk = $vars['TRUNK'] ?? 'TRONCO';
-                        $displayCost = $minuteCost;
-                    } else {
-                        $trunk = 'RAMAL';
-                        $displayCost = 0.0;
-                    }
-
-                } else {
-
-                    $trunk = $vars['TRUNK'] ?? '—';
-                    $displayCost = ($type === 'TORPEDO') ? $torpedoCost : $minuteCost;
-                }
-
-
-
-                // dados padrão
-                $caller = $c['caller_name'] ?? ($c['extension'] ?? '—');
-                $destination = $c['destination'] ?? null;
-
-                // ajustes se for spy
-                if ($isSpy) {
-                    $type = 'Escuta';
-                    $trunk = $vars['SPY_TRUNK'] ?? '—';
-                    $displayCost = 0.0;
-                    $caller = 'Monitoramento';
-
-                    $origem = $vars['SPY_NUMBER'] ?? '—';
-                    $destino = $vars['SPY_DESTINATION'] ?? '—';
-                    $destination = "Escutando {$destino}";
-                }
-
-                // montar payload
-                $payload['chamadas'][] = [
-                    'id'          => $id,
-                    'name'        => $name,
-                    'number'      => $c['extension'] ?? ($c['number'] ?? $callerIdNum ?? 'Desconhecido'),
-                    'caller'      => $caller,
-                    'destination' => $destination ?? $extension,
-                    'status'      => $c['status'] ?? ($c['state'] ?? '—'),
-                    'state'       => $c['state'] ?? '',
-                    'duration'    => gmdate("i:s", max(0, $dur)),
-                    'started'     => $started,
-                    'answered'    => $answered,
-                    'ended'       => $ended,
-                    'dtmf'        => $c['last_dtmf'] ?? null,
-                    'in_bridge'   => isset($c['bridge']),
-                    'peer'        => $c['peer'] ?? null,
-                    'owner_id'    => $ownerId,
-                    'tenant_id'   => $tenantId,
-                    'role'        => $role,
-                    'trunk'       => $trunk,
-                    'extension'   => $vars['EXTENSION'] ?? null,
-                    'sms_cost'    => $vars['SMS_COST'] ?? null,
-                    'call_minute_cost' => number_format($displayCost, 2, '.', ''),
-                    'taxa_of_service'  => number_format($taxaOfService, 2, '.', ''),
-                    'variable_type'    => $type,
-                    'vars'             => $vars
-                ];
-            }
-
-            // salvar no Redis
-            $this->redis->set('asterisk:active_calls', json_encode($payload, JSON_UNESCAPED_UNICODE));
-            echo "[Redis] Atualizado com {$payload['totalChamadas']} chamadas.\n";
-
-        } catch (\Exception $e) {
-            echo "[Redis ❌] Erro ao atualizar: {$e->getMessage()}\n";
-        }
-    }*/
 
     private function updateRedis(): void
     {
@@ -4613,11 +3770,16 @@ class StasisListenerAsterisk
                 // vars
                 $vars = is_array($c['vars'] ?? null) ? $c['vars'] : [];
 
-                // ✅ SOMENTE LEG B NO PAINEL
+                // ✅ MANUAL: não mostra A-leg no painel
+                $isManual = !empty($vars['IS_MANUAL']) || !empty($vars['__IS_MANUAL']) || !empty($vars['MANUAL_CALL']) || !empty($vars['__MANUAL_CALL']);
                 $leg = strtoupper(trim((string)($vars['ARI_LEG'] ?? $vars['__ARI_LEG'] ?? '')));
-                if ($leg !== 'B') {
+
+                // se for manual e for A-leg -> não entra no painel
+                if ($isManual && $leg === 'A') {
                     continue;
                 }
+
+                // se NÃO é manual e leg está vazio -> deixa passar (discador costuma vir null)
 
                 // --- Suporte às variáveis vindas do dialplan ---
                 $callerIdNum  = $vars['CALLERID_NUM']
@@ -4745,8 +3907,10 @@ class StasisListenerAsterisk
     }
 }
 // ================= Configuração =================
-$listener = new StasisListenerAsterisk('maxx', 'mxx123', '127.0.0.1', 'app-asterisk');
+$listener = new StasisListenerAsterisk(
+    TelephonyConfig::ariUser(),
+    TelephonyConfig::ariPass(),
+    TelephonyConfig::ariHost(),
+    TelephonyConfig::stasisApp()
+);
 $listener->run();
-
-
-

@@ -1,295 +1,422 @@
-<!-- cards -->
 <div class="w-full px-6 py-6 mx-auto">
-    <!-- row 1 -->
-    <div class="flex flex-wrap -mx-3 animate-fade-in">
-
-        <!-- Saldo Atual -->
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+                <div class="p-4">
+    <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in">
         <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 sm:flex-none xl:mb-0 xl:w-1/4">
-            <div class="relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:z-10 will-change-transform">
-                <div class="flex-auto p-4">
-                    <div class="flex flex-row -mx-3">
-                        <div class="flex-none w-2/3 max-w-full px-3">
-                            <div>
-                                <p class="mb-0 font-sans text-sm font-semibold leading-normal uppercase dark:text-white dark:opacity-60">
-                                    Saldo Atual
-                                </p>
-
-                                <h5 class="mb-2 font-bold dark:text-white count-up"
-                                    id="saldo-atual"
-                                    data-decimals="smart">
-                                    R$ 0,00
-                                </h5>
-
-                                <!-- ✅ NOVO: Taxa de serviço -->
-                                <p class="mt-1 text-xs dark:text-white dark:opacity-70">
-                                    Taxa:
-                                    <strong id="saldo-taxa" data-decimals="smart">R$ 0,00</strong>
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="px-3 text-right basis-1/3">
-                            <div class="inline-block w-12 h-12 text-center rounded-circle bg-gradient-to-tl from-blue-500 to-violet-500 animate-pulse-slow">
-                                <i class="ni leading-none ni-money-coins text-lg relative top-3.5 text-white"></i>
-                            </div>
-                        </div>
+            <div class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-emerald-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Saldo Atual</p>
+                        <h5 class="mb-2 font-bold dark:text-white" id="saldo-atual" data-decimals="smart">R$ 0,00</h5>
+                        <p class="mb-0 text-xs text-slate-400">Taxa: <strong id="saldo-taxa" data-decimals="smart">R$ 0,00</strong></p>
                     </div>
+                    <div class="dash-icon bg-emerald-500"><i class="fa fa-wallet"></i></div>
                 </div>
             </div>
         </div>
-        <div class="w-full max-w-full px-3 sm:w-1/2 sm:flex-none xl:w-1/4">
-            <div
-                    class="relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:z-10 will-change-transform">
-                <div class="flex-auto p-4">
-                    <div class="flex flex-row -mx-3">
-                        <div class="flex-none w-2/3 max-w-full px-3">
-                            <div>
-                                <!-- Total Geral -->
-                                <p class="mb-0 font-sans text-sm font-semibold leading-normal uppercase dark:text-white dark:opacity-60">
-                                    Consumo Total
-                                </p>
-                                <h5 class="mb-2 font-bold dark:text-white" id="sms-custo" data-decimals="smart">R$ 0,00</h5>
 
-                                <!-- Detalhes individuais (opcional, pode deixar visível ou não) -->
-                                <p class="mb-0 dark:text-white dark:opacity-60 flex space-x-4 text-xs mt-1">
-                            <span>
-                                <strong id="sms-enviados" data-decimals="int">0</strong> SMS
-                            </span>
-                                    <span>
-                                <strong id="voz-enviados" data-decimals="int">0</strong> Voz
-                            </span>
-                                    <span>
-                                <strong id="whatsapp-enviados" data-decimals="int">0</strong> WhatsApp
-                            </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="px-3 text-right basis-1/3">
-                            <div
-                                    class="inline-block w-12 h-12 text-center rounded-circle bg-gradient-to-tl from-red-600 to-orange-600 animate-pulse-slow">
-                                <i class="ni leading-none ni-send text-lg relative top-3.5 text-white"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Último PIX -->
         <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 sm:flex-none xl:mb-0 xl:w-1/4">
-            <div class="relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:z-10 will-change-transform">
-                <div class="flex-auto p-4">
-                    <div class="flex flex-row -mx-3">
-                        <div class="flex-none w-2/3 max-w-full px-3">
-                            <div>
-                                <p class="mb-0 font-sans text-sm font-semibold leading-normal uppercase dark:text-white dark:opacity-60">
-                                    Última Recarga</p>
-                                <h5 class="mb-2 font-bold dark:text-white" id="ultimo-pix">R$ 0,00</h5>
-                                <p class="mb-0 dark:text-white dark:opacity-60">
-                                    <span class="text-xs text-gray-500" id="pix-data">--/--/----</span>
-                                </p>
-
-                            </div>
-                        </div>
-                        <div class="px-3 text-right basis-1/3">
-                            <div class="inline-block w-12 h-12 text-center rounded-circle bg-gradient-to-tl from-emerald-500 to-teal-400 animate-pulse-slow">
-                                <i class="ni leading-none ni-money-coins text-lg relative top-3.5 text-white"></i>
-                            </div>
-                        </div>
+            <div class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-red-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Consumo Total</p>
+                        <h5 class="mb-2 font-bold dark:text-white" id="sms-custo" data-decimals="smart">R$ 0,00</h5>
+                        <p class="dashboard-inline-totals mb-0 text-xs text-slate-400">
+                            <span><strong id="sms-enviados" data-decimals="int">0</strong> SMS</span>
+                            <span class="dashboard-divider">|</span>
+                            <span><strong id="voz-enviados" data-decimals="int">0</strong> Voz</span>
+                            <span class="dashboard-divider">|</span>
+                            <span><strong id="whatsapp-enviados" data-decimals="int">0</strong> WhatsApp</span>
+                        </p>
                     </div>
+                    <div class="dash-icon bg-rose-500"><i class="fa fa-chart-line"></i></div>
                 </div>
             </div>
         </div>
 
-        <!-- Campanhas Ativas -->
-        <div class="w-full max-w-full px-3 sm:w-1/2 sm:flex-none xl:w-1/4">
-            <div
-                    class="relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:z-10 will-change-transform">
-                <div class="flex-auto p-4">
-                    <div class="flex flex-row -mx-3">
-                        <div class="flex-none w-2/3 max-w-full px-3">
-                            <div>
-                                <p
-                                        class="mb-0 font-sans text-sm font-semibold leading-normal uppercase dark:text-white dark:opacity-60">
-                                    Total Campanhas
-                                </p>
-                                <h5 class="mb-2 font-bold dark:text-white" id="campanhas-ativas" data-decimals="int">0</h5>
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 sm:flex-none xl:mb-0 xl:w-1/4">
+            <div class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-cyan-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Ultima Recarga</p>
+                        <h5 class="mb-2 font-bold dark:text-white" id="ultimo-pix" data-decimals="smart">R$ 0,00</h5>
+                        <p class="mb-0 text-xs text-slate-400" id="pix-data">--/--/----</p>
+                    </div>
+                    <div class="dash-icon bg-cyan-500"><i class="fa-brands fa-pix"></i></div>
+                </div>
+            </div>
+        </div>
 
-                                <!-- Totais lado a lado -->
-                                <p class="mb-0 dark:text-white dark:opacity-60 text-xs mt-1 space-y-1">
-                                <span class="flex space-x-4">
-                                    <span>
-                                        <strong id="campanhas-ativa-total" data-decimals="int">0</strong> Ativa
-                                    </span>
-                                    <span>
-                                        <strong id="campanhas-processando-total" data-decimals="int">0</strong> Processando
-                                    </span>
-                                    <span>
-                                        <strong id="campanhas-pausada-total" data-decimals="int">0</strong> Pausada
-                                    </span>
-                                </span>
-
-                                                                <span class="flex space-x-4">
-                                    <span>
-                                        <strong id="campanhas-finalizada-total" data-decimals="int">0</strong> Finalizada
-                                    </span>
-                                    <span>
-                                        <strong id="campanhas-inativa-total" data-decimals="int">0</strong> Inativa
-                                    </span>
-
-                                                                    <span>
-                                        <strong id="campanhas-cancelada-total" data-decimals="int">0</strong> Cancel
-                                    </span>
-
-                                </span>
-                                </p>
-
-                            </div>
-                        </div>
-                        <div class="px-3 text-right basis-1/3">
-                            <div
-                                    class="inline-block w-12 h-12 text-center rounded-circle bg-gradient-to-tl from-orange-500 to-yellow-500 animate-pulse-slow">
-                                <i class="ni leading-none ni-chart-bar-32 text-lg relative top-3.5 text-white"></i>
-                            </div>
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 sm:flex-none xl:mb-0 xl:w-1/4">
+            <div class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-amber-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Total Campanhas</p>
+                        <h5 class="mb-2 font-bold dark:text-white" id="campanhas-ativas" data-decimals="int">0</h5>
+                        <div class="campaign-totals mb-0">
+                            <span class="campaign-pill"><span class="text-amber-500">Processando</span><strong id="campanhas-processando-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-sky-500">Agendadas</span><strong id="campanhas-agendada-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-emerald-500">Ativas</span><strong id="campanhas-ativa-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-indigo-500">Finalizadas</span><strong id="campanhas-finalizada-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-slate-500">Inativas</span><strong id="campanhas-inativa-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-orange-500">Pausadas</span><strong id="campanhas-pausada-total" data-decimals="int">0</strong></span>
+                            <span class="campaign-pill"><span class="text-rose-500">Canceladas</span><strong id="campanhas-cancelada-total" data-decimals="int">0</strong></span>
                         </div>
                     </div>
+                    <div class="dash-icon bg-amber-500"><i class="fa fa-bullhorn"></i></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Gráficos lado a lado -->
-    <div class="flex flex-wrap mt-6 -mx-3">
-        <!-- Gráfico 1 - Comparativo Diário -->
-        <div class="w-full max-w-full px-3 mt-0 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 border-solid bg-white bg-clip-border">
-                <div class="border-black/12.5 mb-0 rounded-t-2xl border-b-0 border-solid p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de SMS no Dia (Tempo real)</h6>
-                    <p id="dayComparison" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconDay" class="fa fa-arrow-up text-emerald-500"></i>
-                        <span id="changeValueDay" class="font-semibold">0%</span>
-                    </p>
-                </div>
-                <div class="p-6">
-                    <canvas id="smsChartDay"></canvas>
+    
+    <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in-slow">
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/4">
+            <div id="health-card-asterisk" class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-emerald-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Asterisk / ARI</p>
+                        <h5 class="mb-0 font-bold dark:text-white" id="ast-reg-status">ONLINE</h5>
+                        <p class="mb-0 text-xs text-slate-400" id="ast-reg-detail">--</p>
+                    </div>
+                    <div class="dash-icon bg-emerald-500"><i class="fa fa-server"></i></div>
                 </div>
             </div>
         </div>
 
-        <!-- Gráfico 2 - Comparativo Mensal -->
-        <div class="w-full max-w-full px-3 mt-0 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 border-solid bg-white bg-clip-border">
-                <div class="border-black/12.5 mb-0 rounded-t-2xl border-b-0 border-solid p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de SMS no Mês (Tempo real)</h6>
-                    <p id="monthComparison" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconMonth" class="fa fa-arrow-down text-red-500"></i>
-                        <span id="changeValueMonth" class="font-semibold">0%</span>
-                    </p>
-                </div>
-                <div class="p-6">
-                    <canvas id="smsChartMonth"></canvas>
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/4">
+            <div id="health-card-redis" class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-blue-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Redis</p>
+                        <h5 class="mb-0 font-bold dark:text-white" id="redis-status">ONLINE</h5>
+                        <p class="mb-0 text-xs text-slate-400" id="redis-detail">--</p>
+                    </div>
+                    <div class="dash-icon bg-blue-500"><i class="fa fa-database"></i></div>
                 </div>
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 bg-white bg-clip-border">
-                <div class="mb-0 rounded-t-2xl p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de VOZ no Dia (Tempo real)</h6>
-                    <p id="dayComparisonVoz" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconDayVoz" class="fa fa-arrow-up text-emerald-500"></i>
-                        <span id="changeValueDayVoz" class="font-semibold">0%</span>
-                    </p>
-                </div>
-                <div class="p-6">
-                    <canvas id="vozChartDay"></canvas>
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/4">
+            <div id="health-card-trunks" class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-orange-500">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase dark:text-white opacity-60 text-slate-500">Troncos</p>
+                        <h5 class="mb-0 font-bold dark:text-white" id="trunks-status">ATENCAO</h5>
+                        <p class="mb-0 text-xs text-slate-400" id="trunks-detail">--</p>
+                    </div>
+                    <div class="dash-icon bg-orange-500"><i class="fa fa-network-wired"></i></div>
                 </div>
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 bg-white bg-clip-border">
-                <div class="mb-0 rounded-t-2xl p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de VOZ no Mês (Tempo real)</h6>
-                    <p id="monthComparisonVoz" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconMonthVoz" class="fa fa-arrow-up text-emerald-500"></i>
-                        <span id="changeValueMonthVoz" class="font-semibold">0%</span>
-                    </p>
-                </div>
-                <div class="p-6">
-                    <canvas id="vozChartMonth"></canvas>
+        <div class="w-full max-w-full px-3 mb-6 sm:w-1/4">
+            <div id="health-card-calls" class="dash-card relative flex flex-col min-w-0 break-words bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl rounded-2xl p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="mb-0 font-sans text-xs font-semibold uppercase text-white opacity-80">Chamadas Online</p>
+                        <h5 class="mb-0 font-bold text-white" id="calls-status" data-decimals="int">0</h5>
+                        <p class="mb-0 text-xs text-white opacity-70" id="calls-detail">--</p>
+                    </div>
+                    <div class="dash-icon bg-white/20"><i class="fa fa-phone-volume"></i></div>
                 </div>
             </div>
         </div>
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 bg-white bg-clip-border">
-                <div class="mb-0 rounded-t-2xl p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de WhatsApp no Dia (Tempo real)</h6>
-                    <p id="dayComparisonWhats" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconDayWhats" class="fa fa-arrow-up text-emerald-500"></i>
-                        <span id="changeValueDayWhats" class="font-semibold">0%</span>
-                    </p>
+    </div>
+
+    <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in-slow">
+        
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('voip')">
+            <div id="card-voip" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-indigo-500 opacity-80 hover:opacity-100">
+                <h6 id="card-voip-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
+                    <span class="service-icon bg-indigo-500"><i class="fa fa-phone"></i></span> VoIP Performance
+                </h6>
+                <hr class="my-3 opacity-10">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="card-voip-label" class="text-xs font-semibold opacity-70">ASR / ACD</span>
+                    <span class="text-sm font-bold text-emerald-500"><span id="card-voip-primary" data-count-value="72.4" data-decimals="1">72.4</span>% | <span id="card-voip-secondary">00:00s</span></span>
                 </div>
-                <div class="p-6">
-                    <canvas id="whatsChartDay"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 bg-white bg-clip-border">
-                <div class="mb-0 rounded-t-2xl p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Total de envio de WhatsApp no Mês (Tempo real)</h6>
-                    <p id="monthComparisonWhats" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconMonthWhats" class="fa fa-arrow-up text-emerald-500"></i>
-                        <span id="changeValueMonthWhats" class="font-semibold">0%</span>
-                    </p>
-                </div>
-                <div class="p-6">
-                    <canvas id="whatsChartMonth"></canvas>
+                <div class="w-full bg-gray-100 rounded-full h-1.5 dark:bg-gray-700">
+                    <div id="card-voip-bar" class="bg-indigo-500 h-1.5 rounded-full" style="width: 72%"></div>
                 </div>
             </div>
         </div>
 
-
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 border-solid bg-white bg-clip-border">
-                <div class="border-black/12.5 mb-0 rounded-t-2xl border-b-0 border-solid p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Distribuição por Operadora SMS (Tempo real)</h6>
-                    <p id="monthComparison11" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconMonth11" class="fa fa-arrow-down text-red-500"></i>
-                        <span id="changeValueMonth11" class="font-semibold">0%</span>
-                    </p>
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('sms')">
+            <div id="card-sms" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-amber-500 opacity-80 hover:opacity-100">
+                <h6 id="card-sms-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
+                    <span class="service-icon bg-amber-500"><i class="fa fa-comment-sms"></i></span> SMS Gateway
+                </h6>
+                <hr class="my-3 opacity-10">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="card-sms-label" class="text-xs font-semibold opacity-70">DLR / Fila</span>
+                    <span class="text-sm font-bold text-amber-500"><span id="card-sms-primary" data-count-value="98.1" data-decimals="1">98.1</span>% | <span id="card-sms-secondary" data-count-value="142" data-decimals="int">142</span></span>
                 </div>
-                <div class="p-6" style="height: 300px;">
-                    <canvas id="chartOperator" style="height: 100%; width: 100%;"></canvas>
+                <div class="w-full bg-gray-100 rounded-full h-1.5 dark:bg-gray-700">
+                    <div id="card-sms-bar" class="bg-amber-500 h-1.5 rounded-full" style="width: 98%"></div>
                 </div>
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 mt-6 lg:w-1/2 lg:flex-none">
-            <div
-                    class="border-black/12.5 dark:bg-slate-850 dark:shadow-dark-xl shadow-xl relative z-20 flex min-w-0 flex-col break-words rounded-2xl border-0 border-solid bg-white bg-clip-border">
-                <div class="border-black/12.5 mb-0 rounded-t-2xl border-b-0 border-solid p-6 pt-4 pb-0">
-                    <h6 class="capitalize dark:text-white">Histórico de recargas (Tempo real)</h6>
-                    <p id="monthComparison1" class="mb-0 text-sm leading-normal dark:text-white dark:opacity-60">
-                        <i id="changeIconMonth1" class="fa fa-arrow-down text-red-500"></i>
-                        <span id="changeValueMonth1" class="font-semibold">0%</span>
-                    </p>
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('whatsapp')">
+            <div id="card-whatsapp" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-emerald-500 opacity-80 hover:opacity-100">
+                <h6 id="card-whatsapp-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
+                    <span class="service-icon bg-emerald-500"><i class="fa-brands fa-whatsapp"></i></span> WhatsApp
+                </h6>
+                <hr class="my-3 opacity-10">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="card-whatsapp-label" class="text-xs font-semibold opacity-70">Campanhas / Consumo</span>
+                    <span class="text-sm font-bold text-emerald-500"><span id="card-whatsapp-primary" data-count-value="0" data-decimals="int">0</span> | <span id="card-whatsapp-secondary">R$ 0,00</span></span>
                 </div>
-                <div class="p-6" style="height: 300px;">
-                    <canvas id="chartRefills" style="height: 100%; width: 100%;"></canvas>
+                <div class="w-full bg-gray-100 rounded-full h-1.5 dark:bg-gray-700">
+                    <div id="card-whatsapp-bar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 8%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="details-section" class="flex flex-wrap -mx-3">
+        <div class="w-full max-w-full px-3 mt-0 lg:w-8/12 lg:flex-none">
+            <div class="dash-card relative z-20 flex min-w-0 flex-col break-words bg-white border-0 border-solid shadow-xl dark:bg-slate-850 rounded-2xl p-6">
+                <div class="flex flex-col gap-3 mb-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <h6 id="dynamic-title" class="capitalize dark:text-white font-bold text-slate-700">Graficos do Servico: VoIP</h6>
+                        <p id="dynamic-subtitle" class="mt-1 text-xs text-slate-500">Chamadas por dia, comparativo mensal e distribuicao por status.</p>
+                    </div>
+                    <div class="flex justify-start md:justify-end">
+                        <span class="bg-indigo-100 text-indigo-700 text-xxs px-2 py-1 rounded font-bold uppercase" id="service-tag">VOIP</span>
+                    </div>
+                </div>
+                <div class="mb-4 flex justify-start md:justify-end">
+                    <div class="period-filter inline-flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                        <button type="button" class="period-filter-btn active" data-period="day">Dia</button>
+                        <button type="button" class="period-filter-btn" data-period="week">Semana</button>
+                        <button type="button" class="period-filter-btn" data-period="month">Mes</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-4">
+                    <div class="metric-tile rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                        <div>
+                            <p id="service-stat-current-title" class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white dark:opacity-60">Hoje</p>
+                            <h4 id="service-stat-today" class="mb-2 font-bold text-slate-800 dark:text-white" data-decimals="int">0</h4>
+                            <p id="service-stat-today-label" class="text-sm text-slate-500 dark:text-white dark:opacity-60">Eventos hoje</p>
+                        </div>
+                        <div class="metric-icon bg-sky-500"><i class="fa fa-calendar-day"></i></div>
+                    </div>
+                    <div class="metric-tile rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                        <div>
+                            <p id="service-stat-month-title" class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white dark:opacity-60">Dia anterior</p>
+                            <h4 id="service-stat-month" class="mb-2 font-bold text-slate-800 dark:text-white" data-decimals="int">0</h4>
+                            <p id="service-stat-month-label" class="text-sm text-slate-500 dark:text-white dark:opacity-60">Base de comparacao</p>
+                        </div>
+                        <div class="metric-icon bg-indigo-500"><i class="fa fa-chart-column"></i></div>
+                    </div>
+                    <div class="metric-tile rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+                        <div>
+                            <p id="service-stat-previous-title" class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white dark:opacity-60">Mes atual</p>
+                            <h4 id="service-stat-previous" class="mb-2 font-bold text-slate-800 dark:text-white" data-decimals="int">0</h4>
+                            <p id="service-stat-previous-label" class="text-sm text-slate-500 dark:text-white dark:opacity-60">Contexto do periodo</p>
+                        </div>
+                        <div class="metric-icon bg-slate-500"><i class="fa fa-clock-rotate-left"></i></div>
+                    </div>
+                </div>
+                <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 340px;">
+                    <canvas id="service-main-chart"></canvas>
+                </div>
+                <div class="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 260px;">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h6 id="service-secondary-title" class="text-xs font-bold uppercase text-slate-500 dark:text-white dark:opacity-70">Visao complementar</h6>
+                        <span id="service-secondary-tag" class="text-xxs font-bold uppercase text-slate-400">Bar</span>
+                    </div>
+                    <canvas id="service-secondary-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full max-w-full px-3 mt-6 lg:mt-0 lg:w-4/12 lg:flex-none">
+            <div class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4">
+                <h6 class="mb-4 font-bold dark:text-white text-sm" id="logs-title">Resumo do Servico</h6>
+                <div class="rounded-2xl bg-slate-50 p-3 mb-4 dark:bg-slate-800/60" style="height: 260px;">
+                    <canvas id="service-status-chart"></canvas>
+                </div>
+                <div class="space-y-3" id="logs-container">
+                    <div class="flex justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                        <span class="text-xs font-bold dark:text-white" id="detail-item-1-label">Status 1</span>
+                        <span class="text-xs text-red-500 font-bold" id="detail-item-1-value">--</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                        <span class="text-xs font-bold dark:text-white" id="detail-item-2-label">Status 2</span>
+                        <span class="text-xs text-orange-500 font-bold" id="detail-item-2-value">--</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                        <span class="text-xs font-bold dark:text-white" id="detail-item-3-label">Status 3</span>
+                        <span class="text-xs text-slate-500 font-bold" id="detail-item-3-value">--</span>
+                    </div>
+                    <div class="flex justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                        <span class="text-xs font-bold dark:text-white" id="detail-item-4-label">Observacao</span>
+                        <span class="text-xs text-blue-500 font-bold" id="detail-item-4-value">--</span>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <div class="w-full rounded-lg bg-slate-800 py-2 text-center text-xs font-bold text-white dark:bg-slate-700" id="monitor-footer">
+                        GRAFICOS EM TEMPO REAL
+                    </div>
+                </div>
+                <div id="sip-code-card" class="mt-4 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/60" style="height: 250px;">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h6 class="text-xs font-bold uppercase text-slate-500 dark:text-white dark:opacity-70">SIP Code</h6>
+                        <span id="sip-code-tag" class="text-xxs font-bold uppercase text-slate-400">VoIP</span>
+                    </div>
+                    <canvas id="sip-code-chart"></canvas>
                 </div>
             </div>
         </div>
     </div>
 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="sip-code-modal" class="fixed inset-0 z-[9999] hidden">
+    <div id="sip-code-backdrop" class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+    <aside class="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-850 shadow-2xl border-l border-slate-200 dark:border-slate-700 p-6 transform transition-transform duration-300 translate-x-full" id="sip-code-panel">
+        <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shadow-sm dark:bg-blue-900 dark:text-blue-200">
+                    <i class="fa fa-code-branch text-sm"></i>
+                </span>
+                <div>
+                    <p class="mb-1 text-xxs font-bold uppercase tracking-wide text-slate-400">Detalhe SIP</p>
+                    <h3 id="sip-code-modal-title" class="mb-0 text-xl font-bold text-slate-800 dark:text-white">SIP 000</h3>
+                </div>
+            </div>
+            <button type="button" id="sip-code-close" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+        <div class="mt-6 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">
+            <p class="mb-1 text-xs font-bold uppercase text-slate-400">Significado</p>
+            <p id="sip-code-modal-description" class="mb-0 text-sm leading-relaxed text-slate-600 dark:text-slate-200">Sem descricao.</p>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-3">
+            <div class="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-850">
+                <p class="mb-1 text-xxs font-bold uppercase text-slate-400">Chamadas</p>
+                <h4 id="sip-code-modal-count" class="mb-0 font-bold text-slate-800 dark:text-white">0</h4>
+            </div>
+            <div class="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-850">
+                <p class="mb-1 text-xxs font-bold uppercase text-slate-400">Periodo</p>
+                <h4 id="sip-code-modal-period" class="mb-0 font-bold text-slate-800 dark:text-white">Dia</h4>
+            </div>
+        </div>
+        <div class="mt-4 rounded-2xl bg-slate-900 p-4 text-white">
+            <p class="mb-2 text-xxs font-bold uppercase text-slate-400">Leitura rapida</p>
+            <p id="sip-code-modal-advice" class="mb-0 text-sm leading-relaxed">Use este codigo para identificar se a chamada foi concluida, recusada, ocupada ou falhou por rota/provedor.</p>
+        </div>
+    </aside>
+</div>
+
 <style>
+    .text-xxs { font-size: 0.65rem; }
+    .dark .bg-slate-850 { background-color: #1e293b; }
+    /* Efeito de seleção visual no card */
+    .border-active { border-width: 2px !important; border-color: inherit !important; opacity: 1 !important; }
+
+    .dash-icon,
+    .service-icon,
+    .metric-icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        box-shadow: 0 12px 24px -14px rgba(15, 23, 42, 0.8);
+    }
+
+    .dash-icon {
+        width: 2.8rem;
+        height: 2.8rem;
+        border-radius: 0.9rem;
+        font-size: 1rem;
+    }
+
+    .service-icon {
+        width: 1.8rem;
+        height: 1.8rem;
+        margin-right: 0.6rem;
+        border-radius: 0.65rem;
+        font-size: 0.75rem;
+    }
+
+    .metric-tile {
+        display: flex;
+        min-height: 118px;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .metric-icon {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .dashboard-inline-totals {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.45rem;
+        white-space: nowrap;
+    }
+
+    .dashboard-divider {
+        color: #cbd5e1;
+    }
+
+    .campaign-totals {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 0.35rem;
+        row-gap: 0.15rem;
+    }
+
+    .campaign-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        white-space: nowrap;
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .campaign-pill strong {
+        color: #334155;
+        font-weight: 800;
+    }
+
+    .dark .campaign-pill strong {
+        color: #fff;
+    }
+
+    @media (max-width: 420px) {
+        .dashboard-inline-totals {
+            gap: 0.3rem;
+            font-size: 0.68rem;
+        }
+
+        .dash-icon {
+            width: 2.35rem;
+            height: 2.35rem;
+        }
+    }
+
     @keyframes fadeInUp {
         0% {
             opacity: 0;
@@ -301,76 +428,63 @@
         }
     }
 
-    .animate-fade-in > div {
+    .animate-fade-in > div,
+    .animate-fade-in-slow > div {
         animation: fadeInUp 0.6s ease-out forwards;
         opacity: 0;
     }
 
-    .animate-fade-in > div:nth-child(1) {
-        animation-delay: 0.1s;
-    }
+    .animate-fade-in > div:nth-child(1) { animation-delay: 0.08s; }
+    .animate-fade-in > div:nth-child(2) { animation-delay: 0.16s; }
+    .animate-fade-in > div:nth-child(3) { animation-delay: 0.24s; }
+    .animate-fade-in > div:nth-child(4) { animation-delay: 0.32s; }
 
-    .animate-fade-in > div:nth-child(2) {
-        animation-delay: 0.2s;
-    }
+    .animate-fade-in-slow > div:nth-child(1) { animation-delay: 0.12s; }
+    .animate-fade-in-slow > div:nth-child(2) { animation-delay: 0.2s; }
+    .animate-fade-in-slow > div:nth-child(3) { animation-delay: 0.28s; }
+    .animate-fade-in-slow > div:nth-child(4) { animation-delay: 0.36s; }
 
-    .animate-fade-in > div:nth-child(3) {
-        animation-delay: 0.3s;
-    }
-
-    .animate-fade-in > div:nth-child(4) {
-        animation-delay: 0.4s;
-    }
-
-    @keyframes fadeInUp {
-        0% {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        100% {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .animate-fade-in > div {
-        animation: fadeInUp 0.6s ease-out forwards;
-        opacity: 0;
-    }
-
-    .animate-fade-in > div:nth-child(1) {
-        animation-delay: 0.1s;
-    }
-
-    .animate-fade-in > div:nth-child(2) {
-        animation-delay: 0.2s;
-    }
-
-    .animate-fade-in > div:nth-child(3) {
-        animation-delay: 0.3s;
-    }
-
-    .animate-fade-in > div:nth-child(4) {
-        animation-delay: 0.4s;
-    }
-
-    /* suaviza transform e melhora performance */
     .will-change-transform {
         will-change: transform;
     }
 
-    /* pulse lento */
-    @keyframes pulseSlow {
-        0%, 100% {
-            transform: scale(1);
-        }
-        50% {
-            transform: scale(1.08);
-        }
+    .dash-card {
+        transform: translateZ(0);
+        transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+        will-change: transform;
     }
 
-    .animate-pulse-slow {
-        animation: pulseSlow 2.5s infinite ease-in-out;
+    .dash-card:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
+    }
+
+    .service-card-active {
+        opacity: 1 !important;
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
+    }
+
+    .period-filter-btn {
+        min-width: 64px;
+        border-radius: 0.375rem;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #64748b;
+        transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .period-filter-btn.active {
+        background: #ffffff;
+        color: #4f46e5;
+        box-shadow: 0 6px 14px -10px rgba(15, 23, 42, 0.8);
+    }
+
+    .dark .period-filter-btn.active {
+        background: #334155;
+        color: #ffffff;
     }
 </style>
 
@@ -403,735 +517,194 @@
 </script>
 
 <script>
-    document.querySelectorAll('.count-up').forEach(el => {
-        let start = 0;
-        // Tenta pegar o valor do data-value; se não existir, tenta extrair do texto atual
-        let end = el.dataset.value ? parseInt(el.dataset.value.replace(/\D/g, '')) : parseInt(el.textContent.replace(/\D/g, ''));
-        if (isNaN(end)) end = 0; // fallback
-
-        const duration = 1500;
-        const increment = end / (duration / 16);
-        const hasCurrency = el.textContent.trim().startsWith('R$');
-
-        function update() {
-            start += increment;
-            if (start < end) {
-                el.textContent = hasCurrency
-                    ? `R$ ${Math.floor(start).toLocaleString('pt-BR')},00`
-                    : Math.floor(start).toLocaleString('pt-BR');
-                requestAnimationFrame(update);
-            } else {
-                el.textContent = hasCurrency
-                    ? `R$ ${end.toLocaleString('pt-BR')},00`
-                    : end.toLocaleString('pt-BR');
-            }
-        }
-        update();
-    });
-
-</script>
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // ================================
-        // STATUS POR CANAL
-        // ================================
-
-        // SMS
-        const smsStatusKeys = [
-            'ENVIADA','FALHADA','EXPIRADA','DELETADA','REJEITADA','BLACKLIST','ENTREGUE','NAO_ENTREGAVEL'
-        ];
-
-        const smsBackgroundColors = {
-            ENVIADA: 'rgba(59,130,246,0.5)',
-            FALHADA: 'rgba(239,68,68,0.5)',
-            EXPIRADA: 'rgba(132,204,22,0.5)',
-            DELETADA: 'rgba(148,163,184,0.5)',
-            REJEITADA: 'rgba(220,38,38,0.5)',
-            BLACKLIST: 'rgba(128,0,128,0.5)',
-            ENTREGUE: 'rgba(34,197,94,0.5)',
-            NAO_ENTREGAVEL: 'rgba(234,179,8,0.5)'
-        };
-
-        const smsBorderColors = Object.fromEntries(
-            Object.entries(smsBackgroundColors).map(([k, v]) => [k, v.replace('0.5', '1')])
-        );
-
-        // VOZ (ajuste o nome das chaves exatamente como o backend enviar)
-        const vozStatusKeys = [
-            'ATENDIDA',
-            'NAO_ATENDIDA',
-            'FALHA',
-            'CAIXA_POSTAL',
-            'OCUPADO',
-            'CANCELADO'
-        ];
-
-        // WHATSAPP
-        const whatsStatusKeys = [
-            'ENVIADA',
-            'ENTREGUE',
-            'LIDA',
-            'RESPONDIDA',
-            'ERRO'
-        ];
-
-        // 🎨 Paleta fixa por status VOZ (100% preciso)
-        const vozBackgroundColors = {
-            'ATENDIDA':     'rgba(34,197,94,0.5)',   // verde
-            'NAO_ATENDIDA': 'rgba(217,119,6,0.5)',   // laranja
-            'FALHA':        'rgba(239,68,68,0.5)',   // vermelho
-            'CAIXA_POSTAL': 'rgba(250,204,21,0.5)',  // amarelo
-            'OCUPADO':      'rgba(128,0,128,0.5)',   // roxo
-            'CANCELADO':    'rgba(148,163,184,0.5)'  // cinza
-        };
-
-        const vozBorderColors = Object.fromEntries(
-            Object.entries(vozBackgroundColors).map(([k, v]) => [k, v.replace('0.5', '1')])
-        );
-
-        // 🎨 Paleta automática para WhatsApp
-        const basePaletteWhats = [
-            'rgba(59,130,246,0.5)',   // azul
-            'rgba(34,197,94,0.5)',    // verde
-            'rgba(234,179,8,0.5)',    // amarelo
-            'rgba(168,85,247,0.5)',   // roxo claro
-            'rgba(239,68,68,0.5)'     // vermelho
-        ];
-
-        function makeColorMap(keys) {
-            const map = {};
-            keys.forEach((k, i) => {
-                map[k] = basePaletteWhats[i % basePaletteWhats.length];
-            });
-            return map;
-        }
-
-        const whatsBackgroundColors = makeColorMap(whatsStatusKeys);
-
-        const whatsBorderColors = Object.fromEntries(
-            Object.entries(whatsBackgroundColors).map(([k, v]) => [k, v.replace('0.5', '1')])
-        );
-
-
-        // ================================
-        // FUNÇÕES DE CRIAÇÃO DE GRÁFICOS
-        // ================================
-
-        function createBarChart(ctx, labels, datasetLabel, bgMap, borderMap) {
-            return new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: datasetLabel,
-                        data: Array(labels.length).fill(0),
-                        backgroundColor: labels.map(k => bgMap[k]),
-                        borderColor: labels.map(k => borderMap[k]),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 800 },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: '#64748B' } },
-                        x: { ticks: { color: '#64748B' } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-
-        function createStatusLineChart(ctx, labels, datasetLabel, bgMap, borderMap) {
-            return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: datasetLabel,
-                        data: Array(labels.length).fill(0),
-                        backgroundColor: labels.map(k => bgMap[k]),
-                        borderColor: labels.map(k => borderMap[k]),
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 800 },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: '#64748B' } },
-                        x: { ticks: { color: '#64748B' } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-
-        // ================================
-        // GRÁFICOS SMS
-        // ================================
-
-        const chartDay = createBarChart(
-            document.getElementById('smsChartDay').getContext('2d'),
-            smsStatusKeys,
-            'Total de SMS',
-            smsBackgroundColors,
-            smsBorderColors
-        );
-
-        const chartMonth = createStatusLineChart(
-            document.getElementById('smsChartMonth').getContext('2d'),
-            smsStatusKeys,
-            'Total de SMS',
-            smsBackgroundColors,
-            smsBorderColors
-        );
-
-        // ================================
-        // GRÁFICOS VOZ
-        // ================================
-
-        const chartDayVoz = createBarChart(
-            document.getElementById('vozChartDay').getContext('2d'),
-            vozStatusKeys,
-            'Total',
-            vozBackgroundColors,
-            vozBorderColors
-        );
-
-        const chartMonthVoz = createStatusLineChart(
-            document.getElementById('vozChartMonth').getContext('2d'),
-            vozStatusKeys,
-            'Total',
-            vozBackgroundColors,
-            vozBorderColors
-        );
-
-        // ================================
-        // GRÁFICOS WHATSAPP
-        // ================================
-
-        const chartDayWhats = createBarChart(
-            document.getElementById('whatsChartDay').getContext('2d'),
-            whatsStatusKeys,
-            'Total WhatsApp',
-            whatsBackgroundColors,
-            whatsBorderColors
-        );
-
-        const chartMonthWhats = createStatusLineChart(
-            document.getElementById('whatsChartMonth').getContext('2d'),
-            whatsStatusKeys,
-            'Total WhatsApp',
-            whatsBackgroundColors,
-            whatsBorderColors
-        );
-
-        // ================================
-        // GRÁFICO 3: PIZZA (Operadora) — ORIGINAL
-        // ================================
-
-        const ctxOperator = document.getElementById('chartOperator').getContext('2d');
-        const ctxRefills = document.getElementById('chartRefills').getContext('2d');
-
-        const chartOperator = new Chart(ctxOperator, {
-            type: 'pie',
-            data: {
-                labels: [], // operadoras
-                datasets: [{
-                    label: 'SMS por Operadora',
-                    data: [],
-                    backgroundColor: [
-                        'rgba(248, 113, 113, 0.7)',  // vermelho claro
-                        'rgba(96, 165, 250, 0.7)',   // azul claro
-                        'rgba(251, 191, 36, 0.7)',   // amarelo claro
-                        'rgba(52, 211, 153, 0.7)',   // verde claro
-                        'rgba(167, 139, 250, 0.7)',  // roxo claro
-                        'rgba(244, 114, 182, 0.7)',  // rosa claro
-                        'rgba(253, 186, 116, 0.7)',  // laranja claro
-                        'rgba(134, 239, 172, 0.7)',  // verde menta claro
-                        'rgba(147, 197, 253, 0.7)',  // azul bebê claro
-                        'rgba(248, 250, 252, 0.7)'   // quase branco claro
-                    ],
-                    borderColor: [
-                        'rgba(220, 38, 38, 1)',      // vermelho escuro
-                        'rgba(37, 99, 235, 1)',      // azul escuro
-                        'rgba(217, 119, 6, 1)',      // amarelo escuro
-                        'rgba(5, 150, 105, 1)',      // verde escuro
-                        'rgba(109, 40, 217, 1)',     // roxo escuro
-                        'rgba(219, 39, 119, 1)',     // rosa escuro
-                        'rgba(202, 138, 4, 1)',      // laranja escuro
-                        'rgba(21, 128, 61, 1)',      // verde menta escuro
-                        'rgba(59, 130, 246, 1)',     // azul bebê escuro
-                        'rgba(75, 85, 99, 1)'        // cinza escuro
-                    ],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 800 },
-                plugins: {
-                    legend: { display: true, position: 'bottom' },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.parsed || 0;
-                                const data = context.chart.data.datasets[0].data;
-                                const total = data.reduce((a, b) => a + b, 0);
-                                const percent = total ? ((value / total) * 100).toFixed(1) : 0;
-                                return `${label}: ${value} SMS (${percent}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // ================================
-        // GRÁFICO 4: Histórico de Recargas — AJUSTADO
-        // ================================
-
-        const chartRefills = new Chart(ctxRefills, {
-            type: 'line',
-            data: {
-                labels: [], // preenchido depois dinamicamente
-                datasets: [
-                    {
-                        label: 'PIX',
-                        data: [],
-                        fill: false,
-                        borderColor: 'rgba(56, 189, 248, 1)',
-                        backgroundColor: 'rgba(56, 189, 248, 0.3)',
-                        tension: 0.3,
-                        pointRadius: 4,
-                        borderWidth: 3
-                    },
-                    {
-                        label: 'Recargas',
-                        data: [],
-                        fill: false,
-                        borderColor: 'rgba(34,197,94,1)',
-                        backgroundColor: 'rgba(34,197,94,0.3)',
-                        tension: 0.3,
-                        pointRadius: 4,
-                        borderWidth: 3
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 800 },
-                plugins: {
-                    legend: { display: true, position: 'bottom' },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                            label: function(context) {
-                                const name = context.dataset.label; // PIX ou Recargas
-                                const value = context.parsed.y ?? 0;
-
-                                // 🔥 Formatação BR (R$ 0,00)
-                                const formatted = value.toLocaleString('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL'
-                                });
-
-                                return `${name}: ${formatted}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        title: { display: true, text: 'Tempo' }
-                    },
-                    y: {
-                        title: { display: true, text: 'Valor (R$)' },
-                        beginAtZero: true,
-                        ticks: {
-                            callback: (value) =>
-                                value.toLocaleString('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL'
-                                })
-                        }
-                    }
-                }
-            }
-        });
-
-
-        // ================================
-        // ANIMAÇÃO / COMPARAÇÃO
-        // ================================
-
-        function animateNumber(element, start, end, duration, suffix = '%') {
-            if (!isFinite(end)) {
-                element.textContent = '—';
-                return;
-            }
-
-            const range = end - start;
-            let startTime = null;
-
-            function step(timestamp) {
-                if (!startTime) startTime = timestamp;
-                const progress = Math.min((timestamp - startTime) / duration, 1);
-                const value = start + range * progress;
-                element.textContent = value.toFixed(1) + suffix;
-                if (progress < 1) requestAnimationFrame(step);
-            }
-
-            requestAnimationFrame(step);
-        }
-
-        function updateComparison(currentValue, previousValue, changeIconId, changeValueId, comparisonId, opts = {}) {
-            const { zeroPreviousBehavior = '100', animateDuration = 600 } = opts;
-
-            const changeIcon = document.getElementById(changeIconId);
-            const changeValue = document.getElementById(changeValueId);
-            const comparison = document.getElementById(comparisonId);
-
-            const current = Number(currentValue) || 0;
-            const previous = Number(previousValue) || 0;
-
-            let percentChange;
-            if (previous === 0) {
-                if (current === 0) {
-                    percentChange = 0;
-                } else {
-                    if (zeroPreviousBehavior === '100') percentChange = 100;
-                    else if (zeroPreviousBehavior === 'na') percentChange = NaN;
-                    else if (zeroPreviousBehavior === 'inf') percentChange = Infinity;
-                    else percentChange = 100;
-                }
-            } else {
-                percentChange = ((current - previous) / previous) * 100;
-            }
-
-            const displayValue = isFinite(percentChange) ? Math.abs(percentChange) : NaN;
-
-            const rawText = (changeValue.textContent || '').replace('%', '').replace('—', '').trim();
-            const oldValue = parseFloat(rawText) || 0;
-
-            if (!isFinite(displayValue)) {
-                if (zeroPreviousBehavior === 'na') {
-                    changeValue.textContent = '—';
-                } else if (zeroPreviousBehavior === 'inf') {
-                    changeValue.textContent = '∞';
-                } else {
-                    changeValue.textContent = '100%';
-                }
-            } else {
-                animateNumber(changeValue, oldValue, displayValue, animateDuration);
-            }
-
-            comparison.style.transition = 'color 0.4s ease';
-            changeIcon.style.transition = 'transform 0.35s ease, color 0.35s ease';
-
-            if (percentChange > 0) {
-                changeIcon.className = 'fa fa-arrow-up text-emerald-500';
-                comparison.style.color = '';
-                changeIcon.style.transform = 'translateY(-3px)';
-            } else if (percentChange < 0) {
-                changeIcon.className = 'fa fa-arrow-down text-red-500';
-                comparison.style.color = '';
-                changeIcon.style.transform = 'translateY(3px)';
-            } else {
-                changeIcon.className = 'fa fa-minus text-gray-500';
-                comparison.style.color = 'gray';
-                changeIcon.style.transform = 'none';
-            }
-
-            setTimeout(() => {
-                changeIcon.style.transform = 'none';
-            }, 350);
-        }
-
-        // ================================
-        // SSE (ATUALIZAÇÕES EM TEMPO REAL)
-        // ================================
-
-        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
-        const source = new EventSource(`${baseUrl}/dashboard/charts`);
-
-        source.onmessage = function (event) {
-            try {
-                const data = JSON.parse(event.data);
-
-                // ======== SMS ========
-                if (data.statusMapDia) {
-                    chartDay.data.datasets[0].data = smsStatusKeys.map(k => data.statusMapDia[k] || 0);
-                    chartDay.update();
-                }
-
-                if (data.statusMapMes) {
-                    chartMonth.data.datasets[0].data = smsStatusKeys.map(k => data.statusMapMes[k] || 0);
-                    chartMonth.update();
-                }
-
-                if (data.totalDiaAtual !== undefined && data.totalDiaAnterior !== undefined) {
-                    updateComparison(
-                        data.totalDiaAtual,
-                        data.totalDiaAnterior,
-                        'changeIconDay',
-                        'changeValueDay',
-                        'dayComparison'
-                    );
-                }
-
-                if (data.totalMesAtual !== undefined && data.totalMesAnterior !== undefined) {
-                    updateComparison(
-                        data.totalMesAtual,
-                        data.totalMesAnterior,
-                        'changeIconMonth',
-                        'changeValueMonth',
-                        'monthComparison'
-                    );
-                }
-
-                // ======== VOZ ========
-
-                // Diário
-                if (data.statusMapDiaVoice) {
-                    chartDayVoz.data.datasets[0].data = vozStatusKeys.map(k => data.statusMapDiaVoice[k] || 0);
-                    chartDayVoz.update();
-                }
-
-                // Mensal
-                if (data.statusMapMesVoice) {
-                    chartMonthVoz.data.datasets[0].data = vozStatusKeys.map(k => data.statusMapMesVoice[k] || 0);
-                    chartMonthVoz.update();
-                }
-
-                // Comparativo diário
-                if (data.totalDiaAtualVoice !== undefined && data.totalDiaAnteriorVoice !== undefined) {
-                    updateComparison(
-                        data.totalDiaAtualVoice,
-                        data.totalDiaAnteriorVoice,
-                        'changeIconDayVoz',
-                        'changeValueDayVoz',
-                        'dayComparisonVoz'
-                    );
-                }
-
-                // Comparativo mensal
-                if (data.totalMesAtualVoice !== undefined && data.totalMesAnteriorVoice !== undefined) {
-                    updateComparison(
-                        data.totalMesAtualVoice,
-                        data.totalMesAnteriorVoice,
-                        'changeIconMonthVoz',
-                        'changeValueMonthVoz',
-                        'monthComparisonVoz'
-                    );
-                }
-
-
-                // ======== WHATSAPP ========
-                if (data.statusMapDiaWhats) {
-                    chartDayWhats.data.datasets[0].data = whatsStatusKeys.map(k => data.statusMapDiaWhats[k] || 0);
-                    chartDayWhats.update();
-                }
-
-                if (data.statusMapMesWhats) {
-                    chartMonthWhats.data.datasets[0].data = whatsStatusKeys.map(k => data.statusMapMesWhats[k] || 0);
-                    chartMonthWhats.update();
-                }
-
-                if (data.totalDiaAtualWhats !== undefined && data.totalDiaAnteriorWhats !== undefined) {
-                    updateComparison(
-                        data.totalDiaAtualWhats,
-                        data.totalDiaAnteriorWhats,
-                        'changeIconDayWhats',
-                        'changeValueDayWhats',
-                        'dayComparisonWhats'
-                    );
-                }
-
-                if (data.totalMesAtualWhats !== undefined && data.totalMesAnteriorWhats !== undefined) {
-                    updateComparison(
-                        data.totalMesAtualWhats,
-                        data.totalMesAnteriorWhats,
-                        'changeIconMonthWhats',
-                        'changeValueMonthWhats',
-                        'monthComparisonWhats'
-                    );
-                }
-
-                // ======== Operadoras ========
-                if (data.totalOperator) {
-                    const totalOperator = data.totalOperator;
-                    const labels = Object.keys(totalOperator);
-                    const counts = labels.map(label => totalOperator[label].qtd);
-
-                    chartOperator.data.labels = labels;
-                    chartOperator.data.datasets[0].data = counts;
-                    chartOperator.update();
-                }
-
-                // =========================
-                //   GRÁFICO PIX + REFILL
-                // =========================
-
-                if (data.pixValues || data.refillValues) {
-
-                    const pix = data.pixValues || [];
-                    const refill = data.refillValues || [];
-
-                    // Criar lista única de datas
-                    const allDates = new Set([
-                        ...pix.map(p => p.data),
-                        ...refill.map(r => r.data)
-                    ]);
-
-                    // Ordenar
-                    const labels = Array.from(allDates).sort((a, b) => {
-                        const [da, ma] = a.split('/');
-                        const [db, mb] = b.split('/');
-                        return new Date(2025, ma - 1, da) - new Date(2025, mb - 1, db);
-                    });
-
-                    // Criar arrays alinhados
-                    const pixValues = labels.map(label => {
-                        const row = pix.find(x => x.data === label);
-                        return row ? row.value : 0;
-                    });
-
-                    const refillValues = labels.map(label => {
-                        const row = refill.find(x => x.data === label);
-                        return row ? row.value : 0;
-                    });
-
-                    // Atualizar gráfico
-                    chartRefills.data.labels = labels;
-                    chartRefills.data.datasets[0].data = pixValues;
-                    chartRefills.data.datasets[1].data = refillValues;
-
-                    chartRefills.update();
-                }
-
-
-
-
-            } catch (e) {
-                //console.error('Erro ao processar SSE:', e);
-            }
-        };
-    });
-</script>
-
-
-
-
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener('DOMContentLoaded', function () {
         const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+        if (!baseUrl || !window.EventSource) return;
+
+        const statusLabel = {
+            ok: 'ONLINE',
+            warning: 'ATENCAO',
+            critical: 'OFFLINE'
+        };
+
+        const countAnimations = new Map();
+        let selectedService = 'voip';
+        let selectedPeriod = 'day';
+        let cardsPayload = null;
+        let chartsPayload = null;
+        let mainChart = null;
+        let statusChart = null;
+        let secondaryChart = null;
+        let sipCodeChart = null;
+        let mainChartSignature = '';
+        let statusChartSignature = '';
+        let secondaryChartSignature = '';
+        let sipCodeChartSignature = '';
+
+        const chartPalette = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316'];
+        const statusColors = {
+            ANSWER: '#10b981',
+            ANSWERED: '#10b981',
+            DELIVERED: '#10b981',
+            SENT: '#0ea5e9',
+            BUSY: '#f59e0b',
+            NOANSWER: '#f97316',
+            CANCEL: '#94a3b8',
+            CANCELED: '#94a3b8',
+            FAILED: '#ef4444',
+            CONGESTION: '#dc2626',
+            ERROR: '#ef4444',
+            PENDING: '#8b5cf6',
+            QUEUED: '#6366f1',
+            SEM_DADOS: '#cbd5e1'
+        };
+
+        const sipCodeInfo = {
+            '200': {
+                title: 'Chamada concluida',
+                description: 'A chamada foi completada normalmente. Em geral representa atendimento ou encerramento normal depois da conexao.',
+                advice: 'Codigo saudavel. Use como base para comparar taxa de sucesso contra erros e recusas.'
+            },
+            '400': {
+                title: 'Requisicao invalida',
+                description: 'O provedor ou destino recebeu uma sinalizacao SIP malformada ou incompleta.',
+                advice: 'Verifique formato do numero, headers SIP e regras de envio no tronco.'
+            },
+            '401': {
+                title: 'Nao autorizado',
+                description: 'O servidor pediu autenticacao SIP ou rejeitou credenciais enviadas.',
+                advice: 'Revise usuario, senha, realm e IP autorizado do tronco.'
+            },
+            '403': {
+                title: 'Recusado',
+                description: 'A chamada foi rejeitada pelo destino/provedor, normalmente por permissao, rota bloqueada, saldo, ACL ou politica antifraude.',
+                advice: 'Confira liberacao de rota, prefixo, saldo e permissoes do provedor.'
+            },
+            '404': {
+                title: 'Numero ou rota nao encontrada',
+                description: 'O destino nao foi localizado ou nao existe rota disponivel para completar a chamada.',
+                advice: 'Valide o numero discado, DDD/DDI, techprefix e tabela de rotas.'
+            },
+            '408': {
+                title: 'Timeout',
+                description: 'Nao houve resposta dentro do tempo esperado. Pode indicar indisponibilidade do destino, rede ou provedor.',
+                advice: 'Verifique latencia, conectividade, resposta do tronco e tentativas em outros provedores.'
+            },
+            '480': {
+                title: 'Temporariamente indisponivel',
+                description: 'O destino nao esta disponivel no momento, mas pode aceitar novas tentativas depois.',
+                advice: 'Pode ser temporario. Acompanhe volume e reincidencia por destino ou campanha.'
+            },
+            '484': {
+                title: 'Formato invalido',
+                description: 'O endereco/numero discado esta incompleto ou em formato que o provedor nao aceita.',
+                advice: 'Normalize telefones antes do disparo e confirme regra de DDI/DDDs exigida pelo tronco.'
+            },
+            '486': {
+                title: 'Ocupado',
+                description: 'O destino respondeu ocupado.',
+                advice: 'Codigo comum em campanha. Considere retentativa com intervalo.'
+            },
+            '487': {
+                title: 'Cancelada',
+                description: 'A chamada foi cancelada antes de completar, geralmente por desligamento, timeout interno ou interrupcao da tentativa.',
+                advice: 'Observe se acontece junto de limites de discagem, filas ou cancelamentos manuais.'
+            },
+            '500': {
+                title: 'Erro interno',
+                description: 'Falha interna no servidor SIP remoto ou no processamento da chamada.',
+                advice: 'Se recorrente, acione o provedor com exemplos de horario, destino e tronco.'
+            },
+            '502': {
+                title: 'Destino fora de ordem',
+                description: 'Gateway/provedor recebeu resposta invalida ou identificou falha no destino/rota.',
+                advice: 'Teste rota alternativa e confira saude do tronco.'
+            },
+            '503': {
+                title: 'Servico indisponivel',
+                description: 'O provedor, rota ou destino nao conseguiu processar a chamada naquele momento.',
+                advice: 'Verifique disponibilidade do provedor, capacidade, rota e possivel congestionamento.'
+            },
+            '603': {
+                title: 'Recusa definitiva',
+                description: 'O destino recusou a chamada de forma definitiva.',
+                advice: 'Trate como rejeicao. Evite retentativas agressivas para o mesmo destino.'
+            }
+        };
 
         function parseNumber(raw) {
             if (raw === null || raw === undefined) return 0;
-
             if (typeof raw === 'number') return raw;
 
             if (typeof raw === 'string') {
-                let s = raw.trim().replace(/[^\d.,-]/g, '');
-
-                // pt-BR com milhar: 1.234,5678
-                if (s.includes(',') && s.includes('.')) {
-                    s = s.replace(/\./g, '').replace(',', '.');
-                } else if (s.includes(',')) {
-                    s = s.replace(',', '.');
+                let value = raw.trim().replace(/[^\d.,-]/g, '');
+                if (value.includes(',') && value.includes('.')) {
+                    value = value.replace(/\./g, '').replace(',', '.');
+                } else if (value.includes(',')) {
+                    value = value.replace(',', '.');
                 }
 
-                const n = parseFloat(s);
-                return Number.isFinite(n) ? n : 0;
+                const parsed = parseFloat(value);
+                return Number.isFinite(parsed) ? parsed : 0;
             }
 
             return 0;
         }
 
-        // 1 -> 2 casas
-        // 2.9500 -> 2 casas (2,95)
-        // 2.9750 -> 3 casas (2,975)
-        // 0.0250 -> 3 casas (0,025)
-        function getSmartDecimals(value, max = 4) {
-            if (!Number.isFinite(value)) return 2;
-
-            // inteiro => 2 casas
-            if (Number.isInteger(value)) return 2;
-
-            // limita para até 4 casas, remove zeros finais
-            const fixed = value.toFixed(max);          // ex: "2.9750"
-            const trimmed = fixed.replace(/0+$/, '');  // ex: "2.975"
-            const dec = trimmed.split('.')[1] || '';
-
-            return Math.max(2, dec.length);
+        function parseInteger(raw) {
+            return Math.max(0, Math.trunc(parseNumber(raw)));
         }
-
-        const animations = new Map();
-
-        /*function getForcedDecimals(el) {
-            const d = el?.dataset?.decimals;
-            if (d === undefined) return null;
-            const parsed = parseInt(d, 10);
-            return Number.isFinite(parsed) ? parsed : null;
-        }*/
 
         function getForcedDecimals(el) {
-            const d = el?.dataset?.decimals;
-            if (d === undefined) return null;
+            const attr = el?.dataset?.decimals;
+            if (attr === undefined) return null;
+            if (attr === 'int') return 0;
+            if (attr === 'smart') return null;
 
-            if (d === 'smart') return null; // usa regra inteligente
-            if (d === 'int') return 0;      // 🔥 força inteiro
-
-            const parsed = parseInt(d, 10);
+            const parsed = parseInt(attr, 10);
             return Number.isFinite(parsed) ? parsed : null;
         }
 
+        function getSmartDecimals(value, max = 4) {
+            if (!Number.isFinite(value)) return 2;
+            if (Number.isInteger(value)) return 2;
+
+            const fixed = value.toFixed(max);
+            const trimmed = fixed.replace(/0+$/, '');
+            const decimalPart = trimmed.split('.')[1] || '';
+            return Math.max(2, decimalPart.length);
+        }
 
         function animateCountUp(el, rawValue, prefix = '') {
             if (!el) return;
 
             const endValue = parseNumber(rawValue);
-
-            // prioridade: data-decimals no elemento
             let decimals = getForcedDecimals(el);
-
-            // se não tiver, aplica regra inteligente
             if (decimals === null) {
                 decimals = getSmartDecimals(endValue, 4);
             }
 
-            const lastValue = parseNumber(el.dataset.lastValue);
-            if (lastValue === endValue) return;
+            const previous = parseNumber(el.dataset.lastValue);
+            if (previous === endValue) {
+                return;
+            }
 
-            if (animations.has(el)) {
-                cancelAnimationFrame(animations.get(el));
-                animations.delete(el);
+            if (countAnimations.has(el)) {
+                cancelAnimationFrame(countAnimations.get(el));
+                countAnimations.delete(el);
             }
 
             el.dataset.lastValue = String(endValue);
 
-            const duration = 1200;
-            const frameDuration = 16;
-            const totalFrames = Math.max(1, Math.round(duration / frameDuration));
-            let frame = 0;
-            const startValue = Number.isFinite(lastValue) ? lastValue : 0;
+            const duration = 900;
+            const start = Number.isFinite(previous) ? previous : 0;
+            let startTime = null;
 
-            function update() {
-                frame++;
-                const progress = Math.min(1, frame / totalFrames);
-                const currentValue = startValue + (endValue - startValue) * progress;
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = Math.min((timestamp - startTime) / duration, 1);
+                const currentValue = start + (endValue - start) * progress;
 
-                // durante animação, mantém as mesmas casas
                 const formatted = currentValue.toLocaleString('pt-BR', {
                     minimumFractionDigits: decimals,
                     maximumFractionDigits: decimals
@@ -1140,83 +713,817 @@
                 el.textContent = prefix + formatted;
 
                 if (progress < 1) {
-                    animations.set(el, requestAnimationFrame(update));
-                } else {
-                    // no final, recalcula as casas com base no valor final
-                    // (assim 2,9500 vira 2,95; 2,9750 vira 2,975)
-                    const finalDecimals = (getForcedDecimals(el) ?? getSmartDecimals(endValue, 4));
-
-                    const finalFormatted = endValue.toLocaleString('pt-BR', {
-                        minimumFractionDigits: finalDecimals,
-                        maximumFractionDigits: finalDecimals
-                    });
-
-                    el.textContent = prefix + finalFormatted;
-                    animations.delete(el);
+                    countAnimations.set(el, requestAnimationFrame(step));
+                    return;
                 }
+
+                const finalDecimals = getForcedDecimals(el) ?? getSmartDecimals(endValue, 4);
+                el.textContent = prefix + endValue.toLocaleString('pt-BR', {
+                    minimumFractionDigits: finalDecimals,
+                    maximumFractionDigits: finalDecimals
+                });
+                countAnimations.delete(el);
             }
 
-            update();
+            countAnimations.set(el, requestAnimationFrame(step));
         }
 
-        if (!!window.EventSource) {
-            const source = new EventSource(`${baseUrl}/dashboard/cards`);
+        function bootstrapStaticCounts() {
+            document.querySelectorAll('[data-count-value]').forEach((el) => {
+                const raw = el.getAttribute('data-count-value') ?? el.textContent ?? '0';
+                animateCountUp(el, raw);
+            });
+        }
 
-            source.onmessage = function (event) {
-                let data;
-                try { data = JSON.parse(event.data); } catch { return; }
+        function getTone(status) {
+            if (status === 'critical') {
+                return {
+                    border: 'border-red-500',
+                    gradient: 'from-red-500 to-rose-600',
+                    bar: 'bg-red-500',
+                    width: '24%'
+                };
+            }
 
-                animateCountUp(document.getElementById("saldo-atual"), data.saldoAtual, "R$ ");
-                //document.getElementById("saldo-variacao").innerText = data.saldoVariacao || "--%";
+            if (status === 'warning') {
+                return {
+                    border: 'border-orange-500',
+                    gradient: 'from-amber-500 to-orange-500',
+                    bar: 'bg-amber-500',
+                    width: '58%'
+                };
+            }
 
-                // ✅ NOVO: taxa de serviço no card de saldo
-                animateCountUp(document.getElementById("saldo-taxa"), data.cdrTaxa || 0, "R$ ");
-
-                animateCountUp(document.getElementById("sms-custo"), data.totalConsumo, "R$ ");
-
-                animateCountUp(document.getElementById("sms-enviados"), data.smsEnviados);
-                animateCountUp(document.getElementById("voz-enviados"), data.disposition);
-                animateCountUp(document.getElementById("whatsapp-enviados"), data.whatsappEnviados || 0);
-
-                animateCountUp(document.getElementById("ultimo-pix"), data.ultimoPixValor, "R$ ");
-                document.getElementById("pix-data").innerText = data.ultimoPixData || "--/--/----";
-
-                const campanhas = data.campanhas || {};
-
-                const totalAtiva       = campanhas.ativa || 0;
-                const totalFinalizada  = campanhas.finalizada || 0;
-                const totalInativa     = campanhas.inativa || 0;
-
-                // ✅ NOVOS
-                const totalProcessando = campanhas.processando || 0;
-                const totalPausada     = campanhas.pausada || 0;
-                const totalCancelada     = campanhas.cancelada || 0;
-
-                // ✅ total geral agora inclui extras
-                const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada;
-
-                animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
-                animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
-                animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
-
-                // ✅ se você criar os spans no HTML (abaixo), ativa isso:
-                animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
-                animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
-                animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
-
-                animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
-
-            };
-
-            source.onerror = function () {
-                // silencioso
+            return {
+                border: 'border-emerald-500',
+                gradient: 'from-emerald-500 to-teal-600',
+                bar: 'bg-emerald-500',
+                width: '100%'
             };
         }
+
+        function setCardState(cardId, titleId, detailId, metric, kind = 'plain') {
+            if (!metric) return;
+
+            const card = document.getElementById(cardId);
+            const title = document.getElementById(titleId);
+            const detail = document.getElementById(detailId);
+            const tone = getTone(metric.status);
+
+            if (detail) {
+                const detailText = metric.detail ?? '--';
+                detail.textContent = detailText;
+                detail.classList.toggle('hidden', detailText === '');
+            }
+            if (title && titleId !== 'calls-status') {
+                title.textContent = statusLabel[metric.status] || 'ONLINE';
+            }
+
+            if (!card) return;
+
+            if (kind === 'gradient') {
+                card.className = `dash-card relative flex flex-col min-w-0 break-words bg-gradient-to-r ${tone.gradient} shadow-xl rounded-2xl p-4`;
+            } else {
+                card.className = `dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 ${tone.border}`;
+            }
+        }
+
+        function setOperationalCard(prefix, card) {
+            if (!card) return;
+
+            const title = document.getElementById(`card-${prefix}-title`);
+            const label = document.getElementById(`card-${prefix}-label`);
+            const bar = document.getElementById(`card-${prefix}-bar`);
+            const cardEl = document.getElementById(`card-${prefix}`);
+            const iconMap = {
+                voip: '📞',
+                sms: '💬',
+                whatsapp: '🟢'
+            };
+
+            if (title) title.innerHTML = `<span class="mr-2">${iconMap[prefix] || '•'}</span> ${card.title}`;
+            if (label) label.textContent = card.metric_label || '--';
+
+            const primary = document.getElementById(`card-${prefix}-primary`);
+            const secondary = document.getElementById(`card-${prefix}-secondary`);
+            if (primary) animateCountUp(primary, card.primary_value ?? 0);
+            if (secondary) secondary.textContent = card.secondary_text || '--';
+
+            const tone = getTone(card.status || 'ok');
+            if (bar) {
+                bar.className = `h-1.5 rounded-full ${tone.bar}`;
+                bar.style.width = `${Math.max(0, Math.min(100, Number(card.progress || 0)))}%`;
+            }
+
+            if (cardEl) {
+                const defaultBorder = prefix === 'voip' ? 'border-indigo-500' : (prefix === 'sms' ? 'border-amber-500' : 'border-emerald-500');
+                cardEl.className = `service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 ${defaultBorder} opacity-80 hover:opacity-100`;
+            }
+        }
+
+        function setValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value ?? '--';
+        }
+
+        function normalizeStatusMap(statusMap) {
+            const entries = Object.entries(statusMap || {});
+            if (!entries.length) {
+                return { labels: [], totals: [], datasets: [] };
+            }
+
+            const firstValue = entries[0]?.[1];
+            if (typeof firstValue === 'number') {
+                return {
+                    labels: entries.map(([label]) => label),
+                    totals: entries.map(([, value]) => Number(value || 0)),
+                    datasets: [{
+                        status: 'TOTAL',
+                        values: entries.map(([, value]) => Number(value || 0))
+                    }]
+                };
+            }
+
+            const labels = [];
+            const totals = [];
+            const seriesMap = {};
+
+            entries.forEach(([label, statuses]) => {
+                labels.push(label);
+                let total = 0;
+                const currentStatuses = statuses || {};
+
+                Object.entries(currentStatuses).forEach(([status, value]) => {
+                    const numericValue = Number(value || 0);
+                    total += numericValue;
+                    if (!seriesMap[status]) {
+                        seriesMap[status] = [];
+                    }
+                });
+
+                totals.push(total);
+
+                Object.keys(seriesMap).forEach((status) => {
+                    seriesMap[status].push(Number(currentStatuses[status] || 0));
+                });
+            });
+
+            return {
+                labels,
+                totals,
+                datasets: Object.entries(seriesMap).map(([status, values]) => ({ status, values }))
+            };
+        }
+
+        function getPeriodLabel(period = selectedPeriod) {
+            return {
+                day: { title: 'Dia', current: 'Hoje', previous: 'Dia anterior', context: 'Mes atual' },
+                week: { title: 'Semana', current: 'Semana atual', previous: 'Semana anterior', context: 'Mes atual' },
+                month: { title: 'Mes', current: 'Mes atual', previous: 'Mes anterior', context: 'Hoje' }
+            }[period] || { title: 'Dia', current: 'Hoje', previous: 'Dia anterior', context: 'Mes atual' };
+        }
+
+        function getPeriodPayload(baseKey, suffix = '') {
+            const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
+            const currentKey = `total${periodKey}Atual${suffix}`;
+            const previousKey = `total${periodKey}Anterior${suffix}`;
+            const statusKey = `statusMap${periodKey}${suffix}`;
+
+            return {
+                status: normalizeStatusMap(chartsPayload?.[statusKey] || {}),
+                current: Number(chartsPayload?.[currentKey] || 0),
+                previous: Number(chartsPayload?.[previousKey] || 0),
+                labels: getPeriodLabel()
+            };
+        }
+
+        function getPeriodContextValue(suffix = '') {
+            const key = selectedPeriod === 'month'
+                ? `totalDiaAtual${suffix}`
+                : `totalMesAtual${suffix}`;
+            return Number(chartsPayload?.[key] || 0);
+        }
+
+        function getTrunkCountsForPeriod() {
+            const key = selectedPeriod === 'week'
+                ? 'trunkCountsWeek'
+                : (selectedPeriod === 'month' ? 'trunkCountsMonth' : 'trunkCountsDay');
+            return Object.entries(chartsPayload?.[key] || {});
+        }
+
+        function getSipCodesForPeriod() {
+            const key = selectedPeriod === 'week'
+                ? 'sipCodeCountsWeek'
+                : (selectedPeriod === 'month' ? 'sipCodeCountsMonth' : 'sipCodeCountsDay');
+            return Object.entries(chartsPayload?.[key] || {});
+        }
+
+        function getOperatorCountsForPeriod() {
+            const key = selectedPeriod === 'week'
+                ? 'totalOperatorWeek'
+                : (selectedPeriod === 'month' ? 'totalOperatorMonth' : 'totalOperatorDay');
+            return Object.entries(chartsPayload?.[key] || chartsPayload?.totalOperator || {});
+        }
+
+        function getSipCodeDetails(code, item = {}) {
+            const normalized = String(code || '0').replace(/^SIP\s+/i, '');
+            const fallback = {
+                title: item?.label || 'Codigo SIP',
+                description: item?.label || 'Nao ha descricao cadastrada para este codigo.',
+                advice: 'Use este codigo junto do horario, tronco e destino para investigar a causa da chamada.'
+            };
+
+            return {
+                code: normalized,
+                ...(sipCodeInfo[normalized] || fallback),
+                rawLabel: item?.label || ''
+            };
+        }
+
+        function openSipCodeModal(code, item, count) {
+            const modal = document.getElementById('sip-code-modal');
+            const panel = document.getElementById('sip-code-panel');
+            const details = getSipCodeDetails(code, item);
+            if (!modal || !panel) return;
+
+            setValue('sip-code-modal-title', `SIP ${details.code} - ${details.title}`);
+            setValue('sip-code-modal-description', details.description);
+            setValue('sip-code-modal-count', String(count || 0));
+            setValue('sip-code-modal-period', getPeriodLabel().title);
+            setValue('sip-code-modal-advice', details.advice);
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                panel.classList.remove('translate-x-full');
+            });
+        }
+
+        function closeSipCodeModal() {
+            const modal = document.getElementById('sip-code-modal');
+            const panel = document.getElementById('sip-code-panel');
+            if (!modal || !panel) return;
+
+            panel.classList.add('translate-x-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 250);
+        }
+
+        function getChartConfig(service) {
+            const health = cardsPayload?.health || {};
+            const metrics = health.metrics || {};
+            const callsOnline = parseInteger(metrics.calls?.value || 0);
+            const trunkEntries = getTrunkCountsForPeriod();
+            const fallbackTrunkItems = Array.isArray(metrics.trunks?.items) ? metrics.trunks.items : [];
+            const trunkLabels = trunkEntries.length
+                ? trunkEntries.map(([label]) => label)
+                : fallbackTrunkItems.map((item, index) => item?.label || `Trunk ${index + 1}`);
+            const trunkValues = trunkEntries.length
+                ? trunkEntries.map(([, value]) => parseInteger(value || 0))
+                : fallbackTrunkItems.map((item) => parseInteger(item?.call_count || 0));
+            const trunkColors = trunkLabels.map((_, index) => chartPalette[index % chartPalette.length]);
+            const trunkMeta = trunkValues.map((count) => ({
+                count
+            }));
+            const smsPeriod = getPeriodPayload('', '');
+            const whatsPeriod = getPeriodPayload('', 'Whats');
+            const voicePeriod = getPeriodPayload('', 'Voice');
+            const operatorEntries = getOperatorCountsForPeriod();
+            const operatorLabels = operatorEntries.map(([name]) => name);
+            const operatorValues = operatorEntries.map(([, item]) => Number(item?.qtd || 0));
+
+            if (service === 'sms') {
+                return {
+                    title: 'Graficos do Servico: SMS',
+                    subtitle: `SMS por ${smsPeriod.labels.title.toLowerCase()}, comparativo do periodo e distribuicao por status de entrega.`,
+                    tag: 'SMS',
+                    color: '#f59e0b',
+                    today: smsPeriod.current,
+                    todayLabel: `SMS - ${smsPeriod.labels.current}`,
+                    month: smsPeriod.previous,
+                    monthLabel: `SMS - ${smsPeriod.labels.previous}`,
+                    previous: getPeriodContextValue(''),
+                    previousLabel: selectedPeriod === 'month' ? 'SMS hoje' : 'SMS no mes',
+                    line: smsPeriod.status,
+                    doughnut: smsPeriod.status,
+                    secondary: {
+                        title: 'SMS por operadora',
+                        tag: 'Operadoras',
+                        type: 'bar',
+                        labels: operatorLabels.length ? operatorLabels : ['Sem dados'],
+                        values: operatorValues.length ? operatorValues : [0],
+                        color: operatorLabels.length
+                            ? operatorLabels.map((_, index) => chartPalette[(index + 3) % chartPalette.length])
+                            : ['#cbd5e1']
+                    },
+                    details: [
+                        ['DLR', `${document.getElementById('card-sms-primary')?.textContent || '0'}%`],
+                        ['Total enviado', document.getElementById('card-sms-secondary')?.textContent || '0'],
+                        ['Redis', metrics.redis?.detail || '--'],
+                        ['Ultima atualizacao', health.last_check || '--:--:--']
+                    ]
+                };
+            }
+
+            if (service === 'whatsapp') {
+                return {
+                    title: 'Graficos do Servico: WhatsApp',
+                    subtitle: `Painel WhatsApp por ${whatsPeriod.labels.title.toLowerCase()}, pronto para receber os dados quando forem liberados.`,
+                    tag: 'WHATSAPP',
+                    color: '#10b981',
+                    today: whatsPeriod.current,
+                    todayLabel: `Eventos - ${whatsPeriod.labels.current}`,
+                    month: whatsPeriod.previous,
+                    monthLabel: `Eventos - ${whatsPeriod.labels.previous}`,
+                    previous: getPeriodContextValue('Whats'),
+                    previousLabel: selectedPeriod === 'month' ? 'Eventos hoje' : 'Eventos no mes',
+                    line: whatsPeriod.status,
+                    doughnut: whatsPeriod.status,
+                    secondary: {
+                        title: 'Comparativo WhatsApp',
+                        tag: 'Resumo',
+                        type: 'bar',
+                        labels: [whatsPeriod.labels.current, whatsPeriod.labels.previous, whatsPeriod.labels.context],
+                        values: [
+                            whatsPeriod.current,
+                            whatsPeriod.previous,
+                            getPeriodContextValue('Whats')
+                        ],
+                        color: ['#10b981', '#0ea5e9', '#8b5cf6']
+                    },
+                    details: [
+                        ['Campanhas', document.getElementById('card-whatsapp-primary')?.textContent || '0'],
+                        ['Consumo', document.getElementById('card-whatsapp-secondary')?.textContent || 'R$ 0,00'],
+                        ['Integracao', 'Aguardando dados'],
+                        ['Ultima atualizacao', health.last_check || '--:--:--']
+                    ]
+                };
+            }
+
+            return {
+                title: 'Graficos do Servico: VoIP',
+                subtitle: `Chamadas por ${voicePeriod.labels.title.toLowerCase()}, comparativo do periodo e distribuicao por status.`,
+                tag: 'VOIP',
+                color: '#6366f1',
+                today: voicePeriod.current,
+                todayLabel: `Chamadas - ${voicePeriod.labels.current}`,
+                month: voicePeriod.previous,
+                monthLabel: `Chamadas - ${voicePeriod.labels.previous}`,
+                previous: getPeriodContextValue('Voice'),
+                previousLabel: selectedPeriod === 'month' ? 'Chamadas hoje' : 'Chamadas no mes',
+                line: voicePeriod.status,
+                doughnut: voicePeriod.status,
+                secondary: {
+                    title: 'Chamadas por tronco',
+                    tag: 'Troncos',
+                    type: 'bar',
+                    labels: trunkLabels.length
+                        ? trunkLabels.map((label, index) => `${label} (${trunkValues[index] || 0})`)
+                        : ['Sem dados'],
+                    values: trunkValues.length ? trunkValues : [0],
+                    color: trunkColors.length ? trunkColors : ['#cbd5e1'],
+                    meta: trunkLabels.map((label, index) => ({
+                        label,
+                        count: trunkValues[index] || 0
+                    }))
+                },
+                details: [
+                    ['ASR', `${document.getElementById('card-voip-primary')?.textContent || '0'}%`],
+                    ['Chamadas online', String(callsOnline)],
+                    ['Asterisk / ARI', metrics.asterisk?.detail || '--'],
+                    ['Troncos', metrics.trunks?.detail || '--']
+                ]
+            };
+        }
+
+        function ensureMainChart() {
+            const canvas = document.getElementById('service-main-chart');
+            if (!canvas || typeof Chart === 'undefined' || mainChart) return;
+
+            mainChart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: ['Sem dados'],
+                    datasets: [{
+                        label: 'SERVICO',
+                        data: [0],
+                        borderColor: '#6366f1',
+                        backgroundColor: '#6366f122',
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
+
+        function buildMainChart(config) {
+            ensureMainChart();
+            if (!mainChart) return;
+
+            const labels = config.line.labels.length ? config.line.labels : ['Sem dados'];
+            const values = config.line.totals.length ? config.line.totals : [0];
+            const signature = JSON.stringify({
+                service: selectedService,
+                labels,
+                values,
+                color: config.color,
+                tag: config.tag
+            });
+
+            if (signature === mainChartSignature) {
+                return;
+            }
+
+            mainChartSignature = signature;
+            mainChart.data.labels = labels;
+            mainChart.data.datasets[0].label = config.tag;
+            mainChart.data.datasets[0].data = values;
+            mainChart.data.datasets[0].borderColor = config.color;
+            mainChart.data.datasets[0].backgroundColor = config.color + '22';
+            mainChart.data.datasets[0].pointBackgroundColor = values.map((_, index) => chartPalette[index % chartPalette.length]);
+            mainChart.data.datasets[0].pointBorderColor = '#ffffff';
+            mainChart.update('none');
+        }
+
+        function ensureStatusChart() {
+            const canvas = document.getElementById('service-status-chart');
+            if (!canvas || typeof Chart === 'undefined' || statusChart) return;
+
+            statusChart = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Sem dados'],
+                    datasets: [{
+                        data: [1],
+                        backgroundColor: ['#cbd5e1'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 10, usePointStyle: true }
+                        }
+                    }
+                }
+            });
+        }
+
+        function ensureSecondaryChart() {
+            const canvas = document.getElementById('service-secondary-chart');
+            if (!canvas || typeof Chart === 'undefined' || secondaryChart) return;
+
+            secondaryChart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: ['Sem dados'],
+                    datasets: [{
+                        label: 'Resumo',
+                        data: [0],
+                        backgroundColor: '#6366f1',
+                        borderRadius: 8,
+                        maxBarThickness: 42
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
+
+        function buildStatusChart(config) {
+            ensureStatusChart();
+            if (!statusChart) return;
+
+            const statusTotals = {};
+            (config.doughnut.datasets || []).forEach((dataset) => {
+                statusTotals[dataset.status] = dataset.values.reduce((sum, item) => sum + Number(item || 0), 0);
+            });
+
+            const labels = Object.keys(statusTotals).length ? Object.keys(statusTotals) : ['Sem dados'];
+            const values = Object.values(statusTotals).length ? Object.values(statusTotals) : [1];
+            const colors = Object.keys(statusTotals).length
+                ? labels.map((label, index) => statusColors[String(label).toUpperCase()] || chartPalette[index % chartPalette.length])
+                : ['#cbd5e1'];
+            const signature = JSON.stringify({
+                service: selectedService,
+                labels,
+                values
+            });
+
+            if (signature === statusChartSignature) {
+                return;
+            }
+
+            statusChartSignature = signature;
+            statusChart.data.labels = labels;
+            statusChart.data.datasets[0].data = values;
+            statusChart.data.datasets[0].backgroundColor = colors;
+            statusChart.update('none');
+        }
+
+        function buildSecondaryChart(config) {
+            ensureSecondaryChart();
+            if (!secondaryChart) return;
+
+            const secondary = config.secondary || {
+                title: 'Visao complementar',
+                tag: 'Resumo',
+                labels: ['Sem dados'],
+                values: [0],
+                color: config.color
+            };
+
+            const labels = secondary.labels?.length ? secondary.labels : ['Sem dados'];
+            const values = secondary.values?.length ? secondary.values : [0];
+            const signature = JSON.stringify({
+                service: selectedService,
+                labels,
+                values,
+                color: secondary.color,
+                title: secondary.title,
+                tag: secondary.tag,
+                meta: secondary.meta || []
+            });
+
+            if (signature === secondaryChartSignature) {
+                return;
+            }
+
+            secondaryChartSignature = signature;
+            setValue('service-secondary-title', secondary.title || 'Visao complementar');
+            setValue('service-secondary-tag', secondary.tag || 'Resumo');
+            secondaryChart.data.labels = labels;
+            secondaryChart.data.datasets[0].label = secondary.tag || 'Resumo';
+            secondaryChart.data.datasets[0].data = values;
+            secondaryChart.data.datasets[0].backgroundColor = Array.isArray(secondary.color)
+                ? secondary.color
+                : values.map((_, index) => index === 0 ? (secondary.color || config.color) : chartPalette[index % chartPalette.length]);
+            if (selectedService === 'voip') {
+                delete secondaryChart.options.scales.y.max;
+                secondaryChart.options.scales.y.ticks.callback = undefined;
+                secondaryChart.options.plugins.tooltip = {
+                    callbacks: {
+                        label: (context) => {
+                            const item = secondary.meta?.[context.dataIndex] || {};
+                            const total = item.count ?? context.raw ?? 0;
+                            const name = item.label ? `${item.label}: ` : '';
+                            return `${name}${total} chamada${Number(total) === 1 ? '' : 's'}`;
+                        }
+                    }
+                };
+            } else {
+                delete secondaryChart.options.scales.y.max;
+                secondaryChart.options.scales.y.ticks.callback = undefined;
+                secondaryChart.options.plugins.tooltip = {};
+            }
+            secondaryChart.update('none');
+        }
+
+        function ensureSipCodeChart() {
+            const canvas = document.getElementById('sip-code-chart');
+            if (!canvas || typeof Chart === 'undefined' || sipCodeChart) return;
+
+            sipCodeChart = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Sem dados'],
+                    datasets: [{
+                        label: 'SIP Code',
+                        data: [0],
+                        backgroundColor: ['#cbd5e1'],
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '58%',
+                    animation: false,
+                    onClick: (event, elements, chart) => {
+                        if (!elements.length) return;
+                        const index = elements[0].index;
+                        const rawCode = chart.data.rawCodes?.[index];
+                        const meta = chart.data.datasets[0].meta?.[index] || {};
+                        const count = chart.data.datasets[0].data?.[index] || 0;
+                        if (!rawCode || rawCode === '0') return;
+                        openSipCodeModal(rawCode, meta, count);
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 10,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const item = context.dataset.meta?.[context.dataIndex] || {};
+                                    return ` ${context.raw || 0} chamada(s) - ${item.label || 'Sem detalhe'}`;
+                                }
+                            }
+                        }
+                    },
+                }
+            });
+        }
+
+        function buildSipCodeChart() {
+            const card = document.getElementById('sip-code-card');
+            if (selectedService !== 'voip') {
+                card?.classList.add('hidden');
+                closeSipCodeModal();
+                return;
+            }
+
+            card?.classList.remove('hidden');
+            ensureSipCodeChart();
+            if (!sipCodeChart) return;
+
+            const entries = getSipCodesForPeriod();
+            const labels = entries.length ? entries.map(([code]) => `SIP ${code}`) : ['Sem dados'];
+            const values = entries.length ? entries.map(([, item]) => Number(item?.qtd || item || 0)) : [0];
+            const meta = entries.length ? entries.map(([, item]) => ({
+                label: item?.label || 'Sem detalhe'
+            })) : [{ label: 'Sem detalhe' }];
+            const colors = entries.length
+                ? labels.map((label, index) => {
+                    if (label.includes('200')) return '#10b981';
+                    if (label.includes('486') || label.includes('480') || label.includes('408')) return '#f59e0b';
+                    if (label.includes('403') || label.includes('404') || label.includes('503')) return '#ef4444';
+                    return chartPalette[index % chartPalette.length];
+                })
+                : ['#cbd5e1'];
+            const signature = JSON.stringify({ labels, values, meta, selectedPeriod });
+
+            if (signature === sipCodeChartSignature) return;
+
+            sipCodeChartSignature = signature;
+            setValue('sip-code-tag', getPeriodLabel().title);
+            sipCodeChart.data.labels = labels;
+            sipCodeChart.data.rawCodes = entries.length ? entries.map(([code]) => String(code)) : ['0'];
+            sipCodeChart.data.datasets[0].data = values;
+            sipCodeChart.data.datasets[0].backgroundColor = colors;
+            sipCodeChart.data.datasets[0].meta = meta;
+            sipCodeChart.update('none');
+        }
+
+        function renderSelectedService() {
+            if (!cardsPayload || !chartsPayload) return;
+
+            const config = getChartConfig(selectedService);
+            setValue('dynamic-title', config.title);
+            setValue('dynamic-subtitle', config.subtitle);
+            setValue('service-tag', config.tag);
+            const periodLabels = getPeriodLabel();
+            setValue('service-stat-current-title', periodLabels.current);
+            setValue('service-stat-month-title', periodLabels.previous);
+            setValue('service-stat-previous-title', periodLabels.context);
+            animateCountUp(document.getElementById('service-stat-today'), config.today);
+            animateCountUp(document.getElementById('service-stat-month'), config.month);
+            animateCountUp(document.getElementById('service-stat-previous'), config.previous);
+            setValue('service-stat-today-label', config.todayLabel);
+            setValue('service-stat-month-label', config.monthLabel);
+            setValue('service-stat-previous-label', config.previousLabel);
+            setValue('monitor-footer', `GRAFICOS EM TEMPO REAL • ${cardsPayload?.health?.last_check || '--:--:--'}`);
+
+            config.details.forEach((item, index) => {
+                setValue(`detail-item-${index + 1}-label`, item[0]);
+                setValue(`detail-item-${index + 1}-value`, item[1]);
+            });
+
+            document.querySelectorAll('.service-card').forEach((card) => {
+                card.classList.remove('service-card-active');
+            });
+            document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
+
+            buildMainChart(config);
+            buildStatusChart(config);
+            buildSecondaryChart(config);
+            buildSipCodeChart();
+        }
+
+        window.selectService = function (service) {
+            selectedService = service;
+            mainChartSignature = '';
+            statusChartSignature = '';
+            secondaryChartSignature = '';
+            sipCodeChartSignature = '';
+            renderSelectedService();
+        };
+
+        document.querySelectorAll('.period-filter-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                selectedPeriod = button.dataset.period || 'day';
+                document.querySelectorAll('.period-filter-btn').forEach((item) => {
+                    item.classList.toggle('active', item === button);
+                });
+                mainChartSignature = '';
+                statusChartSignature = '';
+                secondaryChartSignature = '';
+                sipCodeChartSignature = '';
+                renderSelectedService();
+            });
+        });
+
+        document.getElementById('sip-code-close')?.addEventListener('click', closeSipCodeModal);
+        document.getElementById('sip-code-backdrop')?.addEventListener('click', closeSipCodeModal);
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeSipCodeModal();
+            }
+        });
+
+        const cardsSource = new EventSource(`${baseUrl}/dashboard/cards`);
+        const chartsSource = new EventSource(`${baseUrl}/dashboard/charts`);
+
+        bootstrapStaticCounts();
+
+        cardsSource.onmessage = function (event) {
+            try {
+                cardsPayload = JSON.parse(event.data);
+            } catch {
+                return;
+            }
+
+            const data = cardsPayload;
+            const health = data.health || {};
+            const metrics = health.metrics || {};
+            const operationalCards = data.operational_cards || {};
+            const campanhas = data.campanhas || {};
+            const totalAtiva = Number(campanhas.ativa || 0);
+            const totalFinalizada = Number(campanhas.finalizada || 0);
+            const totalInativa = Number(campanhas.inativa || 0);
+            const totalProcessando = Number(campanhas.processando || 0);
+            const totalPausada = Number(campanhas.pausada || 0);
+            const totalCancelada = Number(campanhas.cancelada || 0);
+            const totalAgendada = Number(campanhas.agendada || 0);
+            const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
+
+            animateCountUp(document.getElementById('saldo-atual'), data.saldoAtual ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('saldo-taxa'), data.cdrTaxa ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('sms-custo'), data.totalConsumo ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('sms-enviados'), data.smsEnviados ?? 0);
+            animateCountUp(document.getElementById('voz-enviados'), data.disposition ?? 0);
+            animateCountUp(document.getElementById('whatsapp-enviados'), data.whatsappEnviados ?? 0);
+            animateCountUp(document.getElementById('ultimo-pix'), data.ultimoPixValor ?? 0, 'R$ ');
+            setValue('pix-data', data.ultimoPixData || '--/--/----');
+            animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
+            animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
+            animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
+            animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
+            animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
+            animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
+            animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
+            animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
+
+            setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
+            setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
+            setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
+            setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
+            animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
+
+            setOperationalCard('voip', operationalCards.voip);
+            setOperationalCard('sms', operationalCards.sms);
+            setOperationalCard('whatsapp', operationalCards.whatsapp);
+
+            renderSelectedService();
+        };
+
+        chartsSource.onmessage = function (event) {
+            try {
+                chartsPayload = JSON.parse(event.data);
+                renderSelectedService();
+            } catch {
+                return;
+            }
+        };
     });
 </script>
-
-
-
-
-
-

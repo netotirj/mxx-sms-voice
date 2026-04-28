@@ -1,0 +1,1303 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg shadow-sm">
+                            <i class="ni ni-headphones"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Relatório Call Center (CDR)</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Histórico detalhado de atendimentos, filas e performance de agentes</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="cdrExportXls" class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:scale-[1.02] transition-all shadow-md uppercase">
+                            <i class="fa fa-file-excel"></i> Exportar BI
+                        </button>
+                        <button id="btnExportPDF" class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-red-500 text-white hover:scale-[1.02] transition-all shadow-md uppercase">
+                            <i class="fa fa-file-pdf"></i> PDF Operacional
+                        </button>
+                        <button id="cdrReloadBtn" class="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white hover:scale-[1.02] transition-all shadow-sm uppercase">
+                            <i class="ni ni-refresh-02"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Período</label>
+                        <select id="cdrPeriodFilter" class="hidden">
+                            <option value="day" selected>Dia</option>
+                            <option value="week">Semana</option>
+                            <option value="month">Mês</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                        <div class="inline-flex w-max rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                            <button type="button" class="period-filter-btn cdr-period-btn active" data-period="day">Dia</button>
+                            <button type="button" class="period-filter-btn cdr-period-btn" data-period="week">Semana</button>
+                            <button type="button" class="period-filter-btn cdr-period-btn" data-period="month">Mês</button>
+                            <button type="button" class="period-filter-btn cdr-period-btn" data-period="custom">Personalizado</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cdrStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+                    <div class="p-4 rounded-xl border border-blue-100 bg-blue-50/30 dark:bg-slate-800 dark:border-blue-900/30">
+                        <p class="text-xxs font-bold text-blue-500 uppercase">T.M.A (Média Conversa)</p>
+                        <h6 id="stat-bi-tma" class="text-sm font-bold dark:text-white mb-0">00:00:00</h6>
+                    </div>
+                    <div class="p-4 rounded-xl border border-emerald-100 bg-emerald-50/30 dark:bg-slate-800 dark:border-emerald-900/30">
+                        <p class="text-xxs font-bold text-emerald-500 uppercase">Chamadas Atendidas</p>
+                        <h6 id="stat-bi-atendidas" class="text-sm font-bold dark:text-white mb-0">0</h6>
+                    </div>
+                    <div class="p-4 rounded-xl border border-red-100 bg-red-50/30 dark:bg-slate-800 dark:border-red-900/30">
+                        <p class="text-xxs font-bold text-red-500 uppercase">Chamadas Abandonadas</p>
+                        <h6 id="stat-bi-abandonadas" class="text-sm font-bold dark:text-white mb-0">0</h6>
+                    </div>
+                    <div class="p-4 rounded-xl border border-purple-100 bg-purple-50/30 dark:bg-slate-800 dark:border-purple-900/30">
+                        <p class="text-xxs font-bold text-purple-500 uppercase">T.M.E (Média Espera)</p>
+                        <h6 id="stat-bi-tme" class="text-sm font-bold dark:text-white mb-0">00:00:00</h6>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap -mx-3 mb-6 p-6 pb-0">
+                    <div class="w-full lg:w-7/12 px-3 mb-6 lg:mb-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <div class="p-4 pb-0">
+                                <h6 class="text-slate-700 dark:text-white font-bold">Volume de Chamadas (Hoje)</h6>
+                            </div>
+                            <div class="flex-auto p-4">
+                                <div class="h-64">
+                                    <canvas id="chart-volume-chamadas"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full lg:w-5/12 px-3">
+                        <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <div class="p-4 pb-0">
+                                <h6 class="text-slate-700 dark:text-white font-bold">Distribuição de Resultados</h6>
+                            </div>
+                            <div class="flex-auto p-4">
+                                <div class="h-64 flex justify-center">
+                                    <canvas id="chart-status-distribuicao"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-area px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="flex items-end gap-3 overflow-x-auto pb-1">
+
+                        <div class="w-24 shrink-0">
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mostrar</label>
+                            <select id="cdrRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                           bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div class="w-48 shrink-0">
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Agente</label>
+                            <select id="filterAgent"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                           bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos os Agentes</option>
+                            </select>
+                        </div>
+
+                        <div class="w-40 shrink-0">
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Status</label>
+                            <select id="cdrStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                           bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="ANSWER">Atendida</option>
+                                <option value="NOANSWER">Não atendida</option>
+                                <option value="BUSY">Ocupado</option>
+                                <option value="FAILED">Falhou</option>
+                                <option value="CANCEL">Cancelada</option>
+                            </select>
+                        </div>
+
+                        <div class="w-36 shrink-0">
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">De</label>
+                            <input type="date" id="cdrDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                          bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="w-36 shrink-0">
+                            <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Até</label>
+                            <input type="date" id="cdrDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                          bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="w-64 shrink-0">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                    Buscar
+                                </label>
+
+                                <button id="cdrClearFilters" type="button"
+                                        class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 hover:text-red-700 uppercase transition-all inline-flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                              d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+
+                                <input id="cdrSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm
+                                    bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                       placeholder="Filtrar na tela...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
+                            <thead class="align-bottom">
+                            <tr class="bg-slate-50 dark:bg-slate-800/50">
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Início</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Agente / Ramal</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Fila</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Espera</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Conversa</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-white/40 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="cdrTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center p-6 text-xs text-slate-400 uppercase">
+                                    Carregando registros...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="cdrPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">
+                        Mostrando registros dinâmicos
+                    </p>
+
+                    <div class="flex gap-1 items-center">
+                        <button id="cdrPrevPage" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Anterior
+                        </button>
+
+                        <div id="cdrPageNumbers" class="flex gap-1"></div>
+
+                        <button id="cdrNextPage" type="button" class="px-3 py-1 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Próximo
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap -mx-3 mt-4">
+                    <div class="w-full lg:w-8/12 px-3 mb-6">
+                        <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700 h-full">
+                            <div class="p-4 pb-0"><h6 class="text-slate-700 dark:text-white font-bold">Ranking de Atendimentos por Agente</h6></div>
+                            <div class="flex-auto p-4"><div class="h-80"><canvas id="chart-ranking-agentes"></canvas></div></div>
+                        </div>
+                    </div>
+                    <div class="w-full lg:w-4/12 px-3 mb-6">
+                        <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700 h-full">
+                            <div class="p-4 pb-0"><h6 class="text-slate-700 dark:text-white font-bold">Distribuição por Fila</h6></div>
+                            <div class="flex-auto p-4"><div class="h-80"><canvas id="chart-filas"></canvas></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap -mx-3 mt-6">
+                    <div class="w-full px-3 mb-6">
+                        <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <div class="p-4 pb-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div>
+                                    <h6 class="text-slate-700 dark:text-white font-bold mb-0">Análise de Performance Operacional (T.M.A / T.M.E)</h6>
+                                    <p class="text-xxs text-slate-400 uppercase font-bold">Nível de Serviço Global</p>
+                                </div>
+                                <div class="flex gap-4">
+                                    <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                                        <p class="text-xxs font-bold text-slate-400 uppercase mb-0">SLA Atendimento</p>
+                                        <h5 id="sla-tma-perc" class="text-sm font-bold text-blue-500 mb-0">0%</h5>
+                                    </div>
+                                    <div class="text-center px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                                        <p class="text-xxs font-bold text-slate-400 uppercase mb-0">SLA Espera</p>
+                                        <h5 id="sla-tme-perc" class="text-sm font-bold text-orange-500 mb-0">0%</h5>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex-auto p-4">
+                                <div class="flex flex-wrap -mx-3">
+                                    <div class="w-full lg:w-6/12 px-3 lg:border-r dark:border-slate-700">
+                                        <p class="text-xxs font-bold text-slate-400 uppercase mb-4 text-center">Tempo Médio de Conversa por Agente</p>
+                                        <div class="h-72"><canvas id="chart-tma-agente"></canvas></div>
+                                    </div>
+                                    <div class="w-full lg:w-6/12 px-3">
+                                        <p class="text-xxs font-bold text-slate-400 uppercase mb-4 text-center">Tempo Médio de Espera por Fila</p>
+                                        <div class="h-72"><canvas id="chart-tme-fila"></canvas></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .period-filter-btn {
+        min-width: 64px;
+        border-radius: 0.375rem;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #64748b;
+        transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .period-filter-btn.active {
+        background: #ffffff;
+        color: #4f46e5;
+        box-shadow: 0 6px 14px -10px rgba(15, 23, 42, 0.8);
+    }
+
+    .dark .period-filter-btn.active {
+        background: #334155;
+        color: #ffffff;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255,255,255,0.7);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999; visibility: hidden; opacity: 0;
+        transition: all 0.3s;
+    }
+    .loading-overlay.active {
+        visibility: visible; opacity: 1;
+    }
+</style>
+
+<div id="pdfLoading" class="loading-overlay">
+    <div class="text-center">
+        <i class="fa fa-spinner fa-spin fa-3x text-blue-500 mb-2"></i>
+        <p class="font-bold text-slate-700">Gerando Relatório...</p>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // === 1. VARIÁVEIS DE CONTROLE ===
+        let allItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        const perPageSel = document.getElementById("cdrRowsPerPage");
+        let perPage = Number(perPageSel?.value || 10);
+
+        const prevBtn     = document.getElementById("cdrPrevPage");
+        const nextBtn     = document.getElementById("cdrNextPage");
+        const pageInfo    = document.getElementById("cdrPageInfo");
+        const pageNumbers = document.getElementById("cdrPageNumbers");
+        const tbody       = document.getElementById('cdrTableBody');
+        const periodFilter = document.getElementById('cdrPeriodFilter');
+        const periodButtons = document.querySelectorAll('.cdr-period-btn');
+        const dateFromInput = document.getElementById('cdrDateFrom');
+        const dateToInput = document.getElementById('cdrDateTo');
+
+        // --- 2. INICIALIZAÇÃO DOS GRÁFICOS ---
+        let volumeChart, statusChart, rankingChart, filasChart, tmaChart, tmeChart;
+        initCharts();
+
+        // --- 3. A FUNÇÃO MESTRA (O Cérebro do Dashboard) ---
+        function getQueueDisplayName(reg) {
+            const queueName = (reg.queue_name || '').toString().trim();
+            const queueId = (reg.queue_id || '').toString().trim();
+
+            if (queueName) return queueName;
+            if (queueId) return `Fila #${queueId}`;
+            return 'Chamada Manual';
+        }
+
+        function aplicarTodosOsFiltros() {
+            const termo  = document.getElementById("cdrSearchInput")?.value.toLowerCase() || "";
+            const agente = document.getElementById("filterAgent")?.value || "";
+            const status = document.getElementById("cdrStatusFilter")?.value || "";
+            const de     = dateFromInput?.value || "";
+            const ate    = dateToInput?.value || "";
+
+            // 1. FILTRAGEM DOS DADOS
+            filteredItems = allItems.filter(item => {
+                const filaBusca = getQueueDisplayName(item).toLowerCase();
+                const matchBusca = !termo ||
+                    (item.user_name || "").toLowerCase().includes(termo) ||
+                    (item.channel_number || "").toString().includes(termo) ||
+                    filaBusca.includes(termo);
+
+                const matchAgente = !agente || item.user_name === agente;
+                const matchStatus = !status || (item.dialstatus || "").toUpperCase() === status.toUpperCase();
+
+                let matchData = true;
+                if (de || ate) {
+                    const dataItem = item.started ? item.started.split(' ')[0] : "";
+                    if (de && dataItem < de) matchData = false;
+                    if (ate && dataItem > ate) matchData = false;
+                }
+                return matchBusca && matchAgente && matchStatus && matchData;
+            });
+
+            // 2. RECALCULA STATS PARA GRÁFICOS E CARDS
+            const total = filteredItems.length;
+            const atendidas = filteredItems.filter(r => (r.dialstatus || '').toUpperCase() === 'ANSWER').length;
+            const abandonadas = total - atendidas;
+            const somaTma = filteredItems.reduce((acc, r) => acc + parseInt(r.conversa_seg || 0), 0);
+            const tma = atendidas > 0 ? Math.round(somaTma / atendidas) : 0;
+            const somaTme = filteredItems.reduce((acc, r) => acc + parseInt(r.espera_seg || 0), 0);
+            const tme = total > 0 ? Math.round(somaTme / total) : 0;
+
+            const statsFiltrados = { atendidas, abandonadas, tma, tme };
+
+            // 3. ATUALIZA A TELA INTEIRA
+            renderPage();
+            updateCdrStats(statsFiltrados);
+            updateChartsData(statsFiltrados, filteredItems);
+        }
+
+        // --- 4. SSE (ENTREGA DE DADOS) ---
+        let eventSource = null;
+
+        function toInputDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function syncDatesFromPeriod() {
+            const period = periodFilter?.value || 'day';
+            const now = new Date();
+            let start = null;
+            let end = null;
+
+            periodButtons.forEach(button => {
+                button.classList.toggle('active', button.dataset.period === period);
+            });
+
+            if (period === 'day') {
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(start);
+            } else if (period === 'week') {
+                const offset = (now.getDay() + 6) % 7;
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+            } else if (period === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            }
+
+            if (dateFromInput) {
+                dateFromInput.disabled = period !== 'custom';
+                if (start) dateFromInput.value = toInputDate(start);
+            }
+
+            if (dateToInput) {
+                dateToInput.disabled = period !== 'custom';
+                if (end) dateToInput.value = toInputDate(end);
+            }
+        }
+
+        function connectSSE() {
+            if (eventSource) eventSource.close();
+            const params = new URLSearchParams({
+                agent: document.getElementById('filterAgent')?.value || '',
+                status: document.getElementById('cdrStatusFilter')?.value || '',
+                date_from: dateFromInput?.value || '',
+                date_to: dateToInput?.value || ''
+            });
+
+            eventSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls?${params.toString()}`);
+
+            eventSource.addEventListener('update', function (e) {
+                const data = JSON.parse(e.data);
+                if (data.cdr_report) {
+                    allItems = data.cdr_report.records || [];
+                    aplicarTodosOsFiltros(); // Aplica a lógica completa
+                    updateAgentFilter(allItems);
+                }
+                if (data.stats) {
+                    animateCountUp(document.getElementById('stat-em-curso'), data.stats.emCurso);
+                    animateCountUp(document.getElementById('stat-na-fila'), data.stats.naFila);
+                }
+            });
+        }
+
+        // --- 5. ATIVAÇÃO DOS FILTROS (Sem duplicação) ---
+        ['cdrSearchInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('input', () => {
+                currentPage = 1;
+                aplicarTodosOsFiltros();
+            });
+        });
+
+        ['filterAgent', 'cdrStatusFilter'].forEach(id => {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('change', () => {
+                currentPage = 1;
+                connectSSE();
+            });
+        });
+
+        periodButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                if (periodFilter) {
+                    periodFilter.value = button.dataset.period || 'day';
+                }
+                currentPage = 1;
+                syncDatesFromPeriod();
+                connectSSE();
+            });
+        });
+
+        periodFilter?.addEventListener('change', () => {
+            currentPage = 1;
+            syncDatesFromPeriod();
+            connectSSE();
+        });
+
+        [dateFromInput, dateToInput].forEach(el => {
+            if (!el) return;
+            el.addEventListener('change', () => {
+                currentPage = 1;
+                if (periodFilter?.value === 'custom') {
+                    connectSSE();
+                } else {
+                    aplicarTodosOsFiltros();
+                }
+            });
+        });
+
+        // Seletor de quantidade (Rows Per Page)
+        perPageSel?.addEventListener("change", (e) => {
+            perPage = Number(e.target.value);
+            currentPage = 1;
+            aplicarTodosOsFiltros();
+        });
+
+        // Botões de Navegação
+        prevBtn?.addEventListener("click", () => { if (currentPage > 1) { currentPage--; renderPage(); } });
+        nextBtn?.addEventListener("click", () => {
+            const totalPages = Math.ceil(filteredItems.length / perPage);
+            if (currentPage < totalPages) { currentPage++; renderPage(); }
+        });
+
+        document.getElementById('cdrReloadBtn')?.addEventListener('click', connectSSE);
+
+        document.getElementById('cdrClearFilters')?.addEventListener('click', function() {
+            // Reseta Inputs
+            document.getElementById("cdrSearchInput").value = "";
+            if (periodFilter) periodFilter.value = "day";
+
+            // Reseta Selects
+            document.getElementById("filterAgent").value = "";
+            document.getElementById("cdrStatusFilter").value = "";
+            document.getElementById("cdrRowsPerPage").value = "10"; // Opcional: volta para 10 itens
+
+            // Atualiza a variável perPage se você resetou o select
+            perPage = 10;
+            currentPage = 1;
+            syncDatesFromPeriod();
+
+            // Sincroniza tudo: Tabela, Gráficos e SSE
+            aplicarTodosOsFiltros();
+            connectSSE();
+        });
+
+        function initCharts() {
+            // Volume de Chamadas
+            const ctxVolume = document.getElementById('chart-volume-chamadas')?.getContext('2d');
+            if (ctxVolume) {
+                volumeChart = new Chart(ctxVolume, {
+                    type: 'line',
+                    data: {
+                        labels: ['08h', '10h', '12h', '14h', '16h', '18h', '20h'],
+                        datasets: [{
+                            label: 'Chamadas',
+                            data: [0, 0, 0, 0, 0, 0, 0],
+                            borderColor: '#5e72e4',
+                            backgroundColor: 'rgba(94, 114, 228, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+
+            // Distribuição de Status
+            const ctxStatus = document.getElementById('chart-status-distribuicao')?.getContext('2d');
+            if (ctxStatus) {
+                statusChart = new Chart(ctxStatus, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Atendidas', 'Abandonadas', 'Ocupado'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: ['#2dce89', '#f5365c', '#fb6340'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+
+            // Ranking de Agentes
+            const ctxRanking = document.getElementById('chart-ranking-agentes')?.getContext('2d');
+            if (ctxRanking) {
+                rankingChart = new Chart(ctxRanking, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'Atendidas', data: [], backgroundColor: '#5e72e4', borderRadius: 5 }] },
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+
+            // Chamadas por Fila
+            // Dentro da função initCharts()
+            const ctxFilas = document.getElementById('chart-filas')?.getContext('2d');
+            filasChart = new Chart(ctxFilas, {
+                type: 'polarArea',
+                data: {
+                    labels: ['Suporte', 'Vendas', 'Financeiro'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#5e72e4', '#2dce89', '#11cdef'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            ticks: {
+                                display: false // ISSO AQUI REMOVE O NÚMERO "5"
+                            },
+                            grid: {
+                                display: true,
+                                color: 'rgba(0, 0, 0, 0.05)' // Deixa as linhas circulares bem suaves
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+
+            // --- GRÁFICOS DE QUALIDADE (T.M.A e T.M.E) ---
+            const ctxTma = document.getElementById('chart-tma-agente')?.getContext('2d');
+            if (ctxTma) {
+                tmaChart = new Chart(ctxTma, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'T.M.A (Segundos)', data: [], backgroundColor: '#5e72e4', borderRadius: 5 }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const totalSegundos = context.parsed.y;
+                                        if (totalSegundos < 60) return ` Média: ${totalSegundos} seg`;
+
+                                        const min = Math.floor(totalSegundos / 60);
+                                        const seg = totalSegundos % 60;
+                                        return ` Média: ${min}min ${seg}seg (${totalSegundos}s)`;
+                                    }
+                                }
+                            },
+                            annotation: {
+                                annotations: {
+                                    line1: {
+                                        type: 'line',
+                                        yMin: 300, // Meta de 5 minutos
+                                        yMax: 300,
+                                        borderColor: 'rgb(255, 99, 132)',
+                                        borderWidth: 2,
+                                        borderDash: [6, 6],
+                                        label: {
+                                            display: true,
+                                            content: 'Meta TMA (300s)',
+                                            position: 'end'
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const ctxTme = document.getElementById('chart-tme-fila')?.getContext('2d');
+            if (ctxTme) {
+                tmeChart = new Chart(ctxTme, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'T.M.E (Segundos)', data: [], backgroundColor: '#fb6340', borderRadius: 5 }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const totalSegundos = context.parsed.y;
+                                        if (totalSegundos < 60) return ` Média: ${totalSegundos} seg`;
+
+                                        const min = Math.floor(totalSegundos / 60);
+                                        const seg = totalSegundos % 60;
+                                        return ` Média: ${min}min ${seg}seg (${totalSegundos}s)`;
+                                    }
+                                }
+                            },
+                            annotation: {
+                                annotations: {
+                                    line1: {
+                                        type: 'line',
+                                        yMin: 20, // Meta de 20 segundos de espera
+                                        yMax: 20,
+                                        borderColor: 'rgb(255, 99, 132)',
+                                        borderWidth: 2,
+                                        borderDash: [6, 6],
+                                        label: {
+                                            display: true,
+                                            content: 'Limite TME (20s)',
+                                            position: 'end'
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- 2. FUNÇÃO PRINCIPAL DE ATUALIZAÇÃO (SSE) ---
+        function updateChartsData(stats, records) {
+            if (!stats || !records) return;
+
+            // Atualiza Status (Doughnut)
+            if (statusChart) {
+                const busyCount = records.filter(r => (r.dialstatus || '').toUpperCase() === 'BUSY').length;
+                statusChart.data.datasets[0].data = [stats.atendidas || 0, stats.abandonadas || 0, busyCount];
+                statusChart.update();
+            }
+
+            // Atualiza Volume (Line)
+            if (volumeChart) {
+                const hoursCount = new Array(7).fill(0);
+                records.forEach(reg => {
+                    if (reg.started) {
+                        const hour = new Date(reg.started.replace(' ', 'T')).getHours();
+                        if (hour >= 8 && hour <= 20) {
+                            const index = Math.floor((hour - 8) / 2);
+                            if (index >= 0 && index < 7) hoursCount[index]++;
+                        }
+                    }
+                });
+                volumeChart.data.datasets[0].data = hoursCount;
+                volumeChart.update();
+            }
+
+            // CHAMADA DAS NOVAS FUNÇÕES
+            updateRanking(records);
+            updateFilas(records);
+            updateQualityCharts(records); // <-- NOVA FUNÇÃO AQUI
+        }
+
+        // --- 3. FUNÇÕES AUXILIARES DE PROCESSAMENTO ---
+
+        function updateRanking(records) {
+            if (!rankingChart) return;
+            const counts = {};
+            records.forEach(reg => {
+                if ((reg.dialstatus || '').toUpperCase() === 'ANSWER') {
+                    const name = reg.user_name || 'Ramal ' + reg.channel_number || 'Desconhecido';
+                    counts[name] = (counts[name] || 0) + 1;
+                }
+            });
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            rankingChart.data.labels = sorted.map(x => x[0]);
+            rankingChart.data.datasets[0].data = sorted.map(x => x[1]);
+            rankingChart.update();
+        }
+
+        function updateFilas(records) {
+            if (!filasChart) return;
+
+            const filaCounts = {};
+
+            records.forEach(reg => {
+                const name = getQueueDisplayName(reg);
+
+                filaCounts[name] = (filaCounts[name] || 0) + 1;
+            });
+
+            const labels = Object.keys(filaCounts);
+            const values = Object.values(filaCounts);
+
+            // Se não houver registros, exibe um estado vazio amigável
+            if (labels.length === 0) {
+                filasChart.data.labels = ['Sem dados'];
+                filasChart.data.datasets[0].data = [0];
+            } else {
+                filasChart.data.labels = labels;
+                filasChart.data.datasets[0].data = values;
+            }
+
+            // Opcional: Gerar cores dinâmicas se houver muitas filas
+            const colors = [
+                '#5e72e4', '#2dce89', '#11cdef', '#fb6340', '#f5365c',
+                '#8965e0', '#ffd600', '#212529', '#ced4da'
+            ];
+            filasChart.data.datasets[0].backgroundColor = labels.map((_, i) => colors[i % colors.length]);
+
+            filasChart.update();
+        }
+
+        // Substitua o Chart.register(ChartAnnotation) por isto:
+        if (window['chartjs-plugin-annotation']) {
+            Chart.register(window['chartjs-plugin-annotation']);
+        } else if (typeof ChartAnnotation !== 'undefined') {
+            Chart.register(ChartAnnotation);
+        }
+
+        function updateQualityCharts(records) {
+            if (!tmaChart || !tmeChart) return;
+
+            // 1. Pegamos os valores dos filtros da tela
+            const filterAgente = document.getElementById('filterAgent')?.value;
+            const filterFila = document.getElementById('filterQueue')?.value;
+
+            const agenteTma = {};
+            const filaTme = {};
+
+            // Contadores para SLA
+            let tmaDentroMeta = 0, tmaTotal = 0;
+            let tmeDentroMeta = 0, tmeTotal = 0;
+
+            // 2. Filtramos os records baseados na seleção do usuário
+            const filtered = records.filter(reg => {
+                // Verifica se o agente bate (pelo nome ou ramal)
+                const matchAgente = !filterAgente || reg.user_name === filterAgente || reg.channel_number === filterAgente;
+
+                const matchFila = !filterFila || getQueueDisplayName(reg) === filterFila || reg.queue_id === filterFila;
+
+                return matchAgente && matchFila;
+            });
+
+            filtered.forEach(reg => {
+                const conversa = parseInt(reg.conversa_seg || 0);
+                const espera = parseInt(reg.espera_seg || 0);
+                const dialstatus = (reg.dialstatus || '').toUpperCase();
+
+                // --- LÓGICA DE TMA (POR AGENTE) ---
+                // Aceita 'ANSWER' ou 'ANSWERED' conforme o padrão do seu banco
+                if (dialstatus === 'ANSWER' || dialstatus === 'ANSWERED') {
+                    const agent = reg.user_name || 'Ramal ' + reg.channel_number;
+                    if (!agenteTma[agent]) agenteTma[agent] = { time: 0, count: 0 };
+                    agenteTma[agent].time += conversa;
+                    agenteTma[agent].count++;
+
+                    tmaTotal++;
+                    if (conversa <= 300) tmaDentroMeta++; // Meta 5 min
+                }
+
+                // --- LÓGICA DE TME (POR FILA) ---
+                const filaLabel = getQueueDisplayName(reg);
+
+                if (!filaTme[filaLabel]) filaTme[filaLabel] = { wait: 0, count: 0 };
+                filaTme[filaLabel].wait += espera;
+                filaTme[filaLabel].count++;
+
+                tmeTotal++;
+                if (espera <= 20) tmeDentroMeta++; // Meta 20 seg
+            });
+
+            // --- 3. ATUALIZAÇÃO DO SLA (MANTIDA) ---
+            const percTma = tmaTotal > 0 ? Math.round((tmaDentroMeta / tmaTotal) * 100) : 0;
+            const percTme = tmeTotal > 0 ? Math.round((tmeDentroMeta / tmeTotal) * 100) : 0;
+
+            const slaTmaEl = document.getElementById('sla-tma-perc');
+            const slaTmeEl = document.getElementById('sla-tme-perc');
+
+            if (slaTmaEl) {
+                slaTmaEl.innerText = percTma + '%';
+                slaTmaEl.className = percTma < 80 ? 'text-sm font-bold text-red-500 mb-0' : 'text-sm font-bold text-blue-500 mb-0';
+            }
+
+            if (slaTmeEl) {
+                slaTmeEl.innerText = percTme + '%';
+                if (percTme < 80) {
+                    slaTmeEl.parentElement.className = "text-center px-4 py-2 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800";
+                    slaTmeEl.className = "text-sm font-bold text-red-600 mb-0";
+                } else {
+                    slaTmeEl.parentElement.className = "text-center px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700";
+                    slaTmeEl.className = "text-sm font-bold text-emerald-500 mb-0";
+                }
+            }
+
+            // --- 4. ATUALIZAÇÃO DOS GRÁFICOS ---
+            // Gráfico de TMA
+            const tmaLabels = Object.keys(agenteTma);
+            const tmaValues = tmaLabels.map(k => Math.round(agenteTma[k].time / agenteTma[k].count));
+            tmaChart.data.labels = tmaLabels.length ? tmaLabels : ['Sem dados'];
+            tmaChart.data.datasets[0].data = tmaValues;
+            tmaChart.data.datasets[0].backgroundColor = tmaValues.map(v => v > 300 ? '#f5365c' : '#5e72e4');
+            tmaChart.update();
+
+            // Gráfico de TME
+            const tmeLabels = Object.keys(filaTme);
+            const tmeValues = tmeLabels.map(k => Math.round(filaTme[k].wait / filaTme[k].count));
+            tmeChart.data.labels = tmeLabels.length ? tmeLabels : ['Sem dados'];
+            tmeChart.data.datasets[0].data = tmeValues;
+            tmeChart.data.datasets[0].backgroundColor = tmeValues.map(v => v > 20 ? '#f5365c' : '#fb6340');
+            tmeChart.update();
+        }
+
+        // --- EXPORTAÇÃO PDF OPERACIONAL (Com Truque de Lista Completa) ---
+        document.getElementById('btnExportPDF')?.addEventListener('click', function () {
+            const elemento = document.querySelector('.w-full.px-6.py-6.mx-auto');
+            const loading = document.getElementById('pdfLoading');
+            const btn = this;
+
+            // 1. Feedback visual
+            if(loading) loading.classList.add('active');
+            btn.disabled = true;
+
+            // 2. SALVAR ESTADO ATUAL (Para voltar depois)
+            const originalPerPage = perPage;
+            const originalPage = currentPage;
+
+            // 3. EXPANDIR A TABELA (Para o PDF pegar todos os registros filtrados)
+            perPage = 9999;
+            currentPage = 1;
+            renderPage(); // Mostra tudo na tela temporariamente
+
+            // 4. PREPARAR O LAYOUT PARA O PDF
+            // Esconde o que não deve sair no papel (Botões, Filtros, Coluna de Ações)
+            const paraEsconder = document.querySelectorAll('button, .filter-area, .px-6.py-4.bg-slate-50\\/50, td:last-child, th:last-child');
+            paraEsconder.forEach(el => el.style.display = 'none');
+
+            // Nome dinâmico baseado no filtro
+            const agenteFiltro = document.getElementById("filterAgent")?.value || "Geral";
+            const dataArquivo = new Date().toISOString().slice(0,10);
+
+            const opt = {
+                margin: [0.3, 0.3, 0.3, 0.3],
+                filename: `Relatorio_Operacional_${agenteFiltro}_${dataArquivo}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    letterRendering: true,
+                    scrollY: 0,
+                    windowWidth: document.documentElement.offsetWidth
+                },
+                jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            // 5. GERAR O PDF
+            setTimeout(() => {
+                html2pdf().set(opt).from(elemento).save().then(() => {
+                    // 6. RESTAURAR TUDO AO NORMAL
+                    paraEsconder.forEach(el => el.style.display = '');
+
+                    perPage = originalPerPage;
+                    currentPage = originalPage;
+                    renderPage(); // Volta para a paginação de 5 ou 10 itens
+
+                    if(loading) loading.classList.remove('active');
+                    btn.disabled = false;
+                }).catch(err => {
+                    console.error('Erro ao gerar PDF:', err);
+                    paraEsconder.forEach(el => el.style.display = '');
+                    if(loading) loading.classList.remove('active');
+                    btn.disabled = false;
+                });
+            }, 800); // Aguarda os gráficos estabilizarem na nova resolução
+        });
+
+        // --- EXPORTAÇÃO CSV (Somente Dados do CDR Filtrado) ---
+        document.getElementById('cdrExportXls')?.addEventListener('click', function() {
+            // 1. Verifica se existem dados para exportar
+            if (filteredItems.length === 0) {
+                alert("Não há dados filtrados para exportar.");
+                return;
+            }
+
+            // 2. Define o Cabeçalho (Nomes das colunas)
+            // Usamos o Ponto e Vírgula (;) porque o Excel em Português reconhece melhor como separador
+            const csvHeader = "Data;Hora;Agente;Ramal;Fila;Espera (Seg);Conversa (Seg);Espera (HH:MM:SS);Conversa (HH:MM:SS);Status\n";
+
+            // 3. Mapeia os dados filtrados
+            const csvRows = filteredItems.map(reg => {
+                const dt = formatDateTime(reg.started);
+                const status = normalizeStatus(reg).label;
+                const fila = getQueueDisplayName(reg);
+
+                // Dados das colunas
+                return [
+                    dt.date,
+                    dt.time,
+                    reg.user_name || 'Sem nome',
+                    reg.channel_number || '-',
+                    fila,
+                    reg.espera_seg || 0,
+                    reg.conversa_seg || 0,
+                    formatTime(reg.espera_seg),
+                    formatTime(reg.conversa_seg),
+                    status
+                ].join(";");
+            }).join("\n");
+
+            // 4. Cria o arquivo e dispara o download
+            // \ufeff é o "BOM" (Byte Order Mark) para o Excel entender que o arquivo é UTF-8 (acentos funcionarem)
+            const blob = new Blob(["\ufeff" + csvHeader + csvRows], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+
+            // Nome dinâmico (Mesma lógica do PDF)
+            const agenteFiltro = document.getElementById("filterAgent")?.value || "Geral";
+            const dataArquivo = new Date().toISOString().slice(0,10);
+
+            link.setAttribute("href", url);
+            link.setAttribute("download", `BI_CallCenter_${agenteFiltro}_${dataArquivo}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // --- 6. FUNÇÕES DE SUPORTE E RENDERIZAÇÃO ---
+
+        function renderPage() {
+            if (!tbody) return;
+            const total = filteredItems.length;
+            const totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            tbody.innerHTML = "";
+
+            if (total === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center p-6 text-xs text-slate-400 uppercase">Nenhum registro encontrado</td></tr>';
+            } else {
+                const start = (currentPage - 1) * perPage;
+                const slice = filteredItems.slice(start, start + perPage);
+
+                slice.forEach(reg => {
+                    tbody.insertAdjacentHTML('beforeend', rowTemplate(reg));
+                });
+            }
+
+            if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages} (${total} registros)`;
+            if (prevBtn) prevBtn.disabled = (currentPage === 1);
+            if (nextBtn) nextBtn.disabled = (currentPage >= totalPages);
+
+            renderPageNumbers(totalPages);
+        }
+
+        function renderPageNumbers(totalPages) {
+            if (!pageNumbers) return;
+            pageNumbers.innerHTML = "";
+            if (totalPages <= 1) return;
+            let start = Math.max(1, currentPage - 1);
+            let end = Math.min(totalPages, start + 2);
+            for (let p = start; p <= end; p++) {
+                const btn = document.createElement("button");
+                btn.textContent = p;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg transition-all ${p === currentPage ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-200 dark:border-slate-600 dark:text-white hover:bg-slate-100"}`;
+                btn.onclick = () => { currentPage = p; renderPage(); };
+                pageNumbers.appendChild(btn);
+            }
+        }
+
+        function rowTemplate(reg) {
+            const dt = formatDateTime(reg.started);
+            const statusInfo = normalizeStatus(reg);
+            const initials = getInitials(reg.user_name || reg.channel_number);
+            const identificadorFila = getQueueDisplayName(reg);
+
+            // Garantimos que o ID da chamada seja tratado como string pura para o JS
+            const callId = String(reg.call_id || '');
+
+            return `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <td class="p-4 border-b dark:border-white/40">
+            <div class="flex flex-col">
+                <h6 class="mb-0 text-xs font-bold dark:text-white">${dt.date}</h6>
+                <p class="mb-0 text-xxs text-slate-400">${dt.time}</p>
+            </div>
+        </td>
+        <td class="p-2 border-b dark:border-white/40">
+            <div class="items-center gap-2 flex">
+                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                    ${initials}
+                </div>
+                <div class="flex flex-col">
+                    <h6 class="mb-0 text-xs font-bold dark:text-white">${reg.user_name || 'Sem nome'}</h6>
+                    <p class="mb-0 text-xxs text-slate-400">Ramal: ${reg.channel_number || '-'}</p>
+                </div>
+            </div>
+        </td>
+        <td class="p-2 border-b dark:border-white/40">
+            <span class="text-xs font-semibold dark:text-white">${identificadorFila}</span>
+        </td>
+        <td class="p-2 text-center border-b dark:border-white/40">
+            <span class="text-xs font-bold ${statusInfo.waitColor}">${formatTime(reg.espera_seg)}</span>
+        </td>
+        <td class="p-2 text-center border-b dark:border-white/40">
+            <span class="text-xs font-bold ${statusInfo.textColor}">${statusInfo.answered ? formatTime(reg.conversa_seg) : '-'}</span>
+        </td>
+        <td class="p-2 text-center border-b dark:border-white/40">
+            <span class="bg-gradient-to-tl ${statusInfo.badge} px-2.5 py-1 rounded-md text-xxs font-bold text-white uppercase">
+                ${statusInfo.label}
+            </span>
+        </td>
+        <td class="p-2 text-center border-b dark:border-white/40">
+            ${(statusInfo.answered && callId) ? `
+                <div class="flex items-center justify-center gap-2">
+                    <button type="button"
+                            onclick="playRecording('${callId}')"
+                            class="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-lg hover:text-blue-500 hover:bg-blue-50 transition-all">
+                        <i class="fa fa-play text-[10px]"></i>
+                    </button>
+                    <button type="button"
+                            onclick="downloadRecording('${callId}')"
+                            class="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-lg hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                        <i class="fa fa-download text-[10px]"></i>
+                    </button>
+                </div>
+            ` : `
+                <div class="flex items-center justify-center">
+                    <i class="fa fa-ban text-slate-300" title="Sem gravação disponível"></i>
+                </div>
+            `}
+        </td>
+    </tr>`;
+        }
+
+        function updateAgentFilter(records) {
+            const select = document.getElementById('filterAgent');
+            if (!select) return;
+            const existingAgents = Array.from(select.options).map(opt => opt.value).filter(val => val !== "");
+            const newAgents = [...new Set(records.map(reg => reg.user_name).filter(Boolean))];
+            newAgents.forEach(nome => {
+                if (!existingAgents.includes(nome)) {
+                    const opt = document.createElement('option');
+                    opt.value = nome;
+                    opt.textContent = nome;
+                    select.appendChild(opt);
+                }
+            });
+        }
+
+        function updateCdrStats(stats) {
+            if (!stats) return;
+            animateCountUp(document.getElementById('stat-bi-atendidas'), stats.atendidas);
+            animateCountUp(document.getElementById('stat-bi-abandonadas'), stats.abandonadas);
+            const tmaEl = document.getElementById('stat-bi-tma');
+            const tmeEl = document.getElementById('stat-bi-tme');
+            if (tmaEl) tmaEl.innerText = formatTime(stats.tma);
+            if (tmeEl) tmeEl.innerText = formatTime(stats.tme);
+        }
+
+        // --- 7. UTILITÁRIOS ---
+
+        function formatTime(seconds) {
+            const total = Math.abs(parseInt(seconds || 0, 10));
+            const hrs = String(Math.floor(total / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+            const secs = String(total % 60).padStart(2, '0');
+            return `${hrs}:${mins}:${secs}`;
+        }
+
+        function formatDateTime(dateValue) {
+            if (!dateValue) return { date: '--/--/----', time: '--:--:--' };
+            const d = new Date(dateValue.replace(' ', 'T'));
+            if (isNaN(d.getTime())) return { date: '--/--/----', time: '--:--:--' };
+            return { date: d.toLocaleDateString('pt-BR'), time: d.toLocaleTimeString('pt-BR') };
+        }
+
+        function getInitials(name) {
+            if (!name || name === 'Sem nome') return '??';
+            return name.trim().split(/\s+/).map(p => p.charAt(0)).join('').substring(0, 2).toUpperCase();
+        }
+
+        function normalizeStatus(reg) {
+            const status = (reg.dialstatus || '').toUpperCase();
+            if (status === 'ANSWER' || status === 'ANSWERED') {
+                return { label: 'Atendida', badge: 'from-emerald-500 to-teal-400', textColor: 'text-emerald-500', waitColor: 'text-orange-500', answered: true };
+            }
+            if (status === 'BUSY') return { label: 'Ocupado', badge: 'from-yellow-500 to-orange-500', textColor: 'text-yellow-500', waitColor: 'text-yellow-500', answered: false };
+            return { label: status || 'Abandonada', badge: 'from-red-600 to-orange-500', textColor: 'text-red-500', waitColor: 'text-red-500', answered: false };
+        }
+
+        function animateCountUp(el, val) {
+            if (!el) return;
+            const end = parseInt(val || 0, 10);
+            const start = parseInt(el.innerText.replace(/\D/g, '') || 0, 10);
+            if (start === end) return;
+            const duration = 800;
+            const startTime = performance.now();
+            function up(now) {
+                const progress = Math.min((now - startTime) / duration, 1);
+                el.innerText = Math.floor(start + (end - start) * progress).toLocaleString('pt-BR');
+                if (progress < 1) requestAnimationFrame(up);
+            }
+            requestAnimationFrame(up);
+        }
+
+        syncDatesFromPeriod();
+        connectSSE();
+    });
+
+    // 🚩 COLE AS FUNÇÕES AQUI, FORA DE QUALQUER OUTRA FUNÇÃO
+    function playRecording(callId) {
+        const urlBusca = `${baseUrl}/callcenter/audio-snoop-player?call_id=${callId}`;
+
+        fetch(urlBusca)
+            .then(response => response.json())
+            .then(res => {
+                if (res.success && res.data && res.data.length > 0) {
+                    const urlFinal = res.data[0].url;
+
+                    // 🚀 O PULO DO GATO: Pegamos o campo 'name' que vem do banco
+                    // Se por acaso o 'name' estiver vazio, usamos o callId como fallback
+                    const friendlyName = res.data[0].name || callId;
+
+                    Swal.fire({
+                        // Aqui trocamos o nome do arquivo pelo número/nome amigável
+                        title: `🎙️ Ouvindo: ${friendlyName}`,
+                        html: `
+                        <div class="player-wrapper" style="margin-top: 20px;">
+                            <audio id="player" controls autoplay style="width:100%">
+                                <source src="${urlFinal}" type="audio/wav" />
+                            </audio>
+                        </div>
+                    `,
+                        showConfirmButton: false,
+                        showCloseButton: true,
+                        width: '550px',
+                        didOpen: () => {
+                            // Se você estiver usando o Plyr, a inicialização continua aqui
+                            if (typeof Plyr !== 'undefined') {
+                                new Plyr('#player');
+                            }
+                        }
+                    });
+                } else {
+                    Swal.fire('Aviso', 'Gravação não encontrada.', 'info');
+                }
+            });
+    }
+
+    function downloadRecording(callId) {
+        const urlBusca = `${baseUrl}/callcenter/audio-snoop-player?call_id=${callId}`;
+
+        Swal.fire({
+            title: 'Preparando Download',
+            html: 'Extraindo áudio do servidor...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        fetch(urlBusca)
+            .then(response => response.json())
+            .then(res => {
+                if (res.success && res.data && res.data.length > 0) {
+                    const audio = res.data[0];
+                    const urlFinal = audio.url;
+
+                    // Prepara o nome: 5521...wav
+                    let phoneName = audio.name ? audio.name.replace(/Grav:\s*/i, '') : callId;
+                    phoneName = phoneName.replace(/[^a-zA-Z0-9]/g, '');
+                    const fileName = `${phoneName}.wav`;
+
+                    // 🔥 AQUI ESTÁ O SEGREDO PARA O CHROME:
+                    fetch(urlFinal)
+                        .then(resp => {
+                            if (!resp.ok) throw new Error('Erro ao baixar arquivo binário');
+                            return resp.blob(); // Transforma o áudio em um objeto binário (Blob)
+                        })
+                        .then(blob => {
+                            Swal.close();
+                            const blobUrl = window.URL.createObjectURL(blob);
+
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = fileName; // Agora o Chrome respeita!
+
+                            document.body.appendChild(link);
+                            link.click();
+
+                            // Limpeza de memória
+                            setTimeout(() => {
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                            }, 200);
+
+                            notyf.success(`Download concluído: ${fileName}`);
+                        })
+                        .catch(err => {
+                            Swal.close();
+                            notyf.error("Erro ao processar binário do áudio.");
+                        });
+                } else {
+                    Swal.close();
+                    Swal.fire('Erro', 'Arquivo não localizado.', 'error');
+                }
+            })
+            .catch(err => {
+                Swal.close();
+                console.error(err);
+            });
+    }
+</script>

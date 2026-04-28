@@ -132,121 +132,76 @@
 </div>
 
 <!-- Modal Adicionar SIP -->
-<div
-        id="createModal"
-        class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50"
->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h3 class="text-lg font-semibold text-slate-700 dark:text-white mb-4">
-            Adicionar SIP Device
-        </h3>
+<div id="createModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-[9999] transition-all">
+    <div class="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
 
-        <form id="createSipForm" class="space-y-3">
-            <!-- Username -->
-            <div class="relative">
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    Username (Ramal)
-                </label>
-                <div class="flex items-center">
-                    <input
-                            type="text"
-                            name="username"
-                            id="username"
-                            readonly
-                            required
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <button
-                            type="button"
-                            id="regenUser"
-                            class="ml-2 p-2 rounded-lg bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 transition"
-                            title="Gerar novo número de ramal"
-                    >
-                        🔄
-                    </button>
+        <div class="px-8 pt-8 pb-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl">
+                    <i class="ni ni-fat-add text-xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 dark:text-white" id="modalTitle">Novo SIP Device</h3>
+            </div>
+            <button id="cancelCreate" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form id="createSipForm" class="px-8 pb-8 space-y-3"> <div class="group">
+            <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Ramal (Username)</label>
+            <div class="flex items-center gap-2">
+                <input type="text" name="username" id="username" readonly required
+                       class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none shadow-sm" /> <button type="button" id="regenUser" class="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-blue-500 hover:text-white transition-all shadow-sm">
+                <i class="fa fa-sync-alt text-xs"></i>
+            </button>
+            </div>
+        </div>
+
+            <div class="group">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Nome do Dispositivo</label>
+                <input type="text" name="name" id="name" required
+                       class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none shadow-sm"
+                       placeholder="Ex: Ramal Escritório" /> </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="group">
+                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Senha</label>
+                    <input type="text" name="password" id="password" readonly class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none shadow-sm" />
+                </div>
+                <div class="group">
+                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">CallerID</label>
+                    <input type="text" name="caller_number" id="caller_number" class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none shadow-sm" />
                 </div>
             </div>
 
-            <!-- Nome -->
-            <div class="relative">
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    Nome do Dispositivo
-                </label>
-                <input
-                        type="text"
-                        name="name"
-                        id="name"
-                        required
-                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                />
-            </div>
-
-
-            <!-- Password -->
-            <div class="relative">
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    Password
-                </label>
-                <div class="flex items-center">
-                    <input
-                            type="text"
-                            name="password"
-                            id="password"
-                            readonly
-                            required
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <button
-                            type="button"
-                            id="regenPass"
-                            class="ml-2 p-2 rounded-lg bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 transition"
-                            title="Gerar nova senha"
-                    >
-                        🔄
-                    </button>
-                </div>
-            </div>
-
-            <!-- Caller Number -->
-            <div>
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    Caller Number
-                </label>
-                <input
-                        type="text"
-                        name="caller_number"
-                        id="caller_number"
-                        readonly
-                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                />
-            </div>
-
-            <!-- Status -->
-            <div>
-                <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    Status da Conta
-                </label>
-                <select
-                        name="account_status"
-                        class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+            <div class="group">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Vincular Usuário (Agente)</label>
+                <select name="user_id" id="assigned_user_select"
+                        class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none shadow-sm appearance-none cursor-pointer">
+                    <option value="">Nenhum (Ramal de Sistema)</option>
                 </select>
             </div>
 
-            <div class="flex justify-end gap-3 pt-4">
-                <button
-                        type="button"
-                        id="cancelCreate"
-                        class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-slate-700 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-600 transition"
-                >
-                    Cancelar
-                </button>
-                <button
-                        type="submit"
-                        class="px-4 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-tr from-emerald-500 to-emerald-600 hover:shadow-md transition"
-                >
+            <div class="group bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">WebRTC</label>
+                <label class="inline-flex relative items-center cursor-pointer">
+                    <input type="checkbox" name="webrtc" value="yes" class="sr-only peer" id="webrtc_toggle" checked>
+                    <div class="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
+                    <div class="absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-full"></div>
+                </label>
+            </div>
+
+            <div class="group">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Status da Conta</label>
+                <select name="account_status" class="w-full border border-slate-200 rounded-2xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none shadow-sm appearance-none">
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                </select>
+            </div>
+
+            <div class="flex justify-center gap-4 pt-4">
+                <button type="button" id="closeModalBtn" class="px-6 py-2 text-sm font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="submitBtn" class="px-8 py-2 bg-blue-600 text-white text-sm font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all uppercase">
                     Criar
                 </button>
             </div>
@@ -305,7 +260,7 @@
 
         // 🔐 Função para gerar senha aleatória (8 caracteres)
         function gerarSenha() {
-             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?";
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?";
             let senha = "";
             for (let i = 0; i < 8; i++) {
                 senha += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -607,6 +562,7 @@
 
                             modalTitle.textContent = "✏️ Editar SIP Device";
                             submitButton.textContent = "Atualizar";
+                            carregarUsuariosParaVinculo(sip.user_id);
                             modal.classList.remove("hidden");
 
                             const usernameInput = form.querySelector('[name="username"]');
@@ -656,6 +612,41 @@
             }
         });
 
+        // 👥 Função para carregar os usuários da empresa
+        function carregarUsuariosParaVinculo(selectedId = null) {
+            const select = document.getElementById("assigned_user_select");
+            if (!select) return;
+
+            fetch(`${baseUrl}/users/search`)
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 200) {
+                        select.innerHTML = '<option value="">Sistema (Sem vínculo)</option>';
+
+                        // 🛡️ FILTRO: Remove administradores e revendedores da lista de vínculo
+                        const usuariosOperacionais = (result.data || []).filter(user => {
+                            const cargo = user.user_function?.toLowerCase();
+                            return cargo !== 'reseller' && cargo !== 'admin' && cargo !== 'super_admin';
+                        });
+
+                        if (usuariosOperacionais.length === 0) {
+                            select.innerHTML = '<option value="">Nenhum agente disponível</option>';
+                            return;
+                        }
+
+                        usuariosOperacionais.forEach(user => {
+                            const isSelected = (String(selectedId) === String(user.id)) ? 'selected' : '';
+
+                            // Exibe o nome e a função (ex: JOAO - Usuário)
+                            select.innerHTML += `<option value="${user.id}" ${isSelected}>
+                        ${user.nome.toUpperCase()} (${user.funcao})
+                    </option>`;
+                        });
+                    }
+                })
+                .catch(err => console.error("Erro ao carregar usuários:", err));
+        }
+
 
         // ➕ Criar SIP
         createBtn.addEventListener("click", () => {
@@ -665,6 +656,7 @@
             submitButton.textContent = "Criar";
             form.reset();
             preencherCamposAuto(); // <<<<< GERA AUTOMATICAMENTE
+            carregarUsuariosParaVinculo();
             modal.classList.remove("hidden");
         });
 
@@ -678,6 +670,12 @@
         form.addEventListener("submit", (e) => {
             e.preventDefault();
             const formData = Object.fromEntries(new FormData(form));
+            formData.account_status =
+                formData.account_status?.toLowerCase() === "inactive" ? "inactive" : "active";
+
+            // Ajuste para o Checkbox do WebRTC (pois se não checado, o FormData não envia)
+            formData.webrtc = document.getElementById("webrtc_toggle").checked ? "yes" : "no";
+
             formData.account_status =
                 formData.account_status?.toLowerCase() === "inactive" ? "inactive" : "active";
 

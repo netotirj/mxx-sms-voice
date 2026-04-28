@@ -15,21 +15,6 @@ class RegisterTenancies
     public string $account_code;
 
 
-    /*public function insertUserTenancy(): string
-    {
-        (new Database('tenancies'))->insert([
-            'id'                 => $this->id,
-            'name'               => $this->name,
-            'tenancy_phone'      => $this->tenancy_phone,
-            'status'             => $this->status,
-            'created_at'         => $this->created_at,
-            'updated_at'         => $this->updated_at
-        ]);
-
-        // Retorna o ID que já foi criado
-        return true;
-    }*/
-
     public function insertUserTenancy(): bool
     {
         (new Database('tenancies'))->insert([
@@ -197,7 +182,29 @@ class RegisterTenancies
         $db->execute($query, [':id' => $id]);
     }
 
+    /**
+     * Inicializa a estrutura de permissões para uma nova Tenancy
+     */
+    public function setupInitialPermissions(): void
+    {
+        // 1. Criar os papéis padrão para esta nova Tenancy
+        // Usando a nova tabela 'sys_roles'
+        $roleAdminId = \App\Model\Entity\PermissionsRules::createRole(
+            $this->id,
+            'admin',
+            'Administrador'
+        );
 
+        \App\Model\Entity\PermissionsRules::createRole(
+            $this->id,
+            'operator',
+            'Operador'
+        );
+
+        // 2. Liberar todas as rotas da 'sys_routes' para o Admin deste novo cliente
+        // Isso garante que o dono da conta veja tudo o que você cadastrou no catálogo global
+        \App\Model\Entity\PermissionsRules::initAdminPermissions($this->id, $roleAdminId);
+    }
 
 
 

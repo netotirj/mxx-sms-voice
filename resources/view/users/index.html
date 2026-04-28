@@ -1,563 +1,905 @@
 <div class="w-full px-6 py-6 mx-auto">
-    <!-- table 1 -->
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 mb-6 break-words bg-white border-0 border-transparent border-solid shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl bg-clip-border">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
 
-                <!-- Cabeçalho -->
-                <div class="p-6 pb-0 mb-0 border-b-0 border-b-solid rounded-t-2xl border-b-transparent flex justify-between items-center">
-                    <h6 class="dark:text-white">Lista de Usuários</h6>
-                    <!-- Botão Adicionar Usuário -->
-                    <a href="{{URL}}/users/new"
-                       class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Criar Usuário
-                    </a>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg">
+                            <i class="ni ni-single-02"></i> </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Gerenciamento de Usuários</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Administre seus usuários de forma centralizada</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openUserModal()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-slate-800 to-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02]">
+                            <i class="ni ni-fat-add text-sm"></i> Novo Usuário
+                        </button>
+                    </div>
                 </div>
 
-                <div class="px-6 py-4 flex justify-end">
-                    <!-- Wrapper com largura controlada -->
-                    <div class="relative w-[250px]">
-                        <!-- Ícone de lupa -->
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                 viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
-                            </svg>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4">
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div><p class="mb-0 text-xs font-semibold uppercase opacity-60">Total</p><h5 id="totalCount" class="mb-0 font-bold">0</h5></div>
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center text-white shadow-soft"><i class="ni ni-users-mm-2"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 border-l-4 border-l-green-500">
+                        <div class="flex items-center justify-between">
+                            <div><p class="mb-0 text-xs font-semibold uppercase text-green-500">Online</p><h5 id="onlineCount" class="mb-0 font-bold">0</h5></div>
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-green-600 to-lime-400 flex items-center justify-center text-white shadow-soft"><i class="fa fa-signal"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div><p class="mb-0 text-xs font-semibold uppercase text-blue-500">Ativos</p><h5 id="activeCount" class="mb-0 font-bold">0</h5></div>
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-blue-500 to-cyan-400 flex items-center justify-center text-white shadow-soft"><i class="fa fa-user-check"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 border-l-4 border-l-yellow-500">
+                        <div class="flex items-center justify-between">
+                            <div><p class="mb-0 text-xs font-semibold uppercase text-yellow-600">Suspensos</p><h5 id="suspendedCount" class="mb-0 font-bold">0</h5></div>
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-yellow-500 to-orange-400 flex items-center justify-center text-white shadow-soft"><i class="fa fa-user-lock"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div><p class="mb-0 text-xs font-semibold uppercase text-red-500">Inativos</p><h5 id="inactiveCount" class="mb-0 font-bold">0</h5></div>
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-red-600 to-orange-400 flex items-center justify-center text-white shadow-soft"><i class="fa fa-user-slash"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="afRowsPerPage" onchange="afCurrentPage=1; renderDefaultTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white dark:bg-slate-700 outline-none">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
                         </div>
 
-                        <!-- Campo de busca -->
-                        <input type="text" id="searchInput"
-                               placeholder="Buscar Usuário..."
-                               class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Situação da Conta</label>
+                            <select id="afStatusAccountFilter" onchange="afCurrentPage=1; renderDefaultTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white dark:bg-slate-700 outline-none">
+                                <option value="">Todas</option>
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="SUSPENDED">SUSPENDED</option> <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status Conexão</label>
+                            <select id="afOnlineStatusFilter" onchange="afCurrentPage=1; renderDefaultTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white dark:bg-slate-700 outline-none">
+                                <option value="">Todos</option>
+                                <option value="ONLINE">ONLINE</option>
+                                <option value="OFFLINE">OFFLINE</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Cargo/Função</label>
+                            <select id="afRoleFilter" onchange="afCurrentPage=1; renderDefaultTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white dark:bg-slate-700 outline-none">
+                                <option value="">Todos</option>
+                                <option value="Administrador">Administrador</option>
+                                <option value="Agente">Agente</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar</label>
+                                <button type="button" onclick="resetDefaultFilters()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="afSearchInput" oninput="afCurrentPage=1; renderDefaultTable();" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white dark:bg-slate-700 outline-none" placeholder="Procurar...">
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
                 <div class="flex-auto px-0 pt-0 pb-2">
                     <div class="p-0 overflow-x-auto">
-                        <table class="items-center w-full mb-0 align-top border-collapse dark:border-white/40 text-slate-500">
-                            <thead class="align-bottom">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
                             <tr>
-                                <th class="px-6 py-3 font-bold text-left uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Nome</th>
-                                <th class="px-6 py-3 pl-2 font-bold text-left uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Cargo/Função</th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Status</th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Saldo</th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Status da Conta</th>
-                                <th class="px-6 py-3 font-bold text-center uppercase align-middle bg-transparent border-b border-collapse shadow-none dark:border-white/40 dark:text-white text-xxs border-b-solid tracking-none whitespace-nowrap text-slate-400 opacity-70">Criado em</th>
-                                <th class="px-6 py-3 font-semibold capitalize align-middle bg-transparent border-b border-collapse border-solid shadow-none dark:border-white/40 dark:text-white tracking-none whitespace-nowrap text-slate-400 opacity-70">Ações</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b text-slate-400 opacity-70">Nome</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Cargo</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Conexão</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Saldo (R$)</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Situação</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Cadastro</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b text-slate-400 opacity-70">Ações</th>
                             </tr>
                             </thead>
-                            <tbody>
-                            </tbody>
+                            <tbody id="defaultTableBody"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Paginação -->
-                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
-                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
-                            id="prevPage">Anterior
-                    </button>
-                    <span class="text-sm text-slate-600 dark:text-slate-300" id="pageInfo">Página 1 de 1</span>
-                    <button class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
-                            id="nextPage">Próxima
-                    </button>
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="afPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="afPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="afPageNumbers" class="flex gap-1"></div>
+                        <button id="afNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div id="recarga-modal" tabindex="-1" aria-hidden="true"
-     class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full overflow-y-auto overflow-x-hidden bg-black/50 opacity-0 transition-opacity duration-300">
-    <div class="relative p-4 w-full max-w-lg max-h-full transform transition-all duration-300 scale-95">
-        <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+<div id="userModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-down">
 
-            <!-- Header -->
-            <div class="flex items-center justify-between p-4 border-b rounded-t dark:border-gray-600 border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    Fazer Recarga
-                </h3>
-                <button type="button"
-                        class="text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                        data-modal-hide="recarga-modal">
-                    ✕
+        <div class="p-6 pb-2 flex items-start justify-between border-b dark:border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg">
+                    <i class="ni ni-single-02 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" id="modalTitle">Usuário</h3>
+                    <p class="text-xs text-slate-400">Preencha todos os campos obrigatórios</p>
+                </div>
+            </div>
+            <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+
+        <form id="userForm" class="p-6 space-y-4">
+            <input type="hidden" name="id" id="user_id">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Nome</label>
+                    <input type="text" name="first_name" id="first_name" placeholder="Ex: João" required
+                           class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Sobrenome</label>
+                    <input type="text" name="last_name" id="last_name" placeholder="Ex: Silva" required
+                           class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">E-mail</label>
+                <input type="email" name="email" id="user_email" placeholder="usuario@email.com" required
+                       class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Senha</label>
+                    <input type="password" name="password" id="user_password" placeholder="••••••••"
+                           class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Confirmar Senha</label>
+                    <input type="password" name="confirm_password" id="user_confirm_password" placeholder="••••••••"
+                           class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Função do Usuário</label>
+                    <select id="role" name="role" required
+                            class="form-select mt-1 block w-full border border-gray-300 rounded-lg bg-white px-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione a função</option>
+
+                        <optgroup label="Administrativo">
+                            <option value="admin">Administrador Geral</option>
+                            <option value="rh">Recursos Humanos (RH)</option>
+                            <option value="financial">Financeiro</option>
+                            <option value="reception">Recepção / Secretariado</option>
+                        </optgroup>
+
+                        <optgroup label="Operação de Telemarketing">
+                            <option value="manager">Gerente de Operações</option>
+                            <option value="supervisor">Supervisor de Equipe</option>
+                            <option value="agent">Agente / Operador (Ativo/Receptivo)</option>
+                            <option value="monitor">Monitor de Qualidade (Escuta/Feedback)</option>
+                        </optgroup>
+
+                        <optgroup label="Suporte Técnico">
+                            <option value="support_l1">Suporte Nível 1</option>
+                            <option value="support_l2">Suporte Nível 2 / TI</option>
+                        </optgroup>
+
+                        <optgroup label="Parceiros">
+                            <option value="reseller">Revendedor / Parceiro</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Status da Conta</label>
+                    <select name="status" id="user_status" required
+                            class="w-full border border-slate-200 rounded-xl px-2 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="active">ATIVO</option>
+                        <option value="inactive">INATIVO</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-6 border-t dark:border-slate-800">
+                <button type="button" onclick="closeUserModal()"
+                        class="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" id="saveBtn"
+                        class="bg-gradient-to-tr from-green-600 to-green-400 text-white text-xs font-bold px-8 py-3 rounded-xl shadow-md uppercase hover:-translate-y-0.5 transition-all">
+                    Salvar Usuário
                 </button>
             </div>
+        </form>
+    </div>
+</div>
 
-            <!-- Body -->
-            <div class="p-6">
-                <form id="form-recarga" class="space-y-4">
+<div id="recarga-modal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-[60] p-4 transition-all duration-300">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-down">
 
-                    <!-- Usuário -->
-                    <div>
-                        <label for="recarga_usuario" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Usuário</label>
-                        <input type="text" id="recarga_usuario" name="usuario_email"
-                               class="bg-gray-100 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
-                               readonly>
-                        <input type="hidden" id="recarga_usuario_id" name="usuario_id">
-                    </div>
-
-                    <!-- Saldo atual -->
-                    <div>
-                        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Saldo Atual</label>
-                        <input type="text" id="recarga_saldo"
-                               class="bg-gray-100 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
-                               readonly>
-                    </div>
-
-                    <!-- Valor da recarga -->
-                    <div>
-                        <label for="valor_recarga" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Valor da Recarga</label>
-                        <input type="number" step="0.01" id="valor_recarga" name="valor_recarga"
-                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
-                               placeholder="0.00" required>
-                    </div>
-
-                    <!-- Anotação -->
-                    <div>
-                        <label for="anotacao" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Anotação</label>
-                        <textarea id="anotacao" name="anotacao"
-                                  class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
-                                  rows="3" placeholder="Digite uma observação opcional..."></textarea>
-                    </div>
-
-                    <!-- Botão -->
-                    <div class="flex justify-end">
-                        <button type="submit"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm px-5 py-2.5 focus:outline-none focus:ring-4 focus:ring-emerald-300">
-                            Confirmar Recarga
-                        </button>
-                    </div>
-                </form>
+        <div class="p-6 pb-2 flex items-start justify-between border-b dark:border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg">
+                    <i class="fa fa-wallet text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white">Fazer Recarga</h3>
+                    <p class="text-xs text-slate-400">Adicionar saldo ao revendedor</p>
+                </div>
             </div>
+            <button onclick="closeRecargaModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <form id="form-recarga" class="space-y-4">
+                <input type="hidden" id="recarga_usuario_id" name="usuario_id">
+
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Revendedor</label>
+                        <input type="text" id="recarga_usuario" name="usuario_email" readonly
+                               class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm text-slate-500 outline-none cursor-not-allowed" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Saldo Atual (R$)</label>
+                        <input type="text" id="recarga_saldo" readonly
+                               class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm text-emerald-600 font-bold outline-none cursor-not-allowed" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Valor da Recarga</label>
+                        <input type="number" step="0.01" name="valor_recarga" placeholder="0.00" required
+                               class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Observação Interna</label>
+                        <textarea name="anotacao" rows="2" placeholder="Ex: Pagamento via Pix..."
+                                  class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-6 border-t dark:border-slate-800">
+                    <button type="button" onclick="closeRecargaModal()"
+                            class="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnConfirmarRecarga"
+                            class="bg-gradient-to-tr from-emerald-600 to-teal-400 text-white text-xs font-bold px-8 py-3 rounded-xl shadow-md uppercase hover:-translate-y-0.5 transition-all">
+                        Confirmar Recarga
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // 1. CONFIGURAÇÕES E ESTADO
         const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
-        const tbody = document.querySelector('table tbody');
-        const prevBtn = document.getElementById('prevPage');
-        const nextBtn = document.getElementById('nextPage');
-        const pageInfo = document.getElementById('pageInfo');
-        const searchInput = document.getElementById('searchInput');
+        const tbody = document.getElementById('defaultTableBody');
 
-        let allRows = [];
-        let filteredRows = [];
-        let currentPage = 1;
-        const perPage = 5;
+        // Mapeamento correto dos inputs de filtro
+        const searchInput = document.getElementById('afSearchInput');
+        const statusFilter = document.getElementById('afStatusAccountFilter');
+        const onlineFilter = document.getElementById('afOnlineStatusFilter');
+        const roleFilter = document.getElementById('afRoleFilter');
+        const rowsPerPageSelect = document.getElementById('afRowsPerPage');
 
-        window.auth = window.auth || { role: "" };
+        let allData = [];
+        let filteredData = [];
+        window.allData = [];
+        window.afCurrentPage = 1; // Global para o HTML enxergar
+        window.auth = { role: '', id: '' };
 
-        window.canEditBalance = () =>
-            ["super_admin", "admin"].includes(String(window.auth.role || "").toLowerCase());
+        // 2. FUNÇÕES DE SUPORTE
+        const removeDiacritics = (str) =>
+            str ? str.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase() : "";
 
-        // Remove acentos
-        function removeDiacritics(str) {
-            return str.normalize("NFD").replace(/\p{Diacritic}/gu, "");
-        }
+        window.getAuthRole = () => {
+            return String(
+                window.auth?.role ||
+                window.auth?.user_function ||
+                ''
+            )
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, '_');
+        };
 
-        // Aplica filtro de busca
-        function applySearch(query) {
-            const normalizedQuery = removeDiacritics(query.toLowerCase());
+        window.isAdmin = () => {
+            const role = window.getAuthRole();
+            return ['admin', 'super_admin', 'superadmin'].includes(role);
+        };
 
-            filteredRows = allRows.filter(row => removeDiacritics(row.toLowerCase()).includes(normalizedQuery));
-            currentPage = 1;
-            renderPage(currentPage);
-        }
+        window.isReseller = () => {
+            return window.getAuthRole() === 'reseller';
+        };
 
-        // Renderiza página atual
-        function renderPage(page = 1) {
-            tbody.innerHTML = '';
-            const start = (page - 1) * perPage;
-            const end = start + perPage;
-            const rows = filteredRows.slice(start, end);
+        window.isOwnUser = (user) => {
+            return String(user?.id ?? '') === String(window.auth?.id ?? '');
+        };
 
-            if (rows.length === 0) {
-                tbody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="p-2 text-center text-slate-400 italic bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                        Nenhum usuário encontrado
-                    </td>
-                </tr>
-            `;
-            } else {
-                rows.forEach(row => tbody.insertAdjacentHTML('beforeend', row));
+        window.isMyUser = (user) => {
+            return String(user?.user_id ?? '') === String(window.auth?.id ?? '');
+        };
+
+        // Mantém a recarga SOMENTE para admin/superadmin
+        window.canEditBalance = () => {
+            return window.isAdmin();
+        };
+
+        // Reseller não edita por esta tela
+        window.canEditUser = (user) => {
+            if (window.isAdmin()) return true;
+
+            if (window.isReseller()) {
+                // não pode editar a própria conta
+                if (window.isOwnUser(user)) return false;
+
+                // pode editar usuários criados por ele
+                return window.isMyUser(user);
             }
 
-            const totalPages = Math.ceil(filteredRows.length / perPage) || 1;
-            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
-            prevBtn.disabled = currentPage === 1;
-            nextBtn.disabled = currentPage === totalPages;
+            return false;
+        };
 
-            feather.replace(); // ícones
-        }
+        // Admin pode tudo
+        // Reseller: não pode excluir a própria conta, mas pode excluir usuários criados por ele
+        window.canDeleteUser = (user) => {
+            if (window.isAdmin()) return true;
 
-        // Constrói as linhas da tabela
-        function buildRows(data) {
-            return data.map(user => {
-                return `<tr data-id="${user.id}">
-                <!-- Avatar e informações -->
-                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <div class="flex px-2 py-1">
-                        <div>
-                            <img src="${user.avatar}" class="inline-flex items-center justify-center mr-4 text-sm text-white transition-all duration-200 ease-in-out h-9 w-9 rounded-xl" alt="avatar" />
-                        </div>
-                        <div class="flex flex-col justify-center">
-                            <h6 class="mb-0 text-sm leading-normal dark:text-white">${user.nome}</h6>
-                            <p class="mb-0 text-xs leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.email}</p>
-                        </div>
+            if (window.isReseller()) {
+                if (window.isOwnUser(user)) return false;
+                return window.isMyUser(user);
+            }
+
+            return false;
+        };
+
+        // Admin pode tudo
+        // Reseller: não pode alterar o próprio status, mas pode alterar usuários criados por ele
+        window.canChangeStatus = (user) => {
+            if (window.isAdmin()) return true;
+
+            if (window.isReseller()) {
+                if (window.isOwnUser(user)) return false;
+                return window.isMyUser(user);
+            }
+
+            return false;
+        };
+
+        // Regra do modal de criação:
+        // reseller só pode criar agent
+        window.applyRoleModalRules = function () {
+            const roleSelect = document.getElementById('role');
+            if (!roleSelect) return;
+
+            if (window.isReseller()) {
+                roleSelect.value = 'agent';
+
+                Array.from(roleSelect.options).forEach(option => {
+                    option.disabled = option.value !== 'agent';
+                });
+
+                roleSelect.setAttribute('disabled', 'disabled');
+            } else {
+                Array.from(roleSelect.options).forEach(option => {
+                    option.disabled = false;
+                });
+
+                roleSelect.removeAttribute('disabled');
+            }
+        };
+
+        // 3. RENDERIZAÇÃO DA TABELA
+        window.renderTable = function() {
+            if (typeof tbody === 'undefined' || !tbody) return;
+
+            const pageInfo = document.getElementById('afPageInfo');
+            const prevBtn = document.getElementById('afPrevPage');
+            const nextBtn = document.getElementById('afNextPage');
+
+            tbody.innerHTML = '';
+            const perPage = parseInt(rowsPerPageSelect?.value || 10);
+            const totalRecords = filteredData.length;
+            const totalPages = Math.ceil(totalRecords / perPage) || 1;
+
+            if (window.afCurrentPage > totalPages) window.afCurrentPage = totalPages;
+            if (window.afCurrentPage < 1) window.afCurrentPage = 1;
+
+            const slice = filteredData.slice((window.afCurrentPage - 1) * perPage, window.afCurrentPage * perPage);
+
+            if (pageInfo) pageInfo.textContent = `Página ${window.afCurrentPage} de ${totalPages} (${totalRecords} usuários)`;
+            if (prevBtn) prevBtn.disabled = (window.afCurrentPage === 1);
+            if (nextBtn) nextBtn.disabled = (window.afCurrentPage === totalPages);
+
+            if (slice.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400 italic">Nenhum usuário encontrado</td></tr>`;
+                updateKpis();
+                return;
+            }
+
+            const souAdmin = window.canEditBalance();
+
+            slice.forEach(user => {
+                const saldoFormatado = `R$ ${Number(user.balance || 0).toFixed(2).replace('.', ',')}`;
+                let colSaldoHTML = '';
+
+                const podeEditar = window.canEditUser(user);
+                const podeExcluir = window.canDeleteUser(user);
+                const podeAlterarStatus = window.canChangeStatus(user);
+
+                if (String(user.user_function || '').toLowerCase() === 'reseller') {
+                    if (souAdmin) {
+                        colSaldoHTML = `<span class="cursor-pointer px-2 py-0.5 text-xxs font-bold rounded bg-blue-100 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    onclick="openRecargaModal('${user.id}', '${String(user.email || '').replace(/'/g, "\\'")}', '${user.balance}')">
+                    ${saldoFormatado}
+                </span>`;
+                    } else {
+                        colSaldoHTML = `<span class="px-2 py-0.5 text-xxs font-bold rounded bg-slate-100 text-slate-500 border border-slate-200 opacity-90 cursor-not-allowed">
+                    ${saldoFormatado}
+                </span>`;
+                    }
+                } else {
+                    colSaldoHTML = '<span class="text-slate-300">-</span>';
+                }
+
+                const statusClass =
+                    user.status_account === 'active'
+                        ? 'bg-emerald-500'
+                        : user.status_account === 'suspended'
+                            ? 'bg-yellow-500 text-black'
+                            : 'bg-red-500';
+
+                const row = `
+        <tr class="border-b dark:border-slate-700 hover:bg-slate-50/50 transition-colors">
+            <td class="p-2 text-left">
+                <div class="flex items-center px-2">
+                    <img src="${user.avatar}" class="h-9 w-9 rounded-xl mr-3 shadow-sm">
+                    <div class="flex flex-col">
+                        <h6 class="mb-0 text-sm font-bold dark:text-white">${user.nome}</h6>
+                        <p class="mb-0 text-xxs text-slate-400">${user.email}</p>
                     </div>
-                </td>
+                </div>
+            </td>
+            <td class="p-2 text-center text-xs dark:text-white">${user.funcao}</td>
+            <td class="p-2 text-center">
+                <span class="px-2 py-1 text-xxs font-bold rounded-lg text-white ${user.status === 'Online' ? 'bg-emerald-500' : 'bg-slate-400'}">${user.status}</span>
+            </td>
 
-                <!-- Função e cargo -->
-                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <p class="mb-0 text-xs font-semibold leading-tight dark:text-white dark:opacity-80">${user.funcao ?? ''}</p>
-                    <p class="mb-0 text-xs leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.cargo ?? ''}</p>
-                </td>
+            <td class="p-2 text-center">
+                ${colSaldoHTML}
+            </td>
 
-                <!-- Status atual -->
-                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white ${user.status === 'Online' ? 'bg-gradient-to-tl from-emerald-500 to-teal-400' : 'bg-gradient-to-tl from-red-500 to-pink-400'}">
-                        ${user.status}
-                    </span>
-                </td>
-
-                <!-- Saldo do Reseller -->
-                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    ${user.funcao === 'Revenda'
-                    ? `<span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white cursor-pointer ${
-                        Number(user.balance) === 0
-                            ? 'bg-gray-500'
-                            : Number(user.balance) < 10
-                                ? 'bg-red-500'
-                                : 'bg-blue-500'
-                    }"
-                          data-user-id="${user.id}"
-                          data-user-email="${user.email}"
-                          data-user-balance="${Number(user.balance).toFixed(2)}"
-                        >
-                          ${Number(user.balance).toFixed(2)}
-                    </span>`
-                    : '-'}
-                </td>
-
-                <!-- Status da conta -->
-                <!--<td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <span class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white ${
-                    user.status_account === 'active' ? 'bg-emerald-500' :
-                        user.status_account === 'inactive' ? 'bg-red-500' :
-                            user.status_account === 'suspended' ? 'bg-yellow-500 text-black' : 'bg-gray-400'
-                }">
-                        ${user.status_account}
-                    </span>
-                </td>-->
-                <td class="p-2 text-sm text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                       <button
-                            onclick="handleStatusClick('${user.id}', this)"
-                            class="px-2.5 text-xs rounded-1.8 py-1.4 inline-block whitespace-nowrap text-center align-baseline font-bold uppercase leading-none text-white
-                            ${user.status_account === 'active' ? 'bg-emerald-500' :
-                                        user.status_account === 'inactive' ? 'bg-red-500' :
-                                            user.status_account === 'suspended' ? 'bg-yellow-500 text-black' : 'bg-gray-400'}">
+            <td class="p-2 text-center">
+                ${
+                    podeAlterarStatus
+                        ? `
+                        <button onclick="handleStatusClick('${user.id}', this)"
+                            class="px-2.5 py-1 text-xxs font-bold rounded-lg uppercase text-white transition-all ${statusClass}">
                             ${user.status_account}
-                       </button>
-                </td>
-
-                <!-- Criado em -->
-                <td class="p-2 text-center align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <span class="text-xs font-semibold leading-tight dark:text-white dark:opacity-80 text-slate-400">${user.created}</span>
-                </td>
-
-                <!-- Ações -->
-                <td class="p-2 align-middle bg-transparent border-b-0 whitespace-nowrap shadow-transparent">
-                    <div class="flex justify-center gap-2">
-                        <button class="btn-edit-user bg-orange-300 px-2 py-1 rounded" data-id="${user.id}">
-                            <i data-feather="edit-2" class="w-4 h-4"></i>
                         </button>
-                        <button class="btn-delete-user bg-red-300 px-2 py-1 rounded" data-id="${user.id}">
-                            <i data-feather="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>`;
+                        `
+                        : `
+                        <span class="px-2.5 py-1 text-xxs font-bold rounded-lg uppercase bg-slate-100 text-slate-500 border border-slate-200 opacity-90 cursor-not-allowed">
+                            ${user.status_account}
+                        </span>
+                        `
+                }
+            </td>
+
+            <td class="p-2 text-center text-xs text-slate-400">${user.created || '-'}</td>
+
+            <td class="p-2 text-center">
+                <div class="flex justify-center gap-1">
+                    ${
+                    podeEditar
+                        ? `<button onclick="editUser('${user.id}')" class="text-orange-500 p-1.5 hover:bg-orange-50 rounded-lg transition-all"><i class="fa fa-edit"></i></button>`
+                        : `<button type="button" disabled class="text-slate-300 p-1.5 rounded-lg cursor-not-allowed"><i class="fa fa-edit"></i></button>`
+                }
+
+                    ${
+                    podeExcluir
+                        ? `<button onclick="confirmDelete('${user.id}')" class="text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-all"><i class="fa fa-trash"></i></button>`
+                        : `<button type="button" disabled class="text-slate-300 p-1.5 rounded-lg cursor-not-allowed"><i class="fa fa-trash"></i></button>`
+                }
+                </div>
+            </td>
+        </tr>`;
+
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+
+            updateKpis();
+        };
+
+        // 4. LÓGICA DE FILTRO (Chamada pelos inputs do HTML)
+        window.applyFilters = function() {
+            const query = removeDiacritics(searchInput?.value || "");
+            const sit = statusFilter?.value || "";
+            const online = onlineFilter?.value || "";
+            const role = roleFilter?.value || "";
+
+            filteredData = allData.filter(u => {
+                const matchesSearch = removeDiacritics(u.nome).includes(query) || String(u.email || '').toLowerCase().includes(query);
+                const matchesSit = !sit || String(u.status_account || '').toUpperCase() === sit.toUpperCase();
+                const matchesOnline = !online || String(u.status || '').toUpperCase() === online.toUpperCase();
+                const matchesRole = !role || String(u.funcao || '').includes(role) || String(u.user_function || '') === role;
+                return matchesSearch && matchesSit && matchesOnline && matchesRole;
+            });
+            window.renderTable();
+        };
+
+        // Função que o seu HTML chama nos onchange/oninput
+        window.renderDefaultTable = function() {
+            window.afCurrentPage = 1;
+            window.applyFilters();
+        };
+
+        window.resetDefaultFilters = function() {
+            if(searchInput) searchInput.value = '';
+            if(statusFilter) statusFilter.value = '';
+            if(onlineFilter) onlineFilter.value = '';
+            if(roleFilter) roleFilter.value = '';
+            window.renderDefaultTable();
+        };
+
+        // 5. MODAIS E CARGA
+        window.openUserModal = function() {
+            const form = document.getElementById('userForm');
+            if (form) form.reset();
+
+            // Limpa o ID para o sistema saber que NÃO é edição
+            const userIdField = document.getElementById('user_id');
+            if (userIdField) userIdField.value = '';
+
+            // Ajusta textos para modo de CRIAÇÃO
+            const modalTitle = document.getElementById('modalTitle');
+            const saveBtn = document.getElementById('saveBtn');
+            const roleSelect = document.getElementById('role');
+            const statusSelect = document.getElementById('user_status');
+
+            if (modalTitle) modalTitle.innerText = 'Criar Novo Usuário';
+            if (saveBtn) saveBtn.innerText = 'SALVAR USUÁRIO';
+
+            if (window.isReseller()) {
+                if (roleSelect) roleSelect.value = 'agent';
+                if (statusSelect) statusSelect.value = 'active';
+            }
+
+            window.applyRoleModalRules();
+
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        };
+
+        window.closeUserModal = function() {
+            document.getElementById('userModal').classList.replace('flex', 'hidden');
+        };
+
+        const userForm = document.getElementById('userForm');
+        if (userForm) {
+            userForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const saveBtn = document.getElementById('saveBtn');
+                const userId = document.getElementById('user_id').value;
+
+                // Se tem ID no hidden field, vai para EDIT, se não, vai para NEW
+                const endpoint = userId ? `${baseUrl}/users/edit` : `${baseUrl}/users/new`;
+
+                saveBtn.disabled = true;
+                const formData = new FormData(userForm);
+
+                // Trava de segurança no front: reseller só cria agent
+                if (window.isReseller()) {
+                    formData.set('role', 'agent');
+                }
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.status === 200 || result.status === 'SUCCESS') {
+                        if(typeof notyf !== 'undefined') notyf.success(result.message || 'Sucesso!');
+                        window.closeUserModal();
+                        window.loadData(); // Recarrega a tabela e KPIs
+                    } else {
+                        if(typeof notyf !== 'undefined') notyf.error(result.message || 'Erro ao salvar');
+                    }
+                } catch (err) {
+                    console.error("Erro na requisição:", err);
+                    if(typeof notyf !== 'undefined') notyf.error("Falha na comunicação com o servidor.");
+                } finally {
+                    saveBtn.disabled = false;
+                }
             });
         }
 
-        // Busca usuários e monta tabela
-        fetch(`${baseUrl}/users/search`)
-            .then(response => response.json())
-            .then(result => {
-                if (!result.data || !Array.isArray(result.data)) {
-                    console.error('Formato inválido', result);
+        window.editUser = function(id) {
+            // Busca no allData que é populado no seu loadData
+            const user = allData.find(u => String(u.id) === String(id));
+            if (!user) return;
+
+            if (!window.canEditUser(user)) {
+                if (typeof notyf !== 'undefined') {
+                    notyf.error('Você não tem permissão para editar este usuário.');
+                }
+                return;
+            }
+
+            window.openUserModal(); // Isso reseta o form e abre o modal
+
+            document.getElementById('modalTitle').innerText = 'Editar Usuário';
+            document.getElementById('saveBtn').innerText = 'ATUALIZAR USUÁRIO';
+
+            // PREENCHIMENTO DOS CAMPOS
+            document.getElementById('user_id').value = user.id;
+            document.getElementById('first_name').value = user.nome || '';
+            document.getElementById('last_name').value = user.last_name || '';
+            document.getElementById('user_email').value = user.email || '';
+            document.getElementById('role').value = user.user_function || '';
+            document.getElementById('user_status').value = user.status_account || 'active';
+
+            window.applyRoleModalRules();
+        };
+
+        window.loadData = function() {
+            fetch(`${baseUrl}/users/search`)
+                .then(r => r.json())
+                .then(res => {
+                    allData = res.data || [];
+                    filteredData = [];
+                    window.allData = allData;
+                    window.auth = res.meta || {};
+
+                    window.applyFilters();
+                })
+                .catch(err => {
+                    console.error('Erro ao carregar usuários:', err);
+                    allData = [];
+                    filteredData = [];
+                    window.allData = [];
+                    window.auth = { role: '', id: '' };
+                    window.applyFilters();
+                });
+        };
+
+        // 1. FUNÇÃO GLOBAL PARA ABRIR RECARGA
+        // Mantida com a regra original: SOMENTE ADMIN / SUPERADMIN
+        window.openRecargaModal = function(id, email, balance) {
+            if (!window.canEditBalance()) {
+                if (typeof notyf !== 'undefined') {
+                    notyf.error('Você não tem permissão para inserir crédito.');
+                }
+                return;
+            }
+
+            const idField = document.getElementById("recarga_usuario_id");
+            const emailField = document.getElementById("recarga_usuario");
+            const balanceField = document.getElementById("recarga_saldo");
+
+            if (idField) idField.value = id;
+            if (emailField) emailField.value = email;
+            if (balanceField) balanceField.value = `R$ ${parseFloat(balance || 0).toFixed(2)}`;
+
+            const modal = document.getElementById("recarga-modal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+            } else {
+                console.error("Modal de recarga não encontrado no HTML!");
+            }
+        };
+
+        // 2. FUNÇÃO GLOBAL PARA FECHAR RECARGA
+        window.closeRecargaModal = function() {
+            const modal = document.getElementById("recarga-modal");
+            if (modal) modal.classList.replace("flex", "hidden");
+
+            const form = document.getElementById("form-recarga");
+            if (form) form.reset();
+        };
+
+        const formRecarga = document.getElementById("form-recarga");
+        if (formRecarga) {
+            formRecarga.addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                if (!window.canEditBalance()) {
+                    if (typeof notyf !== 'undefined') {
+                        notyf.error('Você não tem permissão para realizar recarga.');
+                    }
                     return;
                 }
 
-                // ✅ vem do backend: result.meta.role
-                window.auth.role = String(result?.meta?.role || "").toLowerCase();
+                const btn = document.getElementById("btnConfirmarRecarga");
+                const formData = new FormData(formRecarga);
 
-                allRows = buildRows(result.data);
-                filteredRows = allRows;
-                renderPage(currentPage);
-            })
-            .catch(error => console.error('Erro ao buscar usuários:', error));
+                btn.disabled = true;
+                btn.innerText = "PROCESSANDO...";
 
-        // Paginação
-        prevBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderPage(currentPage);
-            }
-        });
+                try {
+                    const response = await fetch(`${baseUrl}/users/refills`, {
+                        method: "POST",
+                        body: formData
+                    });
 
-        nextBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(filteredRows.length / perPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderPage(currentPage);
-            }
-        });
+                    const result = await response.json();
 
-        // Busca
-        searchInput.addEventListener('input', e => applySearch(e.target.value));
+                    if (result.status === 200 || result.status === 'SUCCESS') {
+                        if (typeof notyf !== 'undefined') notyf.success("💰 Recarga efetuada!");
+                        window.closeRecargaModal();
+                        window.loadData(); // Atualiza o saldo na tabela na hora
+                    } else {
+                        if (typeof notyf !== 'undefined') notyf.error(result.message || "Erro na recarga");
+                    }
+                } catch (error) {
+                    console.error(error);
+                    if (typeof notyf !== 'undefined') notyf.error("Falha na comunicação com o servidor.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "CONFIRMAR RECARGA";
+                }
+            });
+        }
+
+        function updateKpis() {
+            const setVal = (id, val) => {
+                const el = document.getElementById(id);
+                if(el) el.innerText = val;
+            };
+
+            const total = allData.length;
+            const online = allData.filter(u => u.status === 'Online').length;
+            const active = allData.filter(u => u.status_account === 'active').length;
+            const suspended = allData.filter(u => u.status_account === 'suspended').length;
+            const inactive = allData.filter(u => u.status_account === 'inactive').length;
+
+            setVal('totalCount', total);
+            setVal('onlineCount', online);
+            setVal('activeCount', active);
+            setVal('suspendedCount', suspended);
+            setVal('inactiveCount', inactive);
+        }
+
+        // Botões de Paginação
+        const prevPageBtn = document.getElementById('afPrevPage');
+        const nextPageBtn = document.getElementById('afNextPage');
+
+        if (prevPageBtn) {
+            prevPageBtn.onclick = () => {
+                if (window.afCurrentPage > 1) {
+                    window.afCurrentPage--;
+                    window.renderTable();
+                }
+            };
+        }
+
+        if (nextPageBtn) {
+            nextPageBtn.onclick = () => {
+                const totalPages = Math.ceil(filteredData.length / parseInt(rowsPerPageSelect?.value || 10)) || 1;
+                if (window.afCurrentPage < totalPages) {
+                    window.afCurrentPage++;
+                    window.renderTable();
+                }
+            };
+        }
+
+        window.loadData();
     });
 
-</script>
+    // FUNÇÕES EXTERNAS
+    function handleStatusClick(userId, el) {
+        const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
+        const user = (window.allData || []).find(u => String(u.id) === String(userId));
 
-<script>
-    const modal = document.getElementById("recarga-modal");
-    const modalContent = modal.querySelector(".transform");
-    const closeButtons = modal.querySelectorAll("[data-modal-hide='recarga-modal']");
-    const formRecarga = document.getElementById("form-recarga");
-
-    // Inputs
-    const inputUserId = document.getElementById("recarga_usuario_id");
-    const inputUserEmail = document.getElementById("recarga_usuario");
-    const inputUserBalance = document.getElementById("recarga_saldo");
-
-    // Função abrir
-    function openModal(userId, email, balance) {
-        inputUserId.value = userId;
-        inputUserEmail.value = email;
-        inputUserBalance.value = balance;
-
-        modal.classList.remove("hidden");
-        setTimeout(() => {
-            modal.classList.remove("opacity-0");
-            modal.classList.add("opacity-100");
-            modalContent.classList.remove("scale-95");
-            modalContent.classList.add("scale-100");
-        }, 10);
-    }
-
-    // Função fechar
-    function closeModal() {
-        modal.classList.remove("opacity-100");
-        modal.classList.add("opacity-0");
-        modalContent.classList.remove("scale-100");
-        modalContent.classList.add("scale-95");
-        setTimeout(() => {
-            modal.classList.add("hidden");
-        }, 300);
-    }
-
-    // Clicar no saldo (abre modal)
-    document.addEventListener("click", (e) => {
-        const span = e.target.closest("span[data-user-id]");
-        if (!span) return;
-
-        if (!window.canEditBalance || !window.canEditBalance()) {
-            notyf.error("Apenas Admin e Super Admin podem alterar saldo.");
+        if (!user || !window.canChangeStatus(user)) {
+            if (typeof notyf !== 'undefined') {
+                notyf.error('Você não pode alterar o status desta conta.');
+            }
             return;
         }
 
-        openModal(span.dataset.userId, span.dataset.userEmail, span.dataset.userBalance);
-    });
+        let current = el.textContent.trim().toLowerCase();
+        let next = '';
 
-    // Fechar nos botões
-    closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
-
-    // Fechar clicando fora
-    modal.addEventListener("click", (e) => {
-        if (e.target === modal) closeModal();
-    });
-
-    // Fechar com ESC
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !modal.classList.contains("hidden")) {
-            closeModal();
+        // Ciclo: Ativo -> Suspenso -> Inativo -> Ativo
+        if (current === 'active') {
+            next = 'suspended';
+        } else if (current === 'suspended') {
+            next = 'inactive';
+        } else {
+            next = 'active';
         }
-    });
 
-    // Submit com fetch
-    formRecarga.addEventListener("submit", async (e) => {
-        e.preventDefault();
+        const fd = new FormData();
+        fd.append("id", userId);
+        fd.append("status", next);
 
-        const formData = new FormData(formRecarga);
-        const data = Object.fromEntries(formData.entries());
-
-        try {
-            const response = await fetch(`${baseUrl}/users/refills`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-            });
-
-            const result = await response.json();
-
-            if (result.status === 200) {
-                notyf.success("💰 Recarga realizada com sucesso!");
-                closeModal();
-                // Atualiza saldo na tabela sem reload (se quiser)
-                const span = document.querySelector(`span[data-user-id="${data.usuario_id}"]`);
-                if (span) {
-                    const novoSaldo = (parseFloat(data.valor_recarga) + parseFloat(span.dataset.userBalance)).toFixed(2);
-                    span.dataset.userBalance = novoSaldo;
-                    span.textContent = novoSaldo;
-                }
-            } else {
-                notyf.error("Erro: " + result.message);
-            }
-        } catch (error) {
-            console.error("Erro na requisição:", error);
-            notyf.error("⚠️ Falha na comunicação com o servidor.");
-        }
-    });
-</script>
-
-<script>
-    function handleStatusClick(userId, el) {
-        // Pega o status atual diretamente do texto do botão
-        let currentStatus = el.textContent.trim();
-
-        // Define o próximo status (rotaçao: active → inactive → suspended → active)
-        let newStatus = currentStatus === 'active' ? 'inactive' :
-            currentStatus === 'inactive' ? 'suspended' : 'active';
-
-        console.log(`Alterando usuário ${userId} de ${currentStatus} para ${newStatus}`);
-
-        // Cria os dados no FormData
-        let formData = new FormData();
-        formData.append("id", userId);
-        formData.append("status", newStatus);
-
-        // Requisição para atualizar no backend
-        fetch(`${baseUrl}/users/up-status`, {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
+        fetch(`${baseUrl}/users/up-status`, { method: 'POST', body: fd })
+            .then(r => r.json())
             .then(data => {
-                if (data.status === 200) {
-                    // Atualiza o texto e a cor do botão sem reload
-                    el.textContent = newStatus;
-
-                    el.classList.remove("bg-emerald-500", "bg-red-500", "bg-yellow-500", "bg-gray-400", "text-black");
-
-                    if (newStatus === "active") {
-                        el.classList.add("bg-emerald-500", "text-white");
-                    } else if (newStatus === "inactive") {
-                        el.classList.add("bg-red-500", "text-white");
-                    } else if (newStatus === "suspended") {
-                        el.classList.add("bg-yellow-500", "text-black");
-                    } else {
-                        el.classList.add("bg-gray-400", "text-white");
-                    }
-
-                    // Notificação de sucesso
-                    notyf.success(data.message || `Status alterado para ${newStatus}`);
+                if(data.status === 200 || data.status === 'SUCCESS') {
+                    window.loadData();
+                    if (typeof notyf !== 'undefined') notyf.success("Status atualizado!");
                 } else {
-                    // Notificação de erro
-                    notyf.error(data.message || 'Não foi possível atualizar o status.');
+                    if (typeof notyf !== 'undefined') notyf.error(data.message || "Erro ao atualizar status.");
                 }
             })
-            .catch((error) => {
-                console.error('Erro de rede:', error);
-                notyf.error('Falha na comunicação com o servidor.');
+            .catch(err => {
+                console.error(err);
+                if (typeof notyf !== 'undefined') notyf.error("Falha na comunicação com o servidor.");
             });
     }
-</script>
 
-
-<script>
-
-    document.addEventListener('click', e => {
+    function confirmDelete(id) {
         const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute('content');
-        if (e.target.closest('.btn-delete-user')) {
-            const id = e.target.closest('.btn-delete-user').dataset.id;
+        const user = (window.allData || []).find(u => String(u.id) === String(id));
 
-            //console.log(id)
-            confirmDelete(id); // aqui chama o Swal + DELETE
+        if (!user || !window.canDeleteUser(user)) {
+            if (typeof notyf !== 'undefined') {
+                notyf.error('Você não pode excluir esta conta.');
+            }
+            return;
         }
 
-
-        function confirmDelete(id) {
-            Swal.fire({
-                title: 'Tem certeza?',
-                text: "Essa ação não pode ser desfeita!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, deletar!',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#e3342f',
-                cancelButtonColor: '#6c757d'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // 🔥 Chama seu backend
-                    fetch(`${baseUrl}/users/${id}/delete`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            //console.log('Resposta da API:', data);
-
-                            if (data.status === 200) {
-                                Swal.fire(
-                                    'Deletado!',
-                                    data.message || 'O registro foi removido com sucesso.',
-                                    'success'
-                                ).then(() => {
-                                    window.location.href = baseUrl + '/users';
-                                });
-                            } else {
-                                Swal.fire('Erro!', data.message || 'Não foi possível deletar.', 'error');
-                            }
-                        })
-                        .catch((error) => {
-                            console.error('Erro de rede:', error);
-                            Swal.fire('Erro!', 'Falha na comunicação com o servidor.', 'error');
-                        });
-
-                }
-            });
+        if(confirm("Excluir usuário?")) {
+            fetch(`${baseUrl}/users/${id}/delete`, { method: 'POST' })
+                .then(() => window.loadData())
+                .catch(err => {
+                    console.error(err);
+                    if (typeof notyf !== 'undefined') notyf.error("Falha na comunicação com o servidor.");
+                });
         }
-    });
+    }
 </script>
-
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        // Captura clique nos botões de editar usuário
-        document.addEventListener("click", (e) => {
-            const btnEdit = e.target.closest(".btn-edit-user");
-            if (!btnEdit) return;
-
-            const userId = btnEdit.dataset.id;
-
-            // Redireciona para a página de edição, passando o ID via query string
-            window.location.href = `${baseUrl}/users/${userId}/edit`;
-        });
-    });
-
-</script>
-
-

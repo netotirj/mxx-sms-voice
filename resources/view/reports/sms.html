@@ -1,34 +1,186 @@
 <div class="w-full px-6 py-6 mx-auto">
+
     <div class="flex flex-wrap -mx-3">
-        <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
 
-                <!-- Cabeçalho -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        Tráfego de SMS
-                    </h6>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
 
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-blue-100 text-blue-700 text-lg">
+                            💬
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Mensagens SMS</h2>
+                            <p class="text-xs text-slate-400">Relatório consolidado de envios e recebimentos</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <button id="smsExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <button id="smsExportXls"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-indigo-500 text-white hover:bg-indigo-600 transition shadow-sm">
+                            <span class="text-base">📊</span> Excel
+                        </button>
+
+                        <button id="smsReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="smsAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                peer-checked:bg-blue-500"></div>
+
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+                            <select id="smsReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="15000">15s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tabela -->
-                <div class="p-6 overflow-x-auto">
-                    <table id="table-sms-view" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm center-header">
-                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                        <tr>
-                            <th class="px-4 py-3 ">ID</th>
-                            <th class="px-4 py-3 ">Telefone</th>
-                            <th class="px-4 py-3 ">Valor</th>
-                            <th class="px-4 py-3 ">Operadora</th>
-                            <th class="px-4 py-3 ">Status</th>
-                            <th class="px-4 py-3 ">Data</th>
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
 
-                        </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
-                        <!-- DataTables irá preencher -->
-                        </tbody>
-                    </table>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="smsRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Período</label>
+                            <select id="smsPeriodFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="day" selected>Hoje</option>
+                                <option value="week">Semana</option>
+                                <option value="month">Mês</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="smsStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="ACCEPTED">Aceito</option>
+                                <option value="SENT">Enviado</option>
+                                <option value="DELIVERED">Entregue</option>
+                                <option value="FAILED">Falhou</option>
+                                <option value="UNKNOWN">Desconhecido</option>
+                                <option value="REJECTED">Rejeitado</option>
+                                <option value="EXPIRED">Expirado</option>
+                                <option value="UNDELIVERABLE">Não entregue</option>
+                                <option value="PENDING">Pendente</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="smsDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="smsDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor"
+                                         viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                              d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="smsSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                       placeholder="número, mensagem .....">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="sms-table"
+                               class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th class="px-4 py-2 border border-slate-100">ID</th>
+                                <th class="px-4 py-2 border border-slate-100">Data</th>
+                                <th class="px-4 py-2 border border-slate-100">Número</th>
+                                <th class="px-4 py-2 border border-slate-100">Operadora</th>
+                                <th class="px-4 py-2 border border-slate-100">Custo</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                                <th class="px-4 py-2 border border-slate-100">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="smsTableBody">
+                            <tr>
+                                <td colspan="7"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando registros...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="smsStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="smsPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="smsPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="smsPageNumbers" class="flex gap-1"></div>
+                        <button id="smsNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
 
             </div>
@@ -36,285 +188,584 @@
     </div>
 </div>
 
-<style>
-    /* Alinha menu e busca lado a lado */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .dataTables_wrapper .dataTables_length {
-        float: left;
-    }
-
-    .dataTables_wrapper .dataTables_filter {
-        float: right;
-    }
-
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-        margin-left: 0.5rem;
-    }
-
-    /* Remove margin lateral padrão */
-    #table-sms_wrapper {
-        margin-left: 0;
-        margin-right: 0;
-    }
-
-    /* Reduz fontes e padding do info abaixo */
-    .dataTables_wrapper .dataTables_info {
-        font-size: 0.75rem;
-        color: #475569; /* slate-600 */
-        padding-top: 0.5rem;
-    }
-
-    /* Remove float no responsivo */
-    @media (max-width: 640px) {
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter {
-            float: none;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-    }
-
-    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
-    .break-message {
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    /* Permite que a largura da célula se ajuste automaticamente */
-    .auto-width-message {
-        display: inline-block;
-        max-width: 100%;
-        width: auto;
-        min-width: 150px;
-    }
-</style>
-
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const tbody = document.getElementById("smsTableBody");
+        const searchInput = document.getElementById("smsSearchInput");
+        const statusFilter = document.getElementById("smsStatusFilter");
+        const perPageSel = document.getElementById("smsRowsPerPage");
+        const pageInfo = document.getElementById("smsPageInfo");
+        const prevBtn = document.getElementById("smsPrevPage");
+        const nextBtn = document.getElementById("smsNextPage");
+        const pageNumbers = document.getElementById("smsPageNumbers");
 
-        const table = $('#table-sms-view').DataTable({
-            responsive: true,
-            serverSide: true,
-            processing: true,
-            pageLength: 10,
-            autoWidth: false,
-            ajax: 'sms-view-realtime',
-            language: {
-                lengthMenu: "_MENU_",
-                zeroRecords: "Nenhum Registro econtrado",
-                info: "_START_-_END_ de _TOTAL_",
-                infoEmpty: "Nenhum Registro econtrado",
-                infoFiltered: "(de _MAX_)",
-                search: "🔍",
-                loadingRecords: "Carregando...",
-                processing: "Processando...",
-                paginate: {
-                    first: "«",
-                    last: "»",
-                    next: "›",
-                    previous: "‹"
-                }
-            },
-            columnDefs: [
-                { targets: 5, type: 'datetime' } // Força a coluna 5 a ser tratada como data
-            ],
-            columns: [
-                {
-                    data: 'id',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `#${data}`
-                },
-                {
-                    data: 'phone_sms',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `${data}`
-                },
-                {
-                    data: 'value_sms',
-                    className: "dt-head-center dt-body-center break-message",
-                    render: data => {
-                        const formattedValue = new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                        }).format(data);
+        const reloadBtn = document.getElementById("smsReloadBtn");
+        const exportCsvBtn = document.getElementById("smsExportCsv");
+        const exportXlsBtn = document.getElementById("smsExportXls");
+        const autoReloadCheckbox = document.getElementById("smsAutoReload");
+        const reloadIntervalSelect = document.getElementById("smsReloadInterval");
 
-                                    return `
-                        <div class="auto-width-message">
-                            <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-sm">
-                                ${formattedValue}
-                            </span>
-                        </div>
-                    `;
-                    }
-                },
+        const dateFromInput = document.getElementById("smsDateFrom");
+        const dateToInput = document.getElementById("smsDateTo");
+        const periodFilter = document.getElementById("smsPeriodFilter");
 
-                {
-                    data: 'operator',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        const op = data?.toLowerCase() || 'desconhecida';
-                        let badgeClass = 'bg-gradient-to-r from-purple-700 to-violet-300';
-                        let label = data || 'Desconhecida';
+        let allItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        let perPage = parseInt(perPageSel?.value, 10) || 10;
+        let autoReloadTimer = null;
 
-                        switch (op) {
-                            case 'claro':
-                                badgeClass = 'bg-gradient-to-r from-red-700 to-rose-300';
-                                break;
-                            case 'vivo':
-                                badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-300';
-                                break;
-                            case 'tim':
-                                badgeClass = 'bg-gradient-to-r from-cyan-700 to-teal-300';
-                                break;
-                            case 'ctbc':
-                                badgeClass = 'bg-gradient-to-r from-green-700 to-emerald-300';
-                                break;
-                        }
+        function normalizeText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+        }
 
-                        return `
-                <span class="text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${badgeClass}">
-                    ${label}
-                </span>
-            `;
-                    }
-                },
-                {
-                    data: 'status_sms',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        let badgeClass = 'bg-slate-500';
-                        let label = 'Desconhecido';
+        function getOperatorLabel(operator) {
+            return operator && String(operator).toUpperCase() !== 'UNKNOWN'
+                ? String(operator)
+                : 'Não identificado';
+        }
 
-                        switch (data?.toUpperCase()) {
-                            case 'SENT':
-                                badgeClass = 'bg-gradient-to-r from-indigo-900 to-blue-300';
-                                label = 'Enviada';
-                                break;
-                            case 'DELIVERED':
-                                badgeClass = 'bg-gradient-to-r from-emerald-900 to-green-300';
-                                label = 'Entregue';
-                                break;
-                            case 'EXPIRED':
-                                badgeClass = 'bg-gradient-to-r from-yellow-900 to-amber-300';
-                                label = 'Expirada';
-                                break;
-                            case 'REJECTED':
-                                badgeClass = 'bg-gradient-to-r from-rose-900 to-red-300';
-                                label = 'Rejeitada';
-                                break;
-                            case 'DELETED':
-                                badgeClass = 'bg-gradient-to-r from-slate-900 to-gray-300';
-                                label = 'Deletada';
-                                break;
-                            case 'BLACKLIST':
-                                badgeClass = 'bg-gradient-to-r from-zinc-900 to-neutral-300';
-                                label = 'Blacklist';
-                                break;
-                            case 'UNKNOWN':
-                                badgeClass = 'bg-gradient-to-r from-red-700 to-orange-600';
-                                label = 'Falhada';
-                                break;
-                            case 'UNDELIVERABLE':
-                                badgeClass = 'bg-gradient-to-r from-red-900 to-orange-300';
-                                label = 'Não Entregável';
-                                break;
-                            case 'ACCEPTED':
-                                badgeClass = 'bg-gradient-to-r from-gray-900 to-blue-300';
-                                label = 'Aceita';
-                                break;
-                        }
+        function getStatusLabel(status) {
+            const s = String(status || '').toUpperCase();
 
-                        return `
-                <span class="text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${badgeClass}">
-                    ${label}
-                </span>
-            `;
-                    }
-                },
-                {
-                    data: 'update_date',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        if (!data) return `<span class="italic text-slate-400">-</span>`;
+            switch (s) {
+                case 'SENT':
+                case 'ACCEPTED':
+                    return 'ENVIADA';
+                case 'DELIVERED':
+                    return 'ENTREGUE';
+                case 'FAILED':
+                case 'REJECTED':
+                case 'UNKNOWN':
+                    return 'FALHADA';
+                case 'EXPIRED':
+                    return 'EXPIRADA';
+                case 'UNDELIVERABLE':
+                    return 'NAO ENTREGUE';
+                case 'PENDING':
+                    return 'PENDENTE';
+                default:
+                    return s || '-';
+            }
+        }
 
-                        const date = new Date(data);
-                        if (isNaN(date)) return `<span class="italic text-slate-400">-</span>`;
+        function getStatusBadge(status) {
+            let bg = 'bg-slate-500';
+            let label = status || 'NI';
 
-                        const iso = date.toISOString();
-                        const formatted = `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })}`;
-
-                        return `<span class="font-medium" data-order="${iso}">${formatted}</span>`;
-                    }
-                },
-            ],
-
-
-            order: [[0, 'desc']],
-            //drawCallback: function () {
-            //   feather.replace();
-            //},
-            drawCallback: function () {
-                feather.replace();
-
-                const wrapper = $('#table-notifications_wrapper');
-                const paginate = $('#table-notifications_paginate');
-                const length = $('#table-notifications_length label');
-                const info = $('#table-notifications_info');
-                const filter = $('#table-notifications_filter input');
-                const select = $('#table-notifications_length select');
-
-                wrapper.addClass('w-full text-slate-700 dark:text-slate-200 text-sm');
-
-                paginate.find('a').each(function () {
-                    const $this = $(this);
-                    const text = $this.text().trim();
-                    let svg = '';
-
-                    if (text === '‹') {
-                        svg = `<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
-                    } else if (text === '›') {
-                        svg = `<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
-                    } else {
-                        svg = text;
-                    }
-
-                    $this
-                        .html(svg)
-                        .addClass(`
-                inline-flex items-center justify-center text-xs font-medium rounded-md
-                bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300
-                border border-slate-300 dark:border-slate-600
-                px-2 py-1 mx-0.5 hover:bg-slate-100 dark:hover:bg-slate-600 transition
-            `);
-                });
-
-                paginate.find('.current')
-                    .addClass('bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white');
-
-                length.addClass('text-xs');
-                info.addClass('text-xs');
-
-                filter
-                    .addClass('text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200')
-                    .attr('placeholder', 'Buscar...');
-
-                select
-                    .addClass('text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200');
+            switch (String(status || '').toUpperCase()) {
+                case 'SENT':
+                case 'ACCEPTED':
+                    bg = 'bg-gradient-to-r from-indigo-600 to-blue-400';
+                    label = 'ENVIADA';
+                    break;
+                case 'DELIVERED':
+                    bg = 'bg-gradient-to-r from-emerald-600 to-green-400';
+                    label = 'ENTREGUE';
+                    break;
+                case 'FAILED':
+                case 'REJECTED':
+                case 'UNKNOWN':
+                    bg = 'bg-gradient-to-r from-rose-600 to-red-400';
+                    label = 'FALHADA';
+                    break;
+                case 'EXPIRED':
+                    bg = 'bg-gradient-to-r from-orange-600 to-amber-400';
+                    label = 'EXPIRADA';
+                    break;
+                case 'UNDELIVERABLE':
+                    bg = 'bg-gradient-to-r from-slate-600 to-slate-400';
+                    label = 'NAO ENTREGUE';
+                    break;
+                case 'PENDING':
+                    bg = 'bg-gradient-to-r from-amber-500 to-yellow-400';
+                    label = 'PENDENTE';
+                    break;
             }
 
-        });
+            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm ${bg}">${label}</span>`;
+        }
 
+        function parseDateForCompare(dateStr) {
+            if (!dateStr || dateStr === '-') return null;
+
+            const raw = String(dateStr).trim();
+
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                const [y, m, d] = raw.split('-').map(Number);
+                return new Date(y, m - 1, d);
+            }
+
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+                const [d, m, y] = raw.split('/').map(Number);
+                return new Date(y, m - 1, d);
+            }
+
+            if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(raw)) {
+                const [datePart] = raw.split(' ');
+                const [d, m, y] = datePart.split('/').map(Number);
+                return new Date(y, m - 1, d);
+            }
+
+            const tentative = new Date(raw);
+            return isNaN(tentative.getTime()) ? null : tentative;
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(Number(value || 0));
+        }
+
+        function toInputDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function syncDateInputsFromPeriod() {
+            const period = String(periodFilter?.value || 'day');
+            const now = new Date();
+            let start = null;
+            let end = null;
+
+            if (period === 'day') {
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(start);
+            } else if (period === 'week') {
+                const day = (now.getDay() + 6) % 7;
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+            } else if (period === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            }
+
+            if (dateFromInput) {
+                dateFromInput.disabled = period !== 'custom';
+                dateFromInput.value = start ? toInputDate(start) : dateFromInput.value;
+            }
+
+            if (dateToInput) {
+                dateToInput.disabled = period !== 'custom';
+                dateToInput.value = end ? toInputDate(end) : dateToInput.value;
+            }
+        }
+
+        async function fetchData() {
+            try {
+                if (reloadBtn) {
+                    reloadBtn.disabled = true;
+                    reloadBtn.innerHTML = '<span class="text-base animate-spin inline-block">↻</span> Carregando';
+                }
+
+                const params = new URLSearchParams();
+                const period = String(periodFilter?.value || 'day');
+                const status = String(statusFilter?.value || '').toUpperCase();
+
+                params.set('period', period);
+                if (period === 'custom') {
+                    if (dateFromInput?.value) params.set('date_from', dateFromInput.value);
+                    if (dateToInput?.value) params.set('date_to', dateToInput.value);
+                }
+
+                if (status) {
+                    params.set('status', status);
+                }
+
+                const response = await fetch(`sms-view-realtime?${params.toString()}`, {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const res = await response.json();
+                allItems = Array.isArray(res.data) ? res.data : [];
+
+                applyFilters(false);
+            } catch (error) {
+                console.error('Erro ao carregar SMS:', error);
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="py-10 text-center text-red-500 italic">
+                        Erro ao carregar dados.
+                    </td>
+                </tr>
+            `;
+            } finally {
+                if (reloadBtn) {
+                    reloadBtn.disabled = false;
+                    reloadBtn.innerHTML = '<span class="text-base">🔄</span> Recarregar';
+                }
+            }
+        }
+
+        function applyFilters(resetPage = true) {
+            const query = normalizeText(searchInput?.value || '');
+            const selectedStatus = String(statusFilter?.value || '').toUpperCase();
+            const dateFromValue = dateFromInput?.value || '';
+            const dateToValue = dateToInput?.value || '';
+            const fromDate = dateFromValue ? new Date(dateFromValue + 'T00:00:00') : null;
+            const toDate = dateToValue ? new Date(dateToValue + 'T23:59:59') : null;
+
+            filteredItems = allItems.filter(item => {
+                const id = String(item.id ?? '');
+                const phone = String(item.phone_sms ?? '');
+                const operator = getOperatorLabel(item.operator);
+                const rawOperator = String(item.operator ?? '');
+                const rawDate = String(item.update_date ?? '');
+                const rawStatus = String(item.status_sms ?? '').toUpperCase();
+                const translatedStatus = getStatusLabel(item.status_sms);
+
+                const haystack = normalizeText([
+                    id,
+                    phone,
+                    operator,
+                    rawOperator,
+                    rawDate,
+                    rawStatus,
+                    translatedStatus
+                ].join(' '));
+
+                const matchesQuery = !query || haystack.includes(query);
+                const matchesStatus = !selectedStatus || rawStatus === selectedStatus;
+
+                let matchesDate = true;
+                const itemDate = parseDateForCompare(rawDate);
+
+                if (fromDate || toDate) {
+                    if (!itemDate) {
+                        matchesDate = false;
+                    } else {
+                        if (fromDate && itemDate < fromDate) matchesDate = false;
+                        if (toDate && itemDate > toDate) matchesDate = false;
+                    }
+                }
+
+                return matchesQuery && matchesStatus && matchesDate;
+            });
+
+            if (resetPage) {
+                currentPage = 1;
+            }
+
+            renderPage();
+        }
+
+        function renderPage() {
+            tbody.innerHTML = "";
+
+            const total = filteredItems.length;
+            const totalPages = Math.ceil(total / perPage) || 1;
+
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            const start = (currentPage - 1) * perPage;
+            const items = filteredItems.slice(start, start + perPage);
+
+            if (!items.length) {
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="py-10 text-center text-slate-400 italic">
+                        Nenhum registro encontrado.
+                    </td>
+                </tr>
+            `;
+            } else {
+                items.forEach(item => {
+                    const row = `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-50 text-center">
+                        <td class="px-4 py-3 text-[11px] text-slate-500 font-bold">
+                            #${item.id ?? '-'}
+                        </td>
+
+                        <td class="px-4 py-3 text-[11px] text-slate-500 font-medium">
+                            ${item.update_date || '-'}
+                        </td>
+
+                        <td class="px-4 py-3 font-bold text-slate-700">
+                            ${item.phone_sms || '-'}
+                        </td>
+
+                        <td class="px-4 py-3 text-[11px] font-semibold text-indigo-600 uppercase">
+                            ${getOperatorLabel(item.operator)}
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-black text-xs">
+                                ${formatCurrency(item.value_sms)}
+                            </span>
+                        </td>
+
+                        <td class="px-4 py-3">
+                            ${getStatusBadge(item.status_sms)}
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <button class="p-1 text-blue-600 hover:bg-blue-50 rounded transition" title="Visualizar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            }
+
+            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages;
+
+            pageNumbers.innerHTML = "";
+
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement("button");
+                btn.textContent = i;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg transition-all ${
+                    i === currentPage
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white border-slate-200 hover:bg-slate-100'
+                }`;
+
+                btn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderPage();
+                });
+
+                pageNumbers.appendChild(btn);
+            }
+        }
+
+        function getExportRows() {
+            return filteredItems.map(item => ({
+                id: item.id ?? '-',
+                data: item.update_date || '-',
+                numero: item.phone_sms || '-',
+                operadora: getOperatorLabel(item.operator),
+                custo: Number(item.value_sms || 0),
+                status: getStatusLabel(item.status_sms)
+            }));
+        }
+
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCSV() {
+            const rows = getExportRows();
+
+            if (!rows.length) {
+                alert('Não há dados para exportar.');
+                return;
+            }
+
+            const header = ['ID', 'Data', 'Número', 'Operadora', 'Custo', 'Status'];
+
+            const csvLines = [
+                header.join(';'),
+                ...rows.map(row => [
+                    row.id,
+                    `"${String(row.data).replace(/"/g, '""')}"`,
+                    `"${String(row.numero).replace(/"/g, '""')}"`,
+                    `"${String(row.operadora).replace(/"/g, '""')}"`,
+                    String(row.custo).replace('.', ','),
+                    `"${String(row.status).replace(/"/g, '""')}"`
+                ].join(';'))
+            ];
+
+            const csvContent = '\uFEFF' + csvLines.join('\n');
+            downloadFile(
+                csvContent,
+                `sms-relatorio-${new Date().toISOString().slice(0, 10)}.csv`,
+                'text/csv;charset=utf-8;'
+            );
+        }
+
+        function exportExcel() {
+            const rows = getExportRows();
+
+            if (!rows.length) {
+                alert('Não há dados para exportar.');
+                return;
+            }
+
+            const tableHtml = `
+            <table border="1">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data</th>
+                        <th>Número</th>
+                        <th>Operadora</th>
+                        <th>Custo</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(row => `
+                        <tr>
+                            <td>${row.id}</td>
+                            <td>${row.data}</td>
+                            <td>${row.numero}</td>
+                            <td>${row.operadora}</td>
+                            <td>${row.custo}</td>
+                            <td>${row.status}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+
+            const excelContent = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office"
+                  xmlns:x="urn:schemas-microsoft-com:office:excel"
+                  xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="UTF-8">
+                </head>
+                <body>
+                    ${tableHtml}
+                </body>
+            </html>
+        `;
+
+            downloadFile(
+                excelContent,
+                `sms-relatorio-${new Date().toISOString().slice(0, 10)}.xls`,
+                'application/vnd.ms-excel;charset=utf-8;'
+            );
+        }
+
+        function stopAutoReload() {
+            if (autoReloadTimer) {
+                clearInterval(autoReloadTimer);
+                autoReloadTimer = null;
+            }
+        }
+
+        function startAutoReload() {
+            stopAutoReload();
+
+            if (!autoReloadCheckbox || !autoReloadCheckbox.checked) {
+                return;
+            }
+
+            const interval = parseInt(reloadIntervalSelect?.value, 10) || 10000;
+
+            autoReloadTimer = setInterval(() => {
+                fetchData();
+            }, interval);
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => applyFilters(true));
+        }
+
+        if (statusFilter) {
+            statusFilter.addEventListener('change', fetchData);
+        }
+
+        if (dateFromInput) {
+            dateFromInput.addEventListener('change', () => {
+                if (periodFilter?.value === 'custom') {
+                    fetchData();
+                } else {
+                    applyFilters(true);
+                }
+            });
+        }
+
+        if (dateToInput) {
+            dateToInput.addEventListener('change', () => {
+                if (periodFilter?.value === 'custom') {
+                    fetchData();
+                } else {
+                    applyFilters(true);
+                }
+            });
+        }
+
+        if (periodFilter) {
+            periodFilter.addEventListener('change', () => {
+                syncDateInputsFromPeriod();
+                fetchData();
+            });
+        }
+
+        if (perPageSel) {
+            perPageSel.addEventListener('change', () => {
+                perPage = parseInt(perPageSel.value, 10) || 10;
+                currentPage = 1;
+                renderPage();
+            });
+        }
+
+        if (reloadBtn) {
+            reloadBtn.addEventListener('click', fetchData);
+        }
+
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', exportCSV);
+        }
+
+        if (exportXlsBtn) {
+            exportXlsBtn.addEventListener('click', exportExcel);
+        }
+
+        if (autoReloadCheckbox) {
+            autoReloadCheckbox.addEventListener('change', startAutoReload);
+        }
+
+        if (reloadIntervalSelect) {
+            reloadIntervalSelect.addEventListener('change', startAutoReload);
+        }
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPage();
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalPages = Math.ceil(filteredItems.length / perPage) || 1;
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderPage();
+                }
+            });
+        }
+
+        syncDateInputsFromPeriod();
+        fetchData();
+        startAutoReload();
     });
 </script>
-

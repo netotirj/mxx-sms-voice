@@ -1,0 +1,45 @@
+.notyf {
+  padding: 24px;
+  z-index: 99999;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.notyf__toast {
+  max-width: min(380px, calc(100vw - 32px));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.34);
+}
+
+.notyf__wrapper {
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.notyf__message {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.notyf__icon {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+}
+
+.notyf__icon--success,
+.notyf__icon--error {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.16);
+}
+
+@media (max-width: 640px) {
+  .notyf {
+    padding: 14px;
+  }
+
+  .notyf__toast {
+    width: 100%;
+    max-width: calc(100vw - 28px);
+  }
+}

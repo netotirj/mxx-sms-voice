@@ -1,35 +1,172 @@
-<div id="table-resellers-wrapper" class="w-full px-6 py-6 mx-auto">
-    <div class="flex flex-wrap -mx-3">
-        <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
+<div class="w-full px-6 py-6 mx-auto">
 
-                <!-- Cabeçalho -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        👥 Painel de Recargas de Resellers
-                    </h6>
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+
+                    <div class="flex items-center gap-2">
+                        <span
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            💳
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Histórico de Recargas</h2>
+                            <p class="text-xs text-slate-400">Gestão de créditos e adições de saldo</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+
+                        <button id="refillExportCsv"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+
+                        <button id="refillReloadBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
+                                       bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+
+                        <div class="flex items-center gap-2 ml-2">
+                            <label class="inline-flex relative items-center cursor-pointer">
+
+                                <input id="refillAutoReload" type="checkbox"
+                                       class="sr-only peer">
+
+                                <div class="w-11 h-6 bg-gray-300 rounded-full transition-all
+                peer-checked:bg-emerald-500"></div>
+
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow
+                transition-all peer-checked:translate-x-full"></div>
+
+                                <span class="ml-2 text-xs text-slate-600">Auto</span>
+
+                            </label>
+
+                            <select id="refillReloadInterval"
+                                    class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+                                <option value="5000">5s</option>
+                                <option value="10000" selected>10s</option>
+                                <option value="30000">30s</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tabela -->
-                <div class="p-6 overflow-x-auto">
-                    <table id="table-resellers" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm center-header">
-                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                        <tr>
-                            <th class="px-4 py-3">ID</th>
-                            <th class="px-4 py-3">ID Transação</th>
-                            <th class="px-4 py-3">E-mail</th>
-                            <th class="px-4 py-3">Valor</th>
-                            <th class="px-4 py-3">Tipo</th>
-                            <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3">IP</th>
-                            <th class="px-4 py-3">Data</th>
-                            <th class="px-4 py-3">Comprovante</th>
-                        </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
 
-                        </tbody>
-                    </table>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="refillRowsPerPage"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Método</label>
+                            <select id="refillMethodFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="pix">Pix</option>
+                                <option value="bank_transfer">Transferência</option>
+                                <option value="credit_card">Cartão</option>
+                                <option value="manual">Manual (Admin)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="refillStatusFilter"
+                                    class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                           bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="">Todos</option>
+                                <option value="completed">Concluída</option>
+                                <option value="pending">Pendente</option>
+                                <option value="failed">Falhou</option>
+                                <option value="cancelled">Cancelada</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="refillDateFrom"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="refillDateTo"
+                                   class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm
+                                          bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <div class="relative mt-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"/>
+                                    </svg>
+                                </span>
+                                <input id="refillSearchInput"
+                                       class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm
+                                              bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                       placeholder="ID ou e-mail...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="refill-table"
+                               class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th class="px-4 py-2 border border-slate-100">ID</th>
+                                <th class="px-4 py-2 border border-slate-100 text-left">E-mail / Cliente</th>
+                                <th class="px-4 py-2 border border-slate-100">Valor (R$)</th>
+                                <th class="px-4 py-2 border border-slate-100">Método</th>
+                                <th class="px-4 py-2 border border-slate-100">Data</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                                <th class="px-4 py-2 border border-slate-100">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="refillTableBody">
+                            <tr>
+                                <td colspan="7"
+                                    class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando recargas...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="refillStats"
+                     class="hidden mx-6 mb-4 mt-1 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="refillPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="refillPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="refillPageNumbers" class="flex gap-1"></div>
+                        <button id="refillNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
                 </div>
 
             </div>
@@ -37,156 +174,146 @@
     </div>
 </div>
 
-<style>
-    /* Alinha menu e busca lado a lado */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .dataTables_wrapper .dataTables_length {
-        float: left;
-    }
-
-    .dataTables_wrapper .dataTables_filter {
-        float: right;
-    }
-
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-        margin-left: 0.5rem;
-    }
-
-    /* Remove margin lateral padrão */
-    #table-sms_wrapper {
-        margin-left: 0;
-        margin-right: 0;
-    }
-
-    /* Reduz fontes e padding do info abaixo */
-    .dataTables_wrapper .dataTables_info {
-        font-size: 0.75rem;
-        color: #475569; /* slate-600 */
-        padding-top: 0.5rem;
-    }
-
-    /* Remove float no responsivo */
-    @media (max-width: 640px) {
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter {
-            float: none;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-    }
-
-    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
-    .break-message {
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    /* Permite que a largura da célula se ajuste automaticamente */
-    .auto-width-message {
-        display: inline-block;
-        max-width: 100%;
-        width: auto;
-        min-width: 150px;
-    }
-</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const tbody       = document.getElementById("refillTableBody");
+        const searchInput = document.getElementById("refillSearchInput");
+        const methodFilter = document.getElementById("refillMethodFilter");
+        const statusFilter = document.getElementById("refillStatusFilter");
+        const dateFrom    = document.getElementById("refillDateFrom");
+        const dateTo      = document.getElementById("refillDateTo");
+        const perPageSel  = document.getElementById("refillRowsPerPage");
+        const reloadBtn   = document.getElementById("refillReloadBtn");
+        const autoReload  = document.getElementById("refillAutoReload");
+        const intervalSel = document.getElementById("refillReloadInterval");
 
-        // 🔹 Colunas Painel de Resellers (Admin)
-        const resellersPanelColumns = [
-            { data: 'id', className: "dt-head-center dt-body-center", render: d => `#${d}` },
-            { data: 'transaction_id', className: "dt-head-center dt-body-center" },
-            { data: 'email', className: "dt-head-center dt-body-center" },
-            { data: 'balance', className: "dt-head-center dt-body-center",
-                render: d => {
-                    const value = parseFloat(d || 0);
-                    const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-                    const classes = value >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                    return `<span class="px-2 py-1 rounded-full text-sm font-semibold ${classes}">${formatted}</span>`;
-                }
-            },
-            { data: 'type', className: "dt-head-center dt-body-center" },
-            { data: 'status', className: "dt-head-center dt-body-center",
-                render: d => {
-                    const map = {
-                        'completed': { text: 'Concluído', classes: 'bg-green-100 text-green-800' },
-                        'pending':   { text: 'Pendente', classes: 'bg-yellow-100 text-yellow-800' },
-                        'failed':    { text: 'Falhou',   classes: 'bg-red-100 text-red-800' }
-                    };
-                    const status = map[d?.toLowerCase()] || { text: d, classes: 'bg-gray-100 text-gray-800' };
-                    return `<span class="px-2 py-1 rounded-full text-sm font-semibold ${status.classes}">${status.text}</span>`;
-                }
-            },
-            { data: 'client_ip', className: "dt-head-center dt-body-center" },
-            { data: 'created_at', className: "dt-head-center dt-body-center",
-                render: d => d ? new Date(d).toLocaleString('pt-BR') : '-' },
+        let allRefills = [];
+        let filteredRefills = [];
+        let currentPage = 1;
+        let autoReloadTimer = null;
 
-            {
-                data: 'id',
-                className: "dt-head-center dt-body-center",
-                render: id => id
-                    ? `<a href="generate/${id}/invoice" target="_blank" rel="noopener noreferrer"
-                class="inline-flex items-center justify-center p-2 text-red-600 hover:text-red-800 transition"
-                title="Gerar comprovante (PDF)">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" fill="currentColor">
-                    <path d="M240 112L128 112C119.2 112 112 119.2 112 128L112 512C112 520.8 119.2 528 128 528L208 528L208 576L128 576C92.7 576 64 547.3 64 512L64 128C64 92.7 92.7 64 128 64L261.5 64C278.5 64 294.8 70.7 306.8 82.7L429.3 205.3C441.3 217.3 448 233.6 448 250.6L448 400.1L400 400.1L400 272.1L312 272.1C272.2 272.1 240 239.9 240 200.1L240 112.1zM380.1 224L288 131.9L288 200C288 213.3 298.7 224 312 224L380.1 224zM272 444L304 444C337.1 444 364 470.9 364 504C364 537.1 337.1 564 304 564L292 564L292 592C292 603 283 612 272 612C261 612 252 603 252 592L252 464C252 453 261 444 272 444zM304 524C315 524 324 515 324 504C324 493 315 484 304 484L292 484L292 524L304 524zM400 444L432 444C460.7 444 484 467.3 484 496L484 560C484 588.7 460.7 612 432 612L400 612C389 612 380 603 380 592L380 464C380 453 389 444 400 444zM432 572C438.6 572 444 566.6 444 560L444 496C444 489.4 438.6 484 432 484L420 484L420 572L432 572zM508 464C508 453 517 444 528 444L576 444C587 444 596 453 596 464C596 475 587 484 576 484L548 484L548 508L576 508C587 508 596 517 596 528C596 539 587 548 576 548L548 548L548 592C548 603 539 612 528 612C517 612 508 603 508 592L508 464z"/>
-                </svg>
-        </a>`
-                    : '-'
+        // 1. Busca os dados (Mesmo padrão do seu endpoint 'recharge-realtime')
+        async function fetchRefills(showLoading = true) {
+            if (showLoading) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 italic">Carregando...</td></tr>';
+            try {
+                const r = await fetch('recharge-realtime');
+                const res = await r.json();
+                allRefills = res.data || [];
+                applyFilters();
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-red-500 font-bold">Erro ao carregar histórico.</td></tr>';
             }
-        ];
-
-        // 🔹 Inicializa DataTable (Admin apenas)
-        function initResellersPanel() {
-            // Garante que o wrapper esteja visível
-            $('#table-resellers-wrapper').removeClass('hidden');
-
-            // Destrói DataTable existente, se houver
-            if ($.fn.DataTable.isDataTable('#table-resellers')) {
-                $('#table-resellers').DataTable().destroy();
-                $('#table-resellers tbody').empty();
-            }
-
-            $('#table-resellers').DataTable({
-                responsive: true,
-                serverSide: true,
-                processing: true,
-                pageLength: 10,
-                autoWidth: false,
-                ajax: {
-                    url: 'recharge-realtime', // endpoint backend
-                    type: 'GET',
-                    dataSrc: json => json.data || []
-                },
-                columns: resellersPanelColumns,
-                order: [[0, 'desc']],
-                language: {
-                    lengthMenu: "_MENU_",
-                    zeroRecords: "Nenhum Registro encontrado",
-                    info: "_START_-_END_ de _TOTAL_",
-                    infoEmpty: "Nenhum Registro encontrado",
-                    infoFiltered: "(de _MAX_)",
-                    search: "🔍",
-                    paginate: { first: "«", last: "»", next: "›", previous: "‹" }
-                },
-                drawCallback: function(settings) {
-                    if (typeof feather !== 'undefined') feather.replace();
-                }
-            });
         }
 
-        // 🔹 Inicializa tabela
-        initResellersPanel();
+        // 2. Filtros Locais Instantâneos
+        function applyFilters() {
+            const query = searchInput.value.toLowerCase();
+            const method = methodFilter.value;
+            const status = statusFilter.value;
 
+            filteredRefills = allRefills.filter(r => {
+                const matchesSearch = r.email.toLowerCase().includes(query) || r.id.toString().includes(query);
+                const matchesMethod = method ? r.type === method : true;
+                const matchesStatus = status ? r.status === status : true;
+
+                // Filtro de Data
+                if (dateFrom.value || dateTo.value) {
+                    const nDate = new Date(r.created_at);
+                    if (dateFrom.value && nDate < new Date(dateFrom.value)) return false;
+                    if (dateTo.value && nDate > new Date(dateTo.value)) return false;
+                }
+                return matchesSearch && matchesMethod && matchesStatus;
+            });
+
+            currentPage = 1;
+            renderTable();
+        }
+
+        // 3. Renderização da Tabela
+        function renderTable() {
+            tbody.innerHTML = "";
+            const perPage = parseInt(perPageSel.value);
+            const start = (currentPage - 1) * perPage;
+            const slice = filteredRefills.slice(start, start + perPage);
+
+            if (slice.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 italic">Nenhuma recarga encontrada.</td></tr>';
+                return;
+            }
+
+            slice.forEach(r => {
+                // Formatação de Moeda
+                const valor = parseFloat(r.balance || 0);
+                const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+
+                // Cores de Status
+                const statusMap = {
+                    'completed': { text: 'CONCLUÍDA', class: 'bg-emerald-100 text-emerald-700' },
+                    'pending':   { text: 'PENDENTE',  class: 'bg-amber-100 text-amber-700' },
+                    'failed':    { text: 'FALHOU',    class: 'bg-red-100 text-red-700' },
+                    'cancelled': { text: 'CANCELADA', class: 'bg-slate-100 text-slate-700' }
+                };
+                const s = statusMap[r.status] || { text: r.status, class: 'bg-gray-100 text-gray-700' };
+
+                const row = `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="px-4 py-3 text-xxs font-bold text-slate-400 font-mono">#${r.id}</td>
+                    <td class="px-4 py-3 text-left">
+                        <div class="text-xs font-bold text-slate-700">${r.email}</div>
+                        <div class="text-[10px] text-slate-400">${r.client_ip || 'IP não registrado'}</div>
+                    </td>
+                    <td class="px-4 py-3 font-bold ${valor >= 0 ? 'text-emerald-600' : 'text-red-600'}">
+                        ${valorFormatado}
+                    </td>
+                    <td class="px-4 py-3 text-xs uppercase text-slate-500 font-medium">${r.type || 'Pix'}</td>
+                    <td class="px-4 py-3 text-xxs text-slate-400 font-mono">${new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-lg text-[10px] font-bold ${s.class}">${s.text}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <a href="generate/${r.id}/invoice" target="_blank" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all" title="PDF">
+                            <i class="fa fa-file-pdf"></i>
+                        </a>
+                    </td>
+                </tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+
+            // Paginação
+            const totalPages = Math.ceil(filteredRefills.length / perPage) || 1;
+            document.getElementById("refillPageInfo").textContent = `Página ${currentPage} de ${totalPages} (${filteredRefills.length} registros)`;
+            document.getElementById('refillPrevPage').disabled = (currentPage === 1);
+            document.getElementById('refillNextPage').disabled = (currentPage >= totalPages);
+        }
+
+        // --- EVENTOS ---
+        reloadBtn.onclick = () => fetchRefills(true);
+        [searchInput, methodFilter, statusFilter, dateFrom, dateTo].forEach(el => el.oninput = applyFilters);
+        perPageSel.onchange = applyFilters;
+
+        document.getElementById('refillPrevPage').onclick = () => { if (currentPage > 1) { currentPage--; renderTable(); } };
+        document.getElementById('refillNextPage').onclick = () => { if (currentPage < Math.ceil(filteredRefills.length / parseInt(perPageSel.value))) { currentPage++; renderTable(); } };
+
+        // Auto Reload
+        autoReload.onchange = () => {
+            if (autoReloadTimer) clearInterval(autoReloadTimer);
+            if (autoReload.checked) autoReloadTimer = setInterval(() => fetchRefills(false), intervalSel.value);
+        };
+
+        // Exportação CSV (Padrão Excel)
+        document.getElementById('refillExportCsv').onclick = () => {
+            const headers = ["ID", "Email", "Valor", "Metodo", "Data", "Status"];
+            const rows = filteredRefills.map(r => [r.id, r.email, r.balance, r.type, r.created_at, r.status]);
+            const csv = ["\ufeff" + headers.join(";"), ...rows.map(r => r.join(";"))].join("\n");
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `recargas_${new Date().toLocaleDateString()}.csv`;
+            link.click();
+        };
+
+        fetchRefills();
     });
 </script>
 

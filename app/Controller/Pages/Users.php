@@ -4,11 +4,14 @@ namespace App\Controller\Pages;
 
 
 use App\Http\Response;
+use App\Model\Entity\AddressSearch;
 use App\Session\User as SessionUser;
 use App\Utils\View;
 use \App\Model\Entity\UserSearch;
 use \App\Model\Entity\PermissionsRules;
+use DateTime;
 use Exception;
+use Random\RandomException;
 
 class Users extends ViewComponents
 {
@@ -37,43 +40,46 @@ class Users extends ViewComponents
         }
 
         $usersProfile = UserSearch::getUsers($obUser['tenancy_id'], $obUser['id']);
+        $u = $usersProfile[0] ?? []; // Atalho para não repetir [0] toda hora
 
-        $name  = $usersProfile[0]['name'] ?? '';
-        $lastname = $usersProfile[0]['last_name'] ?? '';
-        $user = $usersProfile[0]['email'];
-        $email  = $usersProfile[0]['email'] ?? '';
-        $image  = $usersProfile[0]['image'] ?? '';
-        $function  = $usersProfile[0]['user_function_translated'] ?? '';
-        $address_city = $usersProfile[0]['address_city'] ?? '';
-        $address_state = $usersProfile[0]['address_state'] ?? '';
-        $address_zipcode = $usersProfile[0]['address_zipcode'] ?? '';
+        // Dados básicos
+        $name     = $u['name'] ?? '';
+        $lastname = $u['last_name'] ?? '';
+        $email    = $u['email'] ?? '';
+        $user     = $u['email'] ?? ''; // Ou login, se tiver
+        $function = $u['user_function_translated'] ?? '';
 
+        // Dados de endereço isolados (Para limpar as chaves {{number}}, {{neighborhood}}, etc)
+        $street       = $u['address_street'] ?? '';
+        $number       = $u['address_number'] ?? '';
+        $neighborhood = $u['address_neighborhood'] ?? '';
+        $complement   = $u['address_complement'] ?? '';
+        $city         = $u['address_city'] ?? '';
+        $state        = $u['address_state'] ?? '';
+        $zipcode      = $u['address_zipcode'] ?? '';
 
-        $parts = array_filter([$address_street = $usersProfile[0]['address_street'] ?? '',
-            $address_number = $usersProfile[0]['address_number'] ?? '',
-            $address_complement = $usersProfile[0]['address_complement'] ?? '',
-            $address_neighborhood = $usersProfile[0]['address_neighborhood'] ?? '',
-        ]);
-
+        // Monta o endereço completo apenas se você ainda usar a variável {{address}}
+        $parts = array_filter([$street, $number, $complement, $neighborhood]);
         $fullAddress = implode(', ', $parts);
-        // Cria o caminho completo da imagem
-        $userAvatar = $image ? URL . '/resources/assets/img/' . $image : URL . '/resources/assets/img/default-avatar.png';
 
-        $content = View::render('/users/profile', [
-            'id' => $obUser['id'],
-            'name' => $name,
-            'lastname' => $lastname,
-            'email' => $email,
+        $userAvatar = ($u['image'] ?? '') ? URL . '/resources/assets/img/' . $u['image'] : URL . '/resources/assets/img/default-avatar.png';
+
+        return parent::getComponentsUsers('Maxx Solutions | Users', View::render('/users/profile', [
+            'id'         => $obUser['id'],
+            'name'       => $name,
+            'lastname'   => $lastname,
+            'email'      => $email,
             'userAvatar' => $userAvatar,
-            'user' => $user,
-            'function' => $function,
-            'address' =>$fullAddress,
-            'city' => $address_city,
-            'state' => $address_state,
-            'zipcode' => $address_zipcode,
-
-        ]);
-        return parent::getComponentsUsers('Maxx Solutions - SMS | Users', $content);
+            'user'       => $user,
+            'function'   => $function,
+            'address'    => $fullAddress, // Rua, Número, etc concatenado
+            'street'     => $street,      // {{street}}
+            'number'     => $number,      // {{number}} - ISSO LIMPA AS CHAVES NO FRONT
+            'neighborhood' => $neighborhood,
+            'city'       => $city,
+            'state'      => $state,
+            'zipcode'    => $zipcode
+        ]));
     }
 
     public static function getNewUsers($request): string
@@ -97,124 +103,13 @@ class Users extends ViewComponents
             'tenancy_name'  => $tenancyName,
             'tenancy_phone' => $tenancyPhone
         ]);
-        return parent::getComponentsUsers('Maxx Solutions - SMS | Campaign', $content);
+        return parent::getComponentsUsers('Maxx Solutions | Campaign', $content);
     }
+
 
     /**
      * @throws Exception
      */
-    /*public static function getAllUsers($request): Response
-    {
-        // Busca usuário logado
-        $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
-        }
-
-        // Busca todos os usuários do tenancy
-        $users = UserSearch::getUsers($obUser['tenancy_id']);
-
-        $formattedUsers = [];
-        $now = new \DateTime();
-
-        foreach ($users as $user) {
-            $status = 'Offline';
-            if (!empty($user['last_activity'])) {
-                $lastActivity = new \DateTime($user['last_activity']);
-                $interval = $now->getTimestamp() - $lastActivity->getTimestamp();
-                if ($interval <= 300) {
-                    $status = 'Online';
-                }
-            }
-
-            $userAvatar = $user['image'] ? URL . '/resources/assets/img/' . $user['image'] : URL . '/resources/assets/img/default-avatar.png';
-
-            $balance = ($user['user_function'] === 'reseller')
-                ? $user['reseller_balance']
-                : null;
-
-
-            $formattedUsers[] = [
-                'id'            => $user['id'],
-                'avatar'        => $userAvatar,
-                'nome'          => $user['name'],
-                'email'         => $user['email'],
-                'funcao'        => $user['user_function_translated'] ?? $user['user_function'],
-                'cargo'         => $user['job_title_translated'] ?? $user['job_title'],
-                'status_account' => $user['status_account'],
-                'status'        => $status,
-                'balance'       =>  $user['reseller_balance'],
-                'created'       => (new \DateTime($user['createdAt']))->format('d/m/Y H:i'),
-            ];
-        }
-
-        return new Response(200, [
-            'status'  => 200,
-            'message' => 'Usuários encontrados com sucesso.',
-            'data'    => $formattedUsers
-        ], 'application/json');
-    }*/
-
-    /*public static function getAllUsers($request): Response
-    {
-        // 🔹 Busca usuário logado
-        $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return new Response(401, [
-                'status'  => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
-        }
-
-        // 🔹 Se for SUPER ADMIN → pode listar todos os usuários de todas as tenancies
-        if ($obUser['function'] === 'super_admin') {
-            $users = UserSearch::getAllUsersNoFilter(); // método sem filtro de tenancy
-        } else {
-            // 🔹 Caso contrário, lista apenas os usuários do mesmo tenancy
-            $users = UserSearch::getUsers($obUser['tenancy_id']);
-        }
-
-        $formattedUsers = [];
-        $now = new \DateTime();
-
-        foreach ($users as $user) {
-            $status = 'Offline';
-            if (!empty($user['last_activity'])) {
-                $lastActivity = new \DateTime($user['last_activity']);
-                $interval = $now->getTimestamp() - $lastActivity->getTimestamp();
-                if ($interval <= 300) {
-                    $status = 'Online';
-                }
-            }
-
-            $userAvatar = $user['image']
-                ? URL . '/resources/assets/img/' . $user['image']
-                : URL . '/resources/assets/img/default-avatar.png';
-
-            $formattedUsers[] = [
-                'id'             => $user['id'],
-                'avatar'         => $userAvatar,
-                'nome'           => $user['name'],
-                'email'          => $user['email'],
-                'funcao'         => $user['user_function_translated'] ?? $user['user_function'],
-                'cargo'          => $user['job_title_translated'] ?? $user['job_title'],
-                'status_account' => $user['status_account'],
-                'status'         => $status,
-                'balance'        => $user['reseller_balance'],
-                'created'        => (new \DateTime($user['createdAt']))->format('d/m/Y H:i'),
-            ];
-        }
-
-        return new Response(200, [
-            'status'  => 200,
-            'message' => 'Usuários encontrados com sucesso.',
-            'data'    => $formattedUsers
-        ], 'application/json');
-    }*/
-
     public static function getAllUsers($request): Response
     {
         $obUser = SessionUser::getLogged();
@@ -226,29 +121,35 @@ class Users extends ViewComponents
         }
 
 
-        $role = $obUser['function'] ?? '';
+        $role = $obUser['user_function'] ?? $obUser['function'] ?? '';
         $canEditBalance = in_array($role, ['super_admin', 'admin'], true);
 
-        // SUPER ADMIN vê tudo, senão só tenancy
+        // --- LÓGICA DE FILTRAGEM REFINADA ---
         if ($role === 'super_admin') {
-            $users = UserSearch::getAllUsersNoFilter();
+            // Vê absolutamente todos os usuários do sistema (Global)
+            $users = UserSearch::getUsers($obUser['tenancy_id']);
+
         } elseif ($role === 'admin') {
+            // Vê todos os usuários da empresa (Tenancy) dele
             $users = UserSearch::getUsers($obUser['tenancy_id']);
+
         } elseif ($role === 'reseller') {
-            // ✅ reseller: só ele (usa o 2º parâmetro do getUsers)
+            // ✅ Revendedor: Passamos o ID dele para a Model filtrar (Ele + Criados por ele)
             $users = UserSearch::getUsers($obUser['tenancy_id'], (int)$obUser['id']);
+
         } else {
-            // outros perfis: escolha a regra (ex: só tenancy, ou só ele)
-            $users = UserSearch::getUsers($obUser['tenancy_id']);
+            // ✅ Outros (agente, operador, etc):
+            // Agora passamos o ID dele para que ele veja APENAS o próprio perfil
+            $users = UserSearch::getUsers($obUser['tenancy_id'], (int)$obUser['id']);
         }
 
         $formattedUsers = [];
-        $now = new \DateTime();
+        $now = new DateTime();
 
         foreach ($users as $user) {
             $status = 'Offline';
             if (!empty($user['last_activity'])) {
-                $lastActivity = new \DateTime($user['last_activity']);
+                $lastActivity = new DateTime($user['last_activity']);
                 $interval = $now->getTimestamp() - $lastActivity->getTimestamp();
                 if ($interval <= 300) $status = 'Online';
             }
@@ -259,8 +160,10 @@ class Users extends ViewComponents
 
             $formattedUsers[] = [
                 'id'             => $user['id'],
+                'user_id'        => $user['user_id'],
                 'avatar'         => $userAvatar,
                 'nome'           => $user['name'],
+                'last_name'      => $user['last_name'],
                 'email'          => $user['email'],
 
                 // 🔐 mantenha o valor real para regras se precisar no front
@@ -274,15 +177,14 @@ class Users extends ViewComponents
                 'status'         => $status,
 
                 // ✅ só envia balance para super_admin/admin
-                'balance'        => $canEditBalance ? ($user['reseller_balance'] ?? null) : null,
+                // ✅ Envia o saldo sempre, para o usuário ver quanto tem
+                'balance' => $user['reseller_balance'] ?? '0.0000',
 
-                'created'        => (new \DateTime($user['createdAt']))->format('d/m/Y H:i'),
+                'created'        => (new DateTime($user['createdAt']))->format('d/m/Y H:i'),
             ];
         }
 
-        //echo "<pre>";
-        //print_r($formattedUsers);
-        //echo "</pre>";exit();
+
 
         return new Response(200, [
             'status'  => 200,
@@ -291,104 +193,107 @@ class Users extends ViewComponents
 
             // ✅ para o front saber a role e bloquear clique/modal
             'meta'    => [
-                'role' => $role
+                'role' => $role,
+                'id'   => $obUser['id']
             ]
         ], 'application/json');
     }
 
 
+    /**
+     * @throws RandomException
+     */
     public static function getSetNewUsers($request): Response
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, json_encode([
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ]), 'application/json');
+            return new Response(401, json_encode(['status' => 401, 'message' => 'Não autenticado']), 'application/json');
         }
 
         $postVars = $request->getPostVars();
+        $tenancyId = $obUser['tenancy_id'];
 
-        // Sanitização
-        $name            = htmlspecialchars(trim($postVars['first_name'] ?? ''));
-        $last_name       = htmlspecialchars(trim($postVars['last_name'] ?? ''));
-        $email           = filter_var(trim($postVars['email'] ?? ''), FILTER_SANITIZE_EMAIL);
-        $password        = trim($postVars['password'] ?? '');
-        $confirmPass     = trim($postVars['confirm_password'] ?? '');
-        $role            = trim($postVars['role'] ?? '');
-        $status_account  = trim($postVars['status'] ?? 'active');
+        // 1. Captura os dados (usando 'user_function' ou 'role' conforme seu HTML atual)
+        $firstName   = htmlspecialchars(trim($postVars['first_name'] ?? ''));
+        $lastName    = htmlspecialchars(trim($postVars['last_name'] ?? ''));
+        $email       = filter_var(trim($postVars['email'] ?? ''), FILTER_SANITIZE_EMAIL);
+        $password    = trim($postVars['password'] ?? '');
+        $roleName    = trim($postVars['user_function'] ?? $postVars['role'] ?? '');
+        $statusAcc   = trim($postVars['status'] ?? 'active');
 
-        $users = UserSearch::getUsers($obUser['tenancy_id']);
+        if (empty($firstName) || empty($email) || empty($password) || empty($roleName)) {
+            return new Response(400, json_encode(['status' => 'ERROR', 'message' => 'Preencha todos os campos obrigatórios.']), 'application/json');
+        }
 
-        // Validações básicas
-        $requiredFields = [
-            'first_name'       => $name,
-            'last_name'        => $last_name,
-            'email'            => $email,
-            'password'         => $password,
-            'confirm_password' => $confirmPass
+        // --- 🚀 LÓGICA INTELIGENTE DE DESCRIÇÕES DE PAPÉIS ---
+        $roleDescriptions = [
+            'admin'           => 'Administrador Geral com acesso total ao sistema',
+            'rh'              => 'Gestão de Recursos Humanos e colaboradores',
+            'financial'       => 'Acesso a faturamento, notas e relatórios financeiros',
+            'reception'       => 'Acesso para recepção e secretariado',
+            'manager'         => 'Gestão total da unidade de negócio e operações',
+            'supervisor'      => 'Supervisão de equipes e monitoramento de chamadas',
+            'agent'           => 'Operação básica de ramais e filas de atendimento',
+            'monitor'         => 'Monitoria de qualidade, escuta e feedbacks',
+            'support_l1'      => 'Suporte Nível 1 - Atendimento inicial',
+            'support_l2'      => 'Suporte Nível 2 - Configurações técnicas e TI',
+            'reseller'        => 'Acesso para gestão de revendas e clientes finais'
         ];
 
-        foreach ($requiredFields as $field => $value) {
-            if (trim($value) === '') {
-                self::jsonResponse([
-                    'status'  => 'ERROR',
-                    'message' => 'O campo "' . ucfirst(str_replace('_', ' ', $field)) . '" é obrigatório.'
-                ]);
-            }
+        // Define a descrição baseada no mapa acima ou gera uma automática
+        $description = $roleDescriptions[$roleName] ?? "Perfil para " . ucfirst($roleName);
+
+        // 2. Tenta buscar o papel pelo nome E tenancy_id
+        $roleData = PermissionsRules::getRoleByNameAndTenancy($roleName, $tenancyId);
+
+        if (!$roleData) {
+            // Agora com os 6 parâmetros corretos e a descrição incluída
+            $roleId = PermissionsRules::registerRole(
+                $roleName,          // $name
+                $description,       // $label (Aqui entra a tua descrição inteligente)
+                'y',           // $status
+                $tenancyId,         // $tenancyId
+                (int)$obUser['id'], // $userId (Quem está a criar)
+                null                // $id (Novo registro)
+            );
+        } else {
+            $roleId = $roleData->id;
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail inválido.']);
-        }
+        // --- GERAÇÃO DO ACCOUNT_CODE ÚNICO ---
+        // Chamamos a sua função para gerar o código de 10 dígitos
+        $accountCode = RegisterUsers::generateUniqueAccountCode();
 
-        foreach ($users as $user) {
-            if (strtolower($user['email']) === strtolower($email)) {
-                self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail já cadastrado.']);
-            }
-        }
+        // --- CRIAÇÃO DO USUÁRIO ---
 
-        if (strlen($password) < 6) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Senha deve ter no mínimo 6 caracteres.']);
-        }
-
-        if ($password !== $confirmPass) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Senhas não conferem.']);
-        }
-
-        $allowedRoles = ['reseller', 'operator', 'manager','financial'];
-        if (!in_array($role, $allowedRoles)) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Função inválida.']);
-        }
-
-        // Criar usuário
+        // 3. Configura o usuário já com o role_id correto
         $obUserNew = new UserSearch();
-        $obUserNew->name                   = $name;
-        $obUserNew->last_name              = $last_name;
-        $obUserNew->tenancy_id             = $obUser['tenancy_id'];
-        $obUserNew->email                  = $email;
-        $obUserNew->user_function          = $role;
-        $obUserNew->password               = password_hash($password, PASSWORD_DEFAULT);
-        $obUserNew->status                 = 'n';
-        $obUserNew->status_account         = $status_account;
-        $obUserNew->createdAt              = date('Y-m-d H:i:s');
-        $obUserNew->updatedAt              = date('Y-m-d H:i:s');
+        $obUserNew->name           = $firstName;
+        $obUserNew->last_name      = $lastName;
+        $obUserNew->tenancy_id     = $tenancyId;
+        $obUserNew->account_code   = $accountCode;
+        $obUserNew->user_id        = (int)$obUser['id'];
+        $obUserNew->email          = $email;
+        $obUserNew->user_function  = $roleName;
+        $obUserNew->role_id        = (int)$roleId; // Vínculo direto
+        $obUserNew->password       = password_hash($password, PASSWORD_DEFAULT);
+        $obUserNew->status_account = $statusAcc;
+        $obUserNew->status         = 'n';
+        $obUserNew->createdAt      = date('Y-m-d H:i:s');
 
         $newUserId = $obUserNew->insertUsers();
 
-        // Criar/pegar role
-        $roleId = PermissionsRules::createRole($obUser['tenancy_id'], $role, ucfirst($role));
+        if ($newUserId) {
+            // 4. Vincula na tabela intermediária de permissões
+            PermissionsRules::assignRoleToUser((int)$newUserId, $tenancyId, (int)$roleId);
 
-        // Atribuir role ao usuário
-        PermissionsRules::assignRoleToUser($newUserId, $obUser['tenancy_id'], $roleId);
+            return new Response(200, json_encode([
+                'status'  => 200,
+                'message' => 'Usuário ' . $firstName . ' criado e vinculado ao papel ' . $roleName . '!'
+            ]), 'application/json');
+        }
 
-        // Aplicar permissões fixas do template via entidade
-        PermissionsRules::assignDefaultRolePermissionsToTenancy($role, $obUser['tenancy_id'], $roleId);
-
-        return new Response(200, [
-            'status'  => 200,
-            'message' => 'O usuário ' . $name . ' criado com sucesso!',
-        ], 'application/json');
+        return new Response(500, json_encode(['status' => 'ERROR', 'message' => 'Erro ao criar usuário.']), 'application/json');
     }
 
     /**
@@ -539,6 +444,55 @@ class Users extends ViewComponents
         }
     }
 
+    /**
+     * Método responsável por atualizar o endereço do perfil via Model AddressSearch
+     */
+    public static function setUserAddress($request): Response
+    {
+        // 1. Pega usuário logado
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['status' => 401, 'message' => 'Não autorizado'], 'application/json');
+        }
+
+        $role = $obUser['user_function'] ?? $obUser['function'] ?? '';
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Acesso negado: Somente administradores podem alterar o endereço da empresa.'
+            ], 'application/json');
+        }
+
+        // 2. Pega os dados do POST (JSON decodificado vindo do fetch)
+        $postVars = json_decode(file_get_contents('php://input'), true);
+
+
+        // 3. Instancia a SUA Model existente
+        $obAddress = new AddressSearch();
+        $obAddress->tenancy_id  = $obUser['tenancy_id']; // Vincula pelo tenancy do logado
+        $obAddress->zipcode     = $postVars['cep'] ?? '';
+        $obAddress->street      = $postVars['logradouro'] ?? '';
+        $obAddress->number      = $postVars['numero'] ?? '';
+        $obAddress->complement  = $postVars['complemento'] ?? null;
+        $obAddress->neighborhood = $postVars['bairro'] ?? '';
+        $obAddress->city        = $postVars['cidade'] ?? '';
+        $obAddress->state       = $postVars['estado'] ?? '';
+        $obAddress->country     = 'Brasil';
+
+        // 4. Usa o método save() que você já tem na classe
+        if ($obAddress->save()) {
+            return new Response(200, [
+                'status' => 200,
+                'message' => 'Endereço atualizado com sucesso!'
+            ], 'application/json');
+        }
+
+        return new Response(500, [
+            'status' => 500,
+            'message' => 'Erro ao processar a atualização do endereço.'
+        ], 'application/json');
+    }
+
 
     public static function getUsersEdit($request, int $id): Response|string
 
@@ -564,22 +518,39 @@ class Users extends ViewComponents
 
         // Monta conteúdo da view já com dados do usuário
         $content = View::render('/users/edit', [
-            'id'    => $userData['id'],
-            'name'  => $userData['name'],
-            'last_name'  => $userData['last_name'],
-            'tenancy_name' => $userData['tenancy_name'],
+            'id'            => $userData['id'],
+            'name'          => $userData['name'],
+            'last_name'     => $userData['last_name'],
+            'tenancy_name'  => $userData['tenancy_name'],
             'tenancy_phone' => $userData['tenancy_phone'],
-            'email' => $userData['email'],
-            'role_admin'     => $userData['user_function'] === 'admin' ? 'selected' : '',
-            'role_reseller'  => $userData['user_function'] === 'reseller' ? 'selected' : '',
-            'role_manager'   => $userData['user_function'] === 'manager' ? 'selected' : '',
-            'role_financial' => $userData['user_function'] === 'financial' ? 'selected' : '',
-            'role_operator'  => $userData['user_function'] === 'operator' ? 'selected' : '',
+            'email'         => $userData['email'],
+
+            // --- Administrativo ---
+            'role_admin'      => $userData['user_function'] === 'admin' ? 'selected' : '',
+            'role_rh'         => $userData['user_function'] === 'rh' ? 'selected' : '',
+            'role_financial'  => $userData['user_function'] === 'financial' ? 'selected' : '',
+            'role_reception'  => $userData['user_function'] === 'reception' ? 'selected' : '',
+
+            // --- Operação de Telemarketing ---
+            'role_manager'    => $userData['user_function'] === 'manager' ? 'selected' : '',
+            'role_supervisor' => $userData['user_function'] === 'supervisor' ? 'selected' : '',
+            // Aceita 'agent' ou o legado 'operator'/'o'
+            'role_agent'      => in_array($userData['user_function'], ['agent', 'operator', 'o']) ? 'selected' : '',
+            'role_monitor'    => $userData['user_function'] === 'monitor' ? 'selected' : '',
+
+            // --- Suporte Técnico ---
+            'role_support_l1' => $userData['user_function'] === 'support_l1' ? 'selected' : '',
+            'role_support_l2' => $userData['user_function'] === 'support_l2' ? 'selected' : '',
+
+            // --- Parceiros ---
+            'role_reseller'   => $userData['user_function'] === 'reseller' ? 'selected' : '',
+
+            // --- Status ---
             'status_active'   => $userData['status_account'] === 'active' ? 'selected' : '',
             'status_inactive' => $userData['status_account'] === 'inactive' ? 'selected' : '',
         ]);
 
-        return parent::getComponentsUsers('Maxx Solutions - SMS | Editar Usuário', $content);
+        return parent::getComponentsUsers('Maxx Solutions | Editar Usuário', $content);
     }
 
 
@@ -608,8 +579,19 @@ class Users extends ViewComponents
             return new Response(400, ['status' => 400, 'message' => 'E-mail inválido.'], 'application/json');
         }
 
-        if (empty($data['role']) || !in_array($data['role'], ['admin','reseller','manager','financial','operator'])) {
-            return new Response(400, ['status' => 400, 'message' => 'Função de usuário inválida.'], 'application/json');
+        $allowedRoles = [
+            'admin', 'rh', 'financial', 'reception',       // Administrativo
+            'manager', 'supervisor', 'agent', 'monitor',   // Operação
+            'operator',                                    // Legado
+            'support_l1', 'support_l2',                    // Suporte
+            'reseller'                                     // Parceiros
+        ];
+
+        if (empty($data['role']) || !in_array($data['role'], $allowedRoles)) {
+            return new Response(400, json_encode([
+                'success' => false,
+                'message' => 'Função inválida: ' . ($data['role'] ?? 'não informada')
+            ]), 'application/json');
         }
 
         if (empty($data['status']) || !in_array($data['status'], ['active','inactive'])) {

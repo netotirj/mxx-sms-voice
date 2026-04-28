@@ -22,103 +22,24 @@ class Login extends ViewComponents
         return parent::getComponentsLogin('Maxx Solutions - SMS | Login', $content);
     }
 
-
-
     /**
      * Realiza o login do usuário via POST JSON.
      * @throws RandomException
      */
-    /*#[NoReturn] public static function setLogin($request): void
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $postVars = $request->getPostVars();
-        $email = trim($postVars['email'] ?? '');
-        $password = trim($postVars['password'] ?? '');
-        $captcha = trim($postVars['g-recaptcha-response'] ?? '');
-        $remember = isset($postVars['remember']) && ($postVars['remember'] === 'on' || $postVars['remember'] === true || $postVars['remember'] === '1');
-
-        if ($email === '') {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'O campo E-mail não pode ser vazio!']);
-        }
-
-        $email = filter_var($email, FILTER_VALIDATE_EMAIL);
-        if (!$email) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail inválido.']);
-        }
-
-        if ($password === '') {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'O campo Senha não pode ser vazio!']);
-        }
-
-        if (!Recaptcha::verify($captcha)) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Falha na verificação do reCAPTCHA!']);
-        }
-
-        $obUser = UserAuthentication::getUserByEmail($email);
-
-        if (!$obUser instanceof UserAuthentication || !password_verify($password, $obUser->password ?? '')) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail ou senha incorretos.']);
-        }
-
-        $canReconnect = false;
-        if ($obUser->status === 'y') {
-            $lastActivity = strtotime($obUser->last_activity ?? '');
-            $now = time();
-
-            if ($lastActivity !== false && ($now - $lastActivity) > self::SESSION_EXPIRATION) {
-                $canReconnect = true;
-            }
-        }
-
-        if ($obUser->status === 'n' || $canReconnect) {
-            // Login com Remember Me se marcado
-            SessionLogin::login($obUser, $remember);
-
-            // Atualiza status e atividade
-            UserAuthentication::setStatusAndActivity($obUser->email, 'y', date('Y-m-d H:i:s'));
-
-            // 🔹 Detecta a função do usuário
-            $userFunction = $obUser->user_function ?? '';
-            $roleId = PermissionsRules::getRoleIdByUserId($obUser->id);
-
-            // 🔹 Ajusta permissões conforme função
-            if ($userFunction === 'super_admin') {
-                // Super admin: sincroniza apenas regras globais se necessário
-                PermissionsRules::syncSuperAdminPermissions($obUser->id);
-            } elseif ($userFunction === 'admin') {
-                // Admin/Tenancy: sincroniza apenas para o tenancy do usuário
-                if ($roleId) {
-                    PermissionsRules::syncNewRoutesForAllTenancies($roleId, $obUser->tenancy_id);
-                }
-            } else {
-                // Para manager/operator/outros
-                PermissionsRules::syncUserFunctionPermissions($obUser->id, $obUser->tenancy_id);
-            }
-
-            self::jsonResponse([
-                'status' => 'OK',
-                'message' => 'Olá ' . $obUser->name . ' !'
-            ]);
-        }
-
-        // Se usuário estiver ativo em outro dispositivo sem timeout
-        self::jsonResponse([
-            'status' => 'ERROR',
-            'message' => 'Usuário ativo em outro dispositivo!'
-        ]);
-    }*/
-
     #[NoReturn]
     public static function setLogin($request): void
     {
         header('Content-Type: application/json; charset=utf-8');
 
         $postVars  = $request->getPostVars();
-        $login     = trim($postVars['email'] ?? ''); // agora é "email ou código"
+        $login     = trim($postVars['email'] ?? '');
         $password  = trim($postVars['password'] ?? '');
-        $captcha   = trim($postVars['g-recaptcha-response'] ?? '');
+        $captcha   = trim($postVars['cf-turnstile-response'] ?? '');
         $remember  = isset($postVars['remember']) && ($postVars['remember'] === 'on' || $postVars['remember'] === true || $postVars['remember'] === '1');
+
+        if (Recaptcha::isTurnstileEnabled() && !Recaptcha::verifyTurnstile($captcha)) {
+            self::jsonResponse(['status' => 'ERROR', 'message' => 'Verificação de segurança inválida.']);
+        }
 
         if ($login === '') {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'O campo E-mail/Código não pode ser vazio!']);
@@ -128,81 +49,73 @@ class Login extends ViewComponents
             self::jsonResponse(['status' => 'ERROR', 'message' => 'O campo Senha não pode ser vazio!']);
         }
 
-        /*if (!Recaptcha::verify($captcha)) {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Falha na verificação do reCAPTCHA!']);
-        }*/
-
-        // ✅ Detecta se é account_code (10 dígitos) ou email
+        // 1. Identifica se é código de conta ou e-mail
         $isAccountCode = preg_match('/^\d{10}$/', $login) === 1;
 
         if ($isAccountCode) {
-            // busca admin pelo account_code do tenancy
             $obUser = UserAuthentication::getUserByAccountCode($login);
+            if (!$obUser instanceof UserAuthentication) {
+                self::jsonResponse(['status' => 'ERROR', 'message' => 'Código inválido ou sem permissão.']);
+            }
         } else {
-            // valida e-mail normalmente
             $email = filter_var($login, FILTER_VALIDATE_EMAIL);
             if (!$email) {
                 self::jsonResponse(['status' => 'ERROR', 'message' => 'Informe um e-mail válido ou um código de 10 dígitos.']);
             }
-
             $obUser = UserAuthentication::getUserByEmail($email);
         }
 
+        // 2. Verifica senha e existência do usuário
         if (!$obUser instanceof UserAuthentication || !password_verify($password, $obUser->password ?? '')) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail/código ou senha incorretos.']);
         }
 
+        $result = self::completeAuthenticatedLogin($obUser, $remember);
+        self::jsonResponse($result);
+    }
+
+    public static function completeAuthenticatedLogin(UserAuthentication $obUser, bool $remember = false): array
+    {
+        // Lógica de reconexão / Usuário ativo
         $canReconnect = false;
         if (($obUser->status ?? '') === 'y') {
             $lastActivity = strtotime($obUser->last_activity ?? '');
             $now = time();
-
             if ($lastActivity !== false && ($now - $lastActivity) > self::SESSION_EXPIRATION) {
                 $canReconnect = true;
             }
         }
 
-        if (($obUser->status ?? '') === 'n' || $canReconnect) {
-
+        if (($obUser->status ?? 'n') === 'n' || $canReconnect) {
             SessionLogin::login($obUser, $remember);
-
-            // ✅ atualiza status e atividade usando o email real do usuário
             UserAuthentication::setStatusAndActivity($obUser->email, 'y', date('Y-m-d H:i:s'));
 
-            $userFunction = $obUser->user_function ?? '';
-            $roleId       = PermissionsRules::getRoleIdByUserId($obUser->id);
-
-            if ($userFunction === 'super_admin') {
-                PermissionsRules::syncSuperAdminPermissions($obUser->id);
-            } elseif ($userFunction === 'admin') {
-                if ($roleId) {
-                    PermissionsRules::syncNewRoutesForAllTenancies($roleId, $obUser->tenancy_id);
-                }
-            } else {
-                PermissionsRules::syncUserFunctionPermissions($obUser->id, $obUser->tenancy_id);
-            }
-
-            self::jsonResponse([
+            return [
                 'status'  => 'OK',
                 'message' => 'Olá ' . ($obUser->name ?? '') . ' !'
-            ]);
+            ];
         }
 
-        self::jsonResponse([
+        return [
             'status' => 'ERROR',
             'message' => 'Usuário ativo em outro dispositivo!'
-        ]);
+        ];
     }
 
-        /**
+    /**
      * Logout
      */
     public static function setLogout($request): void
     {
-        $obStatusUser = new UserAuthentication();
-        $obStatusUser->email = $_SESSION['user']['email'];
-        $obStatusUser->status = 'n';
-        $obStatusUser->updateStatusUser();
+        $obUserSession = SessionLogin::getLogged();
+
+        if ($obUserSession) {
+
+            UserAuthentication::invalidateUserSession(
+                (int)$obUserSession['id'],
+                (string)$obUserSession['tenancy_id']
+            );
+        }
 
         SessionLogin::logout();
 

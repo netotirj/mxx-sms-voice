@@ -1,291 +1,291 @@
 <!doctype html>
-<html lang="en" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr"
-  data-pc-theme="light">
-<!-- [Head] start -->
+<html lang="pt-br" class="dark">
 
 <head>
-  <title>{{title}}</title>
-  <!-- [Meta] -->
+  <title>{{title}} | Maxx Solutions</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="description"
-    content="Datta Able is trending dashboard template made using Bootstrap 5 design framework. Datta Able is available in Bootstrap, React, CodeIgniter, Angular,  and .net Technologies." />
-  <meta name="keywords"
-    content="Bootstrap admin template, Dashboard UI Kit, Dashboard Template, Backend Panel, react dashboard, angular dashboard" />
-  <meta name="author" content="CodedThemes" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="base-url" content="{{URL}}">
+  <link rel="icon" type="image/png" href="{{URL}}/resources/assets/img/favicon-transparent.png" />
 
-  <!-- [Favicon] icon -->
-  <link rel="icon" href="{{URL}}/resources/view/login/assets/images/favicon.svg" type="image/x-icon" />
-  <!-- [Font] Family -->
-  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <!-- [phosphor Icons] https://phosphoricons.com/ -->
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/phosphor/duotone/style.css" />
-  <!-- [Tabler Icons] https://tablericons.com -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css" />
-  <!-- [Feather Icons] https://feathericons.com -->
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/feather.css" />
-  <!-- [Font Awesome Icons] https://fontawesome.com/icons -->
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/fontawesome.css" />
-  <!-- [Material Icons] https://fonts.google.com/icons -->
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/material.css" />
-  <!-- [Template CSS Files] -->
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/style.css" id="main-style-link" />
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/notify.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/auth-notify.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css" />
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://www.google.com/recaptcha/api.js?hl=pt-BR" async defer></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            primary: {
+              "50": "#eff6ff", "100": "#dbeafe", "200": "#bfdbfe", "300": "#93c5fd", "400": "#60a5fa",
+              "500": "#38bdf8", "600": "#0ea5e9", "700": "#0284c7", "800": "#0369a1", "900": "#075985", "950": "#082f49"
+            },
+            darkSurface: "#0f172a",
+            darkCard: "#1e293b"
+          }
+        }
+      }
+    };
+  </script>
+  <script src="{{captchaScriptUrl}}" async defer></script>
 </head>
-<!-- [Head] end -->
-<!-- [Body] Start -->
 
-<body>
-  <!-- [ Pre-loader ] start -->
-  <div class="loader-bg fixed inset-0 bg-white dark:bg-themedark-cardbg z-[1034]">
-    <div class="loader-track h-[5px] w-full inline-block absolute overflow-hidden top-0">
-      <div
-        class="loader-fill w-[300px] h-[5px] bg-primary-500 absolute top-0 left-0 animate-[hitZak_0.6s_ease-in-out_infinite_alternate]">
-      </div>
-    </div>
-  </div>
-  <!-- [ Pre-loader ] End -->
-
-  <div class="auth-main relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
-    <div class="auth-wrapper v1 flex items-center w-full h-full min-h-screen">
-      <div class="auth-form flex items-center justify-center grow flex-col min-h-screen relative p-6">
-        <div class="w-full max-w-[350px] relative">
-
-          <!-- Fundo animado ajustado -->
-          <div class="auth-bg ">
-            <span class="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
-            <span class="absolute top-[150px] right-[-150px] w-5 h-5 block rounded-full bg-primary-500 animate-[floating_9s_infinite]"></span>
-            <span class="absolute left-[-150px] bottom-[150px] w-5 h-5 block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
-            <span class="absolute left-[-100px] bottom-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-2 animate-[floating_9s_infinite]"></span>
-          </div>
-
-          <!-- Card -->
-          <div class="card sm:my-12 w-full shadow-lg rounded-3xl bg-white/90 backdrop-blur-xl hover:shadow-2xl transition-all duration-500">
-            <div class="card-body !p-10">
-
-              <!-- Logo -->
-              <div class="text-center mb-8 animate-bounce">
-                <a href="#"><img src="{{URL}}/resources/view/login/assets/images/logo-dark.svg" alt="img" class="mx-auto auth-logo" /></a>
-              </div>
-
-              <h4 class="text-center text-3xl font-extrabold mb-6 text-primary-500 drop-shadow-md animate-fadeIn">
-                Criar Conta
-              </h4>
-
-              <!-- Inputs com cor ajustada -->
-              <div class="grid grid-cols-12 gap-3 mb-3">
-                <div class="col-span-12 sm:col-span-6 relative">
-                <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                  <i class="ti ti-user"></i>
-                </span>
-                  <input type="text" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="Nome">
-                </div>
-                <div class="col-span-12 sm:col-span-6 relative">
-                <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                  <i class="ti ti-user"></i>
-                </span>
-                  <input type="text" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="Sobrenome">
-                </div>
-              </div>
-
-              <div class="mb-3 relative">
-              <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <i class="ti ti-phone"></i>
-              </span>
-                <input type="tel" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="Telefone">
-              </div>
-
-              <div class="mb-3 relative">
-              <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <i class="ti ti-mail"></i>
-              </span>
-                <input type="email" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="E-mail">
-              </div>
-
-              <div class="mb-3 relative">
-              <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <i class="ti ti-lock"></i>
-              </span>
-                <input type="password" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="Crie sua Senha">
-              </div>
-
-              <div class="mb-4 relative">
-              <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <i class="ti ti-lock"></i>
-              </span>
-                <input type="password" class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300" placeholder="Confirme a Senha">
-              </div>
-
-              <div class="g-recaptcha mb-4 flex justify-center" data-sitekey="6LdQtMIrAAAAAIuljlumdvPTmYFQoR4RnLC5RY6B"></div>
-
-
-              <div class="flex mt-1 justify-between items-center flex-wrap">
-                <div class="form-check">
-                  <input class="form-check-input input-primary" type="checkbox" id="customCheckc1" checked />
-                  <label class="form-check-label text-muted" for="customCheckc1">
-                    Concordo com os Termos &amp; Condições
-                  </label>
-                </div>
-              </div>
-
-              <!-- Botão -->
-              <div class="mt-4 text-center">
-                <button id="btnRegister" class="btn btn-primary mx-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 active:translate-y-0.5 shadow-lg hover:shadow-2xl transition-all text-white font-semibold relative">
-                  <span class="btn-text">Cadastrar</span>
-                  <svg class="btn-spinner hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
-                       fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor"
-                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Login link -->
-              <div class="flex justify-between items-end flex-wrap mt-4">
-                <h6 class="font-medium mb-0 text-gray-800">Já tem uma conta?</h6>
-                <a href="{{URL}}/login"
-                   class="text-primary-500 font-semibold text-base relative group">
-                  Login
-                  <span class="absolute left-0 -bottom-1 w-0 h-[2px] bg-primary-500 transition-all duration-300 group-hover:w-full"></span>
-                </a>
-              </div>
-
+<body class="bg-darkSurface font-sans text-white antialiased">
+  <section class="min-h-screen flex items-center justify-center py-6 px-4 lg:py-0">
+    <div class="max-w-6xl w-full grid lg:grid-cols-12 gap-10 items-center">
+      <div class="lg:col-span-7 flex flex-col items-center lg:items-end">
+        <div class="w-full max-w-md bg-darkCard rounded-2xl shadow-2xl p-6 border border-gray-700">
+          <div class="mb-5 flex items-center gap-3">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center">
+              <img src="{{URL}}/resources/view/login/assets/images/maxx-logo-transparent.png" alt="Maxx Solutions" class="h-10 w-10 object-contain">
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-400">Plataforma</p>
+              <p class="text-base font-semibold tracking-tight text-gray-100">Maxx Solutions</p>
             </div>
           </div>
 
+          <div class="mb-5">
+            <h1 class="text-2xl font-extrabold tracking-tight mb-1.5">Crie sua conta</h1>
+            <p class="text-sm text-gray-400">
+              Acesso para Relatórios e Disparos. Já tem conta?
+              <a href="{{URL}}/login" class="text-primary-500 font-semibold hover:underline">Entrar</a>
+            </p>
+          </div>
+
+          <form id="registerForm" class="space-y-4">
+            <div class="relative flex items-center justify-center">
+              <div class="w-full border-t border-gray-700"></div>
+              <span class="absolute bg-darkCard px-3 text-xs font-bold uppercase tracking-widest text-gray-500">cadastre-se com</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button type="button" data-social-provider="google" data-social-url="{{URL}}/auth/social/google?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5A9.5 9.5 0 1 0 12 21.5c5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6H12Z"/>
+                  <path fill="#FBBC05" d="M3.6 7.9 6.8 10.2A5.9 5.9 0 0 1 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5c-3.7 0-7 2.1-8.4 5.4Z"/>
+                  <path fill="#34A853" d="M12 21.5c2.5 0 4.7-.8 6.3-2.3l-3-2.5c-.8.6-1.9 1.1-3.3 1.1-3.8 0-5.1-2.5-5.4-3.7l-3.2 2.5c1.4 3.3 4.8 4.9 8.6 4.9Z"/>
+                  <path fill="#4285F4" d="M21.1 12.3c0-.6-.1-1.1-.2-1.6H12v3.9h5.5c-.3 1.3-1.1 2.3-2.2 3.1l3 2.5c1.8-1.7 2.8-4.2 2.8-7.9Z"/>
+                </svg>
+                <span>Google</span>
+              </button>
+              <button type="button" data-social-provider="apple" data-social-url="{{URL}}/auth/social/apple?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+                <svg class="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.702z"/></svg>
+                <span>Apple</span>
+              </button>
+              <button type="button" data-social-provider="facebook" data-social-url="{{URL}}/auth/social/facebook?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.24 10.44 22v-7.03H7.9v-2.91h2.54V9.84c0-2.52 1.49-3.91 3.77-3.91 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.9h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z"/></svg>
+                <span>Facebook</span>
+              </button>
+            </div>
+
+            <div class="relative flex items-center justify-center">
+              <div class="w-full border-t border-gray-700"></div>
+              <span class="absolute bg-darkCard px-3 text-xs font-bold uppercase tracking-widest text-gray-500">ou manual</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label for="firstName" class="block mb-1.5 text-xs font-medium text-gray-300">Nome</label>
+                <input type="text" id="firstName" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Nome">
+              </div>
+              <div>
+                <label for="lastName" class="block mb-1.5 text-xs font-medium text-gray-300">Sobrenome</label>
+                <input type="text" id="lastName" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Sobrenome">
+              </div>
+              <div>
+                <label for="phone" class="block mb-1.5 text-xs font-medium text-gray-300">Telefone</label>
+                <input type="tel" id="phone" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="(00) 00000-0000">
+              </div>
+              <div>
+                <label for="email" class="block mb-1.5 text-xs font-medium text-gray-300">E-mail</label>
+                <input type="email" id="email" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="nome@empresa.com">
+              </div>
+              <div>
+                <label for="password" class="block mb-1.5 text-xs font-medium text-gray-300">Senha</label>
+                <input type="password" id="password" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+              </div>
+              <div>
+                <label for="confirmPassword" class="block mb-1.5 text-xs font-medium text-gray-300">Confirmar senha</label>
+                <input type="password" id="confirmPassword" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+              </div>
+            </div>
+
+            <label class="flex items-start cursor-pointer">
+              <input id="acceptTerms" type="checkbox" checked class="mt-1 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-600 focus:ring-offset-gray-800">
+              <span class="ml-2 text-xs text-gray-400">Concordo com os Termos e Condições.</span>
+            </label>
+
+            <div class="{{captchaWidgetClass}} flex justify-center">
+              <div class="cf-turnstile" data-sitekey="{{captchaSiteKey}}" data-theme="dark" data-language="pt-BR"></div>
+            </div>
+
+            <button id="btnRegister" type="submit" class="w-full text-white bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 hover:from-sky-400 hover:via-cyan-400 hover:to-blue-500 focus:ring-4 focus:ring-cyan-800 font-bold rounded-xl text-sm px-5 py-3 text-center transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-950/25">
+              <span class="btn-text">Criar minha conta</span>
+              <svg class="btn-spinner hidden h-6 w-6 animate-spin text-white" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 hidden lg:block">
+        <div class="relative">
+          <div class="absolute -top-20 -left-20 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl"></div>
+          <div class="absolute -bottom-20 -right-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl"></div>
+          <img src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/authentication/illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full transform hover:scale-105 transition duration-700">
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
+  <a id="support-whatsapp-floating"
+     href="https://wa.me/5521968943160"
+     target="_blank"
+     rel="noopener noreferrer"
+     class="support-whatsapp-floating"
+     aria-label="Fale conosco no WhatsApp">
+    <span class="support-whatsapp-floating__status" aria-hidden="true"></span>
+    <span class="support-whatsapp-floating__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.52 3.48A11.87 11.87 0 0 0 12 0a11.88 11.88 0 0 0-10.6 17.25L0 24l6.9-1.81A11.88 11.88 0 0 0 12 24c6.63 0 12-5.37 12-12 0-3.2-1.25-6.21-3.48-8.52zm-8.52 18c-1.57 0-3.09-.4-4.44-1.15l-.32-.18-4.08 1.07 1.09-3.97-.21-.33a9.92 9.92 0 0 1 8.95-14.92c5.48 0 9.93 4.45 9.93 9.93s-4.45 9.93-9.93 9.93zm5.47-7.5c-.3-.15-1.77-.87-2.04-.96-.27-.1-.47-.15-.66.15s-.76.96-.93 1.15-.34.22-.63.07a8.08 8.08 0 0 1-2.38-1.46 8.8 8.8 0 0 1-1.62-2.01c-.17-.3 0-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.38-.02-.53s-.66-1.6-.91-2.2c-.24-.58-.49-.5-.67-.5-.17 0-.36 0-.55 0-.2 0-.53.08-.8.38s-1.05 1.02-1.05 2.5 1.08 2.9 1.23 3.1c.15.2 2.12 3.24 5.13 4.55.72.31 1.28.5 1.72.64.72.23 1.37.2 1.88.12.57-.08 1.77-.73 2.02-1.43.25-.7.25-1.3.18-1.43-.07-.13-.27-.2-.57-.35z"/>
+      </svg>
+    </span>
+    <span class="support-whatsapp-floating__copy">
+      <span id="support-whatsapp-status-text" class="support-whatsapp-floating__eyebrow">Verificando status</span>
+      <span id="support-whatsapp-label" class="support-whatsapp-floating__label">Fale com a Maxx</span>
+      <span id="support-whatsapp-hours" class="support-whatsapp-floating__hours">Seg a sex, 09h as 18h</span>
+    </span>
+  </a>
 
-
-  <!-- Modal de Termos -->
-  <div id="modalTermos" class="fixed inset-0 bg-black/50 hidden justify-center items-center z-50">
-    <div class="bg-white rounded shadow-lg w-full max-w-md max-h-[80vh] p-6 flex flex-col">
-      <h2 class="text-xl font-bold mb-4">Termos e Condições</h2>
-      <div id="termosContent" class="overflow-y-auto border p-3 flex-1 mb-4 text-sm max-h-[60vh]">
-        <section class="container mx-auto p-6">
-          <h1 class="text-2xl font-bold mb-4">Termos e Condições</h1>
-          <p class="mb-2">
-            Bem-vindo ao Maxx Solutions SMS/ERP. Ao utilizar nossos serviços, você concorda com os seguintes termos:
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">1. Uso do Serviço</h2>
-          <p class="mb-2">
-            Você se compromete a utilizar o serviço apenas para fins legais, em conformidade com as leis aplicáveis e
-            estes Termos.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">2. Conta do Usuário</h2>
-          <p class="mb-2">
-            Você é responsável por manter a confidencialidade de sua conta e senha. Todas as atividades realizadas com
-            sua conta são de sua responsabilidade.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">3. Privacidade</h2>
-          <p class="mb-2">
-            Respeitamos sua privacidade e protegemos suas informações conforme nossa Política de Privacidade.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">4. Modificações</h2>
-          <p class="mb-2">
-            Podemos modificar estes Termos a qualquer momento. A versão atualizada estará sempre disponível nesta
-            página.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">5. Propriedade Intelectual</h2>
-          <p class="mb-2">
-            Todo o conteúdo e tecnologia disponibilizados pelo Maxx Solutions SMS/ERP são protegidos por direitos de
-            propriedade intelectual e não podem ser reproduzidos sem nossa autorização.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">6. Limitação de Responsabilidade</h2>
-          <p class="mb-2">
-            Não nos responsabilizamos por danos indiretos ou lucros cessantes decorrentes do uso ou da impossibilidade
-            de uso de nossos serviços.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">7. Cancelamento e Suspensão</h2>
-          <p class="mb-2">
-            Podemos suspender ou cancelar sua conta em caso de violação destes Termos ou uso indevido dos serviços.
-          </p>
-
-          <h2 class="text-xl font-semibold mt-4 mb-2">8. Lei Aplicável</h2>
-          <p class="mb-2">
-            Estes Termos são regidos pelas leis brasileiras, e quaisquer disputas serão resolvidas no foro da comarca de
-            sua sede.
-          </p>
-
-          <p class="mt-6">
-            Se tiver dúvidas, entre em contato: <a href="mailto:suporte@maxxsolutions.com"
-              class="text-primary-500">suporte@maxxsolutions.com</a>
-          </p>
-        </section>
-      </div>
-      <div class="flex justify-end gap-2 mt-4">
-        <button id="btnRecusarTermos" class="btn btn-danger shadow-2xl">Recusar</button>
-        <button id="btnAceitarTermos" class="btn btn-success shadow-2xl" disabled>Aceitar</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- [ Main Content ] end -->
-  <!-- Required Js -->
-  <script src="{{URL}}/resources/view/login/assets/js/plugins/simplebar.min.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/plugins/popper.min.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/icon/custom-icon.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/plugins/feather.min.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/component.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/theme.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/script.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
-  <script src="{{URL}}/resources/assets/js/TermsModal.js"></script>
-
-
-  <div class="floting-button fixed bottom-[50px] right-[30px] z-[1030]">
-  </div>
-
-
+  <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/support-whatsapp.js"></script>
   <script>
-    layout_change('false');
-  </script>
+    const registerForm = document.getElementById('registerForm');
+    const btnRegister = document.getElementById('btnRegister');
+    const btnText = btnRegister.querySelector('.btn-text');
+    const btnSpinner = btnRegister.querySelector('.btn-spinner');
+    const socialButtons = document.querySelectorAll('.social-register-btn');
+    const notyf = new Notyf({
+      duration: 5000,
+      ripple: false,
+      position: { x: 'right', y: 'top' },
+      types: [
+        { type: 'success', backgroundColor: '#10b981', icon: { className: 'notyf__icon--success', tagName: 'i' } },
+        { type: 'error', backgroundColor: '#e11d48', icon: { className: 'notyf__icon--error', tagName: 'i' } },
+        { type: 'info', backgroundColor: '#334155', icon: false }
+      ]
+    });
 
+    const authParams = new URLSearchParams(window.location.search);
+    const authStatus = authParams.get('auth_status');
+    const authMessage = authParams.get('auth_message');
 
-  <script>
-    layout_theme_sidebar_change('dark');
-  </script>
+    if (authStatus && authMessage) {
+      if (authStatus === 'success') {
+        notyf.success(authMessage);
+      } else if (authStatus === 'info') {
+        notyf.open({ type: 'info', message: authMessage });
+      } else {
+        notyf.error(authMessage);
+      }
 
+      authParams.delete('auth_status');
+      authParams.delete('auth_message');
+      const nextQuery = authParams.toString();
+      window.history.replaceState({}, document.title, `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`);
+    }
 
-  <script>
-    change_box_container('false');
-  </script>
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-  <script>
-    layout_caption_change('true');
-  </script>
+      const name = document.getElementById('firstName').value.trim();
+      const lastname = document.getElementById('lastName').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const confirmPass = document.getElementById('confirmPassword').value.trim();
+      const acceptTerms = document.getElementById('acceptTerms').checked;
+      const captcha = document.querySelector('[name="cf-turnstile-response"]')?.value;
 
-  <script>
-    layout_rtl_change('false');
-  </script>
+      if (!name || !lastname || !phone || !email || !password || !confirmPass) {
+        notyf.error('Preencha todos os campos obrigatorios.');
+        return;
+      }
 
-  <script>
-    preset_change('preset-1');
-  </script>
+      if (password !== confirmPass) {
+        notyf.error('As senhas nao coincidem.');
+        return;
+      }
 
-  <script>
-    main_layout_change('vertical');
+      if (!acceptTerms) {
+        notyf.error('Voce precisa aceitar os termos para continuar.');
+        return;
+      }
+
+      if ("{{captchaEnabled}}" === 'true' && !captcha) {
+        notyf.error('Por favor, complete a verificacao de seguranca.');
+        return;
+      }
+
+      btnRegister.disabled = true;
+      btnText.classList.add('hidden');
+      btnSpinner.classList.remove('hidden');
+
+      try {
+        const dataPost = new FormData();
+        dataPost.append('name', name);
+        dataPost.append('lastname', lastname);
+        dataPost.append('phone', phone);
+        dataPost.append('email', email);
+        dataPost.append('password', password);
+        dataPost.append('accept_terms', 'on');
+        if (captcha) dataPost.append('cf-turnstile-response', captcha);
+
+        const response = await fetch("{{URL}}/register", { method: 'POST', body: dataPost });
+        const data = await response.json();
+
+        if (data.status === 'OK') {
+          notyf.success(data.message || 'Cadastro realizado com sucesso!');
+          setTimeout(() => window.location.href = "{{URL}}/login", 1200);
+        } else {
+          notyf.error(data.message || 'Nao foi possivel concluir o cadastro.');
+          resetButton();
+        }
+      } catch (error) {
+        notyf.error('Falha de conexao.');
+        resetButton();
+      }
+    });
+
+    socialButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const targetUrl = button.dataset.socialUrl;
+        if (!targetUrl) {
+          notyf.error('A rota de cadastro social nao foi configurada.');
+          return;
+        }
+
+        window.location.href = targetUrl;
+      });
+    });
+
+    function resetButton() {
+      btnRegister.disabled = false;
+      btnText.classList.remove('hidden');
+      btnSpinner.classList.add('hidden');
+    }
   </script>
 </body>
-<!-- [Body] end -->
-
 </html>

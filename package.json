@@ -3,7 +3,8 @@
   "version": "1.0.1",
   "description": "",
   "scripts": {
-    "build": "tailwindcss build -i resources/assets/src/styles.css -o resources/assets/css/argon-dashboard-tailwind.css --watch"
+    "build": "tailwindcss -i resources/assets/src/styles.css -o resources/assets/css/argon-dashboard-tailwind.css",
+    "dev": "tailwindcss -i resources/assets/src/styles.css -o resources/assets/css/argon-dashboard-tailwind.css --watch"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.2",

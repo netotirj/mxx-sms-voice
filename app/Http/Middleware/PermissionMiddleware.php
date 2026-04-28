@@ -15,10 +15,10 @@ class PermissionMiddleware
      * Rotas que serão controladas por permissão de plano
      */
     private array $planRestrictedRoutes = [
-        '/users'         => 'can_users',
-        '/users/new'     => 'can_create_users',
-        '/rates'         => 'can_rates',
-        '/permissions'   => 'can_permissions',
+        '/users'           => 'can_users',
+        '/users/new'       => 'can_create_users',
+        '/rates'           => 'can_rates',
+        '/permissions'     => 'can_permissions',
     ];
 
     /**
@@ -31,6 +31,10 @@ class PermissionMiddleware
         $userId     = $obUser['id']          ?? null;
         $tenancyId  = $obUser['tenancy_id']  ?? null;
         $userFunc   = $obUser['function']    ?? 'user';
+
+        // Identificação dinâmica da URL Base para redirecionamentos via JS
+        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http");
+        $baseUrl  = $protocol . "://" . $_SERVER['HTTP_HOST'];
 
         if (!$userId || !$tenancyId) {
             return new Response(401, ['error' => 'Usuário não autenticado']);
@@ -50,40 +54,28 @@ class PermissionMiddleware
         // Normaliza rota (remove IDs numéricos)
         $routeName = preg_replace('/\/\d+/', '/{id}', $routeName);
 
-        // 4️⃣ Verifica permissão padrão do usuário
+        // 4️⃣ Verifica permissão padrão do usuário (ACL básica)
         if (!PermissionsRules::userCanAccessRoute($userId, $routeName, $tenancyId)) {
-            echo "<script>
-                localStorage.setItem('flash_error', 'Permissão de acesso negada!');
-                window.location.href = '/dashboard';
-            </script>";
-            exit;
+            $this->redirectWithFlash($baseUrl, 'Permissão de acesso negada!');
         }
 
-        // 5️⃣ Verifica se a rota é restrita por plano
+        // 5️⃣ Verifica se a rota é restrita por plano contratado
         if (isset($this->planRestrictedRoutes[$routeName])) {
             $permissionKey = $this->planRestrictedRoutes[$routeName];
 
             // 🔄 Pega o plano ativo da TENANCY
             $activePlanId = RegisterTenancies::getActivePlanId($tenancyId);
             if (!$activePlanId) {
-                echo "<script>
-                    localStorage.setItem('flash_error', 'Nenhum plano ativo encontrado!');
-                    window.location.href = '/dashboard';
-                </script>";
-                exit;
+                $this->redirectWithFlash($baseUrl, 'Nenhum plano ativo encontrado!');
             }
 
             // 🔍 Detalhes do plano ativo
             $userPlan = UserPlans::getUserPlanInfoByPlanId($activePlanId, $tenancyId);
             if (!$userPlan || strtolower($userPlan->status_payment) !== 'confirmed') {
-                echo "<script>
-                    localStorage.setItem('flash_error', 'Plano inválido ou não confirmado!');
-                    window.location.href = '/dashboard';
-                </script>";
-                exit;
+                $this->redirectWithFlash($baseUrl, 'Plano inválido ou não confirmado!');
             }
 
-            // 6️⃣ Permissões por plano
+            // 6️⃣ Matriz de permissões por nível de plano
             $planPermissions = [
                 'basic' => [
                     'can_users'        => false,
@@ -111,27 +103,42 @@ class PermissionMiddleware
                 ],
             ];
 
-            // Nome do plano normalizado
+            // Nome do plano normalizado para dar match na matriz
             $planName = strtolower(trim($userPlan->name_plan));
             $permissions = $planPermissions[$planName] ?? [];
 
-            // 🔒 Bloqueia se o plano não permitir a ação
+            // 🔒 Bloqueia se o plano não possuir a chave de permissão necessária
             if (empty($permissions[$permissionKey])) {
-                echo "<script>
-                    localStorage.setItem('flash_error', 'Seu plano não permite executar esta ação!');
-                    window.location.href = '/dashboard';
-                </script>";
-                exit;
+                $this->redirectWithFlash($baseUrl, 'Seu plano atual não permite esta ação!');
             }
         }
 
-        // 🔓 Tudo OK → continua o fluxo
+        // 🔓 Tudo OK → segue para o controlador
         return $next($request);
     }
+
+    /**
+     * Método auxiliar para disparar o JavaScript de erro e redirecionar
+     */
+    /**
+     * Método auxiliar para disparar o JavaScript de erro e redirecionar
+     */
+    private function redirectWithFlash($baseUrl, $message)
+    {
+        // 1. Tenta pegar a URL do .env. Se não existir, usa a baseUrl detectada
+        // Se no .env está http://localhost/sms, ele vai usar isso.
+        $envUrl = getenv('URL') ?: getenv('BASE_URL') ?: $baseUrl;
+
+        // 2. Remove qualquer barra no final para não duplicar (ex: http://localhost/sms/)
+        $envUrl = rtrim($envUrl, '/');
+
+        echo "<script>
+        // Grava o erro no localStorage
+                localStorage.setItem('flash_error', '{$message}');
+                
+                // Redireciona para a URL completa: http://localhost/sms/dashboard
+                window.location.href = '{$envUrl}/dashboard';
+             </script>";
+        exit;
+    }
 }
-
-
-
-
-
-

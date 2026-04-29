@@ -20,8 +20,6 @@
     <link href="{{URL}}/resources/assets/css/nucleo-icons.css" rel="stylesheet" />
     <link href="{{URL}}/resources/assets/css/nucleo-svg.css" rel="stylesheet" />
     <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=1.0.2" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
-    <link href="{{URL}}/resources/assets/css/datatables-tailwind.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 
     <script src="https://unpkg.com/feather-icons"></script>
@@ -122,7 +120,6 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="{{URL}}/resources/assets/js/camp.js"></script>
     <script src="{{URL}}/resources/assets/js/heartbeat.js"></script>
-    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <script src="https://unpkg.com/inputmask@5.0.8/dist/inputmask.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
@@ -643,6 +640,7 @@
             }
         };
         let selectedOption = null;
+        let lastAvailabilityMode = null;
 
         function isBusinessOpen(date) {
             const day = date.getDay();
@@ -650,16 +648,66 @@
             return day >= 1 && day <= 5 && minutes >= 540 && minutes < 1080;
         }
 
+        function getNextBusinessOpening(date) {
+            const next = new Date(date);
+            next.setHours(9, 0, 0, 0);
+
+            if (date.getDay() >= 1 && date.getDay() <= 5 && date.getHours() < 9) {
+                return next;
+            }
+
+            do {
+                next.setDate(next.getDate() + 1);
+                next.setHours(9, 0, 0, 0);
+            } while (next.getDay() === 0 || next.getDay() === 6);
+
+            return next;
+        }
+
+        function formatNextBusinessOpening(date) {
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setDate(now.getDate() + 1);
+
+            const sameDay = date.toDateString() === now.toDateString();
+            const isTomorrow = date.toDateString() === tomorrow.toDateString();
+            const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            if (sameDay) return `hoje às ${time}`;
+            if (isTomorrow) return `amanhã às ${time}`;
+
+            return date.toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function getSupportAvailability() {
+            const now = new Date();
+            const online = isBusinessOpen(now);
+            const nextOpening = getNextBusinessOpening(now);
+
+            return {
+                online,
+                mode: online ? 'online' : 'offline',
+                nextOpeningText: formatNextBusinessOpening(nextOpening)
+            };
+        }
+
         function updateWhatsAppSupportStatus() {
-            const online = isBusinessOpen(new Date());
+            const availability = getSupportAvailability();
+            const online = availability.online;
 
             button.classList.toggle('is-offline', !online);
             button.href = '#';
             button.setAttribute('aria-label', online ? 'Abrir assistente online da Maxx' : 'Abrir assistente da Maxx');
 
             if (statusText) statusText.textContent = online ? 'Assistente online' : 'Assistente offline';
-            if (label) label.textContent = online ? 'Precisa de ajuda?' : 'Deixe seu recado';
-            if (hours) hours.textContent = online ? 'Atendimento ate 18h' : 'Seg a sex, 09h as 18h';
+            if (label) label.textContent = online ? 'Precisa de ajuda?' : 'Abrir ticket';
+            if (hours) hours.textContent = online ? 'Atendimento até 18h' : `Retorno ${availability.nextOpeningText}`;
         }
 
         function setSupportFeedback(message, type = '') {
@@ -738,6 +786,10 @@
                         <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Troncos</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
+                    <div class="support-diagnostics-step is-checking" data-diagnostic-step="balance">
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Saldo</span></span>
+                        <span class="support-diagnostics-step__detail">checando...</span>
+                    </div>
                 </div>
                 <div class="support-diagnostics-summary">Aguarde só um instante.</div>
             `;
@@ -779,7 +831,8 @@
                     ['server', diagnostics.server],
                     ['asterisk', diagnostics.asterisk],
                     ['redis', diagnostics.redis],
-                    ['trunks', diagnostics.trunks]
+                    ['trunks', diagnostics.trunks],
+                    ['balance', diagnostics.balance]
                 ];
 
                 ordered.forEach(([key, item], index) => {
@@ -810,15 +863,24 @@
             if (!data) return;
 
             selectedOption = option;
+            const availability = getSupportAvailability();
             setSupportFeedback('');
             appendBotMessage(data.label, 'user');
             options?.classList.add('hidden');
             contact?.classList.add('hidden');
             supportActions?.classList.add('hidden');
-            appendBotMessageWithTyping(data.reply, 720);
+            appendBotMessageWithTyping(
+                availability.online
+                    ? data.reply
+                    : `No momento nosso atendimento em tempo real está offline. Posso abrir um ticket agora para o time responder no próximo expediente (${availability.nextOpeningText}).`,
+                720
+            );
             if (option === 'support') {
                 window.setTimeout(() => {
-                    appendBotMessage('Se quiser, eu posso checar o status do ambiente antes de abrir o ticket.', 'bot');
+                    appendBotMessage(availability.online
+                        ? 'Se quiser, eu posso checar o status do ambiente antes de abrir o ticket.'
+                        : 'Se quiser, eu também posso checar status do ambiente e saldo antes de registrar o ticket.'
+                    , 'bot');
                     supportActions?.classList.remove('hidden');
                 }, 900);
                 return;
@@ -925,7 +987,13 @@
                 setSupportFeedback(`Ticket #${data.id} aberto com sucesso.`, 'success');
                 ticketBtn.classList.add('is-done');
                 ticketBtn.textContent = 'Ticket aberto';
-                appendBotMessageWithTyping(`Seu ticket #${data.id} foi aberto com sucesso. Você pode acompanhar pelo painel de suporte lá em cima, pelo e-mail cadastrado ou pelo WhatsApp informado.`, 620);
+                const availability = getSupportAvailability();
+                appendBotMessageWithTyping(
+                    availability.online
+                        ? `Seu ticket #${data.id} foi aberto com sucesso. Você pode acompanhar pelo painel de suporte lá em cima, pelo e-mail cadastrado ou pelo WhatsApp informado.`
+                        : `Seu ticket #${data.id} foi aberto com sucesso. Nosso atendimento em tempo real está offline agora; o time responde no próximo expediente (${availability.nextOpeningText}).`,
+                    620
+                );
 
                 document.dispatchEvent(new CustomEvent('support:tickets-updated'));
                 window.setTimeout(() => {
@@ -949,6 +1017,13 @@
         button.addEventListener('click', (event) => {
             event.preventDefault();
             openSupportPanel();
+            const availability = getSupportAvailability();
+            if (!availability.online && lastAvailabilityMode !== availability.mode) {
+                appendBotMessageWithTyping(`Estamos fora do horário de atendimento agora. Você pode abrir um ticket e ele será tratado no próximo expediente (${availability.nextOpeningText}).`, 420);
+                lastAvailabilityMode = availability.mode;
+            } else if (availability.online) {
+                lastAvailabilityMode = availability.mode;
+            }
         });
         closeBtn?.addEventListener('click', closeSupportPanel);
         options?.addEventListener('click', (event) => {

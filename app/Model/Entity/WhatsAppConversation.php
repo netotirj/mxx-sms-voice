@@ -167,6 +167,92 @@ class WhatsAppConversation
         return $id;
     }
 
+    public static function getLastInboundAt(int $accountId, string $phone): ?string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if ($phone === '') {
+            return null;
+        }
+
+        $row = (new Database('whatsapp_messages wm INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id'))
+            ->select(
+                "wc.account_id = :account_id AND wc.contact_phone = :phone AND wm.direction = 'inbound'",
+                [
+                    ':account_id' => $accountId,
+                    ':phone' => $phone,
+                ],
+                'wm.created_at DESC',
+                '1',
+                ['wm.created_at']
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row['created_at'] ?? null;
+    }
+
+    public static function hasMarketingOptOut(int $accountId, string $phone): bool
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if ($phone === '') {
+            return false;
+        }
+
+        $optOut = (new Database('whatsapp_marketing_opt_outs'))
+            ->select(
+                'account_id = :account_id AND contact_phone = :phone',
+                [
+                    ':account_id' => $accountId,
+                    ':phone' => $phone,
+                ],
+                '',
+                '1',
+                ['id']
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        if ($optOut) {
+            return true;
+        }
+
+        $row = (new Database('whatsapp_messages wm INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id'))
+            ->select(
+                "wc.account_id = :account_id
+                 AND wc.contact_phone = :phone
+                 AND wm.direction = 'inbound'
+                 AND UPPER(TRIM(wm.body)) IN ('SAIR', 'PARAR', 'STOP', 'CANCELAR', 'DESCADASTRAR')",
+                [
+                    ':account_id' => $accountId,
+                    ':phone' => $phone,
+                ],
+                'wm.created_at DESC',
+                '1',
+                ['wm.id']
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return (bool)$row;
+    }
+
+    public static function registerMarketingOptOut(int $accountId, string $phone, ?string $wamid = null): void
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if ($phone === '') {
+            return;
+        }
+
+        $sql = "
+            INSERT INTO whatsapp_marketing_opt_outs (account_id, contact_phone, source_wamid, reason, created_at)
+            VALUES (:account_id, :phone, :wamid, 'keyword', NOW())
+            ON DUPLICATE KEY UPDATE source_wamid = VALUES(source_wamid)
+        ";
+
+        (new Database('whatsapp_marketing_opt_outs'))->execute($sql, [
+            ':account_id' => $accountId,
+            ':phone' => $phone,
+            ':wamid' => $wamid,
+        ]);
+    }
+
     public static function touchFromMessage(int $conversationId, string $body, string $direction, int $unreadIncrement = 0): bool
     {
         $sql = "

@@ -210,11 +210,17 @@ class Dashboard extends ViewComponents
     private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser): array
     {
         $whatsappSummary = self::buildDashboardWhatsAppSummary($obUser);
+        $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
+        $smsDelivered = max(0, (int)($data['smsEntregues'] ?? 0));
+        $smsResponses = max(0, (int)($data['smsRespostas'] ?? 0));
+        $smsDeliveryRate = $smsTotal > 0 ? round(($smsDelivered / $smsTotal) * 100, 1) : 0;
+
         $data['whatsappEnviados'] = $whatsappSummary['sent_messages'];
         $data['whatsappConversas'] = $whatsappSummary['conversations'];
         $data['whatsappNaoLidas'] = $whatsappSummary['unread'];
         $data['whatsappCampanhas'] = $whatsappSummary['campaigns'];
         $data['whatsappContas'] = $whatsappSummary['accounts'];
+        $data['smsTaxaEntrega'] = $smsDeliveryRate;
         $data['consumoWhats'] = $data['consumoWhats'] ?? '0,00';
 
         $totalVoice = max(0, (int)($cdr->total ?? 0));
@@ -222,7 +228,6 @@ class Dashboard extends ViewComponents
         $asr = $totalVoice > 0 ? round(($answeredVoice / $totalVoice) * 100, 1) : 0;
         $acd = $answeredVoice > 0 ? intdiv((int)($cdr->duration_total ?? 0), $answeredVoice) : 0;
 
-        $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
         $whatsTotal = max(0, (int)($data['whatsappConversas'] ?? 0));
         $whatsUnread = max(0, (int)($data['whatsappNaoLidas'] ?? 0));
 
@@ -238,11 +243,11 @@ class Dashboard extends ViewComponents
             ],
             'sms' => [
                 'title' => 'SMS Gateway',
-                'metric_label' => 'Enviados / Consumo',
-                'primary_value' => $smsTotal > 0 ? 100 : 0,
-                'secondary_text' => (string)$smsTotal,
-                'progress' => $smsTotal > 0 ? 100 : 0,
-                'status' => $smsTotal > 0 ? 'ok' : 'warning'
+                'metric_label' => 'Entrega / Respostas',
+                'primary_value' => $smsDeliveryRate,
+                'secondary_text' => $smsResponses . ' respostas',
+                'progress' => $smsDeliveryRate,
+                'status' => $smsTotal > 0 ? ($smsDeliveryRate >= 80 ? 'ok' : 'warning') : 'warning'
             ],
             'whatsapp' => [
                 'title' => 'WhatsApp Central',
@@ -255,6 +260,33 @@ class Dashboard extends ViewComponents
         ];
 
         return $data;
+    }
+
+    private static function countSmsResponses(?string $tenancyId, ?int $userId = null): int
+    {
+        $where = "webhook_action = 'mo'";
+        $params = [];
+
+        if (!empty($tenancyId)) {
+            $where .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if ($userId !== null) {
+            $where .= ' AND user_id = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        try {
+            $row = (new Database())->execute(
+                "SELECT COUNT(*) AS total FROM callback WHERE {$where}",
+                $params
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            return (int)($row['total'] ?? 0);
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     private static function buildWhatsAppScopeWhere(array $obUser, string $alias = 'wc'): array
@@ -762,6 +794,7 @@ class Dashboard extends ViewComponents
 
             $dataSms = CallbackSms::countSentSms(null, null);
             $currentSms = $dataSms->qtd ?? 0;
+            $smsResponses = self::countSmsResponses(null, null);
             $valueSms   = (float)(BalanceSms::getBalanceSms(null, null)->value_sms ?? 0);
             $dataValue  = $currentSms * $valueSms;
 
@@ -784,6 +817,10 @@ class Dashboard extends ViewComponents
                 'saldoVariacao'  => $percentChange ?? '',
                 'smsEnviados'    => $currentSms,
                 'smsTarifados'   => $currentSms,
+                'smsEntregues'    => (int)($dataSms->delivered ?? 0),
+                'smsPendentes'    => (int)($dataSms->sent ?? 0),
+                'smsFalhas'       => (int)(($dataSms->undeliverable ?? 0) + ($dataSms->expired ?? 0)),
+                'smsRespostas'    => $smsResponses,
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
                 'ultimoPixValor' => $currentPix,
                 'ultimoPixData'  => $currentData,
@@ -819,6 +856,7 @@ class Dashboard extends ViewComponents
             $valueSms  = (float)($rateData['rate'] ?? 0);
             $dataSms   = CallbackSms::countSentSms($obUser['id'], $obUser['tenancy_id']);
             $currentSms = $dataSms->qtd ?? 0;
+            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], $obUser['id']);
             $dataValue  = $currentSms * $valueSms;
 
             $cdrFilters = [
@@ -849,6 +887,10 @@ class Dashboard extends ViewComponents
                 'saldoVariacao'  => $percentChange,
                 'smsEnviados'    => $currentSms,
                 'smsTarifados'   => $currentSms,
+                'smsEntregues'    => (int)($dataSms->delivered ?? 0),
+                'smsPendentes'    => (int)($dataSms->sent ?? 0),
+                'smsFalhas'       => (int)(($dataSms->undeliverable ?? 0) + ($dataSms->expired ?? 0)),
+                'smsRespostas'    => $smsResponses,
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
                 'ultimoPixValor' => $currentPix,
                 'ultimoPixData'  => $currentData,
@@ -883,6 +925,7 @@ class Dashboard extends ViewComponents
 
             $dataSms = CallbackSms::countSentSms($isAdmin ? null : $obUser['id'], $obUser['tenancy_id']);
             $currentSms = $dataSms->qtd ?? 0;
+            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], $isAdmin ? null : $obUser['id']);
             $valueSms   = (float)(BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'])->value_sms ?? 0);
             $dataValue  = $currentSms * $valueSms;
 
@@ -910,6 +953,10 @@ class Dashboard extends ViewComponents
                 'saldoVariacao'  => $percentChange,
                 'smsEnviados'    => $currentSms,
                 'smsTarifados'   => $currentSms,
+                'smsEntregues'    => (int)($dataSms->delivered ?? 0),
+                'smsPendentes'    => (int)($dataSms->sent ?? 0),
+                'smsFalhas'       => (int)(($dataSms->undeliverable ?? 0) + ($dataSms->expired ?? 0)),
+                'smsRespostas'    => $smsResponses,
                 'smsCusto'       => 'R$ ' . number_format($dataValue, 4, ',', '.'),
                 'ultimoPixValor' => $currentPix,
                 'ultimoPixData'  => $currentData,

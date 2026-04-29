@@ -92,20 +92,27 @@ class SocialAuth
         $user = UserAuthentication::getUserByEmail($email);
 
         if (!$user instanceof UserAuthentication) {
-            $password = bin2hex(random_bytes(16));
-            $registration = RegisterUsers::createAccount([
-                'name' => trim((string)($profile['first_name'] ?? 'Cliente')),
-                'lastname' => trim((string)($profile['last_name'] ?? '')),
-                'email' => $email,
-                'phone' => '',
-                'password' => $password,
-            ]);
-
-            if (($registration['status'] ?? 'ERROR') !== 'OK') {
-                throw new \RuntimeException((string)($registration['message'] ?? 'Não foi possível criar a conta social.'));
+            if ($intent === 'register') {
+                self::storePendingSocialRegistration($profile);
+                self::redirectToRegisterForManualCompletion(
+                    $request,
+                    'Conta social validada. Complete o telefone para finalizar seu cadastro.'
+                );
             }
 
-            $user = $registration['user'];
+            self::redirectToRegisterForManualCompletion(
+                $request,
+                'Conta não encontrada. Complete o cadastro para informar telefone, senha e receber a análise do crédito inicial.'
+            );
+        }
+
+        if ($intent === 'register') {
+            self::redirectBack(
+                $request,
+                'register',
+                'error',
+                'Este e-mail já está cadastrado. Entre pela tela de login.'
+            );
         }
 
         $login = Login::completeAuthenticatedLogin($user);
@@ -114,6 +121,29 @@ class SocialAuth
         }
 
         $request->getRouter()->redirect('/dashboard');
+    }
+
+    private static function redirectToRegisterForManualCompletion($request, string $message): void
+    {
+        $query = http_build_query([
+            'auth_status' => 'info',
+            'auth_message' => $message,
+        ]);
+
+        $request->getRouter()->redirect('/register?' . $query);
+    }
+
+    private static function storePendingSocialRegistration(array $profile): void
+    {
+        SessionUser::ensureSessionStarted();
+
+        $_SESSION['social_register_profile'] = [
+            'provider' => (string)($profile['provider'] ?? ''),
+            'email' => strtolower(trim((string)($profile['email'] ?? ''))),
+            'first_name' => trim((string)($profile['first_name'] ?? '')),
+            'last_name' => trim((string)($profile['last_name'] ?? '')),
+            'created_at' => time(),
+        ];
     }
 
     private static function assertStateContext(string $provider, array $context, string $receivedState): void

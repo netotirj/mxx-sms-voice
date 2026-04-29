@@ -1,3 +1,4 @@
 .env
 .idea/
 full-vscode-restore-from-*/
+database/backups/

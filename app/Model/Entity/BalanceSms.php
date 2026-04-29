@@ -32,7 +32,7 @@ class BalanceSms
 
         // 2. Tenancy Total (Agregado)
         if ($userId === null && !empty($tenancyId)) {
-            $query = "SELECT tenancy_id, SUM(balance) as balance, MAX(updated_at) as updated_at 
+            $query = "SELECT tenancy_id, SUM(balance) as balance, MAX(value_sms) as value_sms, MAX(updated_at) as updated_at 
                   FROM tenancy_balance WHERE tenancy_id = :tenancy_id";
             $params = [':tenancy_id' => $tenancyId];
 

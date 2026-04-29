@@ -8,10 +8,33 @@
  */
 
 // Define base URL a partir de meta tag no HTML
-const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+const baseUrl = (document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '').replace(/\/$/, '');
 
 // Instancia notyf globalmente para notificações
-window.notyf = new Notyf({ duration: 4000, position: { x: 'right', y: 'top' } });
+window.notyf = window.notyf || new Notyf({ duration: 4000, position: { x: 'right', y: 'top' } });
+
+async function parseJsonResponse(response) {
+    const text = await response.text();
+    if (!text) return {};
+
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        console.error('Resposta não JSON:', text);
+        return {
+            status: response.status,
+            message: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || 'Resposta inválida do servidor.'
+        };
+    }
+}
+
+function showSuccess(message) {
+    notyf.success(message);
+}
+
+function showError(message) {
+    notyf.error(message);
+}
 
 /* ==================== UPLOAD DE ARQUIVOS COM PROGRESS ==================== */
 const uploadForm = document.getElementById('uploadForm');
@@ -22,6 +45,7 @@ if (uploadForm) {
         const formData = new FormData(uploadForm);
         const xhr = new XMLHttpRequest();
         const progressBar = document.getElementById('uploadProgressBar');
+        const progressText = document.getElementById('uploadProgressText');
         const submitButton = uploadForm.querySelector('button[type="submit"]');
         submitButton.disabled = true;
 
@@ -29,7 +53,7 @@ if (uploadForm) {
             if (event.lengthComputable && progressBar) {
                 const percent = Math.round((event.loaded / event.total) * 100);
                 progressBar.style.width = percent + '%';
-                progressBar.textContent = percent + '%';
+                if (progressText) progressText.textContent = percent + '%';
             }
         });
 
@@ -45,25 +69,25 @@ if (uploadForm) {
                 try {
                     response = JSON.parse(response);
                 } catch (e) {
-                    notyf.error('Erro ao processar resposta do servidor.');
+                showError('Erro ao processar resposta do servidor.');
                     resetUploadProgress();
                     return;
                 }
             }
 
             if (xhr.status === 200 && response.status === 200) {
-                notyf.success(response.message || 'Upload realizado com sucesso!');
+                showSuccess(response.message || 'Upload realizado com sucesso!');
                 closeUploadModal();
-                if (typeof reloadCampaignTable === 'function') reloadCampaignTable();
+                refreshCampaigns();
             } else {
-                notyf.error(response.message || 'Erro no upload.');
+                showError(response.message || 'Erro no upload.');
                 resetUploadProgress();
             }
         };
 
         xhr.onerror = function () {
             submitButton.disabled = false;
-            notyf.error('Erro ao enviar o arquivo.');
+            showError('Erro ao enviar o arquivo.');
             resetUploadProgress();
         };
 
@@ -72,18 +96,20 @@ if (uploadForm) {
 }
 
 /* =============== MODAL DE UPLOAD =============== */
-$('#sorting-table tbody').on('click', '.btn-upload', function () {
-    const campaignId = $(this).data('id');
+document.addEventListener('click', function (event) {
+    const uploadButton = event.target.closest('.btn-upload');
+    if (!uploadButton) return;
+
+    const campaignId = uploadButton.dataset.id;
     document.getElementById('campaignId').value = campaignId;
 
     const modal = document.getElementById('uploadModal');
-    const modalContent = document.getElementById('uploadModalContent');
-    const overlay = modal.querySelector('.fixed'); // O fundo escurecido
+    if (!modal) return;
 
-    // Exibir o modal e fundo
+    const modalContent = document.getElementById('uploadModalContent');
+
     modal.classList.remove('hidden');
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('opacity-50');
+    modal.classList.add('flex');
     modalContent.classList.remove('scale-95', 'opacity-0');
     modalContent.classList.add('scale-100', 'opacity-100');
 
@@ -93,21 +119,20 @@ $('#sorting-table tbody').on('click', '.btn-upload', function () {
 function closeUploadModal() {
     const modal = document.getElementById('uploadModal');
     const modalContent = document.getElementById('uploadModalContent');
-    const overlay = modal.querySelector('.fixed'); // O fundo escurecido
+    if (!modal || !modalContent) return;
 
-    // Fechar o modal e fundo
     modalContent.classList.add('scale-95', 'opacity-0');
     modalContent.classList.remove('scale-100', 'opacity-100');
-    overlay.classList.add('opacity-0'); // Ocultar o fundo
 
-    // Esperar a transição para remover o modal da tela e garantir que o conteúdo seja acessível
     setTimeout(() => {
         modal.classList.add('hidden');
-        overlay.classList.remove('opacity-50'); // Remover a opacidade do fundo
+        modal.classList.remove('flex');
         resetUploadProgress();
         uploadForm?.reset();
+        setUploadFileName('');
     }, 200);
 }
+window.closeUploadModal = closeUploadModal;
 
 document.getElementById('uploadModal')?.addEventListener('click', e => {
     if (e.target.id === 'uploadModal') closeUploadModal();
@@ -121,14 +146,37 @@ function resetUploadProgress() {
     const progressBar = document.getElementById('uploadProgressBar');
     if (progressBar) {
         progressBar.style.width = '0%';
-        progressBar.textContent = '0%';
     }
+    const progressText = document.getElementById('uploadProgressText');
+    if (progressText) progressText.textContent = '0%';
 }
 
-function reloadCampaignTable() {
-    if ($.fn.DataTable.isDataTable('#sorting-table')) {
-        $('#sorting-table').DataTable().ajax.reload(null, false);
+function setUploadFileName(name) {
+    const fileName = document.getElementById('uploadFileName');
+    if (fileName) fileName.textContent = name || 'Clique para selecionar o arquivo';
+}
+
+document.getElementById('fileInput')?.addEventListener('change', (event) => {
+    setUploadFileName(event.target.files?.[0]?.name || '');
+});
+
+function refreshCampaigns() {
+    if (typeof window.refreshCampaignTable === 'function') {
+        Promise.resolve(window.refreshCampaignTable()).catch((error) => {
+            console.error('Erro ao atualizar tabela:', error);
+            document.dispatchEvent(new CustomEvent('campaigns:reload'));
+        });
+        return;
     }
+
+    if (typeof window.loadCampaigns === 'function') {
+        Promise.resolve(window.loadCampaigns()).catch((error) => {
+            console.error('Erro ao atualizar tabela:', error);
+        });
+        return;
+    }
+
+    document.dispatchEvent(new CustomEvent('campaigns:reload'));
 }
 
 /*Spinner dos botoes*/
@@ -183,8 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 hiddenInput.value = btn.dataset.value;
 
                 if (groupId === "group2") {
-                    const newLimit = (btn.dataset.value === "0") ? 160 : 70;
-                    window.setCharsetLimit?.(newLimit);
+                    window.setCharsetLimit?.(btn.dataset.value);
                 }
             });
         });
@@ -195,8 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
         hiddenInput.value = activeBtn.dataset.value;
 
         if (groupId === "group2") {
-            const newLimit = (activeBtn.dataset.value === "0") ? 160 : 70;
-            window.setCharsetLimit?.(newLimit);
+            window.setCharsetLimit?.(activeBtn.dataset.value);
         }
     }
 
@@ -219,14 +265,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const result = await response.json();
 
             if (response.ok) {
-                notyf.success(result.message || "Campanha criada com sucesso!");
-                setTimeout(() => window.location.href = `${baseUrl}/campaign`, 1500);
+                showSuccess(result.message || "Campanha criada com sucesso!");
+                setTimeout(() => window.location.href = `${baseUrl}/campaign`, 900);
             } else {
-                notyf.error(result.message || "Erro ao criar campanha.");
+                showError(result.message || "Erro ao criar campanha.");
             }
         } catch (err) {
             console.error(err);
-            notyf.error("Erro de conexão ao enviar a campanha.");
+            showError("Erro de conexão ao enviar a campanha.");
         } finally {
             newButton.disabled = false;
             btnText.textContent = "Criar";
@@ -239,6 +285,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("smsCampaignFormEdit");
     const updateButton = document.getElementById("updateButton");
     const campaignId = document.getElementById("campaignIdInput")?.value;
+    const currentSender = form?.dataset.sender || 'short';
+    const currentCharset = form?.dataset.charset || '0';
+    const currentStatus = form?.dataset.status || 'y';
 
     if (!form || !updateButton) return;
 
@@ -272,26 +321,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 // Se for charset, atualiza limite
                 if (groupId === "group2Edit") {
-                    const newLimit = (btn.dataset.value === "0") ? 160 : 70;
-                    window.setCharsetLimitEdit?.(newLimit);
+                    window.setCharsetLimitEdit?.(btn.dataset.value);
                 }
             });
         });
 
         // Seleciona botão ativo inicial
-        const activeBtn = Array.from(buttons).find(b => b.dataset.active === "true") || buttons[0];
+        const desiredValue = groupId === "group1Edit" ? currentSender : currentCharset;
+        const activeBtn = Array.from(buttons).find(b => b.dataset.value === desiredValue) || buttons[0];
         activeBtn.classList.add("bg-blue-600", "text-white");
+        activeBtn.classList.remove("bg-white", "hover:bg-gray-50", "text-gray-700");
+        activeBtn.dataset.active = "true";
         setValueCallback(activeBtn.dataset.value);
 
         if (groupId === "group2Edit") {
-            const newLimit = (activeBtn.dataset.value === "0") ? 160 : 70;
-            window.setCharsetLimitEdit?.(newLimit);
+            window.setCharsetLimitEdit?.(activeBtn.dataset.value);
         }
     }
 
     // Ativa os grupos
     activateGroup("group1Edit", (val) => selectedSender = val);
     activateGroup("group2Edit", (val) => selectedCharset = val);
+    const statusEdit = document.getElementById("statusEdit");
+    if (statusEdit) statusEdit.value = currentStatus;
 
     // Submit
     form.addEventListener("submit", async (e) => {
@@ -316,14 +368,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const result = await response.json();
 
             if (response.ok) {
-                notyf.success(result.message || "Campanha atualizada com sucesso!");
-                setTimeout(() => window.location.href = `${baseUrl}/campaign`, 1500);
+                showSuccess(result.message || "Campanha atualizada com sucesso!");
+                setTimeout(() => window.location.href = `${baseUrl}/campaign`, 900);
             } else {
-                notyf.error(result.message || "Erro ao atualizar campanha.");
+                showError(result.message || "Erro ao atualizar campanha.");
             }
         } catch (err) {
             console.error(err);
-            notyf.error("Erro de conexão ao atualizar a campanha.");
+            showError("Erro de conexão ao atualizar a campanha.");
         } finally {
             updateButton.disabled = false;
             btnText.textContent = "Atualizar";
@@ -339,47 +391,45 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ======================= BOTÃO EDITAR======================= */
 $(document).on('click', '.btn-edit', function () {
     const campaignId = $(this).data('id');
-    window.location.href = `${baseURL}/campaign/${campaignId}/edit`;
+    window.location.href = `${baseUrl}/campaign/${campaignId}/edit`;
 });
 /* ======================= BOTÃO ENVIAR======================= */
 $(document).on('click', '.btn-send', function () {
     const button = $(this);
     const campaignId = button.data('id');
 
-    if (!campaignId) return alert('ID da campanha não encontrado.');
+    if (!campaignId) return showError('ID da campanha não encontrado.');
 
-    toggleButtonSpinner(button, true);
+    const runSend = () => {
+        toggleButtonSpinner(button, true);
 
-    fetch(`${baseUrl}/campaign/${campaignId}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    })
-        .then(async res => {
-            const data = await res.json();
-            if (data.status === 200) {
-                notyf.success(data.message || 'Campanha enviada com sucesso!');
-                reloadCampaignTable();
-                //window.location.href = `${baseURL}/reports`;
-                setTimeout(() => {
-                    window.location.href = `${baseURL}/reports`;
-                }, 4000); // 2000ms = 2s
-
-            } else {
-                let msg = data.message || 'Erro ao enviar campanha.';
-                notyf.error(msg);
-                if (data.balance !== undefined && data.necessary !== undefined) {
-                    notyf.error(`Saldo atual: R$ ${parseFloat(data.balance).toFixed(2)}`);
-                    notyf.error(`Necessário: R$ ${parseFloat(data.necessary).toFixed(2)}`);
+        fetch(`${baseUrl}/campaign/${campaignId}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(async res => {
+                const data = await parseJsonResponse(res);
+                if (res.ok && Number(data.status || res.status) === 200) {
+                    showSuccess(data.message || 'Campanha enviada com sucesso!');
+                    refreshCampaigns();
+                } else {
+                    const msg = data.message || 'Erro ao enviar campanha.';
+                    showError(msg);
+                    if (data.balance !== undefined && data.necessary !== undefined) {
+                        notyf.error(`Saldo atual: R$ ${parseFloat(data.balance).toFixed(2)}`);
+                        notyf.error(`Necessário: R$ ${parseFloat(data.necessary).toFixed(2)}`);
+                    }
                 }
+            })
+            .catch(() => {
+                showError('Erro na comunicação com o servidor.');
+            })
+            .finally(() => {
+                toggleButtonSpinner(button, false);
+            });
+    };
 
-            }
-        })
-        .catch(() => {
-            notyf.error('Erro na comunicação com o servidor.');
-        })
-        .finally(() => {
-            toggleButtonSpinner(button, false);
-        });
+    runSend();
 });
 
 
@@ -391,9 +441,9 @@ $(document).on('click', '.btn-delete', function () {
     const campaignId = button.data('id');
     const campaignName = button.data('name');
 
-    if (!campaignId) return notyf.error('ID da campanha não encontrado.');
+    if (!campaignId) return showError('ID da campanha não encontrado.');
 
-    if (confirm(`Tem certeza que deseja excluir a campanha "${campaignName}"?`)) {
+    const removeCampaign = () => {
         toggleButtonSpinner(button, true);
 
         fetch(`${baseUrl}/campaign/${campaignId}/delete`, {
@@ -401,21 +451,41 @@ $(document).on('click', '.btn-delete', function () {
             headers: { 'Content-Type': 'application/json' }
         })
             .then(async res => {
-                const data = await res.json();
-                if (res.status === 200) {
-                    notyf.success(data.message || 'Campanha excluída com sucesso!');
-                    reloadCampaignTable();
+                const data = await parseJsonResponse(res);
+                if (res.ok && Number(data.status || res.status) === 200) {
+                    showSuccess(data.message || 'Campanha excluída com sucesso!');
+                    refreshCampaigns();
                 } else {
-                    notyf.error(data.message || 'Erro ao excluir campanha.');
+                    showError(data.message || 'Erro ao excluir campanha.');
                 }
             })
             .catch(err => {
                 console.error('Erro ao excluir:', err);
-                notyf.error('Erro de conexão ao excluir.');
+                showError('Erro de conexão ao excluir.');
             })
             .finally(() => {
                 toggleButtonSpinner(button, false);
             });
+    };
+
+    if (window.Swal) {
+        Swal.fire({
+            title: 'Excluir campanha?',
+            text: `A campanha "${campaignName}" será removida.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Excluir',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b'
+        }).then(result => {
+            if (result.isConfirmed) removeCampaign();
+        });
+        return;
+    }
+
+    if (confirm(`Tem certeza que deseja excluir a campanha "${campaignName}"?`)) {
+        removeCampaign();
     }
 
 });

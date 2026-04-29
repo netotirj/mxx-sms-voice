@@ -6,10 +6,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function floatchart() {
-  const dataTable1 = new simpleDatatables.DataTable('#pc-dt-simple-1', { sortable: false });
-  const dataTable2 = new simpleDatatables.DataTable('#pc-dt-simple-2', { sortable: false });
-  const dataTable3 = new simpleDatatables.DataTable('#pc-dt-simple-3', { sortable: false });
-  const dataTable4 = new simpleDatatables.DataTable('#pc-dt-simple-4', { sortable: false });
   (function () {
     var total_invoice_1_chart_options = {
       chart: {

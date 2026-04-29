@@ -153,6 +153,28 @@ class ImportContactsService
 
     private function saveContactFull(array $data): void
     {
+        if ($this->type === 'sms') {
+            if ($this->requireCampaign && !$this->campaignId) {
+                throw new Exception('Campanha obrigatória.');
+            }
+
+            if (!$this->campaignId) {
+                throw new Exception('Campanha SMS não informada.');
+            }
+
+            $contact = new ContactsSearch();
+            $contact->tenancy_id = (string)$this->ObUser['tenancy_id'];
+            $contact->user_id = (int)$this->ObUser['id'];
+            $contact->campaign_id = (int)$this->campaignId;
+            $contact->name = $data['name'] ?? '';
+            $contact->phone = $data['phone'] ?? '';
+            $contact->created_at = date('Y-m-d H:i:s');
+            $contact->updated_at = date('Y-m-d H:i:s');
+            $contact->register();
+
+            return;
+        }
+
         if ($this->type === 'voice') {
 
             if (!$this->voiceListId) {
@@ -178,10 +200,19 @@ class ImportContactsService
 
     private function normalizePhone(string $input): string
     {
+        $input = str_replace(',', '.', $input);
+        if (stripos($input, 'e') !== false) {
+            $input = number_format((float)$input, 0, '', '');
+        }
+
         $digits = preg_replace('/\D+/', '', $input);
 
         if (strlen($digits) === 11) {
             $digits = '55' . $digits;
+        }
+
+        if (strlen($digits) === 13 && !str_starts_with($digits, '55')) {
+            $digits = '55' . substr($digits, -11);
         }
 
         return $digits;
@@ -189,6 +220,6 @@ class ImportContactsService
 
     private function isValidPhone(string $phone): bool
     {
-        return strlen($phone) >= 12 && str_starts_with($phone, '55');
+        return str_starts_with($phone, '55') && strlen($phone) >= 12 && strlen($phone) <= 13;
     }
 }

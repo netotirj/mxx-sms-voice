@@ -210,8 +210,7 @@
 
                 // Atualiza charsetLimit se for grupo2
                 if (groupId === "group2" && window.setCharsetLimit) {
-                    const limit = (btn.dataset.value === "0") ? 160 : 70;
-                    window.setCharsetLimit(limit);
+                    window.setCharsetLimit(btn.dataset.value);
                 }
             });
         });
@@ -228,31 +227,33 @@
 
     if (!input) throw new Error("Elemento messageInput não encontrado.");
 
-    let charsetLimit = 160; // padrão inicial
+    let charsetCoding = "0"; // padrão inicial
 
     // Função global para atualizar limite de caracteres
-    window.setCharsetLimit = function(limit) {
-        charsetLimit = limit;
+    window.setCharsetLimit = function(coding) {
+        charsetCoding = String(coding) === "8" ? "8" : "0";
         updateCounter();
     };
 
     function updateCounter() {
         let value = input.value;
-        const arr = Array.from(value);
+        const maxLength = charsetCoding === "8" ? 1340 : 1377;
+        const singleLimit = charsetCoding === "8" ? 70 : 160;
+        const concatLimit = charsetCoding === "8" ? 67 : 153;
 
-        if (arr.length > charsetLimit) {
-            value = arr.slice(0, charsetLimit).join("");
+        if (Array.from(value).length > maxLength) {
+            value = Array.from(value).slice(0, maxLength).join("");
             input.value = value;
         }
 
         const length = Array.from(value).length;
-        const smsCount = Math.ceil(length / charsetLimit) || 1;
+        const smsCount = length <= singleLimit ? 1 : Math.ceil(length / concatLimit);
 
         if (preview) preview.innerText = length > 0 ? value : "Digite uma mensagem 😊";
-        if (counter) counter.textContent = `SMS cobrados: ${smsCount} / Caracteres: ${length} (limite ${charsetLimit})`;
+        if (counter) counter.textContent = `SMS cobrados: ${smsCount} / Caracteres: ${length} (limite ${maxLength})`;
 
         if (warning) {
-            if (length >= charsetLimit) {
+            if (length >= maxLength) {
                 warning.classList.remove("hidden");
                 input.classList.add("border", "border-red-500");
             } else {
@@ -347,5 +348,4 @@
     }
 
 </script>
-
 

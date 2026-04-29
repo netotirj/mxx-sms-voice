@@ -45,6 +45,25 @@ class WhatsAppTemplate
         return $row ?: null;
     }
 
+    public static function getByNameForUser(string $name, string $language, array $user): ?array
+    {
+        $where = TenancyHelper::applySecurityFilter(
+            'name = :name AND language = :language',
+            $user,
+            'user_id',
+            'whatsapp_templates'
+        );
+
+        $row = (new Database('whatsapp_templates'))
+            ->select($where, [
+                ':name' => $name,
+                ':language' => $language,
+            ], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
     public static function deleteForUser(int $id, array $user): bool
     {
         if (!self::getForUser($id, $user)) {

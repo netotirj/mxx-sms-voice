@@ -22,7 +22,7 @@ $obRouter->post('/webhooks/meta/whatsapp', [
 ]);
 
 $obRouter->get('/campaign/whatsapp', [
-    'name' => '/campaign/whatsapp', // nome da rota
+    'name' => '/campaign/whatsapp',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -33,7 +33,7 @@ $obRouter->get('/campaign/whatsapp', [
 ]);
 
 $obRouter->get('/campaign/whatsapp/accounts', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/accounts',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -43,8 +43,140 @@ $obRouter->get('/campaign/whatsapp/accounts', [
     }
 ]);
 
+$obRouter->get('/campaign/whatsapp/numbers', [
+    'name' => '/campaign/whatsapp/numbers',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listNumbers();
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/numbers/health', [
+    'name' => '/campaign/whatsapp/numbers/health',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listNumberHealth();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/health/sync', [
+    'name' => '/campaign/whatsapp/numbers/health/sync',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::syncNumberHealth();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/client', [
+    'name' => '/campaign/whatsapp/numbers/client',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::registerClientNumber();
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/number-requests', [
+    'name' => '/campaign/whatsapp/number-requests',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listNumberRequests();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/number-requests/{id}/approve', [
+    'name' => '/campaign/whatsapp/number-requests/approve',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::approveNumberRequest($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/number-requests/{id}/reject', [
+    'name' => '/campaign/whatsapp/number-requests/reject',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::rejectNumberRequest($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/platform', [
+    'name' => '/campaign/whatsapp/numbers/platform',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::createPlatformNumber();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/platform/{id}/assign', [
+    'name' => '/campaign/whatsapp/numbers/platform/{id}/assign',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::assignPlatformNumber($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/{id}/send-code', [
+    'name' => '/campaign/whatsapp/numbers/{id}/send-code',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::sendNumberVerificationCode($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/{id}/confirm-code', [
+    'name' => '/campaign/whatsapp/numbers/{id}/confirm-code',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::confirmNumberVerificationCode($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/numbers/{id}/remove', [
+    'name' => '/campaign/whatsapp/numbers/{id}/remove',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::removeNumber($request, $id);
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/accounts', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/accounts/create',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -55,7 +187,7 @@ $obRouter->post('/campaign/whatsapp/accounts', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/accounts/{id}/test', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/accounts/{id}/test',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -66,7 +198,7 @@ $obRouter->post('/campaign/whatsapp/accounts/{id}/test', [
 ]);
 
 $obRouter->get('/campaign/whatsapp/campaigns', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/campaigns',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -77,7 +209,7 @@ $obRouter->get('/campaign/whatsapp/campaigns', [
 ]);
 
 $obRouter->get('/campaign/whatsapp/templates', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/templates',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -88,7 +220,7 @@ $obRouter->get('/campaign/whatsapp/templates', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/templates', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/templates/create',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -99,7 +231,7 @@ $obRouter->post('/campaign/whatsapp/templates', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/templates/{id}/delete', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/templates/{id}/delete',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -110,7 +242,7 @@ $obRouter->post('/campaign/whatsapp/templates/{id}/delete', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/campaigns', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/campaigns/create',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -121,7 +253,7 @@ $obRouter->post('/campaign/whatsapp/campaigns', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/campaigns/{id}/send', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/campaigns/{id}/send',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -131,8 +263,19 @@ $obRouter->post('/campaign/whatsapp/campaigns/{id}/send', [
     }
 ]);
 
+$obRouter->post('/campaign/whatsapp/campaigns/{id}/cancel-category', [
+    'name' => '/campaign/whatsapp/campaigns/{id}/cancel-category',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::cancelCampaignCategory($request, $id);
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/support/send', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/support/send',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -142,8 +285,96 @@ $obRouter->post('/campaign/whatsapp/support/send', [
     }
 ]);
 
+$obRouter->get('/campaign/whatsapp/support/queues', [
+    'name' => '/campaign/whatsapp/support/queues',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listSupportQueues();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/queues', [
+    'name' => '/campaign/whatsapp/support/queues/create',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::createSupportQueue();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/queues/{id}/agents', [
+    'name' => '/campaign/whatsapp/support/queues/{id}/agents',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::upsertSupportQueueAgent($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/agents/status', [
+    'name' => '/campaign/whatsapp/support/agents/status',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::updateSupportAgentStatus();
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/support/dashboard', [
+    'name' => '/campaign/whatsapp/support/dashboard',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::supportDashboard();
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/support/events', [
+    'name' => '/campaign/whatsapp/support/events',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::supportEvents($request);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/sessions/{id}/finish', [
+    'name' => '/campaign/whatsapp/support/sessions/{id}/finish',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::finishSupportSession($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/sessions/{id}/transfer', [
+    'name' => '/campaign/whatsapp/support/sessions/{id}/transfer',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::transferSupportSession($request, $id);
+    }
+]);
+
 $obRouter->get('/campaign/whatsapp/conversations', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/conversations',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -154,7 +385,7 @@ $obRouter->get('/campaign/whatsapp/conversations', [
 ]);
 
 $obRouter->get('/campaign/whatsapp/conversations/{id}/messages', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/conversations/{id}/messages',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -165,7 +396,7 @@ $obRouter->get('/campaign/whatsapp/conversations/{id}/messages', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/conversations/{id}/read', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/conversations/{id}/read',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -176,7 +407,7 @@ $obRouter->post('/campaign/whatsapp/conversations/{id}/read', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/conversations/{id}/unread', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/conversations/{id}/unread',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -187,7 +418,7 @@ $obRouter->post('/campaign/whatsapp/conversations/{id}/unread', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/conversations/{id}/delete', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/conversations/{id}/delete',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -198,7 +429,7 @@ $obRouter->post('/campaign/whatsapp/conversations/{id}/delete', [
 ]);
 
 $obRouter->post('/campaign/whatsapp/messages/send', [
-    'name' => '/campaign/whatsapp',
+    'name' => '/campaign/whatsapp/messages/send',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'

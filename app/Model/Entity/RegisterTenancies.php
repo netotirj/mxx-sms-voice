@@ -40,6 +40,21 @@ class RegisterTenancies
         return (bool) $db->execute($query, $params)->fetchColumn();
     }
 
+    public static function phoneExists(string $phone): bool
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if ($phone === '') {
+            return false;
+        }
+
+        $db = new Database();
+
+        $query = "SELECT 1 FROM tenancies WHERE tenancy_phone = :phone LIMIT 1";
+        $params = [':phone' => $phone];
+
+        return (bool) $db->execute($query, $params)->fetchColumn();
+    }
+
     /**
      * Atualiza o plano ativo da tenancy
      *

@@ -165,8 +165,21 @@ $obRouter->get('/reports/list-cdr',[
 
 $obRouter->post('/reports/web-pro',[
     function($request){
-        return new Response(200, Pages\WebStatusSms::getCallbackPro($request));
+        return Pages\WebStatusSms::getCallbackPro($request);
     }
 ]);
 
+$obRouter->post('/callback',[
+    function($request){
+        return Pages\WebStatusSms::getCallbackPro($request);
+    }
+]);
 
+$obRouter->get('/callback',[
+    function($request){
+        return new Response(200, [
+            'status' => 'OK',
+            'message' => 'Callback SMS disponível. Use POST com Basic Auth para enviar eventos.'
+        ], 'application/json');
+    }
+]);

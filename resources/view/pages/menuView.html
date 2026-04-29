@@ -26,7 +26,7 @@
             <div class="mr-2 flex h-8 w-8 items-center justify-center text-orange-500">
               <i class="ni ni-archive-2"></i>
             </div>
-            <span>Mensageria</span>
+            <span>SMS</span>
           </div>
           <i class="submenu-toggle fas fa-chevron-down text-[10px] transition-transform duration-300"></i>
         </div>
@@ -34,7 +34,25 @@
           <li><a href="{{URL}}/campaign" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-blue-500 ni ni-bullet-list-67"></i></div><span>Listar Campanhas</span></a></li>
           <li><a href="{{URL}}/campaign/new" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-emerald-500 ni ni-fat-add"></i></div><span>Criar Campanha</span></a></li>
           <li><a href="{{URL}}/campaign/single-shot" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-indigo-900 ni ni-send"></i></div><span>Disparo Simples</span></a></li>
-          <li><a href="{{URL}}/campaign/whatsapp" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-green-500 fa-brands fa-whatsapp"></i></div><span>WhatsApp</span></a></li>
+        </ul>
+      </li>
+
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm transition-all dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center text-green-500">
+              <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <span>WhatsApp</span>
+          </div>
+          <i class="submenu-toggle fas fa-chevron-down text-[10px] transition-transform duration-300"></i>
+        </div>
+        <ul class="submenu-items flex flex-col overflow-hidden max-h-0 transition-all duration-300 ease-in-out list-none">
+          <li><a href="{{URL}}/campaign/whatsapp" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-emerald-500 ni ni-chat-round"></i></div><span>Central</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#conversations" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-cyan-500 ni ni-chat-round"></i></div><span>Atendimento</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#campaigns" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-orange-500 ni ni-send"></i></div><span>Campanhas</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#templates" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-violet-500 ni ni-single-copy-04"></i></div><span>Templates</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#accounts" class="nav-link relative flex items-center py-2 pl-12 pr-4 text-xs dark:text-white opacity-80 hover:opacity-100"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-[10px] text-slate-500 ni ni-settings-gear-65"></i></div><span>Contas Meta</span></a></li>
         </ul>
       </li>
 
@@ -215,15 +233,18 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname.replace(/\/$/, '');
+    const currentFullPath = path + window.location.hash;
     const navLinks = document.querySelectorAll('a.nav-link');
     let submenuToOpen = null;
 
     navLinks.forEach(link => {
       const href = link.getAttribute('href');
       if (!href) return;
-      const hrefPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
+      const hrefUrl = new URL(href, window.location.origin);
+      const hrefPath = hrefUrl.pathname.replace(/\/$/, '');
+      const hrefFullPath = hrefPath + hrefUrl.hash;
 
-      if (path === hrefPath) {
+      if ((hrefUrl.hash && currentFullPath === hrefFullPath) || (!hrefUrl.hash && window.location.hash === '' && path === hrefPath)) {
         const isInsideSubmenu = link.closest('.submenu-items');
 
         // Mantemos o texto estático: pl-6 apenas no principal

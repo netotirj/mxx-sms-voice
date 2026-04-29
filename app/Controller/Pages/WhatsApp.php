@@ -8,8 +8,15 @@ use App\Http\Response;
 use App\Model\Entity\WhatsAppAccount;
 use App\Model\Entity\WhatsAppCampaign;
 use App\Model\Entity\WhatsAppConversation;
+use App\Model\Entity\WhatsAppOutbox;
 use App\Model\Entity\WhatsAppTemplate;
 use App\Service\MetaWhatsAppCloudApi;
+use App\Service\WhatsAppCostPolicy;
+use App\Service\WhatsAppMessagePlanner;
+use App\Service\WhatsAppNumberManager;
+use App\Service\WhatsAppNumberSafety;
+use App\Service\WhatsAppOutboxWorker;
+use App\Service\WhatsAppSupportDesk;
 use App\Session\User as SessionUser;
 use App\Utils\View;
 
@@ -42,11 +49,301 @@ class WhatsApp extends ViewComponents
         ]);
     }
 
+    public static function listNumbers(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppNumberManager::listForUser($obUser),
+            'available_platform_numbers' => self::canManageWhatsAppNumbers($obUser)
+                ? WhatsAppNumberManager::listAvailablePlatformNumbers()
+                : [],
+        ]);
+    }
+
+    public static function listNumberHealth(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppNumberSafety::listForUser($obUser),
+        ]);
+    }
+
+    public static function syncNumberHealth(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'message' => 'Qualidade dos números atualizada.',
+            'data' => WhatsAppNumberSafety::syncAllForUser($obUser),
+        ]);
+    }
+
+    public static function registerClientNumber(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $number = WhatsAppNumberManager::registerClientNumber($obUser, self::jsonInput());
+
+            return self::json(201, [
+                'success' => true,
+                'message' => empty($number['meta_id'])
+                    ? 'Solicitação recebida. O administrador fará a conexão do número.'
+                    : 'Número recebido. Agora envie o código de confirmação.',
+                'data' => $number,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function listNumberRequests(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppNumberManager::listNumberRequests($obUser),
+            'can_manage_numbers' => self::canManageWhatsAppNumbers($obUser),
+        ]);
+    }
+
+    public static function approveNumberRequest($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Solicitação aprovada. Agora envie o código de confirmação.',
+                'data' => WhatsAppNumberManager::approveNumberRequest($obUser, (int)$id),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function rejectNumberRequest($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        try {
+            $input = self::jsonInput();
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Solicitação recusada.',
+                'data' => WhatsAppNumberManager::rejectNumberRequest($obUser, (int)$id, (string)($input['reason'] ?? '')),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function sendNumberVerificationCode($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+
+        try {
+            if (!self::canManageWhatsAppNumbers($obUser)) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Ação permitida apenas para administrador.',
+                ]);
+            }
+
+            $number = WhatsAppNumberManager::sendVerificationCode(
+                $obUser,
+                (int)$id,
+                (string)($input['method'] ?? 'SMS')
+            );
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Código enviado.',
+                'data' => $number,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function confirmNumberVerificationCode($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+
+        try {
+            if (!self::canManageWhatsAppNumbers($obUser)) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Ação permitida apenas para administrador.',
+                ]);
+            }
+
+            $number = WhatsAppNumberManager::confirmVerificationCode(
+                $obUser,
+                (int)$id,
+                (string)($input['code'] ?? '')
+            );
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Número conectado.',
+                'data' => $number,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function createPlatformNumber(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para cadastrar números da plataforma.',
+            ]);
+        }
+
+        try {
+            $number = WhatsAppNumberManager::createPlatformNumber($obUser, self::jsonInput());
+
+            return self::json(201, [
+                'success' => true,
+                'message' => 'Número da plataforma cadastrado.',
+                'data' => $number,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function assignPlatformNumber($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            if (!self::canManageWhatsAppNumbers($obUser)) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Ação permitida apenas para administrador.',
+                ]);
+            }
+
+            $number = WhatsAppNumberManager::assignPlatformNumber($obUser, (int)$id, self::jsonInput());
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Número conectado.',
+                'data' => $number,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function removeNumber($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            if (!self::canManageWhatsAppNumbers($obUser)) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Ação permitida apenas para administrador.',
+                ]);
+            }
+
+            $number = WhatsAppNumberManager::removeNumberFromMeta($obUser, (int)$id);
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Número removido.',
+                'data' => $number,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
     public static function createAccount(): Response
     {
         $obUser = self::requireUser();
         if ($obUser instanceof Response) {
             return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
         }
 
         $input = self::jsonInput();
@@ -118,7 +415,7 @@ class WhatsApp extends ViewComponents
         } catch (\Throwable $e) {
             return self::json(502, [
                 'success' => false,
-                'message' => 'Falha ao consultar Meta Cloud API.',
+                'message' => 'Falha ao consultar dados do número.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -160,7 +457,7 @@ class WhatsApp extends ViewComponents
         $input = self::jsonInput();
         $name = trim((string)($input['name'] ?? ''));
         $language = trim((string)($input['language'] ?? 'pt_BR')) ?: 'pt_BR';
-        $category = strtoupper(trim((string)($input['category'] ?? 'MARKETING')));
+        $category = WhatsAppCostPolicy::normalizeCategory((string)($input['category'] ?? 'UTILITY'));
         $body = self::nullableString($input['body'] ?? null);
         $components = $input['components'] ?? null;
         $status = strtolower(trim((string)($input['status'] ?? 'approved'))) ?: 'approved';
@@ -410,6 +707,41 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
+        $templateCategory = null;
+        if ($messageType === 'template') {
+            $template = WhatsAppTemplate::getByNameForUser($templateName, $templateLanguage, $obUser);
+            if ($template && (string)$template['status'] !== 'approved') {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Template cadastrado, mas ainda não está aprovado.',
+                ]);
+            }
+
+            $templateCategory = WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'MARKETING');
+        }
+
+        $lastInboundAt = WhatsAppConversation::getLastInboundAt($accountId, $to);
+        $serviceWindowOpen = WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt);
+
+        if ($messageType === 'text' && !$serviceWindowOpen) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Mensagem de texto livre bloqueada: fora da janela gratuita de 24h. Use um template aprovado.',
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
+
+        if (
+            $messageType === 'template'
+            && $templateCategory === WhatsAppCostPolicy::CATEGORY_MARKETING
+            && WhatsAppConversation::hasMarketingOptOut($accountId, $to)
+        ) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'Envio de marketing bloqueado: destinatário solicitou descadastro.',
+            ]);
+        }
+
         $messageBody = $messageType === 'template'
             ? "[Template] {$templateName} ({$templateLanguage})"
             : $message;
@@ -425,66 +757,45 @@ class WhatsApp extends ViewComponents
             'unread_count' => 0,
         ]);
 
-        try {
-            $api = new MetaWhatsAppCloudApi();
-            if ($messageType === 'template') {
-                $result = $api->sendTemplate(
-                    (string)$account['access_token'],
-                    (string)$account['phone_number_id'],
-                    $to,
-                    $templateName,
-                    $templateLanguage,
-                    $templateComponents
-                );
-            } else {
-                $result = $api->sendText(
-                    (string)$account['access_token'],
-                    (string)$account['phone_number_id'],
-                    $to,
-                    $message
-                );
+        $plannedMessages = $messageType === 'template'
+            ? WhatsAppMessagePlanner::planTemplate($templateName, $templateLanguage, $templateCategory, $templateComponents, $template['body'] ?? null)
+            : WhatsAppMessagePlanner::planText($message, $serviceWindowOpen);
+
+        $outboxIds = [];
+        $estimatedCost = 0.0;
+        foreach ($plannedMessages as $planned) {
+            if (
+                ($planned['template_category'] ?? null) === WhatsAppCostPolicy::CATEGORY_MARKETING
+                && WhatsAppConversation::hasMarketingOptOut($accountId, $to)
+            ) {
+                continue;
             }
 
-            $wamid = $result['data']['messages'][0]['id'] ?? null;
-            WhatsAppConversation::addMessage([
-                'conversation_id' => $conversationId,
+            $outboxIds[] = self::enqueuePlannedWhatsAppMessage([
+                'tenancy_id' => $obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
                 'account_id' => $accountId,
-                'wamid' => $wamid,
-                'direction' => 'outbound',
-                'message_type' => $messageType,
-                'body' => $messageBody,
-                'status' => $result['ok'] ? 'sent' : 'failed',
-                'error_message' => $result['ok'] ? null : ($result['error'] ?? 'Falha no envio.'),
-                'payload' => $result['data'] ?? [],
-            ]);
+                'conversation_id' => $conversationId,
+                'contact_phone' => $to,
+                'contact_name' => $contactName,
+            ], $planned, $serviceWindowOpen);
 
-            return self::json($result['ok'] ? 200 : 502, [
-                'success' => $result['ok'],
-                'message' => $result['ok']
-                    ? ($messageType === 'template' ? 'Template enviado.' : 'Mensagem enviada.')
-                    : 'A Meta recusou o envio. Use template aprovado para iniciar conversa fora da janela de 24h.',
-                'conversation_id' => $conversationId,
-                'wamid' => $wamid,
-                'meta' => $result,
-            ]);
-        } catch (\Throwable $e) {
-            WhatsAppConversation::addMessage([
-                'conversation_id' => $conversationId,
-                'account_id' => $accountId,
-                'direction' => 'outbound',
-                'message_type' => $messageType,
-                'body' => $messageBody,
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-            ]);
-
-            return self::json(502, [
-                'success' => false,
-                'message' => 'Falha ao enviar mensagem pela Meta.',
-                'conversation_id' => $conversationId,
-                'error' => $e->getMessage(),
-            ]);
+            $estimatedCost += WhatsAppCostPolicy::estimateBrazilCostUsd(
+                (string)$planned['message_type'],
+                $planned['template_category'] ?? null,
+                $serviceWindowOpen
+            );
         }
+
+        return self::json(202, [
+            'success' => true,
+            'message' => 'Mensagem desmembrada e enfileirada.',
+            'conversation_id' => $conversationId,
+            'outbox_ids' => $outboxIds,
+            'parts' => $plannedMessages,
+            'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
+            'estimated_cost_usd' => round($estimatedCost, 4),
+        ]);
     }
 
     public static function verifyWebhook($request): Response
@@ -531,6 +842,10 @@ class WhatsApp extends ViewComponents
                             $processed++;
                         }
                     }
+
+                    if (self::storeWebhookNumberQuality($value)) {
+                        $processed++;
+                    }
                 }
             }
 
@@ -564,6 +879,9 @@ class WhatsApp extends ViewComponents
 
         $body = self::extractWebhookMessageBody($message);
         $messageType = (string)($message['type'] ?? 'unknown');
+        if ($messageType === 'text' && WhatsAppCostPolicy::looksLikeOptOut($body)) {
+            WhatsAppConversation::registerMarketingOptOut((int)$account['id'], $from, $message['id'] ?? null);
+        }
 
         $conversationId = WhatsAppConversation::findOrCreate([
             'tenancy_id' => $account['tenancy_id'],
@@ -591,6 +909,8 @@ class WhatsApp extends ViewComponents
             return false;
         }
 
+        WhatsAppSupportDesk::handleInboundConversation($conversationId, $account, $body);
+
         return true;
     }
 
@@ -607,6 +927,24 @@ class WhatsApp extends ViewComponents
         }
 
         return WhatsAppConversation::updateMessageStatusByWamid($wamid, $statusName, $errorMessage, $status);
+    }
+
+    private static function storeWebhookNumberQuality(array $value): bool
+    {
+        $hasQuality = isset($value['quality_rating'])
+            || isset($value['current_quality_update_event'])
+            || isset($value['messaging_limit_tier']);
+
+        if (!$hasQuality) {
+            return false;
+        }
+
+        try {
+            WhatsAppNumberSafety::handleMetaWebhook($value);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private static function extractWebhookMessageBody(array $message): string
@@ -694,6 +1032,16 @@ class WhatsApp extends ViewComponents
             $templateComponents = [];
         }
 
+        $templateCategory = null;
+        if ($messageType === 'template') {
+            $template = WhatsAppTemplate::getByNameForUser(
+                trim((string)$input['template_name']),
+                trim((string)($input['template_language'] ?? 'pt_BR')) ?: 'pt_BR',
+                $obUser
+            );
+            $templateCategory = WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'MARKETING');
+        }
+
         $recipients = self::normalizeRecipients($input['recipients'] ?? []);
         if ($recipients === []) {
             return self::json(422, [
@@ -712,7 +1060,9 @@ class WhatsApp extends ViewComponents
                 'message_body' => self::nullableString($input['message_body'] ?? null),
                 'template_name' => self::nullableString($input['template_name'] ?? null),
                 'template_language' => self::nullableString($input['template_language'] ?? 'pt_BR'),
+                'template_category' => $templateCategory,
                 'template_components' => $templateComponents,
+                'scheduled_at' => self::nullableString($input['scheduled_at'] ?? null),
                 'total_recipients' => count($recipients),
                 'status' => 'draft',
             ]);
@@ -767,45 +1117,99 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
-        $api = new MetaWhatsAppCloudApi();
-        WhatsAppCampaign::markStatus((int)$campaign['id'], 'sending');
+        WhatsAppCampaign::markStatus((int)$campaign['id'], 'queued');
 
-        $sent = 0;
+        $queued = 0;
         $failed = 0;
         $errors = [];
+        $estimatedCostUsd = 0.0;
+        $templateCategory = null;
+        $template = null;
+
+        if ($campaign['message_type'] === 'template') {
+            $template = WhatsAppTemplate::getByNameForUser(
+                (string)$campaign['template_name'],
+                (string)($campaign['template_language'] ?: 'pt_BR'),
+                $obUser
+            );
+            $templateCategory = WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'MARKETING');
+
+            if ($template && (string)$template['status'] !== 'approved') {
+                WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
+
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Template cadastrado, mas ainda não está aprovado.',
+                ]);
+            }
+        }
 
         foreach ($recipients as $recipient) {
             try {
-                if ($campaign['message_type'] === 'text') {
-                    $result = $api->sendText(
-                        (string)$account['access_token'],
-                        (string)$account['phone_number_id'],
-                        (string)$recipient['phone'],
-                        (string)$campaign['message_body']
-                    );
-                } else {
-                    $components = json_decode((string)($campaign['template_components'] ?? '[]'), true);
-                    $result = $api->sendTemplate(
-                        (string)$account['access_token'],
-                        (string)$account['phone_number_id'],
-                        (string)$recipient['phone'],
-                        (string)$campaign['template_name'],
-                        (string)($campaign['template_language'] ?: 'pt_BR'),
-                        is_array($components) ? $components : []
-                    );
-                }
+                $recipientPhone = (string)$recipient['phone'];
+                $lastInboundAt = WhatsAppConversation::getLastInboundAt((int)$account['id'], $recipientPhone);
+                $serviceWindowOpen = WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt);
 
-                $wamid = $result['data']['messages'][0]['id'] ?? null;
-                if ($result['ok']) {
-                    $sent++;
-                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'sent', $wamid);
+                if ($campaign['message_type'] === 'text' && !$serviceWindowOpen) {
+                    $failed++;
+                    $error = 'Texto livre bloqueado: destinatário fora da janela gratuita de 24h.';
+                    $errors[] = ['phone' => $recipientPhone, 'error' => $error];
+                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
                     continue;
                 }
 
-                $failed++;
-                $error = $result['error'] ?? 'Falha no envio pela Meta.';
-                $errors[] = ['phone' => $recipient['phone'], 'error' => $error];
-                WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
+                if (
+                    $campaign['message_type'] === 'template'
+                    && $templateCategory === WhatsAppCostPolicy::CATEGORY_MARKETING
+                    && WhatsAppConversation::hasMarketingOptOut((int)$account['id'], $recipientPhone)
+                ) {
+                    $failed++;
+                    $error = 'Marketing bloqueado: destinatário solicitou descadastro.';
+                    $errors[] = ['phone' => $recipientPhone, 'error' => $error];
+                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
+                    continue;
+                }
+
+                $components = json_decode((string)($campaign['template_components'] ?? '[]'), true);
+                $plannedMessages = $campaign['message_type'] === 'template'
+                    ? WhatsAppMessagePlanner::planTemplate(
+                        (string)$campaign['template_name'],
+                        (string)($campaign['template_language'] ?: 'pt_BR'),
+                        $templateCategory,
+                        is_array($components) ? $components : [],
+                        $template['body'] ?? null
+                    )
+                    : WhatsAppMessagePlanner::planText((string)$campaign['message_body'], $serviceWindowOpen);
+
+                foreach ($plannedMessages as $planned) {
+                    if (
+                        ($planned['template_category'] ?? null) === WhatsAppCostPolicy::CATEGORY_MARKETING
+                        && WhatsAppConversation::hasMarketingOptOut((int)$account['id'], $recipientPhone)
+                    ) {
+                        continue;
+                    }
+
+                    self::enqueuePlannedWhatsAppMessage(
+                        [
+                            'tenancy_id' => $obUser['tenancy_id'],
+                            'user_id' => (int)$obUser['id'],
+                            'account_id' => (int)$account['id'],
+                            'campaign_id' => (int)$campaign['id'],
+                            'campaign_recipient_id' => (int)$recipient['id'],
+                            'contact_phone' => $recipientPhone,
+                            'contact_name' => $recipient['name'] ?? null,
+                        ],
+                        $planned,
+                        $serviceWindowOpen
+                    );
+
+                    $queued++;
+                    $estimatedCostUsd += WhatsAppCostPolicy::estimateBrazilCostUsd(
+                        (string)$planned['message_type'],
+                        $planned['template_category'] ?? null,
+                        $serviceWindowOpen
+                    );
+                }
             } catch (\Throwable $e) {
                 $failed++;
                 $errors[] = ['phone' => $recipient['phone'], 'error' => $e->getMessage()];
@@ -817,11 +1221,188 @@ class WhatsApp extends ViewComponents
 
         return self::json(200, [
             'success' => $failed === 0,
-            'message' => $failed === 0 ? 'Campanha enviada.' : 'Campanha processada com falhas.',
-            'sent' => $sent,
+            'message' => $failed === 0 ? 'Campanha desmembrada e enfileirada.' : 'Campanha enfileirada parcialmente.',
+            'queued' => $queued,
             'failed' => $failed,
+            'estimated_cost_usd' => round($estimatedCostUsd, 4),
+            'projected_daily_cost_usd' => round($estimatedCostUsd, 4),
+            'projected_monthly_cost_usd' => round($estimatedCostUsd * 30, 4),
+            'template_category' => $templateCategory,
             'errors' => array_slice($errors, 0, 20),
         ]);
+    }
+
+    public static function cancelCampaignCategory($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $campaign = WhatsAppCampaign::getForUser((int)$id, $obUser);
+        if (!$campaign) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Campanha WhatsApp não encontrada.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $category = WhatsAppCostPolicy::normalizeCategory((string)($input['category'] ?? 'MARKETING'));
+        $cancelled = WhatsAppOutbox::cancelByCampaignAndCategory((int)$campaign['id'], $category);
+
+        return self::json(200, [
+            'success' => true,
+            'message' => 'Mensagens canceladas por categoria.',
+            'category' => $category,
+            'cancelled' => $cancelled,
+        ]);
+    }
+
+    public static function listSupportQueues(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppSupportDesk::listQueuesForUser($obUser),
+        ]);
+    }
+
+    public static function createSupportQueue(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $id = WhatsAppSupportDesk::createQueue($obUser, self::jsonInput());
+
+            return self::json(201, [
+                'success' => true,
+                'message' => 'Fila de atendimento criada.',
+                'id' => $id,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(500, [
+                'success' => false,
+                'message' => 'Falha ao criar fila de atendimento.',
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function upsertSupportQueueAgent($request, int|string $queueId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $ok = WhatsAppSupportDesk::upsertQueueAgent($obUser, (int)$queueId, self::jsonInput());
+
+        return self::json($ok ? 200 : 404, [
+            'success' => $ok,
+            'message' => $ok ? 'Atendente vinculado à fila.' : 'Fila de atendimento não encontrada.',
+        ]);
+    }
+
+    public static function updateSupportAgentStatus(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $ok = WhatsAppSupportDesk::updateAgentStatus($obUser, self::jsonInput());
+
+        return self::json($ok ? 200 : 404, [
+            'success' => $ok,
+            'message' => $ok ? 'Status do atendente atualizado.' : 'Fila de atendimento não encontrada.',
+        ]);
+    }
+
+    public static function supportDashboard(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppSupportDesk::dashboard($obUser),
+        ]);
+    }
+
+    public static function finishSupportSession($request, int|string $sessionId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $ok = WhatsAppSupportDesk::finishSession($obUser, (int)$sessionId);
+
+        return self::json($ok ? 200 : 404, [
+            'success' => $ok,
+            'message' => $ok ? 'Atendimento finalizado.' : 'Sessão de atendimento não encontrada.',
+        ]);
+    }
+
+    public static function transferSupportSession($request, int|string $sessionId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $ok = WhatsAppSupportDesk::transferSession($obUser, (int)$sessionId, self::jsonInput());
+
+        return self::json($ok ? 200 : 404, [
+            'success' => $ok,
+            'message' => $ok ? 'Atendimento transferido.' : 'Sessão, fila ou atendente indisponível.',
+        ]);
+    }
+
+    public static function supportEvents($request): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $query = $request->getQueryParams();
+        $headers = $request->getHeaders();
+        $afterId = (int)($query['after_id'] ?? $query['lastEventId'] ?? $headers['Last-Event-ID'] ?? $headers['Last-Event-Id'] ?? 0);
+        $events = WhatsAppSupportDesk::events($obUser, $afterId);
+        $content = "retry: 2000\n";
+
+        foreach ($events as $event) {
+            $content .= 'id: ' . (int)$event['id'] . "\n";
+            $content .= 'event: ' . (string)$event['event_type'] . "\n";
+            $content .= 'data: ' . ($event['payload'] ?: '{}') . "\n\n";
+        }
+
+        if ($events === []) {
+            $content .= "event: heartbeat\n";
+            $content .= 'data: {"ok":true}' . "\n\n";
+        }
+
+        $response = new Response(200, $content, 'text/event-stream');
+        $response->addHeader('Cache-Control', 'no-cache');
+        $response->addHeader('X-Accel-Buffering', 'no');
+
+        return $response;
     }
 
     public static function sendSupportMessage(): Response
@@ -857,29 +1438,46 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
-        try {
-            $result = (new MetaWhatsAppCloudApi())->sendText(
-                (string)$account['access_token'],
-                (string)$account['phone_number_id'],
-                $to,
-                $message
-            );
-
-            return self::json($result['ok'] ? 200 : 502, [
-                'success' => $result['ok'],
-                'message' => $result['ok']
-                    ? 'Mensagem enviada pelo WhatsApp.'
-                    : 'A Meta recusou o envio. Para iniciar conversa fora da janela de 24h, use template aprovado.',
-                'wamid' => $result['data']['messages'][0]['id'] ?? null,
-                'meta' => $result,
-            ]);
-        } catch (\Throwable $e) {
-            return self::json(502, [
+        $lastInboundAt = WhatsAppConversation::getLastInboundAt((int)$account['id'], $to);
+        if (!WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt)) {
+            return self::json(422, [
                 'success' => false,
-                'message' => 'Falha ao enviar mensagem pela Meta.',
-                'error' => $e->getMessage(),
+                'message' => 'Mensagem de suporte bloqueada: fora da janela gratuita de 24h. Use um template aprovado para reabrir a conversa.',
+                'last_inbound_at' => $lastInboundAt,
             ]);
         }
+
+        $serviceWindowOpen = true;
+        $conversationId = WhatsAppConversation::findOrCreate([
+            'tenancy_id' => $account['tenancy_id'],
+            'user_id' => (int)$account['user_id'],
+            'account_id' => (int)$account['id'],
+            'contact_phone' => $to,
+            'last_message' => $message,
+            'last_direction' => 'outbound',
+            'unread_count' => 0,
+        ]);
+
+        $plannedMessages = WhatsAppMessagePlanner::planText($message, $serviceWindowOpen);
+        $outboxIds = [];
+        foreach ($plannedMessages as $planned) {
+            $outboxIds[] = self::enqueuePlannedWhatsAppMessage([
+                'tenancy_id' => $account['tenancy_id'],
+                'user_id' => (int)$account['user_id'],
+                'account_id' => (int)$account['id'],
+                'conversation_id' => $conversationId,
+                'contact_phone' => $to,
+            ], $planned, $serviceWindowOpen);
+        }
+
+        return self::json(202, [
+            'success' => true,
+            'message' => 'Mensagem de suporte desmembrada e enfileirada.',
+            'conversation_id' => $conversationId,
+            'outbox_ids' => $outboxIds,
+            'parts' => $plannedMessages,
+            'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
+        ]);
     }
 
     private static function requireUser(): array|Response
@@ -899,6 +1497,12 @@ class WhatsApp extends ViewComponents
     {
         $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
         return in_array($role, ['super_admin', 'admin', 'support_l2'], true);
+    }
+
+    private static function canManageWhatsAppNumbers(array $user): bool
+    {
+        $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
+        return $role === 'super_admin';
     }
 
     private static function json(int $status, array $payload): Response
@@ -962,5 +1566,28 @@ class WhatsApp extends ViewComponents
         }
 
         return array_values($recipients);
+    }
+
+    private static function enqueuePlannedWhatsAppMessage(array $base, array $planned, bool $serviceWindowOpen): int
+    {
+        $category = $planned['template_category'] ?? null;
+        $estimatedCost = WhatsAppCostPolicy::estimateBrazilCostUsd(
+            (string)$planned['message_type'],
+            $category,
+            $serviceWindowOpen
+        );
+
+        return WhatsAppOutbox::enqueue(array_merge($base, [
+            'sequence' => $planned['sequence'],
+            'message_type' => $planned['message_type'],
+            'body' => $planned['body'],
+            'template_name' => $planned['template_name'],
+            'template_language' => $planned['template_language'] ?? 'pt_BR',
+            'template_category' => $category,
+            'template_components' => $planned['template_components'] ?? [],
+            'service_window_open' => $serviceWindowOpen ? 1 : 0,
+            'billable_estimate' => $estimatedCost > 0 ? 1 : 0,
+            'estimated_cost_usd' => $estimatedCost,
+        ]));
     }
 }

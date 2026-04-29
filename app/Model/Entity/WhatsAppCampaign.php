@@ -19,9 +19,12 @@ class WhatsAppCampaign
             'message_body' => $data['message_body'] ?? null,
             'template_name' => $data['template_name'] ?? null,
             'template_language' => $data['template_language'] ?? null,
+            'template_category' => $data['template_category'] ?? null,
             'template_components' => isset($data['template_components'])
                 ? json_encode($data['template_components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : null,
+            'scheduled_at' => $data['scheduled_at'] ?? null,
+            'estimated_cost_usd' => $data['estimated_cost_usd'] ?? 0,
             'total_recipients' => $data['total_recipients'] ?? 0,
             'sent_count' => 0,
             'failed_count' => 0,

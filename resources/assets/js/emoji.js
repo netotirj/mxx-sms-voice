@@ -174,38 +174,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const { input, preview, counter, warning, emojiBtn, charsetGlobalSetter } = formObj;
         if (!input || !counter) return;
 
-        let charsetLimit = 160;
+        let charsetCoding = "0";
 
         function updateCounter() {
             let value = input.value;
-            const chars = Array.from(value);
-            const emojiRegex = /\p{Extended_Pictographic}/u;
+            const maxLength = charsetCoding === "8" ? 1340 : 1377;
+            const singleLimit = charsetCoding === "8" ? 70 : 160;
+            const concatLimit = charsetCoding === "8" ? 67 : 153;
 
-            let length = 0;
-            let processed = "";
-
-            for (const char of chars) {
-                const add = emojiRegex.test(char) ? 2 : 1;
-
-                if (length + add > charsetLimit) break;
-
-                length += add;
-                processed += char;
-            }
-
-            // aplica truncagem se necessário
-            if (processed !== value) {
-                value = processed;
+            if (Array.from(value).length > maxLength) {
+                value = Array.from(value).slice(0, maxLength).join("");
                 input.value = value;
             }
 
-            const smsCount = Math.ceil(length / charsetLimit) || 1;
+            const length = Array.from(value).length;
+            const smsCount = length <= singleLimit ? 1 : Math.ceil(length / concatLimit);
 
             if (preview) preview.innerText = length > 0 ? value : "Digite uma mensagem 😊";
-            counter.textContent = `SMS cobrados: ${smsCount} / Caracteres: ${length} (limite ${charsetLimit})`;
+            counter.textContent = `SMS cobrados: ${smsCount} / Caracteres: ${length} (limite ${maxLength})`;
 
             if (warning) {
-                if (length >= charsetLimit) {
+                if (length >= maxLength) {
                     warning.classList.remove("hidden");
                     input.classList.add("border", "border-red-500");
                 } else {
@@ -216,8 +205,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // permite mudar charset dinamicamente
-        window[charsetGlobalSetter] = function(limit) {
-            charsetLimit = limit;
+        window[charsetGlobalSetter] = function(coding) {
+            charsetCoding = String(coding) === "8" ? "8" : "0";
             updateCounter();
         };
 
@@ -249,7 +238,6 @@ document.addEventListener("DOMContentLoaded", () => {
         updateCounter();
     });
 });
-
 
 
 

@@ -1,323 +1,239 @@
 <!doctype html>
-<html lang="pt-BR" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr" data-pc-theme="light">
+<html lang="pt-br" class="dark">
+
 <head>
-    <title>Resetar Senha</title>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui"/>
-    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
-    <meta name="description" content="Página para redefinição de senha"/>
-    <meta name="keywords" content="reset password, senha, recuperar senha"/>
-    <meta name="author" content="Maxx Solutions"/>
-    <meta name="base-url" content="{{URL}}">
+  <title>{{title}} | Maxx Solutions</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="base-url" content="{{URL}}">
+  <link rel="icon" type="image/png" href="{{URL}}/resources/assets/img/favicon-transparent.png" />
 
-    <!-- Ícone -->
-    <link rel="icon" href="{{URL}}/resources/view/login/assets/images/favicon.svg" type="image/x-icon"/>
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/phosphor/duotone/style.css"/>
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css"/>
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/feather.css"/>
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/fontawesome.css"/>
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/material.css"/>
-    <!-- Template CSS -->
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/style.css" id="main-style-link"/>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
-    <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/auth-notify.css">
-    <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/notify.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/auth-notify.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            primary: {
+              "50": "#eff6ff", "100": "#dbeafe", "200": "#bfdbfe", "300": "#93c5fd", "400": "#60a5fa",
+              "500": "#38bdf8", "600": "#0ea5e9", "700": "#0284c7", "800": "#0369a1", "900": "#075985", "950": "#082f49"
+            },
+            darkSurface: "#0f172a",
+            darkCard: "#1e293b"
+          }
+        }
+      }
+    };
+  </script>
 </head>
-<body>
 
-<div class="auth-main relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
-    <div class="auth-wrapper v1 flex items-center w-full h-full min-h-screen relative p-6">
-        <div class="auth-form flex items-center justify-center grow flex-col min-h-screen relative p-6">
-            <div class="w-full max-w-[350px] relative">
-
-                <div class="auth-bg ">
-                    <span class="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
-                    <span class="absolute top-[150px] right-[-150px] w-5 h-5 block rounded-full bg-primary-500 animate-[floating_9s_infinite]"></span>
-                    <span class="absolute left-[-150px] bottom-[150px] w-5 h-5 block rounded-full bg-theme-bg-1 animate-[floating_7s_infinite]"></span>
-                    <span class="absolute left-[-100px] bottom-[-100px] w-[300px] h-[300px] block rounded-full bg-theme-bg-2 animate-[floating_9s_infinite]"></span>
-                </div>
-
-                <!-- Card -->
-                <div class="card sm:my-12 w-full shadow-lg rounded-3xl bg-white/90 backdrop-blur-xl hover:shadow-2xl transition-all duration-500">
-                    <div class="card-body !p-10">
-
-                        <!-- Logo -->
-                        <div class="text-center mb-8 animate-bounce">
-                            <a href="#"><img src="{{URL}}/resources/view/login/assets/images/logo-dark.svg" alt="logo" class="mx-auto auth-logo"/></a>
-                        </div>
-
-                        <h4 class="text-center text-2xl font-extrabold mb-2 text-primary-500 drop-shadow-md">
-                            Digite o Código
-                        </h4>
-                        {{content}}
-
-
-                        <!-- Campo para código -->
-                        <div class="mb-4 relative">
-                            <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400 z-10">
-                                <i class="ti ti-lock"></i>
-                            </span>
-                            <input type="text" maxlength="6" inputmode="numeric" pattern="\d*"
-                                   class="pl-9 py-3 w-full rounded-xl bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all duration-300"
-                                   placeholder="Digite o código de 6 dígitos" id="inputCode">
-                        </div>
-
-
-                        <button id="btnValidateCode"
-                                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
-                            <span class="btn-text">Confirmar</span>
-                            <span class="btn-spinner hidden">
-                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                            </svg>
-                        </span>
-                        </button>
-
-                        <!-- Timer -->
-                        <p id="timerText" class="text-center text-gray-600 mb-4">
-                            Você poderá reenviar o código em <span id="countdown">60</span>s
-                        </p>
-
-                        <!-- Botão Reenviar -->
-                        <!--<button id="btnResendCode"
-                                class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 hidden"
-                                disabled>
-                            Reenviar código
-                        </button>-->
-
-                        <!-- Link Reenviar -->
-                        <a href="#" id="btnResendCode"
-                           class="text-blue-600 font-semibold hidden"
-                           style="pointer-events: none;">
-                            Reenviar código
-                        </a>
-
-
-
-                        <!-- Voltar -->
-                        <div class="flex justify-center items-center mt-6">
-                            <a href="{{URL}}/login"
-                               class="text-primary-500 font-semibold text-base relative group">
-                                Voltar ao Login
-                                <span class="absolute left-0 -bottom-1 w-0 h-[2px] bg-primary-500 transition-all duration-300 group-hover:w-full"></span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
+<body class="bg-darkSurface font-sans text-white antialiased">
+  <section class="min-h-screen flex items-center justify-center py-8 px-4 lg:py-0">
+    <div class="max-w-6xl w-full grid lg:grid-cols-12 gap-12 items-center">
+      <div class="lg:col-span-7 flex flex-col items-center lg:items-end">
+        <div class="w-full max-w-lg bg-darkCard rounded-2xl shadow-2xl p-8 border border-gray-700">
+          <div class="mb-8 flex items-center gap-4">
+            <div class="flex h-14 w-14 shrink-0 items-center justify-center">
+              <img src="{{URL}}/resources/view/login/assets/images/maxx-logo-transparent.png" alt="Maxx Solutions" class="h-12 w-12 object-contain">
             </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">Plataforma</p>
+              <p class="text-lg font-semibold tracking-tight text-gray-100">Maxx Solutions</p>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <h1 class="text-3xl font-extrabold tracking-tight mb-2">Digite o código</h1>
+            <div class="text-gray-400">
+              {{content}}
+            </div>
+          </div>
+
+          <form id="resetCodeForm" class="space-y-6">
+            <div>
+              <label for="inputCode" class="block mb-2 text-sm font-medium text-gray-300">Código de verificação</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400">
+                  <i class="ti ti-lock"></i>
+                </span>
+                <input type="text" maxlength="6" inputmode="numeric" pattern="\d*" id="inputCode" required
+                       class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3.5 pl-10 transition duration-200"
+                       placeholder="Digite o código de 6 dígitos">
+              </div>
+            </div>
+
+            <button id="btnValidateCode" type="submit" class="w-full text-white bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 hover:from-sky-400 hover:via-cyan-400 hover:to-blue-500 focus:ring-4 focus:ring-cyan-800 font-bold rounded-xl text-md px-5 py-4 text-center transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-950/25">
+              <span class="btn-text">Confirmar código</span>
+              <svg class="btn-spinner hidden h-6 w-6 animate-spin text-white" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+
+            <div class="text-center text-sm text-gray-400">
+              <p id="timerText">Você poderá reenviar o código em <span id="countdown" class="font-semibold text-gray-200">60</span>s</p>
+              <a href="#" id="btnResendCode" class="hidden font-semibold text-primary-500 hover:underline" style="pointer-events: none;">Reenviar código</a>
+            </div>
+
+            <div class="flex justify-center">
+              <a href="{{URL}}/login" class="text-sm font-semibold text-primary-500 hover:underline">Voltar ao login</a>
+            </div>
+          </form>
         </div>
+      </div>
+
+      <div class="lg:col-span-5 hidden lg:block">
+        <div class="relative">
+          <div class="absolute -top-20 -left-20 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl"></div>
+          <div class="absolute -bottom-20 -right-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl"></div>
+          <img src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/authentication/illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full transform hover:scale-105 transition duration-700">
+        </div>
+      </div>
     </div>
-</div>
+  </section>
 
-<!-- Scripts -->
-<script src="{{URL}}/resources/view/login/assets/js/plugins/simplebar.min.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/plugins/popper.min.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/icon/custom-icon.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/plugins/feather.min.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/component.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/theme.js"></script>
-<script src="{{URL}}/resources/view/login/assets/js/script.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+  <a id="support-whatsapp-floating"
+     href="https://wa.me/5521968943160"
+     target="_blank"
+     rel="noopener noreferrer"
+     class="support-whatsapp-floating"
+     aria-label="Fale conosco no WhatsApp">
+    <span class="support-whatsapp-floating__status" aria-hidden="true"></span>
+    <span class="support-whatsapp-floating__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.52 3.48A11.87 11.87 0 0 0 12 0a11.88 11.88 0 0 0-10.6 17.25L0 24l6.9-1.81A11.88 11.88 0 0 0 12 24c6.63 0 12-5.37 12-12 0-3.2-1.25-6.21-3.48-8.52zm-8.52 18c-1.57 0-3.09-.4-4.44-1.15l-.32-.18-4.08 1.07 1.09-3.97-.21-.33a9.92 9.92 0 0 1 8.95-14.92c5.48 0 9.93 4.45 9.93 9.93s-4.45 9.93-9.93 9.93zm5.47-7.5c-.3-.15-1.77-.87-2.04-.96-.27-.1-.47-.15-.66.15s-.76.96-.93 1.15-.34.22-.63.07a8.08 8.08 0 0 1-2.38-1.46 8.8 8.8 0 0 1-1.62-2.01c-.17-.3 0-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.38-.02-.53s-.66-1.6-.91-2.2c-.24-.58-.49-.5-.67-.5-.17 0-.36 0-.55 0-.2 0-.53.08-.8.38s-1.05 1.02-1.05 2.5 1.08 2.9 1.23 3.1c.15.2 2.12 3.24 5.13 4.55.72.31 1.28.5 1.72.64.72.23 1.37.2 1.88.12.57-.08 1.77-.73 2.02-1.43.25-.7.25-1.3.18-1.43-.07-.13-.27-.2-.57-.35z"/>
+      </svg>
+    </span>
+    <span class="support-whatsapp-floating__copy">
+      <span id="support-whatsapp-status-text" class="support-whatsapp-floating__eyebrow">Verificando status</span>
+      <span id="support-whatsapp-label" class="support-whatsapp-floating__label">Fale com a Maxx</span>
+      <span id="support-whatsapp-hours" class="support-whatsapp-floating__hours">Seg a sex, 09h as 18h</span>
+    </span>
+  </a>
 
-
-<!--<script>
+  <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/support-whatsapp.js"></script>
+  <script>
     document.addEventListener("DOMContentLoaded", () => {
-        const btnValidate = document.getElementById("btnValidateCode");
-        const btnResend   = document.getElementById("btnResendCode");
-        const countdownEl = document.getElementById("countdown");
-        const notyf = new Notyf({
-            duration: 5000,
-            position: { x: 'right', y: 'top' },
-        });
-        let countdown     = 60;
-        let timer;
+      const resetCodeForm = document.getElementById("resetCodeForm");
+      const btnValidate = document.getElementById("btnValidateCode");
+      const btnText = btnValidate.querySelector(".btn-text");
+      const btnSpinner = btnValidate.querySelector(".btn-spinner");
+      const btnResend = document.getElementById("btnResendCode");
+      const timerText = document.getElementById("timerText");
+      const countdownEl = document.getElementById("countdown");
+      const inputCode = document.getElementById("inputCode");
+      const notyf = new Notyf({
+        duration: 5000,
+        ripple: false,
+        position: { x: 'right', y: 'top' },
+        types: [
+          { type: 'success', backgroundColor: '#10b981', icon: { className: 'notyf__icon--success', tagName: 'i' } },
+          { type: 'error', backgroundColor: '#e11d48', icon: { className: 'notyf__icon--error', tagName: 'i' } },
+          { type: 'info', backgroundColor: '#334155', icon: false }
+        ]
+      });
 
-        // -------- TIMER / COUNTDOWN --------
-        function startCountdown() {
-            btnResend.classList.add("hidden"); // botão escondido durante o timer
-            countdown = 60;
-            countdownEl.textContent = countdown;
+      let countdown = 60;
+      let timer;
 
-            timer = setInterval(() => {
-                countdown--;
-                countdownEl.textContent = countdown;
+      function startCountdown() {
+        clearInterval(timer);
+        timerText.classList.remove("hidden");
+        btnResend.classList.add("hidden");
+        btnResend.style.pointerEvents = "none";
+        countdown = 60;
+        countdownEl.textContent = countdown;
 
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    btnResend.disabled = false;
-                    btnResend.classList.remove("hidden");
-                }
-            }, 1000);
+        timer = setInterval(() => {
+          countdown--;
+          countdownEl.textContent = countdown;
+
+          if (countdown <= 0) {
+            clearInterval(timer);
+            timerText.classList.add("hidden");
+            btnResend.classList.remove("hidden");
+            btnResend.style.pointerEvents = "auto";
+          }
+        }, 1000);
+      }
+
+      function setLoading(loading) {
+        btnValidate.disabled = loading;
+        btnText.classList.toggle("hidden", loading);
+        btnSpinner.classList.toggle("hidden", !loading);
+      }
+
+      startCountdown();
+
+      resetCodeForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const code = inputCode.value.trim();
+        if (code.length !== 6 || !/^\d+$/.test(code)) {
+          notyf.error("Código inválido. Digite 6 números.");
+          return;
         }
 
-        // inicia automaticamente ao carregar
-        startCountdown();
+        setLoading(true);
 
-        // -------- VALIDAR CÓDIGO --------
-        btnValidate.addEventListener("click", async () => {
-            const code = document.getElementById("inputCode").value.trim();
+        const dataPost = new FormData();
+        dataPost.append("code", code);
 
-            if (code.length !== 6 || !/^\d+$/.test(code)) {
-                notyf.error("Código inválido. Digite 6 números.");
-                return;
-            }
+        try {
+          const response = await fetch("{{URL}}/validate-reset-code", {
+            method: "POST",
+            body: dataPost
+          });
 
-            btnValidate.disabled = true;
-            btnValidate.innerHTML = `<span class="loader border-2 border-t-2 border-white border-t-transparent rounded-full w-5 h-5 inline-block animate-spin"></span> Validando...`;
+          const data = await response.json();
 
-            try {
-                const response = await fetch("{{URL}}/validate-reset-code", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ code })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    notyf.success("Código validado com sucesso!");
-                } else {
-                    notyf.error(data.message || "Código inválido.");
-                }
-            } catch (err) {
-                console.error(err);
-                notyf.error("Erro ao validar o código.");
-            } finally {
-                btnValidate.disabled = false;
-                btnValidate.innerHTML = "Confirmar";
-            }
-        });
-
-        // -------- REENVIAR CÓDIGO --------
-        btnResend.addEventListener("click", async () => {
-            try {
-                const response = await fetch("{{URL}}/resend-reset-code", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ phone: localStorage.getItem("resetPhone") })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    notyf.success("Novo código enviado!");
-                    startCountdown(); // reinicia o timer
-                } else {
-                    notyf.error(data.message || "Erro ao reenviar o código.");
-                }
-            } catch (err) {
-                console.error(err);
-                notyf.error("Erro na comunicação com o servidor.");
-            }
-        });
-    });
-</script>-->
-
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const btnValidate = document.getElementById("btnValidateCode");
-        const btnResend   = document.getElementById("btnResendCode");
-        const countdownEl = document.getElementById("countdown");
-        const notyf = new Notyf({
-            duration: 5000,
-            position: { x: 'right', y: 'top' },
-        });
-
-        let countdown = 60;
-        let timer;
-
-        // -------- TIMER / COUNTDOWN --------
-        function startCountdown() {
-            btnResend.classList.add("hidden");
-            btnResend.style.pointerEvents = "none";
-            countdown = 60;
-            countdownEl.textContent = countdown;
-
-            timer = setInterval(() => {
-                countdown--;
-                countdownEl.textContent = countdown;
-
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    btnResend.classList.remove("hidden");
-                    btnResend.style.pointerEvents = "auto";
-                }
-            }, 1000);
+          if (response.ok) {
+            notyf.success(data.message || "Código validado com sucesso!");
+            setTimeout(() => {
+              window.location.href = "{{URL}}/pass-confirmed";
+            }, 2000);
+          } else {
+            notyf.error(data.message || "Código inválido.");
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error(err);
+          notyf.error("Erro ao validar o código.");
+          setLoading(false);
         }
+      });
 
-        startCountdown();
-        btnValidate.addEventListener("click", async () => {
-            const code = document.getElementById("inputCode").value.trim();
+      btnResend.addEventListener("click", async (e) => {
+        e.preventDefault();
 
-            if (code.length !== 6 || !/^\d+$/.test(code)) {
-                notyf.error("Código inválido. Digite 6 números.");
-                return;
-            }
+        try {
+          const response = await fetch("{{URL}}/reset-code", { method: "POST" });
+          const data = await response.json();
 
-            btnValidate.disabled = true;
-            btnValidate.innerHTML = `<span class="loader border-2 border-t-2 border-white border-t-transparent rounded-full w-5 h-5 inline-block animate-spin"></span> Validando...`;
-
-            const dataPost = new FormData();
-            dataPost.append('code', code);
-
-            try {
-                const response = await fetch("{{URL}}/validate-reset-code", {
-                    method: "POST",
-                    body: dataPost
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-
-                    notyf.success(data.message || "Código validado com sucesso!");
-
-                    setTimeout(() => {
-                        window.location.href = "{{URL}}/pass-confirmed";
-                    }, 2000);
-
-                } else {
-                    notyf.error(data.message || "Código inválido.");
-                }
-            } catch (err) {
-                console.error(err);
-                notyf.error("Erro ao validar o código.");
-            } finally {
-                btnValidate.disabled = false;
-                btnValidate.innerHTML = "Confirmar";
-            }
-        });
-
-        // -------- REENVIAR CÓDIGO --------
-        btnResend.addEventListener("click", async (e) => {
-            e.preventDefault(); // previne reload
-
-            try {
-                const response = await fetch("{{URL}}/reset-code", {
-                    method: "POST",
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    notyf.success("Novo código enviado!");
-                    startCountdown(); // reinicia o timer
-                } else {
-                    notyf.error(data.message || "Erro ao reenviar o código.");
-                }
-            } catch (err) {
-                console.error(err);
-                notyf.error("Erro na comunicação com o servidor.");
-            }
-        });
+          if (response.ok) {
+            notyf.success(data.message || "Novo código enviado!");
+            startCountdown();
+          } else {
+            notyf.error(data.message || "Erro ao reenviar o código.");
+          }
+        } catch (err) {
+          console.error(err);
+          notyf.error("Erro na comunicação com o servidor.");
+        }
+      });
     });
-</script>
-
-
-
+  </script>
 </body>
 </html>

@@ -107,6 +107,7 @@
                                 <option value="EXPIRED">Expirado</option>
                                 <option value="UNDELIVERABLE">Não entregue</option>
                                 <option value="PENDING">Pendente</option>
+                                <option value="MO">Resposta recebida</option>
                             </select>
                         </div>
 
@@ -152,6 +153,7 @@
                                 <th class="px-4 py-2 border border-slate-100">ID</th>
                                 <th class="px-4 py-2 border border-slate-100">Data</th>
                                 <th class="px-4 py-2 border border-slate-100">Número</th>
+                                <th class="px-4 py-2 border border-slate-100">Resposta</th>
                                 <th class="px-4 py-2 border border-slate-100">Operadora</th>
                                 <th class="px-4 py-2 border border-slate-100">Custo</th>
                                 <th class="px-4 py-2 border border-slate-100">Status</th>
@@ -160,7 +162,7 @@
                             </thead>
                             <tbody id="smsTableBody">
                             <tr>
-                                <td colspan="7"
+                                <td colspan="8"
                                     class="px-4 py-6 text-center text-slate-400 italic">
                                     Carregando registros...
                                 </td>
@@ -248,6 +250,8 @@
                     return 'NAO ENTREGUE';
                 case 'PENDING':
                     return 'PENDENTE';
+                case 'MO':
+                    return 'RESPOSTA';
                 default:
                     return s || '-';
             }
@@ -284,6 +288,10 @@
                 case 'PENDING':
                     bg = 'bg-gradient-to-r from-amber-500 to-yellow-400';
                     label = 'PENDENTE';
+                    break;
+                case 'MO':
+                    bg = 'bg-gradient-to-r from-cyan-600 to-teal-400';
+                    label = 'RESPOSTA';
                     break;
             }
 
@@ -397,7 +405,7 @@
                 console.error('Erro ao carregar SMS:', error);
                 tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="py-10 text-center text-red-500 italic">
+                    <td colspan="8" class="py-10 text-center text-red-500 italic">
                         Erro ao carregar dados.
                     </td>
                 </tr>
@@ -424,6 +432,7 @@
                 const operator = getOperatorLabel(item.operator);
                 const rawOperator = String(item.operator ?? '');
                 const rawDate = String(item.update_date ?? '');
+                const responseText = String(item.response_text ?? '');
                 const rawStatus = String(item.status_sms ?? '').toUpperCase();
                 const translatedStatus = getStatusLabel(item.status_sms);
 
@@ -433,6 +442,7 @@
                     operator,
                     rawOperator,
                     rawDate,
+                    responseText,
                     rawStatus,
                     translatedStatus
                 ].join(' '));
@@ -478,7 +488,7 @@
             if (!items.length) {
                 tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="py-10 text-center text-slate-400 italic">
+                    <td colspan="8" class="py-10 text-center text-slate-400 italic">
                         Nenhum registro encontrado.
                     </td>
                 </tr>
@@ -497,6 +507,10 @@
 
                         <td class="px-4 py-3 font-bold text-slate-700">
                             ${item.phone_sms || '-'}
+                        </td>
+
+                        <td class="px-4 py-3 text-[11px] text-slate-600 max-w-[220px] truncate" title="${item.response_text || ''}">
+                            ${item.response_text || '-'}
                         </td>
 
                         <td class="px-4 py-3 text-[11px] font-semibold text-indigo-600 uppercase">
@@ -556,6 +570,7 @@
                 id: item.id ?? '-',
                 data: item.update_date || '-',
                 numero: item.phone_sms || '-',
+                resposta: item.response_text || '-',
                 operadora: getOperatorLabel(item.operator),
                 custo: Number(item.value_sms || 0),
                 status: getStatusLabel(item.status_sms)
@@ -584,7 +599,7 @@
                 return;
             }
 
-            const header = ['ID', 'Data', 'Número', 'Operadora', 'Custo', 'Status'];
+            const header = ['ID', 'Data', 'Número', 'Resposta', 'Operadora', 'Custo', 'Status'];
 
             const csvLines = [
                 header.join(';'),
@@ -592,6 +607,7 @@
                     row.id,
                     `"${String(row.data).replace(/"/g, '""')}"`,
                     `"${String(row.numero).replace(/"/g, '""')}"`,
+                    `"${String(row.resposta).replace(/"/g, '""')}"`,
                     `"${String(row.operadora).replace(/"/g, '""')}"`,
                     String(row.custo).replace('.', ','),
                     `"${String(row.status).replace(/"/g, '""')}"`
@@ -621,6 +637,7 @@
                         <th>ID</th>
                         <th>Data</th>
                         <th>Número</th>
+                        <th>Resposta</th>
                         <th>Operadora</th>
                         <th>Custo</th>
                         <th>Status</th>
@@ -632,6 +649,7 @@
                             <td>${row.id}</td>
                             <td>${row.data}</td>
                             <td>${row.numero}</td>
+                            <td>${row.resposta}</td>
                             <td>${row.operadora}</td>
                             <td>${row.custo}</td>
                             <td>${row.status}</td>

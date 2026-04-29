@@ -79,6 +79,7 @@ class MetaWhatsAppCloudApi
                     'display_phone_number' => 'local-test',
                     'verified_name' => 'Ambiente local',
                     'quality_rating' => 'GREEN',
+                    'messaging_limit_tier' => 'TIER_1K',
                     'code_verification_status' => 'VERIFIED',
                     'platform_type' => 'CLOUD_API',
                 ],
@@ -88,7 +89,115 @@ class MetaWhatsAppCloudApi
 
         return $this->request('GET', $phoneNumberId, $accessToken, [
             'query' => [
-                'fields' => 'id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type',
+                'fields' => 'id,display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status,platform_type',
+            ],
+        ]);
+    }
+
+    public function createPhoneNumber(
+        string $accessToken,
+        string $wabaId,
+        string $countryCode,
+        string $phoneNumber,
+        string $verifiedName
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'id' => 'local_phone_' . substr(hash('sha256', $countryCode . $phoneNumber), 0, 16),
+                    'display_phone_number' => '+' . $countryCode . $phoneNumber,
+                    'verified_name' => $verifiedName,
+                    'local_test' => true,
+                ],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $wabaId . '/phone_numbers', $accessToken, [
+            'json' => [
+                'cc' => $countryCode,
+                'phone_number' => $phoneNumber,
+                'verified_name' => $verifiedName,
+            ],
+        ]);
+    }
+
+    public function requestVerificationCode(
+        string $accessToken,
+        string $phoneNumberId,
+        string $method = 'SMS',
+        string $language = 'pt_BR'
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $phoneNumberId . '/request_code', $accessToken, [
+            'json' => [
+                'code_method' => strtoupper($method) === 'VOICE' ? 'VOICE' : 'SMS',
+                'language' => $language,
+            ],
+        ]);
+    }
+
+    public function verifyPhoneNumberCode(string $accessToken, string $phoneNumberId, string $code): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $phoneNumberId . '/verify_code', $accessToken, [
+            'json' => [
+                'code' => $code,
+            ],
+        ]);
+    }
+
+    public function registerPhoneNumber(string $accessToken, string $phoneNumberId, string $pin): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $phoneNumberId . '/register', $accessToken, [
+            'json' => [
+                'messaging_product' => 'whatsapp',
+                'pin' => $pin,
+            ],
+        ]);
+    }
+
+    public function deregisterPhoneNumber(string $accessToken, string $phoneNumberId): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $phoneNumberId . '/deregister', $accessToken, [
+            'json' => [
+                'messaging_product' => 'whatsapp',
             ],
         ]);
     }

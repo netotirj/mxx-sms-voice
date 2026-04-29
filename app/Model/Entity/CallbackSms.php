@@ -13,7 +13,7 @@ class CallbackSms
     public string $tenancy_id;
     public int $user_id;
     public ?int $campaign_id = null;
-    public int $batch_id;
+    public ?int $batch_id = null;
     public string $phone_sms;
     public string $operator;
     public string $status_sms;
@@ -22,6 +22,19 @@ class CallbackSms
     public string $id_partner;
     public string $date_send;
     public string $update_date;
+    public ?string $codigo_status = null;
+    public ?string $codigo_detalhe = null;
+    public ?string $descricao_detalhe = null;
+    public ?string $webhook_action = null;
+    public ?string $webhook_object = null;
+    public ?string $webhook_created = null;
+    public ?string $response_text = null;
+    public ?string $origin_id = null;
+    public ?string $received_at = null;
+    public ?string $sms_reference_id = null;
+    public ?string $sms_customer_id = null;
+    public ?string $sms_account_id = null;
+    public ?string $sms_user_id = null;
 
 
     /**
@@ -92,7 +105,7 @@ class CallbackSms
     public static function countSentSmsAccept(int $userId, string $tenancyId, ?int $batchId = null): object
     {
         $where = '
-        status_sms IN ("ACCEPT")
+        status_sms IN ("ACCEPTED", "SENT", "DELIVERED")
         AND tenancy_id = :tenancy_id
         AND user_id = :user_id
     ';
@@ -161,7 +174,20 @@ class CallbackSms
             status_sms = :status_sms,
             value_sms  = :value_sms,
             operator   = :operator,
-            update_date = :update_date
+            update_date = :update_date,
+            codigo_status = :codigo_status,
+            codigo_detalhe = :codigo_detalhe,
+            descricao_detalhe = :descricao_detalhe,
+            webhook_action = :webhook_action,
+            webhook_object = :webhook_object,
+            webhook_created = :webhook_created,
+            response_text = COALESCE(:response_text, response_text),
+            origin_id = :origin_id,
+            received_at = :received_at,
+            sms_reference_id = :sms_reference_id,
+            sms_customer_id = :sms_customer_id,
+            sms_account_id = :sms_account_id,
+            sms_user_id = :sms_user_id
         WHERE
             batch_id   = :batch_id
             AND phone_sms = :phone_sms
@@ -174,6 +200,19 @@ class CallbackSms
             ':value_sms'   => $this->value_sms ?? 0.00,
             ':operator'    => $this->operator ?? '',
             ':update_date' => $this->update_date ?? date('Y-m-d H:i:s'),
+            ':codigo_status' => $this->codigo_status,
+            ':codigo_detalhe' => $this->codigo_detalhe,
+            ':descricao_detalhe' => $this->descricao_detalhe,
+            ':webhook_action' => $this->webhook_action,
+            ':webhook_object' => $this->webhook_object,
+            ':webhook_created' => $this->webhook_created,
+            ':response_text' => $this->response_text,
+            ':origin_id' => $this->origin_id,
+            ':received_at' => $this->received_at ?? date('Y-m-d H:i:s'),
+            ':sms_reference_id' => $this->sms_reference_id,
+            ':sms_customer_id' => $this->sms_customer_id,
+            ':sms_account_id' => $this->sms_account_id,
+            ':sms_user_id' => $this->sms_user_id,
             ':batch_id'    => $this->batch_id,
             ':phone_sms'   => $this->phone_sms,
             ':id_partner'  => $this->id_partner,
@@ -183,6 +222,126 @@ class CallbackSms
         $stmt = (new Database())->execute($query, $params);
 
         return $stmt->rowCount();
+    }
+
+    public function updateMoResponse(): int
+    {
+        $query = "
+            UPDATE callback
+            SET
+                webhook_action = :webhook_action,
+                webhook_object = :webhook_object,
+                webhook_created = :webhook_created,
+                response_text = :response_text,
+                origin_id = :origin_id,
+                received_at = :received_at,
+                update_date = :update_date,
+                sms_reference_id = :sms_reference_id,
+                sms_customer_id = :sms_customer_id,
+                sms_account_id = :sms_account_id,
+                sms_user_id = :sms_user_id
+            WHERE
+                id_partner = :id_partner
+                AND phone_sms = :phone_sms
+                AND tenancy_id = :tenancy_id
+        ";
+
+        $stmt = (new Database())->execute($query, [
+            ':webhook_action' => $this->webhook_action,
+            ':webhook_object' => $this->webhook_object,
+            ':webhook_created' => $this->webhook_created,
+            ':response_text' => $this->response_text,
+            ':origin_id' => $this->origin_id,
+            ':received_at' => $this->received_at ?? date('Y-m-d H:i:s'),
+            ':update_date' => $this->update_date ?? date('Y-m-d H:i:s'),
+            ':sms_reference_id' => $this->sms_reference_id,
+            ':sms_customer_id' => $this->sms_customer_id,
+            ':sms_account_id' => $this->sms_account_id,
+            ':sms_user_id' => $this->sms_user_id,
+            ':id_partner' => $this->id_partner,
+            ':phone_sms' => $this->phone_sms,
+            ':tenancy_id' => $this->tenancy_id,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    public function insertInboundMo(): \PDOStatement
+    {
+        $query = "
+            INSERT INTO callback (
+                phone_sms,
+                status_sms,
+                value_sms,
+                camp_name,
+                id_partner,
+                date_send,
+                update_date,
+                user_id,
+                tenancy_id,
+                campaign_id,
+                batch_id,
+                operator,
+                webhook_action,
+                webhook_object,
+                webhook_created,
+                response_text,
+                origin_id,
+                received_at,
+                sms_reference_id,
+                sms_customer_id,
+                sms_account_id,
+                sms_user_id
+            ) VALUES (
+                :phone_sms,
+                :status_sms,
+                :value_sms,
+                :camp_name,
+                :id_partner,
+                :date_send,
+                :update_date,
+                :user_id,
+                :tenancy_id,
+                :campaign_id,
+                :batch_id,
+                :operator,
+                :webhook_action,
+                :webhook_object,
+                :webhook_created,
+                :response_text,
+                :origin_id,
+                :received_at,
+                :sms_reference_id,
+                :sms_customer_id,
+                :sms_account_id,
+                :sms_user_id
+            )
+        ";
+
+        return (new Database())->execute($query, [
+            ':phone_sms' => $this->phone_sms,
+            ':status_sms' => $this->status_sms ?: 'MO',
+            ':value_sms' => $this->value_sms ?? 0.00,
+            ':camp_name' => $this->camp_name ?? '',
+            ':id_partner' => $this->id_partner,
+            ':date_send' => $this->date_send ?? $this->received_at ?? date('Y-m-d H:i:s'),
+            ':update_date' => $this->update_date ?? $this->received_at ?? date('Y-m-d H:i:s'),
+            ':user_id' => $this->user_id,
+            ':tenancy_id' => $this->tenancy_id,
+            ':campaign_id' => $this->campaign_id,
+            ':batch_id' => $this->batch_id,
+            ':operator' => $this->operator ?? 'MO',
+            ':webhook_action' => $this->webhook_action,
+            ':webhook_object' => $this->webhook_object,
+            ':webhook_created' => $this->webhook_created,
+            ':response_text' => $this->response_text,
+            ':origin_id' => $this->origin_id,
+            ':received_at' => $this->received_at ?? date('Y-m-d H:i:s'),
+            ':sms_reference_id' => $this->sms_reference_id,
+            ':sms_customer_id' => $this->sms_customer_id,
+            ':sms_account_id' => $this->sms_account_id,
+            ':sms_user_id' => $this->sms_user_id,
+        ]);
     }
 
     public static function fetchStatusCountsWithDay(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?int $campaignId = null): array
@@ -226,6 +385,7 @@ class CallbackSms
             'BLACKLIST'     => 'BLACKLIST',
             'DELIVERED'     => 'ENTREGUE',
             'UNDELIVERABLE' => 'NAO_ENTREGAVEL',
+            'MO'            => 'RESPOSTA',
         ];
 
         $statusList = array_keys($map);
@@ -501,7 +661,9 @@ class CallbackSms
                 c.date_send,
                 c.update_date,
                 {$dateColumn} AS event_date,
-                c.camp_name
+                c.camp_name,
+                c.webhook_action,
+                c.response_text
               FROM callback c
               WHERE {$where}
               ORDER BY {$order}

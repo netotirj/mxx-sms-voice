@@ -190,13 +190,27 @@
       </li>
 
 
-      <li class="w-full mt-0.5">
-        <a href="{{URL}}/campaign/whatsapp" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
-          <div class="mr-2 flex h-8 w-8 items-center justify-center">
-            <i class="text-green-500 fa-brands fa-whatsapp text-5"></i>
+      <li class="w-full mt-0.5 submenu">
+        <div class="submenu-header relative flex cursor-pointer items-center justify-between rounded-lg px-4 py-2.5 mx-2 text-sm transition-colors ease-nav-brand whitespace-nowrap dark:text-white dark:opacity-80">
+          <div class="flex items-center">
+            <div class="mr-2 flex h-8 w-8 items-center justify-center rounded-lg xl:p-2.5">
+              <i class="text-green-500 fa-brands fa-whatsapp"></i>
+            </div>
+            <span>WhatsApp</span>
           </div>
-          <span>Campanhas WhatsApp</span>
-        </a>
+          <svg class="submenu-toggle w-4 h-4 ml-2 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+
+        <ul class="submenu-items ml-12 space-y-1 overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+          <li><a href="{{URL}}/campaign/whatsapp" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-emerald-500 ni ni-chat-round"></i></div><span>Central</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#conversations" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-cyan-500 ni ni-chat-round"></i></div><span>Atendimento</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#campaigns" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-orange-500 ni ni-send"></i></div><span>Campanhas</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#templates" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-violet-500 ni ni-single-copy-04"></i></div><span>Templates</span></a></li>
+          <li><a href="{{URL}}/campaign/whatsapp#accounts" class="nav-link relative flex items-center px-4 py-2 text-sm rounded-md dark:text-white dark:opacity-80"><div class="mr-2 flex h-6 w-6 items-center justify-center"><i class="text-xs text-slate-500 ni ni-settings-gear-65"></i></div><span>Contas Meta</span></a></li>
+        </ul>
       </li>
 
 
@@ -301,14 +315,17 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const currentPath = window.location.pathname.replace(/\/$/, '');
+    const currentFullPath = currentPath + window.location.hash;
     const navLinks = document.querySelectorAll('a.nav-link');
 
     navLinks.forEach(link => {
       const href = link.getAttribute('href');
       if (!href) return;
-      const hrefPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
+      const hrefUrl = new URL(href, window.location.origin);
+      const hrefPath = hrefUrl.pathname.replace(/\/$/, '');
+      const hrefFullPath = hrefPath + hrefUrl.hash;
 
-      if (currentPath === hrefPath) {
+      if ((hrefUrl.hash && currentFullPath === hrefFullPath) || (!hrefUrl.hash && window.location.hash === '' && currentPath === hrefPath)) {
         // Estilo 'Active' do Argon
         link.classList.add('bg-blue-500/10', 'font-semibold', 'rounded-lg');
 

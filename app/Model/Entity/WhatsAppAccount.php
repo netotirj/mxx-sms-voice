@@ -3,6 +3,7 @@
 namespace App\Model\Entity;
 
 use App\Config\TelephonyConfig;
+use App\Service\SecretBox;
 use App\Utils\TenancyHelper;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
@@ -19,8 +20,8 @@ class WhatsAppAccount
             'business_id' => $data['business_id'] ?? null,
             'phone_number_id' => $data['phone_number_id'],
             'display_phone_number' => $data['display_phone_number'],
-            'access_token' => $data['access_token'],
-            'app_secret' => $data['app_secret'] ?? null,
+            'access_token' => SecretBox::encrypt($data['access_token']),
+            'app_secret' => SecretBox::encrypt($data['app_secret'] ?? null),
             'verify_token' => $data['verify_token'] ?? null,
             'status' => $data['status'] ?? 'active',
             'created_at' => date('Y-m-d H:i:s'),
@@ -56,7 +57,7 @@ class WhatsAppAccount
             ->select($where, [':id' => $id], '', '1')
             ->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        return self::withOpenSecrets($row ?: null);
     }
 
     public static function getByPhoneNumberId(string $phoneNumberId): ?array
@@ -73,7 +74,19 @@ class WhatsAppAccount
             )
             ->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        return self::withOpenSecrets($row ?: null);
+    }
+
+    public static function getById(int $id): ?array
+    {
+        $row = (new Database('whatsapp_accounts'))
+            ->select('id = :id AND status = :status', [
+                ':id' => $id,
+                ':status' => 'active',
+            ], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return self::withOpenSecrets($row ?: null);
     }
 
     public static function getSupportAccount(): ?array
@@ -85,7 +98,7 @@ class WhatsAppAccount
                 ->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
-                return $row;
+                return self::withOpenSecrets($row);
             }
         }
 
@@ -100,6 +113,18 @@ class WhatsAppAccount
         ";
 
         $row = (new Database('whatsapp_accounts'))->execute($sql)->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
+        return self::withOpenSecrets($row ?: null);
+    }
+
+    private static function withOpenSecrets(?array $row): ?array
+    {
+        if (!$row) {
+            return null;
+        }
+
+        $row['access_token'] = SecretBox::decrypt($row['access_token'] ?? null);
+        $row['app_secret'] = SecretBox::decrypt($row['app_secret'] ?? null);
+
+        return $row;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\Rates;
@@ -11,6 +12,7 @@ use App\Model\Entity\UserSearch;
 use App\Model\Entity\CampaignBatch;
 use DateTime;
 use Exception;
+use WilliamCosta\DatabaseManager\Database;
 
 class WebStatusSms
 {
@@ -82,49 +84,63 @@ class WebStatusSms
      * Callback principal da API Pro
      * @throws Exception
      */
-    public static function getCallbackPro($request): void
+    public static function getCallbackPro($request): Response
     {
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $authHeader = $headers['Authorization'] ?? '';
+        $authHeader = self::getAuthorizationHeader();
 
         // 🔐 Autenticação básica
         if (stripos($authHeader, 'Basic ') !== 0) {
-            http_response_code(401);
-            echo json_encode(['error' => 'Autenticação necessária']);
-            return;
+            return self::json(401, ['error' => 'Autenticação necessária']);
         }
 
-        $decoded = base64_decode(substr($authHeader, 6));
+        $decoded = base64_decode(substr($authHeader, 6), true);
+        if ($decoded === false || strpos($decoded, ':') === false) {
+            return self::json(401, ['error' => 'Credenciais inválidas']);
+        }
+
         [$user, $pass] = explode(':', $decoded, 2);
-        $expectedUser = getenv('WEBHOOK_PRO_USER');
-        $expectedPass = getenv('WEBHOOK_PRO_PASS');
+        $expectedUser = (string)getenv('WEBHOOK_PRO_USER');
+        $expectedPass = (string)getenv('WEBHOOK_PRO_PASS');
+
+        if ($expectedUser === '' || $expectedPass === '') {
+            return self::json(500, ['error' => 'Webhook Basic Auth não configurado']);
+        }
 
         if ($user !== $expectedUser || $pass !== $expectedPass) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Credenciais inválidas']);
-            return;
+            return self::json(403, ['error' => 'Credenciais inválidas']);
         }
 
         $payload = file_get_contents('php://input');
         $data = json_decode($payload, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            http_response_code(400);
-            echo json_encode(['error' => 'JSON inválido']);
-            return;
+            return self::json(400, ['error' => 'JSON inválido']);
         }
+
+        self::storeRawWebhookEvents($data);
 
         $items = $data['data']['after'] ?? [];
         if (!$items || !is_array($items)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Payload inválido']);
-            return;
+            return self::json(400, ['error' => 'Payload inválido']);
         }
 
         $normalizeDate = function ($dateString) {
             if (!$dateString) return null;
-            $date = DateTime::createFromFormat('d/m/Y H:i:s', $dateString);
+            $date = DateTime::createFromFormat('d/m/Y H:i:s', $dateString)
+                ?: DateTime::createFromFormat('Y-m-d H:i:s', $dateString);
             return $date ? $date->format('Y-m-d H:i:s') : null;
         };
+        $rootAction = $data['action'] ?? $data['data']['action'] ?? $data['event'] ?? $data['type'] ?? null;
+        $rootObject = $data['object'] ?? $data['data']['object'] ?? $data['resource'] ?? null;
+        $rootCreated = $normalizeDate($data['created_at'] ?? $data['created'] ?? null);
+
+        if (strtolower((string)$rootAction) === 'mo') {
+            $count = self::processMoItems($items, $rootAction, $rootObject, $rootCreated, $normalizeDate);
+
+            return self::json(200, [
+                'status' => 200,
+                'message' => "{$count} respostas MO processadas"
+            ]);
+        }
 
         $statusChargeable = ['SENT', 'DELIVERED', 'UNDELIVERABLE', 'EXPIRED'];
         $count = 0;
@@ -141,7 +157,10 @@ class WebStatusSms
             $obUser = UserSearch::getUserByPartnerId($partnerId);
             if (!$obUser) continue;
 
-            $batch = CampaignBatch::getLastBatchByUser($obUser->id, $obUser->tenancy_id);
+            $batchIdFromPartner = self::getBatchIdFromPartnerId((string)$partnerId);
+            $batch = $batchIdFromPartner
+                ? CampaignBatch::getByIdAndTenancy($batchIdFromPartner, $obUser->tenancy_id)
+                : CampaignBatch::getLastBatchByUser($obUser->id, $obUser->tenancy_id);
             if (!$batch) continue;
 
             $planId = RegisterTenancies::getActivePlanId($obUser->tenancy_id);
@@ -150,7 +169,6 @@ class WebStatusSms
 
             $updateDate = $normalizeDate($item['data_atualizacao'] ?? null);
             $dateSend   = $normalizeDate($item['data_insercao'] ?? null);
-
             $callback = new CallbackSms();
             $callback->batch_id    = $batch->id;
             $callback->phone_sms   = $phone;
@@ -161,6 +179,19 @@ class WebStatusSms
             $callback->tenancy_id  = $obUser->tenancy_id;
             $callback->date_send   = $dateSend ?: null;
             $callback->update_date = $updateDate ?: null;
+            $callback->codigo_status = $item['codigo_status'] ?? $item['status_code'] ?? $item['cod_status'] ?? null;
+            $callback->codigo_detalhe = $item['codigo_detalhe'] ?? $item['detail_code'] ?? $item['cod_detalhe'] ?? null;
+            $callback->descricao_detalhe = $item['descricao_detalhe'] ?? $item['detail_description'] ?? $item['descricao'] ?? $item['message'] ?? null;
+            $callback->webhook_action = $item['webhook_action'] ?? $item['action'] ?? $rootAction;
+            $callback->webhook_object = $item['webhook_object'] ?? $item['object'] ?? $rootObject;
+            $callback->webhook_created = $normalizeDate($item['webhook_created'] ?? $item['created_at'] ?? null) ?: $rootCreated;
+            $callback->response_text = $item['resposta'] ?? null;
+            $callback->origin_id = $item['origin_id'] ?? $item['id'] ?? null;
+            $callback->received_at = date('Y-m-d H:i:s');
+            $callback->sms_reference_id = $item['sms_reference_id'] ?? $item['reference_id'] ?? $item['referencia'] ?? null;
+            $callback->sms_customer_id = $item['sms_customer_id'] ?? $item['customer_id'] ?? null;
+            $callback->sms_account_id = $item['sms_account_id'] ?? $item['account_id'] ?? null;
+            $callback->sms_user_id = $item['sms_user_id'] ?? $item['user_id'] ?? null;
 
             $status = strtoupper(trim($callback->status_sms));
             $isReseller = (($obUser->user_function ?? '') === 'reseller');
@@ -239,11 +270,190 @@ class WebStatusSms
         // 3️⃣ Retorno HTTP
         // ==================================================
         $status = ($count > 0) ? 200 : 204;
-        http_response_code($status);
-        echo json_encode([
+        return self::json($status, [
             'status'  => $status,
             'message' => "{$count} registros processados"
         ]);
     }
-}
 
+    private static function json(int $status, array $payload): Response
+    {
+        return new Response($status, $payload, 'application/json');
+    }
+
+    private static function getAuthorizationHeader(): string
+    {
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+
+        foreach ($headers as $key => $value) {
+            if (strtolower((string)$key) === 'authorization') {
+                return trim((string)$value);
+            }
+        }
+
+        return trim((string)(
+            $_SERVER['HTTP_AUTHORIZATION']
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+            ?? $_SERVER['Authorization']
+            ?? ''
+        ));
+    }
+
+    private static function processMoItems(
+        array $items,
+        ?string $rootAction,
+        ?string $rootObject,
+        ?string $rootCreated,
+        callable $normalizeDate
+    ): int {
+        $count = 0;
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $partnerId = $item['parceiro_id'] ?? null;
+            $phone = $item['origem'] ?? null;
+
+            if (!$partnerId || !$phone) {
+                continue;
+            }
+
+            $obUser = UserSearch::getUserByPartnerId((string)$partnerId);
+            if (!$obUser) {
+                continue;
+            }
+
+            $batchIdFromPartner = self::getBatchIdFromPartnerId((string)$partnerId);
+            $batch = $batchIdFromPartner
+                ? CampaignBatch::getByIdAndTenancy($batchIdFromPartner, $obUser->tenancy_id)
+                : CampaignBatch::getLastBatchByUser($obUser->id, $obUser->tenancy_id);
+            $receivedAt = $normalizeDate($item['data_recebimento'] ?? null) ?: date('Y-m-d H:i:s');
+
+            $callback = new CallbackSms();
+            $callback->batch_id = $batch->id ?? null;
+            $callback->phone_sms = (string)$phone;
+            $callback->status_sms = 'MO';
+            $callback->operator = 'MO';
+            $callback->value_sms = 0.00;
+            $callback->camp_name = $batch->camp_name ?? '';
+            $callback->id_partner = (string)$partnerId;
+            $callback->user_id = (int)$obUser->id;
+            $callback->tenancy_id = (string)$obUser->tenancy_id;
+            $callback->campaign_id = $batch->campaign_id ?? null;
+            $callback->date_send = $receivedAt;
+            $callback->update_date = $receivedAt;
+            $callback->webhook_action = $item['action'] ?? $rootAction;
+            $callback->webhook_object = $item['object'] ?? $rootObject;
+            $callback->webhook_created = $normalizeDate($item['created'] ?? null) ?: $rootCreated;
+            $callback->response_text = $item['resposta'] ?? null;
+            $callback->origin_id = isset($item['origem_id']) ? (string)$item['origem_id'] : null;
+            $callback->received_at = $receivedAt;
+            $callback->sms_reference_id = isset($item['id']) ? (string)$item['id'] : null;
+            $callback->sms_customer_id = isset($item['sms_cus_id']) ? (string)$item['sms_cus_id'] : null;
+            $callback->sms_account_id = isset($item['sms_acc_id']) ? (string)$item['sms_acc_id'] : null;
+            $callback->sms_user_id = isset($item['sms_use_id']) ? (string)$item['sms_use_id'] : null;
+
+            $rowsUpdated = $callback->updateMoResponse();
+            if ($rowsUpdated <= 0) {
+                $callback->insertInboundMo();
+            }
+
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private static function storeRawWebhookEvents(array $data): void
+    {
+        try {
+            self::ensureWebhookEventsTable();
+
+            $items = $data['data']['after'] ?? [];
+            if (!$items || !is_array($items)) {
+                $items = [$data];
+            }
+
+            $rootAction = $data['action'] ?? $data['data']['action'] ?? $data['event'] ?? $data['type'] ?? null;
+            $rootObject = $data['object'] ?? $data['data']['object'] ?? $data['resource'] ?? null;
+            $rootPayload = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $itemPayload = json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                (new Database())->execute(
+                    "INSERT INTO sms_webhook_events (
+                        webhook_object,
+                        webhook_action,
+                        status_sms,
+                        phone_sms,
+                        id_partner,
+                        origin_id,
+                        raw_item,
+                        raw_payload,
+                        received_at
+                    ) VALUES (
+                        :webhook_object,
+                        :webhook_action,
+                        :status_sms,
+                        :phone_sms,
+                        :id_partner,
+                        :origin_id,
+                        :raw_item,
+                        :raw_payload,
+                        NOW()
+                    )",
+                    [
+                        ':webhook_object' => $item['webhook_object'] ?? $item['object'] ?? $rootObject,
+                        ':webhook_action' => $item['webhook_action'] ?? $item['action'] ?? $rootAction,
+                        ':status_sms' => $item['status'] ?? null,
+                        ':phone_sms' => $item['destino'] ?? $item['origem'] ?? $item['phone'] ?? $item['numero'] ?? null,
+                        ':id_partner' => $item['parceiro_id'] ?? $item['partner_id'] ?? null,
+                        ':origin_id' => $item['origin_id'] ?? $item['id'] ?? null,
+                        ':raw_item' => $itemPayload !== false ? $itemPayload : null,
+                        ':raw_payload' => $rootPayload !== false ? $rootPayload : null,
+                    ]
+                );
+            }
+        } catch (Exception $e) {
+            error_log('Falha ao gravar webhook SMS bruto: ' . $e->getMessage());
+        }
+    }
+
+    private static function getBatchIdFromPartnerId(string $partnerId): ?int
+    {
+        if (preg_match('/-b(\d+)-/i', $partnerId, $matches)) {
+            return (int)$matches[1];
+        }
+
+        return null;
+    }
+
+    private static function ensureWebhookEventsTable(): void
+    {
+        (new Database())->execute(
+            "CREATE TABLE IF NOT EXISTS sms_webhook_events (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                webhook_object VARCHAR(50) NULL,
+                webhook_action VARCHAR(50) NULL,
+                status_sms VARCHAR(50) NULL,
+                phone_sms VARCHAR(30) NULL,
+                id_partner VARCHAR(80) NULL,
+                origin_id VARCHAR(120) NULL,
+                raw_item JSON NULL,
+                raw_payload JSON NULL,
+                received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_received_at (received_at),
+                KEY idx_action_object (webhook_object, webhook_action),
+                KEY idx_partner_phone (id_partner, phone_sms)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+}

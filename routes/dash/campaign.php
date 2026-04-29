@@ -23,7 +23,7 @@ $obRouter->get('/campaign/realtime',[
         'require-permissions-tenancies'
     ],
     function($request){
-         return new Response(200,Pages\Campaign::getCampaignRealtime($request));
+         return Pages\Campaign::getCampaignRealtime($request);
     }
 
 ]);
@@ -46,7 +46,7 @@ $obRouter->post('/campaign/new',[
         'require-permissions-tenancies'
     ],
     function($request){
-         return new Response(200,Pages\Campaign::setNewCampaign($request));
+         return Pages\Campaign::setNewCampaign($request);
     }
 
 ]);
@@ -58,7 +58,7 @@ $obRouter->post('/campaign/upload',[
         'require-permissions-tenancies'
     ],
     function($request){
-         return new Response(200,Pages\Campaign::setUploadCampaign($request));
+         return Pages\Campaign::setUploadCampaign($request);
     }
 
 ]);
@@ -70,7 +70,8 @@ $obRouter->get('/campaign/{id}/edit',[
         'require-permissions-tenancies'
     ],
     function($request,$id){
-         return new Response(200,Pages\Campaign::getEditCampaign($request,$id));
+         $response = Pages\Campaign::getEditCampaign($request,$id);
+         return $response instanceof Response ? $response : new Response(200, $response);
     }
 
 ]);
@@ -82,7 +83,7 @@ $obRouter->post('/campaign/{id}/edit', [
         'require-permissions-tenancies'
     ],
     function($request, $id){
-        return new Response(200, Pages\Campaign::setEditCampaign($request, $id));
+        return Pages\Campaign::setEditCampaign($request, $id);
     }
 ]);
 
@@ -93,7 +94,7 @@ $obRouter->post('/campaign/{id}/delete', [
         'require-permissions-tenancies'
     ],
     function($request, $id){
-        return new Response(200, Pages\Campaign::setDeleteCampaign($request, $id));
+        return Pages\Campaign::setDeleteCampaign($request, $id);
     }
 ]);
 
@@ -104,7 +105,7 @@ $obRouter->post('/campaign/{id}/send', [
         'require-permissions-tenancies'
     ],
     function($request, $id){
-        return new Response(200, Pages\SendSms::sendCampaignSms($request, $id));
+        return Pages\SendSms::sendCampaignSms($request, $id);
     }
 ]);
 
@@ -114,7 +115,7 @@ $obRouter->get('/campaign/single-shot', [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function($request, $id){
+    function($request){
         return new Response(200, Pages\SendSms::getCampaignSmsSingle($request));
     }
 ]);
@@ -125,7 +126,7 @@ $obRouter->post('/campaign/single-shot-send', [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function($request, $id){
-        return new Response(200, Pages\SendSms::sendCampaignSmsSingle($request));
+    function($request){
+        return Pages\SendSms::sendCampaignSmsSingle($request);
     }
 ]);

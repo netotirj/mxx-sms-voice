@@ -1,6 +1,6 @@
 <div class="w-full px-6 py-6 mx-auto">
     <main class="flex-1 flex flex-col">
-        <form id="smsCampaignFormEdit" class="flex-1 flex flex-col" method="POST">
+        <form id="smsCampaignFormEdit" class="flex-1 flex flex-col" method="POST" data-sender="{{type_msg}}" data-charset="{{charset_msg}}" data-status="{{status}}">
 
             <!-- Card principal -->
             <div class="relative flex flex-col min-w-0 break-words bg-white border-0 shadow-soft-xl rounded-2xl p-6">
@@ -131,7 +131,7 @@
                             </svg>
                         </button>
 
-                        <button type="button" onclick="window.location.href='/campaign';"
+                        <button type="button" onclick="window.location.href='{{URL}}/campaign';"
                                 class="bg-gradient-to-tr from-red-500 to-red-700 text-white active:bg-red-600 font-bold uppercase text-xs px-6 py-3 rounded shadow hover:shadow-md outline-none focus:outline-none ease-linear transition-all duration-150">
                             Cancelar
                         </button>
@@ -188,6 +188,5 @@
     }
 </script>
 <script type="module" src="{{URL}}/resources/assets/js/emoji.js"></script>
-
 
 

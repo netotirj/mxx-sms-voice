@@ -24,7 +24,7 @@ class Reports extends ViewComponents
 
     public static function getReportsStatus($request): array|bool|string
     {
-        $content = View::render('/reports/index', []);
+        $content = View::render('/reports/sms', []);
         return parent::getComponentsReports('Maxx Solutions - SMS | Reports', $content);
     }
 
@@ -292,6 +292,8 @@ class Reports extends ViewComponents
                 'date_send'   => !empty($row['date_send']) ? (new DateTime($row['date_send']))->format('d/m/Y H:i') : '-',
                 'update_date' => !empty($row['event_date']) ? (new DateTime($row['event_date']))->format('d/m/Y H:i') : '-',
                 'camp_name'   => $row['camp_name'] ?? '-',
+                'webhook_action' => $row['webhook_action'] ?? null,
+                'response_text' => $row['response_text'] ?? null,
             ];
         }, $data);
 

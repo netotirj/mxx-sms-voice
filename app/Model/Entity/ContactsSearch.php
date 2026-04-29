@@ -32,20 +32,14 @@ class ContactsSearch
             'updated_at'   => $this->updated_at
         ]);
 
-        if (!$this->id) {
-            throw new \Exception('Falha ao inserir no banco.');
-        }
-
-        return true;
-
+        return (bool)$this->id;
     } catch (\Exception $e) {
-        echo "Erro ao inserir contato: " . $e->getMessage();
-        return false;
+        error_log('Erro ao inserir contato: ' . $e->getMessage());
+        throw $e;
     }
 }
 
 }
-
 
 
 

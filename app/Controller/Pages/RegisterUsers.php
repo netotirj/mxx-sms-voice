@@ -9,6 +9,7 @@ use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\UserPlans;
+use App\Session\User as SessionUser;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
 
@@ -42,29 +43,80 @@ class RegisterUsers extends ViewComponents
     public static function setRegister($request): void
     {
         header('Content-Type: application/json; charset=utf-8');
+        SessionUser::ensureSessionStarted();
 
         $postVars = $request->getPostVars();
+        $socialProfile = self::getPendingSocialRegistration();
+        $requestedSocialRegistration = ($postVars['social_registration'] ?? '') === '1';
+        $isSocialRegistration = $requestedSocialRegistration && $socialProfile !== [];
+
         $name     = trim($postVars['name'] ?? '');
         $lastname = trim($postVars['lastname'] ?? '');
         $email    = strtolower(trim($postVars['email'] ?? ''));
         $password = trim($postVars['password'] ?? '');
-        $phone    = preg_replace('/\D/', '', trim($postVars['phone'] ?? ''));
+        $phone    = self::normalizePhone((string)($postVars['phone'] ?? ''));
         $acceptTerms = isset($postVars['accept_terms']) && $postVars['accept_terms'] === 'on';
         $captcha = trim($postVars['cf-turnstile-response'] ?? '');
-
-        if (!str_starts_with($phone, '55')) $phone = '55' . $phone;
 
         if (Recaptcha::isTurnstileEnabled() && !Recaptcha::verifyTurnstile($captcha)) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'Verificação de segurança inválida.']);
         }
 
+        if ($requestedSocialRegistration && $socialProfile === []) {
+            self::jsonResponse([
+                'status' => 'ERROR',
+                'message' => 'Sua sessão de cadastro social expirou. Clique novamente no botão da rede social.'
+            ]);
+        }
+
+        if ($isSocialRegistration) {
+            $socialFirstName = trim((string)($socialProfile['first_name'] ?? ''));
+            $socialLastName = trim((string)($socialProfile['last_name'] ?? ''));
+
+            if ($socialFirstName !== '') {
+                $name = $socialFirstName;
+            }
+
+            if ($socialLastName !== '') {
+                $lastname = $socialLastName;
+            }
+
+            $email = strtolower(trim((string)($socialProfile['email'] ?? $email)));
+            $password = bin2hex(random_bytes(24));
+        }
+
         // Validações
-        if ($name === '' || $lastname === '' || $phone === '' || $email === '' || $password === '') {
-            self::jsonResponse(['status' => 'ERROR', 'message' => 'Todos os campos são obrigatórios.']);
+        if ($name === '' || $lastname === '' || $phone === '' || $email === '' || (!$isSocialRegistration && $password === '')) {
+            $missingFields = [];
+
+            if ($name === '') {
+                $missingFields[] = 'nome';
+            }
+            if ($lastname === '') {
+                $missingFields[] = 'sobrenome';
+            }
+            if ($phone === '') {
+                $missingFields[] = 'telefone';
+            }
+            if ($email === '') {
+                $missingFields[] = 'e-mail';
+            }
+            if (!$isSocialRegistration && $password === '') {
+                $missingFields[] = 'senha';
+            }
+
+            self::jsonResponse([
+                'status' => 'ERROR',
+                'message' => 'Preencha: ' . implode(', ', $missingFields) . '.'
+            ]);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail inválido.']);
+        }
+
+        if (!self::isValidPhone($phone)) {
+            self::jsonResponse(['status' => 'ERROR', 'message' => 'Telefone inválido. Informe um celular válido com DDD.']);
         }
 
         if (!$acceptTerms) {
@@ -73,6 +125,10 @@ class RegisterUsers extends ViewComponents
 
         if (UserAuthentication::getUserByEmail($email) instanceof UserAuthentication) {
             self::jsonResponse(['status' => 'ERROR', 'message' => 'E-mail já cadastrado.']);
+        }
+
+        if (RegisterTenancies::phoneExists($phone)) {
+            self::jsonResponse(['status' => 'ERROR', 'message' => 'Telefone já cadastrado.']);
         }
 
         $result = self::createAccount([
@@ -84,7 +140,13 @@ class RegisterUsers extends ViewComponents
         ]);
 
         if (($result['status'] ?? 'ERROR') === 'OK') {
-            self::jsonResponse(['status' => 'OK', 'message' => 'Usuário cadastrado com sucesso.']);
+            unset($_SESSION['social_register_profile']);
+            self::jsonResponse([
+                'status' => 'OK',
+                'message' => $isSocialRegistration
+                    ? 'Conta social cadastrada com sucesso. Você já pode entrar pela rede social.'
+                    : 'Usuário cadastrado com sucesso.'
+            ]);
         }
 
         self::jsonResponse(['status' => 'ERROR', 'message' => $result['message'] ?? 'Erro ao finalizar cadastro.']);
@@ -96,22 +158,26 @@ class RegisterUsers extends ViewComponents
         $lastname = trim((string)($data['lastname'] ?? ''));
         $email = strtolower(trim((string)($data['email'] ?? '')));
         $password = trim((string)($data['password'] ?? ''));
-        $phone = preg_replace('/\D/', '', trim((string)($data['phone'] ?? '')));
+        $phone = self::normalizePhone((string)($data['phone'] ?? ''));
 
-        if ($name === '' || $email === '' || $password === '') {
-            return ['status' => 'ERROR', 'message' => 'Nome, e-mail e senha são obrigatórios.'];
+        if ($name === '' || $email === '' || $password === '' || $phone === '') {
+            return ['status' => 'ERROR', 'message' => 'Nome, e-mail, telefone e senha são obrigatórios.'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return ['status' => 'ERROR', 'message' => 'E-mail inválido.'];
         }
 
+        if (!self::isValidPhone($phone)) {
+            return ['status' => 'ERROR', 'message' => 'Telefone inválido. Informe um celular válido com DDD.'];
+        }
+
         if (UserAuthentication::getUserByEmail($email) instanceof UserAuthentication) {
             return ['status' => 'ERROR', 'message' => 'E-mail já cadastrado.'];
         }
 
-        if ($phone !== '' && !str_starts_with($phone, '55')) {
-            $phone = '55' . $phone;
+        if (RegisterTenancies::phoneExists($phone)) {
+            return ['status' => 'ERROR', 'message' => 'Telefone já cadastrado.'];
         }
 
         // 1️⃣ Criar Tenancy
@@ -199,5 +265,37 @@ class RegisterUsers extends ViewComponents
         }
 
         return ['status' => 'ERROR', 'message' => 'Erro ao finalizar cadastro.'];
+    }
+
+    private static function normalizePhone(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?: '';
+
+        if ($digits !== '' && !str_starts_with($digits, '55')) {
+            $digits = '55' . $digits;
+        }
+
+        return $digits;
+    }
+
+    private static function isValidPhone(string $phone): bool
+    {
+        return str_starts_with($phone, '55') && strlen($phone) >= 12 && strlen($phone) <= 13;
+    }
+
+    private static function getPendingSocialRegistration(): array
+    {
+        $profile = $_SESSION['social_register_profile'] ?? [];
+
+        if (!is_array($profile) || empty($profile['email']) || empty($profile['created_at'])) {
+            return [];
+        }
+
+        if ((time() - (int)$profile['created_at']) > 900) {
+            unset($_SESSION['social_register_profile']);
+            return [];
+        }
+
+        return $profile;
     }
 }

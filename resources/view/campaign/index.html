@@ -1,373 +1,372 @@
-<!--<dialog id="confirmDeleteModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
-    <div class="relative w-full max-w-md mx-auto mt-24 bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">Excluir Campanha</h2>
-        <p id="confirmDeleteMessage" class="mb-6 text-sm text-gray-700">
-            Tem certeza que deseja excluir esta campanha? Essa ação é irreversível.
-        </p>
-        <div class="flex justify-end gap-3">
-            <button id="cancelDeleteBtn" type="button" class="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400">
-                Cancelar
-            </button>
-            <button id="confirmDeleteBtn" type="button" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">
-                Excluir
-            </button>
-        </div>
-    </div>
-</dialog>-->
-
-
 <!-- Modal de Upload -->
-<div>
-    <div id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="relative z-10 hidden">
-        <!-- Fundo escurecido -->
-        <div aria-hidden="true" class="fixed inset-0 bg-gray-700 opacity-50 transition-opacity"></div>
+<div id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="fixed inset-0 z-[999] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
+    <div id="uploadModalContent"
+         class="w-full max-w-xl overflow-hidden rounded-2xl bg-white text-left shadow-2xl border border-slate-100 transition-all duration-200 scale-95 opacity-0 dark:bg-slate-900 dark:border-slate-700">
+        <form id="uploadForm">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <i class="fa fa-file-arrow-up"></i>
+                    </span>
+                    <div>
+                        <h3 id="dialog-title" class="text-base font-bold text-slate-800 dark:text-white">Importar contatos</h3>
+                        <p class="text-xs text-slate-500">CSV, XLS ou XLSX com colunas de nome e telefone.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeUploadModal()" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800" aria-label="Fechar">
+                    <i class="fa fa-xmark"></i>
+                </button>
+            </div>
 
-        <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
-            <div class="flex min-h-full items-center justify-center p-4 text-center sm:items-center sm:p-0">
-                <div id="uploadModalContent"
-                     class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg scale-95 opacity-0 duration-200">
-                    <form id="uploadForm">
-                        <div class="bg-white px-6 pt-6 pb-4 sm:p-6 sm:pb-4">
-                            <!--<h3 id="dialog-title" class="text-lg font-medium text-gray-700 mb-4">Upload de Arquivo</h3>-->
-                            <h3 id="dialog-title" class="text-base font-semibold text-emerald-500 mb-2">Upload de
-                                Arquivo</h3>
+            <div class="px-6 py-5">
+                <input type="hidden" id="campaignId" name="campaignId" value="">
 
-                            <input type="hidden" id="campaignId" name="campaignId" value="">
+                <label for="fileInput" class="mb-2 block text-xs font-bold uppercase text-slate-500">Arquivo de contatos</label>
+                <label class="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center transition hover:border-blue-400 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-800/60">
+                    <i class="fa fa-cloud-arrow-up mb-3 text-3xl text-blue-500"></i>
+                    <span id="uploadFileName" class="text-sm font-semibold text-slate-700 dark:text-slate-200">Clique para selecionar o arquivo</span>
+                    <span class="mt-1 text-xs text-slate-400">Cabeçalhos aceitos: nome/name/cliente e telefone/phone/celular</span>
+                    <input type="file" id="fileInput" name="fileInput" accept=".csv,.xls,.xlsx" class="sr-only"/>
+                </label>
 
-                            <label for="fileInput" class="block mb-3 text-sm text-gray-500">Selecione um
-                                arquivo:</label>
-                            <input type="file" id="fileInput" name="fileInput"
-                                   class="w-full border border-gray-500 p-2 rounded-md mb-4 focus:ring-2 focus:ring-blue-500"/>
-
-                            <div class="w-full bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
-                                <div
-                                        id="uploadProgressBar"
-                                        class="bg-blue-500 h-2 text-white text-xs text-center leading-4"
-                                        style="width: 0"
-                                >0%
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                            <button type="submit"
-                                    class="inline-flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-blue-500 sm:ml-3 sm:w-auto">
-                                Enviar
-                            </button>
-                            <button type="button" onclick="closeUploadModal()"
-                                    class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-600 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-100 sm:mt-0 sm:w-auto">
-                                Cancelar
-                            </button>
-                        </div>
-                    </form>
+                <div class="mt-5">
+                    <div class="mb-2 flex items-center justify-between text-xs font-bold uppercase text-slate-400">
+                        <span>Progresso</span>
+                        <span id="uploadProgressText">0%</span>
+                    </div>
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div id="uploadProgressBar" class="h-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style="width: 0"></div>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <div class="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-700 dark:bg-slate-800/60">
+                <button type="button" onclick="closeUploadModal()" class="rounded-lg px-4 py-2 text-xs font-bold uppercase text-slate-500 hover:text-slate-700">
+                    Cancelar
+                </button>
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white shadow hover:bg-blue-700 disabled:opacity-60">
+                    <i class="fa fa-upload"></i>
+                    Importar
+                </button>
+            </div>
+        </form>
     </div>
 </div>
-
 
 <div class="w-full px-6 py-6 mx-auto">
     <div class="flex flex-wrap -mx-3">
         <div class="w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl">
+            <div class="relative flex flex-col min-w-0 break-words bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
 
-                <!-- Cabeçalho -->
-                <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <h6 class="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                        Campanhas
-                    </h6>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-200 text-lg">
+                            <i data-feather="message-square" class="w-5 h-5"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Campanhas SMS</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Gerencie listas, uploads e disparos no padrão do painel</p>
+                        </div>
+                    </div>
                     <a href="{{URL}}/campaign/new"
                        class="inline-flex items-center gap-2 bg-gradient-to-tr from-green-800 to-green-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                        </svg>
+                        <i data-feather="plus" class="w-4 h-4"></i>
                         Criar Campanha
                     </a>
                 </div>
 
-                <!-- Tabela -->
-                <div class="p-6 overflow-x-auto">
-                    <table id="sorting-table" class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
-                        <thead class="bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                        <tr>
-                            <th class="px-4 py-3 ">ID</th>
-                            <th class="px-4 py-3 ">Nome</th>
-                            <th class="px-4 py-3 ">Mensagem</th>
-                            <th class="px-4 py-3 ">Qtd</th>
-                            <th class="px-4 py-3 ">Status</th>
-                            <th class="px-4 py-3 ">Data</th>
-                            <th class="px-4 py-3 ">Ações</th>
-                        </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300 text-center">
-                        <!-- DataTables irá preencher -->
-                        </tbody>
-                    </table>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Total</p>
+                            <h5 id="campaignTotalCount" class="mb-0 font-bold dark:text-white">0</h5>
+                        </div>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Ativas</p>
+                            <h5 id="campaignActiveCount" class="mb-0 font-bold text-emerald-600">0</h5>
+                        </div>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Finalizadas</p>
+                            <h5 id="campaignDoneCount" class="mb-0 font-bold text-blue-600">0</h5>
+                        </div>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Contatos</p>
+                            <h5 id="campaignContactCount" class="mb-0 font-bold text-slate-700 dark:text-white">0</h5>
+                        </div>
+                    </div>
                 </div>
 
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    <div class="flex flex-col gap-3 md:flex-row md:items-end">
+                        <div class="w-full md:w-32 md:flex-none">
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="campaignRowsPerPage" class="mt-1 h-10 w-full px-3 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-44 md:flex-none">
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="campaignStatusFilter" class="mt-1 h-10 w-full px-3 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
+                                <option value="">Todos</option>
+                                <option value="Ativa">Ativa</option>
+                                <option value="Inativa">Inativa</option>
+                                <option value="Finalizada">Finalizada</option>
+                            </select>
+                        </div>
+                        <div class="w-full min-w-0 md:flex-1">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar</label>
+                                <button id="campaignClearFilters" type="button" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="campaignSearchInput" class="h-10 w-full pl-9 pr-3 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none" placeholder="Nome ou mensagem...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Campanha</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Mensagem</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Contatos</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Data</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 tracking-none text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="campaignTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 rounded-b-2xl">
+                    <p id="campaignPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Página 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="campaignPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="campaignPageNumbers" class="flex gap-1"></div>
+                        <button id="campaignNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Próximo</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-
-<style>
-    /* Alinha menu e busca lado a lado */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .dataTables_wrapper .dataTables_length {
-        float: left;
-    }
-
-    .dataTables_wrapper .dataTables_filter {
-        float: right;
-    }
-
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-        margin-left: 0.5rem;
-    }
-
-    /* Remove margin lateral padrão */
-    #table-sms_wrapper {
-        margin-left: 0;
-        margin-right: 0;
-    }
-
-    /* Reduz fontes e padding do info abaixo */
-    .dataTables_wrapper .dataTables_info {
-        font-size: 0.75rem;
-        color: #475569; /* slate-600 */
-        padding-top: 0.5rem;
-    }
-
-    /* Remove float no responsivo */
-    @media (max-width: 640px) {
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter {
-            float: none;
-            justify-content: space-between;
-            flex-wrap: wrap;
-        }
-    }
-
-    /* Faz o conteúdo da célula quebrar linhas e ter largura máxima ajustável */
-    .break-message {
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    /* Permite que a largura da célula se ajuste automaticamente */
-    .auto-width-message {
-        display: inline-block;
-        max-width: 100%;
-        width: auto;
-        min-width: 150px;
-    }
-</style>
-
-
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const table = $('#sorting-table').DataTable({
-            responsive: true,
-            pageLength: 10,
-            autoWidth: false,
-            ajax: 'campaign/realtime',
-            language: {
-                decimal: ",",
-                thousands: ".",
-                info: "Exibindo _START_ - _END_ de _TOTAL_ registros",
-                infoEmpty: "Nenhum registro encontrado",
-                infoFiltered: "(filtrado de _MAX_ registros)",
-                lengthMenu: "_MENU_ por página",
-                loadingRecords: "Carregando...",
-                processing: "Processando...",
-                search: "🔍",
-                zeroRecords: "Nada encontrado",
-                paginate: {
-                    first: "«",
-                    last: "»",
-                    next: "›",
-                    previous: "‹"
-                },
-            },
-            columnDefs: [
-                { targets: 5, type: 'datetime' } // Força a coluna 5 a ser tratada como data
-            ],
+    (() => {
+        const base = (document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '').replace(/\/$/, '');
+        const tbody = document.getElementById('campaignTableBody');
+        const rowsSelect = document.getElementById('campaignRowsPerPage');
+        const statusFilter = document.getElementById('campaignStatusFilter');
+        const searchInput = document.getElementById('campaignSearchInput');
+        const clearBtn = document.getElementById('campaignClearFilters');
+        const prevBtn = document.getElementById('campaignPrevPage');
+        const nextBtn = document.getElementById('campaignNextPage');
+        const pageInfo = document.getElementById('campaignPageInfo');
+        const pageNumbers = document.getElementById('campaignPageNumbers');
+        let campaigns = [];
+        let filtered = [];
+        let currentPage = 1;
 
-            columns: [
-                {
-                    data: 'id',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `#${data}`
-                },
-                {
-                    data: 'name',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `${data}`
-                },
-                {
-                    data: 'message',
-                    //className: "dt-head-center dt-body-left break-message",
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        // Se nulo ou vazio
-                        if (!data) return '';
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
 
-                        // Quebra a cada 60 caracteres
-                        const wrapped = data.match(/.{1,30}/g)?.join('<br>') ?? data;
+        function normalize(value) {
+            return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        }
 
-                        return `
-                            <div class="auto-width-message">
-                            ${wrapped}
-                            </div>
-                                `;
-                    }
-                },
-                {
-                    data: 'qtdRows',
-                    className: "dt-head-center dt-body-center",
-                    render: data => `${data}`
-                },
-                {
-                    data: 'statusCamp',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        let badgeClass = 'bg-slate-500';
-                        let label = 'Desconhecido';
+        function statusBadge(status) {
+            let badgeClass = 'bg-slate-500';
+            let label = 'Desconhecido';
 
-                        if (data === 'y' || data === 'Ativa') {
-                            badgeClass = 'bg-gradient-to-r from-emerald-700 to-teal-400';
-                            label = 'Ativa';
-                        } else if (data === 'n' || data === 'Inativa') {
-                            badgeClass = 'bg-gradient-to-r from-orange-700 to-rose-400';
-                            label = 'Inativa';
-                        } else if (data === 'f' || data === 'Finalizada') {
-                            badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-400';
-                            label = 'Finalizada';
-                        }
+            if (status === 'y' || status === 'Ativa') {
+                badgeClass = 'bg-gradient-to-r from-emerald-700 to-teal-400';
+                label = 'Ativa';
+            } else if (status === 'n' || status === 'Inativa') {
+                badgeClass = 'bg-gradient-to-r from-orange-700 to-rose-400';
+                label = 'Inativa';
+            } else if (status === 'f' || status === 'Finalizada') {
+                badgeClass = 'bg-gradient-to-r from-blue-700 to-sky-400';
+                label = 'Finalizada';
+            }
 
-                        return `
-                    <span class="text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${badgeClass}">
-                        ${label}
-                    </span>
-                    `;
-                    }
-                },
-                {
-                    data: 'created',
-                    className: "dt-head-center dt-body-center",
-                    render: data => {
-                        if (!data) return `<span class="italic text-slate-400">-</span>`;
+            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${badgeClass}">${label}</span>`;
+        }
 
-                        const date = new Date(data);
-                        if (isNaN(date)) return `<span class="italic text-slate-400">-</span>`;
+        function formatDate(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '-';
+            return `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        }
 
-                        const iso = date.toISOString(); // formato seguro para ordenar
-                        const formatted = `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })}`;
+        function renderActions(row) {
+            const isFinalized = row.status === 'f' || row.statusCamp === 'Finalizada';
+            const disabledAttr = isFinalized ? 'disabled' : '';
+            const disabledClass = isFinalized ? 'opacity-50 cursor-not-allowed' : '';
+            const name = escapeHtml(row.name || '');
 
-                        return `<span class="font-medium" data-order="${iso}">${formatted}</span>`;
-                    }
-                },
-                {
-                    defaultContent: '',
-                    className: "dt-head-center dt-body-center",
-                    render: (data, type, row) => {
-                        const isFinalized = row.statusCamp === 'f' || row.statusCamp === 'Finalizada';
-                        const disabledAttr = isFinalized ? 'disabled' : '';
-                        const disabledClass = isFinalized ? 'opacity-50 cursor-not-allowed hover:bg-none' : '';
+            return `
+                <div class="inline-flex items-center justify-center gap-1">
+                    <button class="btn-send inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Enviar" ${disabledAttr}>
+                        <span class="icon-send"><i data-feather="send" class="w-4 h-4"></i></span>
+                        <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
+                    </button>
+                    <button class="btn-edit inline-flex items-center gap-1 bg-orange-100 text-orange-700 hover:bg-orange-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Editar" ${disabledAttr}>
+                        <span class="icon-edit"><i data-feather="edit-2" class="w-4 h-4"></i></span>
+                        <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
+                    </button>
+                    <button class="btn-upload inline-flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Subir nomes" ${disabledAttr}>
+                        <span class="icon-upload"><i data-feather="upload" class="w-4 h-4"></i></span>
+                        <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
+                    </button>
+                    <button class="btn-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-2 py-1 rounded" data-id="${row.id}" data-name="${name}" title="Apagar">
+                        <span class="icon-delete"><i data-feather="trash" class="w-4 h-4"></i></span>
+                        <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
+                    </button>
+                </div>
+            `;
+        }
 
-                        return `
-            <!-- Disparar SMS -->
-            <button
-                class="btn-send inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
-                data-id="${row.id}"
-                title="Enviar"
-                ${disabledAttr}>
-                <span class="icon-send">
-                    <i data-feather="send" class="w-4 h-4"></i>
-                </span>
-                <span class="icon-spinner hidden">
-                    <svg class="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                    </svg>
-                </span>
-            </button>
+        function updateStats() {
+            document.getElementById('campaignTotalCount').textContent = campaigns.length;
+            document.getElementById('campaignActiveCount').textContent = campaigns.filter(c => c.statusCamp === 'Ativa').length;
+            document.getElementById('campaignDoneCount').textContent = campaigns.filter(c => c.statusCamp === 'Finalizada').length;
+            document.getElementById('campaignContactCount').textContent = campaigns.reduce((sum, c) => sum + Number(c.qtdRows || 0), 0);
+        }
 
-            <!-- Editar -->
-            <button
-                class="btn-edit inline-flex items-center gap-1 bg-orange-100 text-orange-700 hover:bg-orange-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
-                data-id="${row.id}"
-                title="Editar"
-                ${disabledAttr}>
-                <span class="icon-edit">
-                    <i data-feather="edit-2" class="w-4 h-4"></i>
-                </span>
-                <span class="icon-spinner hidden">
-                    <svg class="animate-spin h-4 w-4 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                    </svg>
-                </span>
-            </button>
+        function applyFilters(resetPage = true) {
+            const query = normalize(searchInput?.value || '');
+            const selectedStatus = statusFilter?.value || '';
 
-            <!-- Upload -->
-            <button
-                class="btn-upload inline-flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}"
-                data-id="${row.id}"
-                title="Subir Nomes"
-                ${disabledAttr}>
-                <span class="icon-upload">
-                    <i data-feather="upload" class="w-4 h-4"></i>
-                </span>
-                <span class="icon-spinner hidden">
-                    <svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                    </svg>
-                </span>
-            </button>
+            filtered = campaigns.filter((item) => {
+                const haystack = normalize([item.id, item.name, item.message, item.statusCamp, item.created].join(' '));
+                const matchesQuery = !query || haystack.includes(query);
+                const matchesStatus = !selectedStatus || item.statusCamp === selectedStatus;
+                return matchesQuery && matchesStatus;
+            });
 
-            <!-- Deletar -->
-            <button
-                class="btn-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-2 py-1 rounded"
-                data-id="${row.id}"
-                data-name="${row.name}"
-                title="Apagar">
-                <span class="icon-delete">
-                    <i data-feather="trash" class="w-4 h-4"></i>
-                </span>
-                <span class="icon-spinner hidden">
-                    <svg class="animate-spin h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                    </svg>
-                </span>
-            </button>
-        `;
-                    }
-                }
+            if (resetPage) currentPage = 1;
+            renderTable();
+        }
 
+        function renderTable() {
+            const perPage = parseInt(rowsSelect?.value || '10', 10);
+            const totalPages = Math.ceil(filtered.length / perPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
 
-            ],
-            order: [[5, 'desc']],
-            drawCallback: function () {
-                feather.replace();
-            },
+            const start = (currentPage - 1) * perPage;
+            const rows = filtered.slice(start, start + perPage);
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-slate-400 italic">Nenhuma campanha encontrada.</td></tr>';
+            } else {
+                tbody.innerHTML = rows.map((row) => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 dark:border-slate-700">
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-slate-700 dark:text-white">#${row.id} ${escapeHtml(row.name || '')}</div>
+                            <div class="text-xs text-slate-400">${escapeHtml(row.created || '')}</div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 max-w-md">
+                            <div class="break-words line-clamp-3">${escapeHtml(row.message || '')}</div>
+                        </td>
+                        <td class="px-6 py-4 text-center font-bold">${row.qtdRows || 0}</td>
+                        <td class="px-6 py-4 text-center">${statusBadge(row.statusCamp)}</td>
+                        <td class="px-6 py-4 text-center text-xs font-semibold">${formatDate(row.created)}</td>
+                        <td class="px-6 py-4 text-center">${renderActions(row)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages;
+
+            pageNumbers.innerHTML = '';
+            for (let p = 1; p <= totalPages; p++) {
+                if (p > currentPage + 2 || p < currentPage - 2) continue;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = p;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg ${p === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:text-white'}`;
+                btn.addEventListener('click', () => {
+                    currentPage = p;
+                    renderTable();
+                });
+                pageNumbers.appendChild(btn);
+            }
+
+            if (window.feather) feather.replace();
+        }
+
+        async function loadCampaigns() {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-slate-400 italic">Carregando campanhas...</td></tr>';
+
+            try {
+                const response = await fetch(`${base}/campaign/realtime?_=${Date.now()}`, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                campaigns = Array.isArray(data.data) ? data.data : [];
+                updateStats();
+                applyFilters(false);
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-red-500 italic">Erro ao carregar campanhas.</td></tr>';
+            }
+        }
+
+        rowsSelect?.addEventListener('change', () => applyFilters(true));
+        statusFilter?.addEventListener('change', () => applyFilters(true));
+        searchInput?.addEventListener('input', () => applyFilters(true));
+        clearBtn?.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (statusFilter) statusFilter.value = '';
+            applyFilters(true);
         });
-    });
+        prevBtn?.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+            }
+        });
+        nextBtn?.addEventListener('click', () => {
+            const perPage = parseInt(rowsSelect?.value || '10', 10);
+            const totalPages = Math.ceil(filtered.length / perPage) || 1;
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTable();
+            }
+        });
 
-
+        window.reloadCampaignTable = loadCampaigns;
+        window.refreshCampaignTable = loadCampaigns;
+        window.loadCampaigns = loadCampaigns;
+        document.addEventListener('campaigns:reload', loadCampaigns);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) loadCampaigns();
+        });
+        loadCampaigns();
+    })();
 </script>

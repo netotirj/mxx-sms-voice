@@ -37,7 +37,9 @@ class ViewComponents
             'URL'             => URL,
             'item_dashboard'  => self::getDashboardHtml($userPerms),
             'item_mensageria' => self::getMensageriaHtml($userPerms),
+            'item_whatsapp'   => self::getWhatsAppHtml($userPerms),
             'item_voz'        => self::getVozHtml($userPerms),
+            'item_suporte'    => self::getSuporteHtml($userPerms),
             'item_recargas'   => self::getRecargasHtml($userPerms),
             'item_relatorios' => self::getRelatoriosHtml($userPerms),
             'item_usuarios'   => self::getUsuariosHtml($userPerms),
@@ -150,12 +152,23 @@ class ViewComponents
             $items .= self::buildMenuItem('/campaign/single-shot', 'Disparo Simples', 'ni ni-send', 'text-indigo-900');
         }
 
-        // Rota de WhatsApp (adicionada manualmente)
-        if (self::hasPerm($userPerms, ['/campaign/whatsapp'])) {
-            $items .= self::buildMenuItem('/campaign/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-green-500');
+        return self::renderSubmenu('SMS', 'ni ni-archive-2', 'text-orange-500', $items);
+    }
+
+    private static function getWhatsAppHtml(array $userPerms): string
+    {
+        if (!self::hasPerm($userPerms, ['/campaign/whatsapp'])) {
+            return '';
         }
 
-        return self::renderSubmenu('Mensageria', 'ni ni-archive-2', 'text-orange-500', $items);
+        $items = '';
+        $items .= self::buildMenuItem('/campaign/whatsapp', 'Central', 'ni ni-chat-round', 'text-emerald-500');
+        $items .= self::buildMenuItem('/campaign/whatsapp?wa=conversations', 'Atendimento', 'ni ni-chat-round', 'text-cyan-500');
+        $items .= self::buildMenuItem('/campaign/whatsapp?wa=campaigns', 'Campanhas', 'ni ni-send', 'text-orange-500');
+        $items .= self::buildMenuItem('/campaign/whatsapp?wa=templates', 'Templates', 'ni ni-single-copy-04', 'text-violet-500');
+        $items .= self::buildMenuItem('/campaign/whatsapp?wa=accounts', 'Contas Meta', 'ni ni-settings-gear-65', 'text-slate-500');
+
+        return self::renderSubmenu('WhatsApp', 'fa-brands fa-whatsapp', 'text-green-500', $items);
     }
 
     private static function getVozHtml(array $userPerms): string
@@ -214,6 +227,23 @@ class ViewComponents
         if ($config !== '')   $content .= self::buildSectionTitle('Configuração') . $config;
 
         return self::renderSubmenu('Voz & Call Center', 'ni ni-headphones', 'text-yellow-500', $content);
+    }
+
+    private static function getSuporteHtml(array $userPerms): string
+    {
+        if (!self::hasPerm($userPerms, ['/support'])) {
+            return '';
+        }
+
+        return '
+        <li class="w-full mt-0.5">
+            <a href="' . URL . '/support" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
+                <div class="mr-2 flex h-8 w-8 items-center justify-center text-emerald-500">
+                    <i class="ni ni-support-16"></i>
+                </div>
+                <span>Suporte</span>
+            </a>
+        </li>';
     }
 
     private static function getRecargasHtml(array $userPerms): string
@@ -315,6 +345,53 @@ class ViewComponents
         return self::getUserFunction($user) === 'admin';
     }
 
+    private static function isReseller(array $user): bool
+    {
+        return self::getUserFunction($user) === 'reseller';
+    }
+
+    private static function canSeeSupportTicketsHeader(array $user): bool
+    {
+        return self::isSuperAdmin($user) || self::isAdmin($user) || self::isReseller($user);
+    }
+
+    private static function getSupportTicketsHeaderHtml(array $user): string
+    {
+        if (!self::canSeeSupportTicketsHeader($user)) {
+            return '';
+        }
+
+        return '
+                <a href="javascript:void(0);" id="supportTicketsButton" class="relative flex items-center justify-center cursor-pointer mr-6" title="Tickets de suporte">
+                    <i class="fa fa-question-circle text-xl text-white"></i>
+                    <span id="supportTicketsBadge" class="absolute -top-2 -right-2 hidden min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-xxs font-bold leading-4 text-center">0</span>
+                </a>
+
+                <div id="supportTicketsMenu"
+                     class="absolute right-14 mt-2 w-96 max-h-100 overflow-y-auto rounded-xl bg-white shadow-2xl opacity-0 pointer-events-none transition-all duration-200 border border-slate-100"
+                     style="z-index:9999; top: 100%;">
+                    <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm text-slate-800 font-bold leading-tight">Suporte</p>
+                                <p id="supportTicketsSummary" class="text-xs text-slate-500 mt-0.5">Acompanhando seus tickets abertos</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="' . URL . '/support" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-emerald-600 border border-slate-200 hover:bg-emerald-50" title="Abrir painel de suporte">
+                                    <i class="fa fa-arrow-up-right-from-square text-xs"></i>
+                                </a>
+                                <button id="supportTicketsRefresh" type="button" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-blue-600 border border-slate-200 hover:bg-blue-50" title="Atualizar tickets">
+                                    <i class="fa fa-rotate-right text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="supportTicketsList" class="p-3">
+                        <div class="text-center text-gray-500 p-4">Carregando tickets...</div>
+                    </div>
+                </div>';
+    }
+
     /**
      * Regra para trocar de plano (Admin ou Super Admin)
      */
@@ -390,7 +467,8 @@ class ViewComponents
         return View::render('pages/header', [
             'name'             => $obUser['name'] ?? 'User',
             'avatar'           => $userAvatar,
-            'planSwitcherHtml' => $planSwitcherHtml
+            'planSwitcherHtml' => $planSwitcherHtml,
+            'supportTicketsHeader' => self::getSupportTicketsHeaderHtml($userBase)
         ]);
     }
 
@@ -483,6 +561,11 @@ class ViewComponents
     public static function getComponentsRegister(string $title, string|array|bool $content): string
     {
         $captcha = self::getTurnstileViewVars();
+        $socialProfile = $_SESSION['social_register_profile'] ?? [];
+        $isSocialRegister = is_array($socialProfile)
+            && !empty($socialProfile['email'])
+            && !empty($socialProfile['created_at'])
+            && (time() - (int)$socialProfile['created_at']) <= 900;
 
         return View::render('register/index', [
             'title'                 => $title,
@@ -492,6 +575,14 @@ class ViewComponents
             'captchaSiteKey'        => $captcha['siteKey'],
             'captchaWidgetClass'    => $captcha['widgetClass'],
             'registerSocialButtons' => self::buildSocialButtons('register', 'social-register-btn'),
+            'registerSocialMode'    => $isSocialRegister ? 'true' : 'false',
+            'registerSocialInput'   => $isSocialRegister ? '1' : '0',
+            'registerFirstName'     => htmlspecialchars((string)($socialProfile['first_name'] ?? ''), ENT_QUOTES, 'UTF-8'),
+            'registerLastName'      => htmlspecialchars((string)($socialProfile['last_name'] ?? ''), ENT_QUOTES, 'UTF-8'),
+            'registerEmail'         => htmlspecialchars((string)($socialProfile['email'] ?? ''), ENT_QUOTES, 'UTF-8'),
+            'registerEmailReadonly' => $isSocialRegister ? 'readonly' : '',
+            'registerPasswordClass' => $isSocialRegister ? 'hidden' : '',
+            'registerPasswordRequired' => $isSocialRegister ? '' : 'required',
         ]);
     }
 
@@ -502,9 +593,9 @@ class ViewComponents
 
         return [
             'enabled' => $enabled ? 'true' : 'false',
-            'scriptUrl' => $configured ? 'https://challenges.cloudflare.com/turnstile/v0/api.js' : '',
+            'scriptUrl' => ($configured && $enabled) ? 'https://challenges.cloudflare.com/turnstile/v0/api.js' : '',
             'siteKey' => Recaptcha::getTurnstileSiteKey(),
-            'widgetClass' => $configured ? '' : 'hidden',
+            'widgetClass' => ($configured && $enabled) ? '' : 'hidden',
         ];
     }
 

@@ -546,7 +546,18 @@
             ANSWER: '#10b981',
             ANSWERED: '#10b981',
             DELIVERED: '#10b981',
+            ENTREGUE: '#10b981',
+            ENTREGUES: '#10b981',
             SENT: '#0ea5e9',
+            ENVIADA: '#0ea5e9',
+            ENVIADAS: '#0ea5e9',
+            RECEBIDAS: '#14b8a6',
+            LIDAS: '#10b981',
+            PENDENTES: '#8b5cf6',
+            FALHAS: '#ef4444',
+            RESPOSTA: '#14b8a6',
+            RESPOSTAS: '#14b8a6',
+            MO: '#14b8a6',
             BUSY: '#f59e0b',
             NOANSWER: '#f97316',
             CANCEL: '#94a3b8',
@@ -991,72 +1002,86 @@
             const operatorEntries = getOperatorCountsForPeriod();
             const operatorLabels = operatorEntries.map(([name]) => name);
             const operatorValues = operatorEntries.map(([, item]) => Number(item?.qtd || 0));
+            const smsDeliveryRate = Number(cardsPayload?.smsTaxaEntrega || 0);
+            const smsDelivered = Number(cardsPayload?.smsEntregues || 0);
+            const smsPending = Number(cardsPayload?.smsPendentes || 0);
+            const smsFailures = Number(cardsPayload?.smsFalhas || 0);
+            const smsResponses = Number(cardsPayload?.smsRespostas || 0);
+            const whatsappMessages = Number(cardsPayload?.whatsappEnviados || 0);
+            const whatsappConversations = Number(cardsPayload?.whatsappConversas || 0);
+            const whatsappUnread = Number(cardsPayload?.whatsappNaoLidas || 0);
+            const whatsappCampaigns = Number(cardsPayload?.whatsappCampanhas || 0);
+            const whatsappAccounts = Number(cardsPayload?.whatsappContas || 0);
 
             if (service === 'sms') {
                 return {
-                    title: 'Graficos do Servico: SMS',
-                    subtitle: `SMS por ${smsPeriod.labels.title.toLowerCase()}, comparativo do periodo e distribuicao por status de entrega.`,
+                    title: 'Resumo do SMS Gateway',
+                    subtitle: `DLR por ${smsPeriod.labels.title.toLowerCase()}, respostas recebidas e distribuicao por operadora.`,
                     tag: 'SMS',
                     color: '#f59e0b',
                     today: smsPeriod.current,
                     todayLabel: `SMS - ${smsPeriod.labels.current}`,
                     month: smsPeriod.previous,
                     monthLabel: `SMS - ${smsPeriod.labels.previous}`,
-                    previous: getPeriodContextValue(''),
-                    previousLabel: selectedPeriod === 'month' ? 'SMS hoje' : 'SMS no mes',
+                    previous: smsResponses,
+                    previousLabel: 'Respostas recebidas',
                     line: smsPeriod.status,
                     doughnut: smsPeriod.status,
                     secondary: {
-                        title: 'SMS por operadora',
-                        tag: 'Operadoras',
+                        title: operatorLabels.length ? 'SMS por operadora' : 'Resumo DLR',
+                        tag: operatorLabels.length ? 'Operadoras' : 'Status',
                         type: 'bar',
-                        labels: operatorLabels.length ? operatorLabels : ['Sem dados'],
-                        values: operatorValues.length ? operatorValues : [0],
+                        labels: operatorLabels.length ? operatorLabels : ['Entregues', 'Pendentes', 'Falhas', 'Respostas'],
+                        values: operatorValues.length ? operatorValues : [smsDelivered, smsPending, smsFailures, smsResponses],
                         color: operatorLabels.length
                             ? operatorLabels.map((_, index) => chartPalette[(index + 3) % chartPalette.length])
-                            : ['#cbd5e1']
+                            : ['#10b981', '#0ea5e9', '#ef4444', '#14b8a6']
                     },
                     details: [
-                        ['DLR', `${document.getElementById('card-sms-primary')?.textContent || '0'}%`],
-                        ['Total enviado', document.getElementById('card-sms-secondary')?.textContent || '0'],
-                        ['Redis', metrics.redis?.detail || '--'],
+                        ['Entrega', `${smsDeliveryRate.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`],
+                        ['Entregues', String(smsDelivered)],
+                        ['Pendentes/Falhas', `${smsPending}/${smsFailures}`],
+                        ['Respostas MO', String(smsResponses)],
                         ['Ultima atualizacao', health.last_check || '--:--:--']
-                    ]
+                    ].slice(0, 4)
                 };
             }
 
             if (service === 'whatsapp') {
                 return {
-                    title: 'Graficos do Servico: WhatsApp',
-                    subtitle: `Mensagens WhatsApp por ${whatsPeriod.labels.title.toLowerCase()}, leitura por status e movimento da central.`,
+                    title: 'Resumo da Central WhatsApp',
+                    subtitle: `Mensagens por ${whatsPeriod.labels.title.toLowerCase()}, conversas, campanhas e contas conectadas.`,
                     tag: 'WHATSAPP',
                     color: '#10b981',
                     today: whatsPeriod.current,
                     todayLabel: `Mensagens - ${whatsPeriod.labels.current}`,
                     month: whatsPeriod.previous,
                     monthLabel: `Mensagens - ${whatsPeriod.labels.previous}`,
-                    previous: getPeriodContextValue('Whats'),
-                    previousLabel: selectedPeriod === 'month' ? 'Mensagens hoje' : 'Mensagens no mes',
+                    previous: whatsappCampaigns,
+                    previousLabel: 'Campanhas WhatsApp',
                     line: whatsPeriod.status,
                     doughnut: whatsPeriod.status,
                     secondary: {
-                        title: 'Comparativo WhatsApp',
-                        tag: 'Resumo',
+                        title: 'Operacao WhatsApp',
+                        tag: 'Central',
                         type: 'bar',
-                        labels: [whatsPeriod.labels.current, whatsPeriod.labels.previous, whatsPeriod.labels.context],
+                        labels: ['Conversas', 'Mensagens', 'Nao lidas', 'Campanhas', 'Contas'],
                         values: [
-                            whatsPeriod.current,
-                            whatsPeriod.previous,
-                            getPeriodContextValue('Whats')
+                            whatsappConversations,
+                            whatsappMessages,
+                            whatsappUnread,
+                            whatsappCampaigns,
+                            whatsappAccounts
                         ],
-                        color: ['#10b981', '#0ea5e9', '#8b5cf6']
+                        color: ['#10b981', '#14b8a6', '#f59e0b', '#8b5cf6', '#0ea5e9']
                     },
                     details: [
-                        ['Conversas', document.getElementById('card-whatsapp-primary')?.textContent || '0'],
-                        ['Não lidas', String(cardsPayload?.whatsappNaoLidas ?? 0)],
-                        ['Enviadas', String(cardsPayload?.whatsappEnviados ?? 0)],
+                        ['Conversas', String(whatsappConversations)],
+                        ['Mensagens enviadas', String(whatsappMessages)],
+                        ['Nao lidas', String(whatsappUnread)],
+                        ['Contas ativas', String(whatsappAccounts)],
                         ['Ultima atualizacao', health.last_check || '--:--:--']
-                    ]
+                    ].slice(0, 4)
                 };
             }
 
@@ -1218,20 +1243,18 @@
             ensureStatusChart();
             if (!statusChart) return;
 
-            const statusTotals = {};
-            (config.doughnut.datasets || []).forEach((dataset) => {
-                statusTotals[dataset.status] = dataset.values.reduce((sum, item) => sum + Number(item || 0), 0);
-            });
-
-            const labels = Object.keys(statusTotals).length ? Object.keys(statusTotals) : ['Sem dados'];
-            const values = Object.values(statusTotals).length ? Object.values(statusTotals) : [1];
-            const colors = Object.keys(statusTotals).length
+            const labels = config.doughnut.labels?.length ? config.doughnut.labels : ['Sem dados'];
+            const values = config.doughnut.totals?.length ? config.doughnut.totals : [1];
+            const hasRealData = config.doughnut.labels?.length && values.some((value) => Number(value || 0) > 0);
+            const finalLabels = hasRealData ? labels : ['Sem dados'];
+            const finalValues = hasRealData ? values : [1];
+            const colors = hasRealData
                 ? labels.map((label, index) => statusColors[String(label).toUpperCase()] || chartPalette[index % chartPalette.length])
                 : ['#cbd5e1'];
             const signature = JSON.stringify({
                 service: selectedService,
-                labels,
-                values
+                labels: finalLabels,
+                values: finalValues
             });
 
             if (signature === statusChartSignature) {
@@ -1239,8 +1262,8 @@
             }
 
             statusChartSignature = signature;
-            statusChart.data.labels = labels;
-            statusChart.data.datasets[0].data = values;
+            statusChart.data.labels = finalLabels;
+            statusChart.data.datasets[0].data = finalValues;
             statusChart.data.datasets[0].backgroundColor = colors;
             statusChart.update('none');
         }

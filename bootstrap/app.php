@@ -12,6 +12,7 @@ Environment::load(__DIR__.'/../');
 
 // 2. Define a URL
 define('URL', getenv('URL') ?: 'http://localhost');
+define('VIEW_URL', buildCurrentViewUrl(URL));
 
 // 3. CONFIGURA O BANCO PRIMEIRO (Obrigatório antes de ler sessão) 🚀
 Database::config(
@@ -44,7 +45,8 @@ if (preg_match('#^https?://#i', $asteriskWsHost)) {
 }
 
 View::init([
-    'URL' => URL,
+    'URL' => VIEW_URL,
+    'SOCIAL_URL' => URL,
     'ASTERISK_WS_HOST' => $asteriskWsHost,
     'ASTERISK_WS_PORT' => getenv('ASTERISK_WS_PORT') ?: '8089',
 ]);
@@ -61,3 +63,21 @@ MiddlewareQueue::setDefault([
     'maintenance',
     'auto-logout-inactive',
 ]);
+
+function buildCurrentViewUrl(string $fallbackUrl): string
+{
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') {
+        return rtrim($fallbackUrl, '/');
+    }
+
+    $fallbackPath = parse_url($fallbackUrl, PHP_URL_PATH) ?: '';
+    $isHttps = (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+    );
+
+    $scheme = $isHttps ? 'https' : 'http';
+
+    return rtrim($scheme . '://' . $host . $fallbackPath, '/');
+}

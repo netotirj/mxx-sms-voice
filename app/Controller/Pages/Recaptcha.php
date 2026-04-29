@@ -17,9 +17,8 @@ class Recaptcha
     private static function isLocalEnvironment(): bool
     {
         $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-        $envUrlHost = strtolower((string)(parse_url((string)getenv('URL'), PHP_URL_HOST) ?: ''));
 
-        foreach ([$host, $envUrlHost] as $value) {
+        foreach ([$host] as $value) {
             $value = preg_replace('/:\d+$/', '', $value) ?? $value;
 
             if (in_array($value, ['localhost', '127.0.0.1', '::1'], true)) {
@@ -58,6 +57,7 @@ class Recaptcha
         }
 
         $ch = curl_init($verifyUrl);
+        self::configureCurlCertificates($ch);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -69,61 +69,56 @@ class Recaptcha
         curl_close($ch);
 
         if ($result === false || $error !== '') {
+            error_log('Turnstile verification failed by cURL: ' . $error);
             return false;
         }
 
         $response = json_decode($result, true);
 
-        return is_array($response) && ($response['success'] ?? false) === true;
+        if (!is_array($response)) {
+            error_log('Turnstile verification returned invalid JSON: ' . $result);
+            return false;
+        }
+
+        if (($response['success'] ?? false) !== true) {
+            error_log('Turnstile verification rejected: ' . json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            return false;
+        }
+
+        return true;
     }
 
-    /**
-     * Valida o token do reCAPTCHA no Google
-     *
-     * @param string $captchaResponse  Token vindo do POST (g-recaptcha-response)
-     * @param string|null $remoteIp    IP do usuário (opcional)
-     * @return bool
-     */
-    public static function verify(string $captchaResponse, ?string $remoteIp = null): bool
+    private static function configureCurlCertificates($ch): void
     {
-        $VERIFY_URL = getenv('VERIFY_URL_RECAPTCHA') ?: "https://www.google.com/recaptcha/api/siteverify";
-        $SECRET_KEY = getenv('SECRET_KEY_RECAPTCHA');
-
-        if (empty($captchaResponse) || empty($SECRET_KEY)) {
-            return false;
+        if (!is_resource($ch) && !($ch instanceof \CurlHandle)) {
+            return;
         }
 
-        $data = [
-            'secret'   => $SECRET_KEY,
-            'response' => $captchaResponse,
-        ];
-
-         // Detecta IP real mesmo com Cloudflare
-        
-	if (!$remoteIp && isset($_SERVER['REMOTE_ADDR'])) {
-            $remoteIp = $_SERVER['REMOTE_ADDR'];
+        $configuredCa = trim((string)(ini_get('curl.cainfo') ?: ini_get('openssl.cafile')));
+        if ($configuredCa !== '') {
+            return;
         }
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $VERIFY_URL);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        
-
-        $result = curl_exec($ch);
-
-        $err = curl_error($ch);
-
-        curl_close($ch);
-
-        if ($err) {
-            return false;
+        foreach (self::getCaBundleCandidates() as $candidate) {
+            if (is_file($candidate)) {
+                curl_setopt($ch, CURLOPT_CAINFO, $candidate);
+                return;
+            }
         }
+    }
 
-        $response = json_decode($result, true);
+    private static function getCaBundleCandidates(): array
+    {
+        $phpDir = defined('PHP_BINARY') && PHP_BINARY !== '' ? dirname(PHP_BINARY) : '';
+        $parentPhpDir = $phpDir !== '' ? dirname($phpDir) : '';
 
-        return isset($response['success']) && $response['success'] === true;
+        return array_filter(array_unique([
+            (string)getenv('PHP_CURL_CAINFO'),
+            (string)getenv('CURL_CA_BUNDLE'),
+            (string)getenv('SSL_CERT_FILE'),
+            $phpDir !== '' ? $phpDir . DIRECTORY_SEPARATOR . 'cacert.pem' : '',
+            $parentPhpDir !== '' ? $parentPhpDir . DIRECTORY_SEPARATOR . 'cacert.pem' : '',
+            'C:' . DIRECTORY_SEPARATOR . 'wamp64' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php' . DIRECTORY_SEPARATOR . 'cacert.pem',
+        ]));
     }
 }

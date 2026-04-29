@@ -14,7 +14,9 @@
 
       {{item_dashboard}}
       {{item_mensageria}}
+      {{item_whatsapp}}
       {{item_voz}}
+      {{item_suporte}}
       {{item_recargas}}
       {{item_relatorios}}
       {{item_usuarios}}
@@ -26,15 +28,20 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname.replace(/\/$/, '');
+    const currentFullPath = path + window.location.search + window.location.hash;
     const navLinks = document.querySelectorAll('a.nav-link');
     let submenuToOpen = null;
 
     navLinks.forEach(link => {
       const href = link.getAttribute('href');
       if (!href) return;
-      const hrefPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
+      const hrefUrl = new URL(href, window.location.origin);
+      const hrefPath = hrefUrl.pathname.replace(/\/$/, '');
+      const hrefFullPath = hrefPath + hrefUrl.search + hrefUrl.hash;
+      const hrefHasState = hrefUrl.search !== '' || hrefUrl.hash !== '';
+      const currentHasState = window.location.search !== '' || window.location.hash !== '';
 
-      if (path === hrefPath) {
+      if ((hrefHasState && currentFullPath === hrefFullPath) || (!hrefHasState && !currentHasState && path === hrefPath)) {
         const isInsideSubmenu = link.closest('.submenu-items');
 
         // Mantemos o texto estático: pl-6 apenas no principal

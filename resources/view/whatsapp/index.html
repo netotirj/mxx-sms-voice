@@ -6,9 +6,9 @@
                     <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-100 mx-4">
                         <div class="flex items-start justify-between gap-4 mb-5">
                             <div>
-                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Meta WhatsApp Business</p>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">WhatsApp Business</p>
                                 <h6 class="text-slate-700 text-lg font-bold mb-1 uppercase">Conectar número</h6>
-                                <p class="text-xs text-slate-400 mb-0">Cadastre o Phone Number ID e o token permanente da Cloud API.</p>
+                                <p class="text-xs text-slate-400 mb-0">Informe seu número. A equipe técnica conclui a conexão com segurança.</p>
                             </div>
                             <button id="wa-account-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
                         </div>
@@ -22,25 +22,13 @@
                                 <span>Número exibido</span>
                                 <input id="wa-account-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
                             </label>
-                            <label class="wa-field">
-                                <span>Phone Number ID</span>
-                                <input id="wa-account-phone-id" type="text" placeholder="ID do número na Meta">
-                            </label>
-                            <label class="wa-field">
-                                <span>WABA ID</span>
-                                <input id="wa-account-waba-id" type="text" placeholder="Opcional">
-                            </label>
-                            <label class="wa-field md:col-span-2">
-                                <span>Access Token</span>
-                                <textarea id="wa-account-token" rows="3" placeholder="Token permanente da Meta"></textarea>
-                            </label>
                         </div>
 
                         <p id="wa-account-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
 
                         <div class="flex justify-end gap-2 mt-5">
                             <button id="wa-account-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Cancelar</button>
-                            <button id="wa-account-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar número</button>
+                            <button id="wa-account-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Solicitar conexão</button>
                         </div>
                     </div>
                 </div>
@@ -127,9 +115,9 @@
                             <label class="wa-field">
                                 <span>Categoria</span>
                                 <select id="wa-template-category">
-                                    <option value="MARKETING">Marketing</option>
                                     <option value="UTILITY">Utilidade</option>
                                     <option value="AUTHENTICATION">Autenticação</option>
+                                    <option value="MARKETING">Marketing</option>
                                 </select>
                             </label>
                             <label class="wa-field">
@@ -161,6 +149,34 @@
                     </div>
                 </div>
 
+                <div id="wa-campaign-modal" class="absolute inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-4">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Campanhas WhatsApp</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-0 uppercase">Campanhas</h6>
+                                <p class="text-xs text-slate-400 mb-0">Acompanhe disparos, envio e cancelamento por categoria.</p>
+                            </div>
+                            <button id="wa-campaign-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+                        <div class="flex justify-end gap-2 mb-4">
+                            <button id="wa-campaign-refresh" type="button" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase shadow">Atualizar</button>
+                        </div>
+                        <div id="wa-campaign-list" class="max-h-96 overflow-y-auto border border-slate-100 rounded-2xl p-2">
+                            <div class="text-center text-slate-400 text-xs italic p-4">Carregando campanhas...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wa-module-tabs">
+                    <a href="?wa=conversations" data-wa-section-link="conversations"><i class="fa fa-comments"></i> Atendimento</a>
+                    <a href="?wa=campaigns" data-wa-section-link="campaigns"><i class="fa fa-paper-plane"></i> Campanhas</a>
+                    <a href="?wa=templates" data-wa-section-link="templates"><i class="fa fa-file-lines"></i> Templates</a>
+                    <a href="?wa=accounts" data-wa-section-link="accounts"><i class="fa fa-sliders"></i> Números</a>
+                    <a href="?wa=safety" data-wa-section-link="safety"><i class="fa fa-shield-halved"></i> Proteção</a>
+                </div>
+
+                <div id="wa-conversations-section">
                 <div class="wa-central-header">
                     <div class="wa-central-title">
                         <span class="wa-central-icon">
@@ -250,6 +266,250 @@
                         </div>
                     </div>
                 </div>
+                </div>
+
+                <div id="wa-campaign-section" class="hidden">
+                    <div class="wa-central-header">
+                        <div class="wa-central-title">
+                            <span class="wa-central-icon">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </span>
+                            <div>
+                                <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Campanhas</h6>
+                                <p class="text-xs text-slate-400 mb-0">Cadastre campanhas por template aprovado e acompanhe os disparos.</p>
+                            </div>
+                        </div>
+                        <div class="wa-toolbar">
+                            <button id="wa-campaign-section-refresh" type="button" class="wa-toolbar-btn wa-toolbar-btn--dark">
+                                <i class="fa fa-rotate-right"></i>
+                                <span>Atualizar</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
+                        <div class="xl:col-span-5 border border-slate-100 rounded-2xl p-4">
+                            <div class="flex items-center justify-between gap-3 mb-4">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Nova campanha</p>
+                                    <h6 class="text-sm font-black text-slate-700 mb-0 uppercase">Disparo por template</h6>
+                                </div>
+                                <span id="wa-campaign-current-account" class="text-[10px] font-bold text-slate-400">Conta atual</span>
+                            </div>
+
+                            <label class="wa-field">
+                                <span>Nome da campanha</span>
+                                <input id="wa-campaign-name" type="text" placeholder="Ex: Cobrança vencimento amanhã">
+                            </label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field">
+                                    <span>Tipo</span>
+                                    <select id="wa-campaign-message-type">
+                                        <option value="template" selected>Template aprovado</option>
+                                        <option value="text">Texto livre</option>
+                                    </select>
+                                </label>
+                                <label class="wa-field">
+                                    <span>Agendar para</span>
+                                    <input id="wa-campaign-scheduled-at" type="datetime-local">
+                                </label>
+                            </div>
+                            <div id="wa-campaign-template-fields">
+                                <label class="wa-field">
+                                    <span>Usar template salvo</span>
+                                    <select id="wa-campaign-template-select">
+                                        <option value="">Selecionar template salvo...</option>
+                                    </select>
+                                </label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <label class="wa-field">
+                                        <span>Template</span>
+                                        <input id="wa-campaign-template-name" type="text" placeholder="Ex: boleto_vencimento">
+                                    </label>
+                                    <label class="wa-field">
+                                        <span>Idioma</span>
+                                        <input id="wa-campaign-template-language" type="text" value="pt_BR">
+                                    </label>
+                                </div>
+                                <label class="wa-field">
+                                    <span>Componentes JSON</span>
+                                    <textarea id="wa-campaign-template-components" rows="3" placeholder='Opcional: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                                </label>
+                            </div>
+                            <label id="wa-campaign-message-body-field" class="wa-field hidden">
+                                <span>Mensagem</span>
+                                <textarea id="wa-campaign-message-body" rows="4" placeholder="Mensagem livre dentro da janela de 24h"></textarea>
+                            </label>
+                            <label class="wa-field">
+                                <span>Destinatários</span>
+                                <textarea id="wa-campaign-recipients" rows="6" placeholder="Um telefone por linha, com DDI e DDD. Ex: 5511999999999"></textarea>
+                            </label>
+                            <p id="wa-campaign-form-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
+                            <div class="flex justify-end gap-2 mt-4">
+                                <button id="wa-campaign-create" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Criar campanha</button>
+                            </div>
+                        </div>
+
+                        <div class="xl:col-span-7 border border-slate-100 rounded-2xl p-4">
+                            <div class="flex items-center justify-between gap-3 mb-4">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Campanhas criadas</p>
+                                    <h6 class="text-sm font-black text-slate-700 mb-0 uppercase">Lista de disparos</h6>
+                                </div>
+                            </div>
+                            <div id="wa-campaign-section-list" class="max-h-[560px] overflow-y-auto pr-1 custom-scrollbar">
+                                <div class="text-center text-slate-400 text-xs italic p-4">Carregando campanhas...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wa-template-section" class="hidden">
+                    <div class="wa-central-header">
+                        <div class="wa-central-title">
+                            <span class="wa-central-icon">
+                                <i class="fa fa-file-lines"></i>
+                            </span>
+                            <div>
+                                <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Templates</h6>
+                                <p class="text-xs text-slate-400 mb-0">Cadastre somente templates aprovados na Meta e classifique custo corretamente.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
+                        <div class="xl:col-span-5 border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Novo template</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Template aprovado na Meta</h6>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field">
+                                    <span>Nome na Meta</span>
+                                    <input id="wa-page-template-name" type="text" placeholder="Ex: boleto_vencimento">
+                                </label>
+                                <label class="wa-field">
+                                    <span>Idioma</span>
+                                    <input id="wa-page-template-language" type="text" value="pt_BR">
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field">
+                                    <span>Categoria</span>
+                                    <select id="wa-page-template-category">
+                                        <option value="UTILITY">Utilidade</option>
+                                        <option value="AUTHENTICATION">Autenticação</option>
+                                        <option value="MARKETING">Marketing</option>
+                                    </select>
+                                </label>
+                                <label class="wa-field">
+                                    <span>Status</span>
+                                    <select id="wa-page-template-status">
+                                        <option value="approved">Aprovado</option>
+                                        <option value="pending">Pendente</option>
+                                        <option value="draft">Rascunho</option>
+                                        <option value="rejected">Rejeitado</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label class="wa-field">
+                                <span>Texto de referência</span>
+                                <textarea id="wa-page-template-body" rows="4" placeholder="Ex: Sua fatura vence em {{1}}."></textarea>
+                            </label>
+                            <label class="wa-field">
+                                <span>Componentes JSON opcional</span>
+                                <textarea id="wa-page-template-components" rows="3" placeholder='Ex: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                            </label>
+                            <p id="wa-page-template-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
+                            <div class="flex justify-end gap-2 mt-4">
+                                <button id="wa-page-template-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar template</button>
+                            </div>
+                        </div>
+
+                        <div class="xl:col-span-7 border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Templates salvos</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Biblioteca</h6>
+                            <div id="wa-page-template-list" class="max-h-[560px] overflow-y-auto pr-1 custom-scrollbar">
+                                <div class="text-center text-slate-400 text-xs italic p-4">Carregando templates...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wa-account-section" class="hidden">
+                    <div class="wa-central-header">
+                        <div class="wa-central-title">
+                            <span class="wa-central-icon">
+                                <i class="fa fa-sliders"></i>
+                            </span>
+                            <div>
+                                <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Números</h6>
+                                <p class="text-xs text-slate-400 mb-0">Gerencie os números conectados e solicitações de conexão.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
+                        <div class="xl:col-span-5 border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Nova conexão</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Solicitar número</h6>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field">
+                                    <span>Apelido</span>
+                                    <input id="wa-page-account-label" type="text" placeholder="Ex: Suporte Matriz">
+                                </label>
+                                <label class="wa-field">
+                                    <span>Número exibido</span>
+                                    <input id="wa-page-account-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                                </label>
+                            </div>
+                            <p id="wa-page-account-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
+                            <div class="flex justify-end gap-2 mt-4">
+                                <button id="wa-page-account-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Solicitar conexão</button>
+                            </div>
+                        </div>
+
+                        <div class="xl:col-span-7 border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Números conectados</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Contas ativas</h6>
+                            <div id="wa-page-account-list" class="max-h-[560px] overflow-y-auto pr-1 custom-scrollbar">
+                                <div class="text-center text-slate-400 text-xs italic p-4">Carregando contas...</div>
+                            </div>
+                        </div>
+
+                        <div class="xl:col-span-12 border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Solicitações</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Conexão de números</h6>
+                            <div id="wa-number-request-list" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                <div class="text-center text-slate-400 text-xs italic p-4">Carregando solicitações...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wa-safety-section" class="hidden">
+                    <div class="wa-central-header">
+                        <div class="wa-central-title">
+                            <span class="wa-central-icon">
+                                <i class="fa fa-shield-halved"></i>
+                            </span>
+                            <div>
+                                <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Proteção</h6>
+                                <p class="text-xs text-slate-400 mb-0">Limites automáticos para preservar a qualidade dos números.</p>
+                            </div>
+                        </div>
+                        <div class="wa-toolbar">
+                            <button id="wa-safety-sync" type="button" class="wa-toolbar-btn wa-toolbar-btn--dark">
+                                <i class="fa fa-rotate-right"></i>
+                                <span>Sincronizar</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-4">
+                        <div id="wa-safety-list" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div class="text-center text-slate-400 text-xs italic p-4">Carregando proteção dos números...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -261,6 +521,7 @@
         const accountModal = document.getElementById('wa-account-modal');
         const newChatModal = document.getElementById('wa-new-chat-modal');
         const templateModal = document.getElementById('wa-template-modal');
+        const campaignModal = document.getElementById('wa-campaign-modal');
         const accountSelect = document.getElementById('wa-account-select');
         const accountLabel = document.getElementById('wa-current-account-label');
         const chatList = document.getElementById('wa-chat-list');
@@ -283,10 +544,31 @@
         const newChatMessageField = document.getElementById('wa-new-chat-message-field');
         const newChatTemplateSelect = document.getElementById('wa-new-chat-template-select');
         const templateList = document.getElementById('wa-template-list');
+        const campaignList = document.getElementById('wa-campaign-list');
+        const conversationsSection = document.getElementById('wa-conversations-section');
+        const campaignSection = document.getElementById('wa-campaign-section');
+        const campaignSectionList = document.getElementById('wa-campaign-section-list');
+        const campaignTemplateSelect = document.getElementById('wa-campaign-template-select');
+        const campaignMessageType = document.getElementById('wa-campaign-message-type');
+        const campaignTemplateFields = document.getElementById('wa-campaign-template-fields');
+        const campaignMessageBodyField = document.getElementById('wa-campaign-message-body-field');
+        const templateSection = document.getElementById('wa-template-section');
+        const accountSection = document.getElementById('wa-account-section');
+        const safetySection = document.getElementById('wa-safety-section');
+        const pageTemplateList = document.getElementById('wa-page-template-list');
+        const pageAccountList = document.getElementById('wa-page-account-list');
+        const numberRequestList = document.getElementById('wa-number-request-list');
+        const safetyList = document.getElementById('wa-safety-list');
+        const safetySync = document.getElementById('wa-safety-sync');
 
         let accounts = [];
         let conversations = [];
         let templates = [];
+        let campaigns = [];
+        let numberHealth = [];
+        let numberRequests = [];
+        let canManageNumbers = false;
+        let suppressEmptyAccountModal = false;
         let selectedAccountId = Number(localStorage.getItem('wa_selected_account_id') || 0);
         let selectedConversation = null;
         let conversationsSignature = '';
@@ -297,6 +579,103 @@
                 notyf[type](message);
             }
         };
+
+        const swalButtonClasses = {
+            popup: 'rounded-2xl border border-slate-100 shadow-2xl',
+            title: 'text-slate-700 font-black uppercase',
+            htmlContainer: 'text-slate-500 text-sm',
+            confirmButton: 'px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase shadow mx-1',
+            cancelButton: 'px-5 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-black uppercase mx-1',
+            input: 'rounded-xl border border-slate-200 text-sm text-slate-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500'
+        };
+
+        const getNumberRequest = (id) => numberRequests.find((request) => String(request.id) === String(id));
+
+        async function confirmApproveNumberRequest(id) {
+            const request = getNumberRequest(id);
+            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+
+            if (typeof Swal === 'undefined') {
+                return window.confirm(`Aprovar ${label}?`);
+            }
+
+            const result = await Swal.fire({
+                title: 'Aprovar solicitação?',
+                html: `<p class="mb-0">Deseja aprovar <b>${escapeHtml(label)}</b> e conectar este número?</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Aprovar',
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: swalButtonClasses,
+                focusCancel: true
+            });
+
+            return result.isConfirmed;
+        }
+
+        async function confirmRejectNumberRequest(id) {
+            const request = getNumberRequest(id);
+            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+            const defaultReason = 'Não foi possível conectar este número agora.';
+
+            if (typeof Swal === 'undefined') {
+                if (!window.confirm(`Recusar ${label}?`)) return null;
+                return defaultReason;
+            }
+
+            const result = await Swal.fire({
+                title: 'Recusar solicitação?',
+                html: `<p class="mb-0">Informe o motivo para recusar <b>${escapeHtml(label)}</b>.</p>`,
+                icon: 'warning',
+                input: 'textarea',
+                inputValue: defaultReason,
+                inputAttributes: {
+                    'aria-label': 'Motivo da recusa',
+                    maxlength: 500
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Recusar',
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: {
+                    ...swalButtonClasses,
+                    confirmButton: 'px-5 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase shadow mx-1'
+                },
+                focusCancel: true,
+                inputValidator: (value) => {
+                    if (!String(value || '').trim()) {
+                        return 'Informe o motivo da recusa.';
+                    }
+                    return null;
+                }
+            });
+
+            return result.isConfirmed ? String(result.value || '').trim() : null;
+        }
+
+        async function confirmDangerAction({ title, message, confirmText = 'Confirmar' }) {
+            if (typeof Swal === 'undefined') {
+                return window.confirm(String(message || '').replace(/<[^>]*>/g, ''));
+            }
+
+            const result = await Swal.fire({
+                title,
+                html: `<p class="mb-0">${message}</p>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: confirmText,
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: {
+                    ...swalButtonClasses,
+                    confirmButton: 'px-5 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase shadow mx-1'
+                },
+                focusCancel: true
+            });
+
+            return result.isConfirmed;
+        }
 
         const digits = (value) => String(value || '').replace(/\D+/g, '');
         const initials = (name, phone) => {
@@ -347,7 +726,12 @@
                 if (!accounts.length) {
                     accountSelect.innerHTML = '<option value="">Nenhuma conta cadastrada</option>';
                     accountLabel.textContent = 'Nenhuma conta';
-                    modal(accountModal, true);
+                    renderAccountsList();
+                    if (!suppressEmptyAccountModal && getRequestedSection() !== 'accounts') {
+                        modal(accountModal, true);
+                    }
+                    suppressEmptyAccountModal = false;
+                    await loadNumberRequests();
                     renderConversations([]);
                     return;
                 }
@@ -366,18 +750,130 @@
                 accountSelect.value = String(selectedAccountId);
                 localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
                 updateAccountLabel();
+                renderAccountsList();
+                await loadNumberRequests();
                 await loadConversations();
             } catch (error) {
                 accountSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 accountLabel.textContent = 'Erro';
+                renderAccountsList(error.message);
                 renderConversations([]);
                 notify('error', error.message);
             }
         }
 
+        async function loadNumberRequests() {
+            if (!numberRequestList) return;
+
+            try {
+                const result = await api('/campaign/whatsapp/number-requests');
+                numberRequests = Array.isArray(result.data) ? result.data : [];
+                canManageNumbers = Boolean(result.can_manage_numbers);
+                renderNumberRequests();
+            } catch (error) {
+                numberRequestList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderNumberRequests() {
+            if (!numberRequestList) return;
+
+            if (!numberRequests.length) {
+                numberRequestList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhuma solicitação encontrada.</div>';
+                return;
+            }
+
+            numberRequestList.innerHTML = numberRequests.map((request) => {
+                const status = String(request.status || 'pending');
+                const badge = status === 'approved'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : status === 'rejected'
+                        ? 'bg-red-50 text-red-700'
+                        : 'bg-amber-50 text-amber-700';
+                const statusLabel = {
+                    pending: 'Pendente',
+                    approved: 'Aprovada',
+                    rejected: 'Recusada'
+                }[status] || status;
+                const actions = canManageNumbers && status === 'pending'
+                    ? `<div class="flex items-center gap-2 shrink-0">
+                        <button type="button" data-request-approve="${request.id}" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Aprovar</button>
+                        <button type="button" data-request-reject="${request.id}" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase">Recusar</button>
+                    </div>`
+                    : '';
+
+                return `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(request.display_name || 'Número WhatsApp')}</h6>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${badge}">${escapeHtml(statusLabel)}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(request.phone_number || '')}${request.requested_by_name ? ` - ${escapeHtml(request.requested_by_name)}` : ''}</p>
+                            ${request.admin_notes ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(request.admin_notes)}</p>` : ''}
+                        </div>
+                        ${actions}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAccountsList(error = '') {
+            if (!pageAccountList) return;
+
+            if (error) {
+                pageAccountList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error)}</div>`;
+                return;
+            }
+
+            if (!accounts.length) {
+                pageAccountList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum número WhatsApp conectado ainda.</div>';
+                return;
+            }
+
+            pageAccountList.innerHTML = accounts.map((account) => {
+                const isSelected = Number(account.id) === selectedAccountId;
+                return `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border ${isSelected ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-100'} mb-2">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(account.label)}</h6>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(account.status || 'active')}</span>
+                                ${isSelected ? '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Selecionada</span>' : ''}
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(account.display_phone_number || '')}</p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button type="button" data-account-select="${account.id}" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Usar</button>
+                            <button type="button" data-account-test="${account.id}" class="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Testar</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         function updateAccountLabel() {
             const account = accounts.find((item) => Number(item.id) === selectedAccountId);
             accountLabel.textContent = account ? `${account.label} (${account.display_phone_number})` : 'Selecione';
+            const campaignAccount = document.getElementById('wa-campaign-current-account');
+            if (campaignAccount) {
+                campaignAccount.textContent = account ? `${account.label} (${account.display_phone_number})` : 'Selecione uma conta';
+            }
+        }
+
+        function showWhatsAppArea(area) {
+            const isCampaigns = area === 'campaigns';
+            const isTemplates = area === 'templates';
+            const isAccounts = area === 'accounts';
+            const isSafety = area === 'safety';
+            conversationsSection?.classList.toggle('hidden', isCampaigns || isTemplates || isAccounts || isSafety);
+            campaignSection?.classList.toggle('hidden', !isCampaigns);
+            templateSection?.classList.toggle('hidden', !isTemplates);
+            accountSection?.classList.toggle('hidden', !isAccounts);
+            safetySection?.classList.toggle('hidden', !isSafety);
+            document.querySelectorAll('[data-wa-section-link]').forEach((link) => {
+                link.classList.toggle('is-active', link.dataset.waSectionLink === area);
+            });
         }
 
         function processSupportPrefill() {
@@ -407,6 +903,70 @@
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
+        function getRequestedSection() {
+            const params = new URLSearchParams(window.location.search);
+            const section = params.get('wa') || window.location.hash.replace('#', '') || 'central';
+            return String(section || 'central').toLowerCase();
+        }
+
+        function hasRequestedSection() {
+            const params = new URLSearchParams(window.location.search);
+            return params.has('wa') || window.location.hash !== '';
+        }
+
+        async function openWhatsAppSection(section) {
+            const normalized = {
+                central: 'central',
+                conversations: 'conversations',
+                atendimento: 'conversations',
+                chats: 'conversations',
+                campaigns: 'campaigns',
+                campanhas: 'campaigns',
+                templates: 'templates',
+                modelos: 'templates',
+                accounts: 'accounts',
+                contas: 'accounts',
+                safety: 'safety',
+                protecao: 'safety',
+                proteção: 'safety'
+            }[section] || 'central';
+
+            actionsDropdown?.classList.add('hidden');
+            modal(accountModal, false);
+            modal(templateModal, false);
+            modal(newChatModal, false);
+            modal(campaignModal, false);
+            showWhatsAppArea(['campaigns', 'templates', 'accounts', 'safety'].includes(normalized) ? normalized : 'conversations');
+
+            if (normalized === 'accounts') {
+                renderAccountsList();
+                await loadNumberRequests();
+                document.getElementById('wa-page-account-label')?.focus();
+                return;
+            }
+
+            if (normalized === 'templates') {
+                await loadTemplates();
+                document.getElementById('wa-page-template-name')?.focus();
+                return;
+            }
+
+            if (normalized === 'campaigns') {
+                await loadCampaigns();
+                return;
+            }
+
+            if (normalized === 'safety') {
+                await loadNumberHealth();
+                return;
+            }
+
+            if (normalized === 'conversations') {
+                chatList?.scrollIntoView({ block: 'center' });
+                searchInput?.focus();
+            }
+        }
+
         async function loadTemplates() {
             try {
                 const result = await api('/campaign/whatsapp/templates');
@@ -414,21 +974,220 @@
                 renderTemplates();
                 fillTemplateSelect();
             } catch (error) {
-                if (templateList) {
-                    templateList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+                [templateList, pageTemplateList].filter(Boolean).forEach((target) => {
+                    target.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+                });
+            }
+        }
+
+        async function loadCampaigns() {
+            const targets = [campaignList, campaignSectionList].filter(Boolean);
+            if (!targets.length) return;
+            targets.forEach((target) => {
+                target.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Carregando campanhas...</div>';
+            });
+
+            try {
+                const result = await api('/campaign/whatsapp/campaigns');
+                campaigns = Array.isArray(result.data) ? result.data : [];
+                renderCampaigns();
+            } catch (error) {
+                targets.forEach((target) => {
+                    target.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+                });
+            }
+        }
+
+        async function loadNumberHealth(sync = false) {
+            if (!safetyList) return;
+            safetyList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Carregando proteção dos números...</div>';
+
+            try {
+                if (sync) {
+                    await api('/campaign/whatsapp/numbers/health/sync', { method: 'POST' });
                 }
+                const result = await api('/campaign/whatsapp/numbers/health');
+                numberHealth = Array.isArray(result.data) ? result.data : [];
+                renderNumberHealth();
+            } catch (error) {
+                safetyList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderNumberHealth() {
+            if (!safetyList) return;
+
+            if (!numberHealth.length) {
+                safetyList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum número conectado para monitorar.</div>';
+                return;
+            }
+
+            safetyList.innerHTML = numberHealth.map((item) => {
+                const quality = String(item.quality_status || 'unknown').toLowerCase();
+                const badge = quality === 'high'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : quality === 'medium'
+                        ? 'bg-amber-50 text-amber-700'
+                        : quality === 'low'
+                            ? 'bg-red-50 text-red-700'
+                            : 'bg-slate-100 text-slate-500';
+                const sent = Number(item.sent_today || 0);
+                const limit = Math.max(1, Number(item.current_daily_limit || 1));
+                const percent = Math.min(100, Math.round((sent / limit) * 100));
+                const blocked = item.blocked_until ? `Pausado até ${escapeHtml(item.blocked_until)}` : '';
+
+                return `
+                    <div class="border border-slate-100 rounded-2xl p-4 bg-white">
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                            <div class="min-w-0">
+                                <h6 class="text-sm font-black text-slate-700 mb-1 truncate">${escapeHtml(item.label || 'Número WhatsApp')}</h6>
+                                <p class="text-[11px] text-slate-500 mb-0">${escapeHtml(item.display_phone_number || '')}</p>
+                            </div>
+                            <span class="text-[10px] font-black px-2 py-1 rounded-full uppercase ${badge}">${escapeHtml(quality)}</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 mb-3">
+                            <div class="rounded-xl bg-slate-50 p-3">
+                                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Hoje</p>
+                                <p class="text-sm font-black text-slate-700 mb-0">${sent}/${limit}</p>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3">
+                                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Minuto</p>
+                                <p class="text-sm font-black text-slate-700 mb-0">${Number(item.sent_last_minute || 0)}/${Number(item.per_minute_limit || 0)}</p>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3">
+                                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Dia</p>
+                                <p class="text-sm font-black text-slate-700 mb-0">${Number(item.warmup_day || 1)}</p>
+                            </div>
+                        </div>
+                        <div class="h-2 rounded-full bg-slate-100 overflow-hidden mb-3">
+                            <div class="h-full ${quality === 'low' ? 'bg-red-500' : quality === 'medium' ? 'bg-amber-500' : 'bg-emerald-500'}" style="width: ${percent}%"></div>
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 mb-1">${escapeHtml(item.recommendation || 'Proteção automática ativa.')}</p>
+                        ${blocked ? `<p class="text-[11px] font-bold text-red-600 mb-0">${blocked}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCampaigns() {
+            const targets = [campaignList, campaignSectionList].filter(Boolean);
+            if (!targets.length) return;
+
+            if (!campaigns.length) {
+                targets.forEach((target) => {
+                    target.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhuma campanha WhatsApp criada ainda.</div>';
+                });
+                return;
+            }
+
+            const html = campaigns.map((campaign) => {
+                const status = String(campaign.status || '').toLowerCase();
+                const category = campaign.template_category || (campaign.message_type === 'text' ? 'UTILITY' : 'MARKETING');
+                const canSend = ['draft', 'queued', 'failed'].includes(status);
+                const canCancelMarketing = ['queued', 'sending'].includes(status);
+
+                return `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 mb-2">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(campaign.name)}</h6>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(campaign.status)}</span>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(category)}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">
+                                ${escapeHtml(campaign.account_label || 'Conta')} - ${Number(campaign.total_recipients || 0)} destinatários - enviados ${Number(campaign.sent_count || 0)} - falhas ${Number(campaign.failed_count || 0)}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button type="button" data-campaign-send="${campaign.id}" ${canSend ? '' : 'disabled'} class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase disabled:opacity-40">Enviar</button>
+                            <button type="button" data-campaign-cancel-marketing="${campaign.id}" ${canCancelMarketing ? '' : 'disabled'} class="px-3 py-2 rounded-lg bg-orange-50 text-orange-600 text-[10px] font-black uppercase disabled:opacity-40">Cancelar marketing</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            targets.forEach((target) => {
+                target.innerHTML = html;
+            });
+        }
+
+        async function sendCampaignFromList(id) {
+            try {
+                const result = await api(`/campaign/whatsapp/campaigns/${id}/send`, { method: 'POST' });
+                notify('success', result.message || 'Campanha enviada.');
+                await loadCampaigns();
+                await loadConversations(false, true);
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        async function cancelCampaignMarketing(id) {
+            try {
+                const result = await api(`/campaign/whatsapp/campaigns/${id}/cancel-category`, {
+                    method: 'POST',
+                    body: JSON.stringify({ category: 'MARKETING' })
+                });
+                notify('success', result.message || 'Marketing cancelado.');
+                await loadCampaigns();
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        function toggleCampaignMessageType() {
+            const isTemplate = (campaignMessageType?.value || 'template') === 'template';
+            campaignTemplateFields?.classList.toggle('hidden', !isTemplate);
+            campaignMessageBodyField?.classList.toggle('hidden', isTemplate);
+        }
+
+        async function createCampaign() {
+            const feedback = document.getElementById('wa-campaign-form-feedback');
+            const messageType = campaignMessageType?.value || 'template';
+            const payload = {
+                account_id: selectedAccountId,
+                name: document.getElementById('wa-campaign-name')?.value || '',
+                message_type: messageType,
+                scheduled_at: (document.getElementById('wa-campaign-scheduled-at')?.value || '').replace('T', ' '),
+                recipients: document.getElementById('wa-campaign-recipients')?.value || ''
+            };
+
+            if (messageType === 'template') {
+                payload.template_name = document.getElementById('wa-campaign-template-name')?.value || '';
+                payload.template_language = document.getElementById('wa-campaign-template-language')?.value || 'pt_BR';
+                payload.template_components = document.getElementById('wa-campaign-template-components')?.value || '';
+            } else {
+                payload.message_body = document.getElementById('wa-campaign-message-body')?.value || '';
+            }
+
+            setTextFeedback(feedback, 'Criando campanha...', null);
+
+            try {
+                const result = await api('/campaign/whatsapp/campaigns', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                setTextFeedback(feedback, result.message || 'Campanha criada.', true);
+                document.getElementById('wa-campaign-name').value = '';
+                document.getElementById('wa-campaign-recipients').value = '';
+                await loadCampaigns();
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
             }
         }
 
         function renderTemplates() {
-            if (!templateList) return;
+            const targets = [templateList, pageTemplateList].filter(Boolean);
+            if (!targets.length) return;
 
             if (!templates.length) {
-                templateList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum template salvo ainda.</div>';
+                targets.forEach((target) => {
+                    target.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum template salvo ainda.</div>';
+                });
                 return;
             }
 
-            templateList.innerHTML = templates.map((template) => `
+            const html = templates.map((template) => `
                 <div class="flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 mb-2">
                     <div class="min-w-0">
                         <div class="flex items-center gap-2">
@@ -443,6 +1202,10 @@
                     </button>
                 </div>
             `).join('');
+
+            targets.forEach((target) => {
+                target.innerHTML = html;
+            });
         }
 
         function fillTemplateSelect() {
@@ -454,6 +1217,16 @@
                 option.textContent = `${template.name} (${template.language})`;
                 newChatTemplateSelect.appendChild(option);
             });
+
+            if (campaignTemplateSelect) {
+                campaignTemplateSelect.innerHTML = '<option value="">Selecionar template salvo...</option>';
+                templates.forEach((template) => {
+                    const option = document.createElement('option');
+                    option.value = String(template.id);
+                    option.textContent = `${template.name} (${template.language}) - ${template.category}`;
+                    campaignTemplateSelect.appendChild(option);
+                });
+            }
         }
 
         async function saveTemplate() {
@@ -483,8 +1256,40 @@
             }
         }
 
+        async function savePageTemplate() {
+            const feedback = document.getElementById('wa-page-template-feedback');
+            setTextFeedback(feedback, 'Salvando...', null);
+
+            try {
+                const result = await api('/campaign/whatsapp/templates', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: document.getElementById('wa-page-template-name')?.value || '',
+                        language: document.getElementById('wa-page-template-language')?.value || 'pt_BR',
+                        category: document.getElementById('wa-page-template-category')?.value || 'UTILITY',
+                        status: document.getElementById('wa-page-template-status')?.value || 'approved',
+                        body: document.getElementById('wa-page-template-body')?.value || '',
+                        components: document.getElementById('wa-page-template-components')?.value || ''
+                    })
+                });
+
+                setTextFeedback(feedback, result.message || 'Template salvo.', true);
+                document.getElementById('wa-page-template-name').value = '';
+                document.getElementById('wa-page-template-body').value = '';
+                document.getElementById('wa-page-template-components').value = '';
+                await loadTemplates();
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
+            }
+        }
+
         async function deleteTemplate(id) {
-            if (!window.confirm('Excluir este template salvo?')) return;
+            const confirmed = await confirmDangerAction({
+                title: 'Excluir template?',
+                message: 'Este template salvo será removido da lista.',
+                confirmText: 'Excluir'
+            });
+            if (!confirmed) return;
 
             try {
                 await api(`/campaign/whatsapp/templates/${id}/delete`, { method: 'POST' });
@@ -504,27 +1309,101 @@
             document.getElementById('wa-new-chat-template-components').value = template.components || '';
         }
 
+        function applyCampaignTemplate(templateId) {
+            const template = templates.find((item) => Number(item.id) === Number(templateId));
+            if (!template) return;
+
+            document.getElementById('wa-campaign-template-name').value = template.name || '';
+            document.getElementById('wa-campaign-template-language').value = template.language || 'pt_BR';
+            document.getElementById('wa-campaign-template-components').value = template.components || '';
+        }
+
         async function saveAccount() {
             const feedback = document.getElementById('wa-account-feedback');
             setTextFeedback(feedback, 'Salvando...', null);
 
             try {
-                await api('/campaign/whatsapp/accounts', {
+                const payload = {
+                    label: document.getElementById('wa-account-label')?.value || '',
+                    display_phone_number: document.getElementById('wa-account-display-phone')?.value || ''
+                };
+
+                await api('/campaign/whatsapp/numbers/client', {
                     method: 'POST',
                     body: JSON.stringify({
-                        label: document.getElementById('wa-account-label')?.value || '',
-                        display_phone_number: document.getElementById('wa-account-display-phone')?.value || '',
-                        phone_number_id: document.getElementById('wa-account-phone-id')?.value || '',
-                        waba_id: document.getElementById('wa-account-waba-id')?.value || '',
-                        access_token: document.getElementById('wa-account-token')?.value || ''
+                        display_name: payload.label,
+                        phone_number: payload.display_phone_number
                     })
                 });
 
-                setTextFeedback(feedback, 'Número cadastrado.', true);
+                setTextFeedback(feedback, 'Solicitação enviada.', true);
+                notify('success', 'Solicitação enviada para análise.');
                 modal(accountModal, false);
+                suppressEmptyAccountModal = true;
                 await loadAccounts();
+                await loadNumberRequests();
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
+            }
+        }
+
+        async function savePageAccount() {
+            const feedback = document.getElementById('wa-page-account-feedback');
+            setTextFeedback(feedback, 'Salvando...', null);
+
+            try {
+                const payload = {
+                    label: document.getElementById('wa-page-account-label')?.value || '',
+                    display_phone_number: document.getElementById('wa-page-account-display-phone')?.value || ''
+                };
+
+                await api('/campaign/whatsapp/numbers/client', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        display_name: payload.label,
+                        phone_number: payload.display_phone_number
+                    })
+                });
+
+                setTextFeedback(feedback, 'Solicitação enviada.', true);
+                notify('success', 'Solicitação enviada para análise.');
+                document.getElementById('wa-page-account-label').value = '';
+                document.getElementById('wa-page-account-display-phone').value = '';
+                suppressEmptyAccountModal = true;
+                await loadAccounts();
+                await loadNumberRequests();
+            } catch (error) {
+                setTextFeedback(feedback, error.message, false);
+            }
+        }
+
+        async function approveNumberRequest(id) {
+            const confirmed = await confirmApproveNumberRequest(id);
+            if (!confirmed) return;
+
+            try {
+                await api(`/campaign/whatsapp/number-requests/${id}/approve`, { method: 'POST' });
+                notify('success', 'Solicitação aprovada.');
+                await loadNumberRequests();
+                await loadAccounts();
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        async function rejectNumberRequest(id) {
+            const reason = await confirmRejectNumberRequest(id);
+            if (reason === null) return;
+
+            try {
+                await api(`/campaign/whatsapp/number-requests/${id}/reject`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+                notify('success', 'Solicitação recusada.');
+                await loadNumberRequests();
+            } catch (error) {
+                notify('error', error.message);
             }
         }
 
@@ -868,7 +1747,12 @@
         async function deleteSelectedConversation() {
             if (!selectedConversation) return;
             const label = selectedConversation.contact_name || selectedConversation.contact_phone || 'esta conversa';
-            if (!window.confirm(`Excluir a conversa com ${label}?`)) return;
+            const confirmed = await confirmDangerAction({
+                title: 'Excluir conversa?',
+                message: `Deseja excluir a conversa com <b>${escapeHtml(label)}</b>?`,
+                confirmText: 'Excluir'
+            });
+            if (!confirmed) return;
 
             try {
                 await api(`/campaign/whatsapp/conversations/${selectedConversation.id}/delete`, { method: 'POST' });
@@ -895,6 +1779,7 @@
             localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
             selectedConversation = null;
             updateAccountLabel();
+            renderAccountsList();
             updateReadActions();
             await loadConversations();
             messagesArea.innerHTML = '<div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>';
@@ -906,6 +1791,51 @@
         document.getElementById('wa-account-close')?.addEventListener('click', () => modal(accountModal, false));
         document.getElementById('wa-account-cancel')?.addEventListener('click', () => modal(accountModal, false));
         document.getElementById('wa-account-save')?.addEventListener('click', saveAccount);
+        document.getElementById('wa-page-account-save')?.addEventListener('click', savePageAccount);
+        pageAccountList?.addEventListener('click', async (event) => {
+            const selectBtn = event.target.closest('[data-account-select]');
+            if (selectBtn) {
+                selectedAccountId = Number(selectBtn.dataset.accountSelect || 0);
+                accountSelect.value = String(selectedAccountId);
+                localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
+                selectedConversation = null;
+                updateAccountLabel();
+                renderAccountsList();
+                await loadConversations();
+                notify('success', 'Conta selecionada.');
+                return;
+            }
+
+            const testBtn = event.target.closest('[data-account-test]');
+            if (testBtn) {
+                selectedAccountId = Number(testBtn.dataset.accountTest || 0);
+                accountSelect.value = String(selectedAccountId);
+                localStorage.setItem('wa_selected_account_id', String(selectedAccountId));
+                updateAccountLabel();
+                renderAccountsList();
+                testAccount();
+            }
+        });
+        numberRequestList?.addEventListener('click', async (event) => {
+            const approveBtn = event.target.closest('[data-request-approve]');
+            if (approveBtn) {
+                approveBtn.disabled = true;
+                approveBtn.classList.add('opacity-60', 'cursor-wait');
+                await approveNumberRequest(approveBtn.dataset.requestApprove);
+                approveBtn.disabled = false;
+                approveBtn.classList.remove('opacity-60', 'cursor-wait');
+                return;
+            }
+
+            const rejectBtn = event.target.closest('[data-request-reject]');
+            if (rejectBtn) {
+                rejectBtn.disabled = true;
+                rejectBtn.classList.add('opacity-60', 'cursor-wait');
+                await rejectNumberRequest(rejectBtn.dataset.requestReject);
+                rejectBtn.disabled = false;
+                rejectBtn.classList.remove('opacity-60', 'cursor-wait');
+            }
+        });
         document.getElementById('wa-test-account')?.addEventListener('click', () => {
             actionsDropdown?.classList.add('hidden');
             testAccount();
@@ -917,10 +1847,33 @@
         });
         document.getElementById('wa-template-close')?.addEventListener('click', () => modal(templateModal, false));
         document.getElementById('wa-template-save')?.addEventListener('click', saveTemplate);
-        templateList?.addEventListener('click', (event) => {
+        document.getElementById('wa-page-template-save')?.addEventListener('click', savePageTemplate);
+        const handleTemplateListClick = (event) => {
             const btn = event.target.closest('[data-template-delete]');
             if (btn) deleteTemplate(btn.dataset.templateDelete);
-        });
+        };
+        templateList?.addEventListener('click', handleTemplateListClick);
+        pageTemplateList?.addEventListener('click', handleTemplateListClick);
+        document.getElementById('wa-campaign-close')?.addEventListener('click', () => modal(campaignModal, false));
+        document.getElementById('wa-campaign-refresh')?.addEventListener('click', loadCampaigns);
+        document.getElementById('wa-campaign-section-refresh')?.addEventListener('click', loadCampaigns);
+        document.getElementById('wa-campaign-create')?.addEventListener('click', createCampaign);
+        campaignMessageType?.addEventListener('change', toggleCampaignMessageType);
+        campaignTemplateSelect?.addEventListener('change', () => applyCampaignTemplate(campaignTemplateSelect.value));
+        const handleCampaignListClick = (event) => {
+            const sendButton = event.target.closest('[data-campaign-send]');
+            if (sendButton && !sendButton.disabled) {
+                sendCampaignFromList(sendButton.dataset.campaignSend);
+                return;
+            }
+
+            const cancelButton = event.target.closest('[data-campaign-cancel-marketing]');
+            if (cancelButton && !cancelButton.disabled) {
+                cancelCampaignMarketing(cancelButton.dataset.campaignCancelMarketing);
+            }
+        };
+        campaignList?.addEventListener('click', handleCampaignListClick);
+        campaignSectionList?.addEventListener('click', handleCampaignListClick);
         refreshConversationsBtn?.addEventListener('click', async () => {
             conversationsSignature = '';
             await loadConversations(true, true);
@@ -954,6 +1907,10 @@
             if (item) openConversation(item.dataset.conversationId);
         });
         searchInput.addEventListener('input', () => renderConversations());
+        safetySync?.addEventListener('click', async () => {
+            await loadNumberHealth(true);
+            notify('success', 'Qualidade dos números sincronizada.');
+        });
         sendBtn.addEventListener('click', sendCurrentMessage);
         msgInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -962,8 +1919,16 @@
             }
         });
 
-        loadAccounts().then(processSupportPrefill);
+        toggleCampaignMessageType();
+        showWhatsAppArea('conversations');
+        loadAccounts().then(async () => {
+            processSupportPrefill();
+            if (hasRequestedSection()) {
+                await openWhatsAppSection(getRequestedSection());
+            }
+        });
         loadTemplates();
+        window.addEventListener('hashchange', () => openWhatsAppSection(getRequestedSection()));
         window.setInterval(async () => {
             if (!selectedAccountId || document.hidden) return;
             await loadConversations(false);
@@ -977,6 +1942,34 @@
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     .animate-fade-in { animation: fadeIn 0.3s ease-in; }
+    .wa-module-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 1rem 1rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        background: #ffffff;
+    }
+    .wa-module-tabs a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.65rem 0.9rem;
+        border: 1px solid #e2e8f0;
+        border-bottom: 0;
+        border-radius: 0.8rem 0.8rem 0 0;
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        background: #f8fafc;
+    }
+    .wa-module-tabs a.is-active {
+        color: #047857;
+        background: #ffffff;
+        border-color: #bbf7d0;
+        box-shadow: 0 -1px 0 #bbf7d0 inset;
+    }
     .wa-central-header {
         display: flex;
         align-items: center;

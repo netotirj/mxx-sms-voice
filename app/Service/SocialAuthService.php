@@ -413,6 +413,7 @@ class SocialAuthService
     private static function postForm(string $url, array $data): array
     {
         $ch = curl_init($url);
+        self::configureCurlCertificates($ch);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -447,6 +448,7 @@ class SocialAuthService
     private static function getJson(string $url, array $headers = []): array
     {
         $ch = curl_init($url);
+        self::configureCurlCertificates($ch);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
@@ -469,10 +471,59 @@ class SocialAuthService
         }
 
         if ($statusCode >= 400) {
-            throw new \RuntimeException('O provedor social não liberou o perfil do usuário.');
+            $error = self::extractProviderError($payload);
+            throw new \RuntimeException('O provedor social não liberou o perfil do usuário: ' . $error);
         }
 
         return $payload;
+    }
+
+    private static function extractProviderError(array $payload): string
+    {
+        if (isset($payload['error']) && is_array($payload['error'])) {
+            return (string)(
+                $payload['error']['message']
+                ?? $payload['error']['error_user_msg']
+                ?? $payload['error']['type']
+                ?? 'erro_desconhecido'
+            );
+        }
+
+        return (string)($payload['error_description'] ?? $payload['error'] ?? 'erro_desconhecido');
+    }
+
+    private static function configureCurlCertificates($ch): void
+    {
+        if (!is_resource($ch) && !($ch instanceof \CurlHandle)) {
+            return;
+        }
+
+        $configuredCa = trim((string)(ini_get('curl.cainfo') ?: ini_get('openssl.cafile')));
+        if ($configuredCa !== '') {
+            return;
+        }
+
+        foreach (self::getCaBundleCandidates() as $candidate) {
+            if (is_file($candidate)) {
+                curl_setopt($ch, CURLOPT_CAINFO, $candidate);
+                return;
+            }
+        }
+    }
+
+    private static function getCaBundleCandidates(): array
+    {
+        $phpDir = defined('PHP_BINARY') && PHP_BINARY !== '' ? dirname(PHP_BINARY) : '';
+        $parentPhpDir = $phpDir !== '' ? dirname($phpDir) : '';
+
+        return array_filter(array_unique([
+            (string)getenv('PHP_CURL_CAINFO'),
+            (string)getenv('CURL_CA_BUNDLE'),
+            (string)getenv('SSL_CERT_FILE'),
+            $phpDir !== '' ? $phpDir . DIRECTORY_SEPARATOR . 'cacert.pem' : '',
+            $parentPhpDir !== '' ? $parentPhpDir . DIRECTORY_SEPARATOR . 'cacert.pem' : '',
+            'C:' . DIRECTORY_SEPARATOR . 'wamp64' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'php' . DIRECTORY_SEPARATOR . 'cacert.pem',
+        ]));
     }
 
     private static function getBaseUrl(): string

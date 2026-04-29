@@ -50,11 +50,7 @@ class Campaign extends ViewComponents
 
     }
 
-    /**
-     * Endpoint para DataTables Server-Side
-     */
-
-    public static function getCampaignRealtime($request): array
+    public static function getCampaignRealtime($request): Response
     {
         try {
             // Obtém o usuário logado
@@ -67,12 +63,11 @@ class Campaign extends ViewComponents
                 throw new \Exception('Tenancy não definido.');
             }
 
-            // Parâmetros DataTables
             $params = $request->getQueryParams();
 
             $draw        = isset($params['draw']) ? (int)$params['draw'] : 0;
             $start       = isset($params['start']) ? (int)$params['start'] : 0;
-            $length      = isset($params['length']) ? (int)$params['length'] : 10;
+            $length      = isset($params['length']) ? (int)$params['length'] : 5000;
             $searchValue = $params['search']['value'] ?? null;
 
             $orderColumnIndex = $params['order'][0]['column'] ?? 0;
@@ -124,29 +119,24 @@ class Campaign extends ViewComponents
                     'id'         => $campaign->id,
                     'name'       => $campaign->name,
                     'message'    => $campaign->message,
+                    'status'     => $campaign->status,
                     'qtdRows'    => $campaign->qtd_contacts ?? 0,
                     'statusCamp' => $statusText,
                     'created'    => $campaign->created_at
                 ];
             }
 
-            $response = [
+            return new Response(200, [
                 'draw'            => $draw,
                 'recordsTotal'    => $totalRecords,
                 'recordsFiltered' => $totalRecords,
                 'data'            => $data
-            ];
-
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($response);
-            exit;
+            ], 'application/json');
         } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode([
+            return new Response(500, [
                 'error'   => true,
                 'message' => $e->getMessage()
-            ]);
-            exit;
+            ], 'application/json');
         }
     }
 
@@ -157,10 +147,11 @@ class Campaign extends ViewComponents
         try {
             $obUser = SessionUser::getLogged();
             if (!$obUser) {
-                return new Response(401, json_encode([
+                return new Response(401, [
+                    'success' => false,
                     'status' => 401,
                     'message' => 'Usuário não autenticado.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
             $postVars = $request->getPostVars();
@@ -172,10 +163,11 @@ class Campaign extends ViewComponents
             $charset_msg = trim($postVars['charset'] ?? '');
 
             if (!$name || !$message || !$status) {
-                return new Response(422, json_encode([
+                return new Response(422, [
+                    'success' => false,
                     'status'  => 422,
                     'message' => 'Preencha todos os campos obrigatórios.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
 
@@ -192,16 +184,19 @@ class Campaign extends ViewComponents
             $obCampaign->updated_at = date('Y-m-d H:i:s');
             $obCampaign->register();
 
-            return new Response(200, json_encode([
+            return new Response(200, [
+                'success' => true,
                 'status' => 200,
-                'message' => 'Campanha criada com sucesso!'
-            ]), 'application/json');
+                'message' => 'Campanha criada com sucesso!',
+                'campaign_id' => $obCampaign->id
+            ], 'application/json');
 
         } catch (\Exception $e) {
-            return new Response(500, json_encode([
+            return new Response(500, [
+                'success' => false,
                 'status' => 500,
                 'message' => $e->getMessage()
-            ]), 'application/json');
+            ], 'application/json');
         }
 
     }
@@ -432,36 +427,93 @@ class Campaign extends ViewComponents
             'message' => $e->getMessage()
         ]), 'application/json');
     }
-}*/
+    }*/
+
+    public static function getEditCampaign($request, $id): Response|string
+    {
+        try {
+            $obUser = SessionUser::getLogged();
+            if (!$obUser) {
+                return new Response(401, [
+                    'status' => 401,
+                    'message' => 'Usuário não autenticado.'
+                ], 'application/json');
+            }
+
+            $obCampaign = CampaignSearch::getCampaignByIdAndTenancy((int)$id, $obUser['tenancy_id']);
+            if (!$obCampaign instanceof CampaignSearch) {
+                return new Response(404, [
+                    'status' => 404,
+                    'message' => 'Campanha não encontrada ou não pertence a este tenant.'
+                ], 'application/json');
+            }
+
+            $obPlanId = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
+            $valueSms = 0.0;
+            if ($obPlanId) {
+                $obPlan = UserPlans::getUserPlanInfoByPlanId($obPlanId, $obUser['tenancy_id']);
+                if ($obPlan && isset($obPlan->value_sms)) {
+                    $valueSms = (float)$obPlan->value_sms;
+                }
+            }
+
+            $content = View::render('/campaign/edit', [
+                'id' => $obCampaign->id,
+                'name' => $obCampaign->name,
+                'message' => $obCampaign->message,
+                'status' => $obCampaign->status,
+                'type_msg' => $obCampaign->type_msg ?: 'short',
+                'charset_msg' => $obCampaign->charset_msg ?? 0,
+                'value_sms' => $valueSms,
+            ]);
+
+            return parent::getComponentsCampaign('Maxx Solutions - SMS | Editar Campanha', $content);
+        } catch (\Exception $e) {
+            return new Response(500, [
+                'status' => 500,
+                'message' => $e->getMessage()
+            ], 'application/json');
+        }
+    }
 
     public static function setUploadCampaign($request): Response
     {
         $ObUser = SessionUser::getLogged();
         if (!$ObUser) {
-            return new Response(401, json_encode(['message' => 'Usuário não autenticado.']), 'application/json');
+            return new Response(401, [
+                'success' => false,
+                'status' => 401,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
         }
 
         $file = $_FILES['fileInput'] ?? null;
         $campaignId = $request->getPostVars()['campaignId'] ?? null;
 
         if (!$file || empty($file['tmp_name'])) {
-            return new Response(422, json_encode(['message' => 'Nenhum arquivo enviado.']), 'application/json');
+            return new Response(422, [
+                'success' => false,
+                'status' => 422,
+                'message' => 'Nenhum arquivo enviado.'
+            ], 'application/json');
         }
 
         try {
             $service = new ImportContactsService($ObUser, (int)$campaignId);
             $count = $service->import($file);
 
-            return new Response(200, json_encode([
+            return new Response(200, [
+                'success' => true,
                 'status' => 200,
                 'message' => "{$count} contatos importados com sucesso!"
-            ]), 'application/json');
+            ], 'application/json');
 
         } catch (\Exception $e) {
-            return new Response(500, json_encode([
+            return new Response(500, [
+                'success' => false,
                 'status' => 500,
                 'message' => $e->getMessage()
-            ]), 'application/json');
+            ], 'application/json');
         }
     }
 
@@ -472,10 +524,11 @@ class Campaign extends ViewComponents
         try {
             $userOb = SessionUser::getLogged();
             if (!$userOb) {
-                return new Response(401, json_encode([
+                return new Response(401, [
+                    'success' => false,
                     'status' => 401,
                     'message' => 'Usuário não autenticado.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
 
@@ -484,20 +537,22 @@ class Campaign extends ViewComponents
             $obCampaign = CampaignSearch::getCampaignByIdAndTenancy($id, $userOb['tenancy_id']);
 
             if (!$obCampaign instanceof CampaignSearch) {
-                return new Response(404, json_encode([
+                return new Response(404, [
+                    'success' => false,
                     'status' => 404,
                     'message' => 'Campanha não encontrada ou não pertence a este tenant.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
             // Dados do formulário
             $postVars = $request->getPostVars();
             // Validação simples
             if (empty($postVars['campaignName']) || empty($postVars['messageInput'])) {
-                return new Response(400, json_encode([
+                return new Response(400, [
+                    'success' => false,
                     'status' => 400,
                     'message' => 'Nome e mensagem são obrigatórios.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
             // Atualiza os dados
@@ -510,23 +565,26 @@ class Campaign extends ViewComponents
 
             // Salva no banco
             if (!$obCampaign->update()) {
-                return new Response(500, json_encode([
+                return new Response(500, [
+                    'success' => false,
                     'status' => 500,
                     'message' => 'Erro ao atualizar campanha.'
-                ]), 'application/json');
+                ], 'application/json');
             }
 
-            return new Response(200, json_encode([
+            return new Response(200, [
+                'success' => true,
                 'status' => 200,
                 'message' => 'Campanha atualizada com sucesso.',
                 'campaign_id' => $obCampaign->id
-            ]), 'application/json');
+            ], 'application/json');
 
         } catch (\Exception $e) {
-            return new Response(500, json_encode([
+            return new Response(500, [
+                'success' => false,
                 'status' => 500,
                 'message' => $e->getMessage()
-            ]), 'application/json');
+            ], 'application/json');
         }
     }
 
@@ -535,18 +593,20 @@ class Campaign extends ViewComponents
         // Obtém o usuário logado
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, json_encode([
+            return new Response(401, [
+                'success' => false,
                 'status' => 401,
                 'message' => 'Usuário não autenticado.'
-            ]), 'application/json');
+            ], 'application/json');
         }
 
         // Valida o ID da campanha
         if (!is_numeric($id)) {
-            return new Response(400, json_encode([
+            return new Response(400, [
+                'success' => false,
                 'status' => 400,
                 'message' => 'ID da campanha inválido.'
-            ]), 'application/json');
+            ], 'application/json');
         }
 
         // Busca a campanha pelo ID e tenancy
@@ -554,25 +614,28 @@ class Campaign extends ViewComponents
 
 
         if (!$obCampaign) {
-            return new Response(404, json_encode([
+            return new Response(404, [
+                'success' => false,
                 'status' => 404,
                 'message' => 'Campanha não encontrada.'
-            ]), 'application/json');
+            ], 'application/json');
         }
 
         $success = CampaignSearch::deleteByIdAndTenancy($id, $obUser['tenancy_id']);
 
         if (!$success) {
-            return new Response(500, json_encode([
+            return new Response(500, [
+                'success' => false,
                 'status' => 500,
                 'message' => 'Erro ao excluir a campanha.'
-            ]), 'application/json');
+            ], 'application/json');
         }
 
-        return new Response(200, json_encode([
+        return new Response(200, [
+            'success' => true,
             'status' => 200,
             'message' => 'Campanha excluída com sucesso.'
-        ]), 'application/json');
+        ], 'application/json');
 
     }
 }

@@ -4,6 +4,7 @@ namespace App\Controller\Pages;
 
 use App\Config\TelephonyConfig;
 use App\Http\Response;
+use App\Model\Entity\BalanceSms;
 use App\Model\Entity\SupportTicket;
 use App\RedisConn;
 use App\Session\User as SessionUser;
@@ -178,12 +179,13 @@ class SupportTickets extends ViewComponents
         $redis = self::checkRedis();
         $asterisk = self::checkAsterisk();
         $trunks = self::checkTrunks($user);
+        $balance = self::checkBalance($user);
         $serverLatencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
 
         return self::json(200, [
             'success' => true,
             'checked_at' => date('H:i:s'),
-            'summary' => self::buildDiagnosticsSummary($redis, $asterisk, $trunks, $serverLatencyMs),
+            'summary' => self::buildDiagnosticsSummary($redis, $asterisk, $trunks, $balance, $serverLatencyMs),
             'data' => [
                 'server' => [
                     'ok' => true,
@@ -194,6 +196,7 @@ class SupportTickets extends ViewComponents
                 'redis' => $redis,
                 'asterisk' => $asterisk,
                 'trunks' => $trunks,
+                'balance' => $balance,
             ],
         ]);
     }
@@ -323,7 +326,44 @@ class SupportTickets extends ViewComponents
         return in_array($status, ['OK', 'ONLINE', 'UP', 'REGISTERED'], true);
     }
 
-    private static function buildDiagnosticsSummary(array $redis, array $asterisk, array $trunks, int $serverLatencyMs): string
+    private static function checkBalance(array $user): array
+    {
+        try {
+            $userId = isset($user['id']) ? (int)$user['id'] : null;
+            $tenancyId = (string)($user['tenancy_id'] ?? '');
+            $role = strtolower((string)($user['function'] ?? $user['user_function'] ?? ''));
+
+            $wallet = $role === 'super_admin'
+                ? BalanceSms::getBalanceSms(null, null)
+                : BalanceSms::getBalanceSms($userId, $tenancyId);
+
+            $sumBalance = $role === 'super_admin' ? null : BalanceSms::getSumBalanceSms($userId, $tenancyId);
+            $balance = $sumBalance !== null && $sumBalance > 0
+                ? (float)$sumBalance
+                : (float)($wallet->balance ?? 0);
+
+            return [
+                'ok' => $wallet !== null,
+                'label' => 'Saldo',
+                'balance' => $balance,
+                'formatted' => 'R$ ' . number_format($balance, 2, ',', '.'),
+                'detail' => $wallet !== null
+                    ? 'Saldo: R$ ' . number_format($balance, 2, ',', '.')
+                    : 'Saldo não encontrado',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'Saldo',
+                'balance' => null,
+                'formatted' => 'indisponível',
+                'detail' => 'Falha ao consultar saldo',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function buildDiagnosticsSummary(array $redis, array $asterisk, array $trunks, array $balance, int $serverLatencyMs): string
     {
         $issues = [];
 
@@ -339,11 +379,17 @@ class SupportTickets extends ViewComponents
             $issues[] = 'sem tronco online';
         }
 
-        if ($issues === []) {
-            return 'Tudo parece OK. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . '.';
+        if (!$balance['ok']) {
+            $issues[] = 'saldo indisponível';
         }
 
-        return 'Encontrei alerta: ' . implode(', ', $issues) . '. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . '.';
+        $balanceDetail = $balance['detail'] ?? 'saldo --';
+
+        if ($issues === []) {
+            return 'Tudo parece OK. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . '.';
+        }
+
+        return 'Encontrei alerta: ' . implode(', ', $issues) . '. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . '.';
     }
 
     private static function requireUser(): array|Response

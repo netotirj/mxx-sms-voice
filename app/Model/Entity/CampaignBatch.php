@@ -12,6 +12,7 @@ class CampaignBatch
     public int $user_id;
     public string $tenancy_id;
     public string $created_at;
+    public int $charged = 0;
 
     /**
      * Cria um novo registro em campaign_batches
@@ -52,6 +53,18 @@ class CampaignBatch
         $result = (new Database())->execute($query, $params)->fetchObject(CampaignBatch::class);
 
         return $result instanceof CampaignBatch ? $result : null;
+    }
+
+    public static function getByIdAndTenancy(int $batchId, string $tenancyId): ?CampaignBatch
+    {
+        $result = (new Database('campaign_batches'))
+            ->select('id = :id AND tenancy_id = :tenancy_id', [
+                ':id' => $batchId,
+                ':tenancy_id' => $tenancyId
+            ])
+            ->fetchObject(self::class);
+
+        return $result instanceof self ? $result : null;
     }
 
 

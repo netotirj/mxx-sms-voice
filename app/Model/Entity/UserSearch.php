@@ -95,6 +95,34 @@ class UserSearch
         return $user ? self::translateUserFields([$user])[0] : null;
     }
 
+    public static function getUserByPartnerId(string $partnerId): ?self
+    {
+        if (preg_match('/^u(\d+)-/i', $partnerId, $matches)) {
+            $partnerId = $matches[1];
+        }
+
+        if (!ctype_digit((string)$partnerId)) {
+            return null;
+        }
+
+        $data = (new Database('users'))->select('id = :id', [
+            ':id' => (int)$partnerId
+        ])->fetch(PDO::FETCH_ASSOC);
+
+        if (!$data) {
+            return null;
+        }
+
+        $user = new self();
+        foreach ($data as $field => $value) {
+            if (property_exists($user, $field)) {
+                $user->$field = $value ?? $user->$field;
+            }
+        }
+
+        return $user;
+    }
+
     public static function getResellers(string $tenancyId, ?int $userId = null): array
     {
         $where = 'u.tenancy_id = :tenancy_id AND u.user_function = :function';

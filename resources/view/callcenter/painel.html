@@ -2034,7 +2034,7 @@
             // Enviamos como 'phones[]' para o seu PHP ler como array automaticamente
             payload.append('phones[]', numeroLimpo);
             payload.append('message', mensagemSms);
-            payload.append('optionGroup1', 'protocolo');
+            payload.append('optionGroup1', 'short');
             payload.append('optionGroup2', '0');
 
             const response = await fetch(`${baseUrl}/campaign/single-shot-send`, {

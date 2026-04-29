@@ -17,6 +17,106 @@ use App\Utils\View;
 
 class SendSms extends ViewComponents
 {
+    private const ALLOWED_SERVICES = ['short', 'mkt'];
+    private const ALLOWED_CODINGS = ['0', '8'];
+
+    private static function normalizePhone(string $phone): string
+    {
+        $phone = str_replace(',', '.', $phone);
+        if (stripos($phone, 'e') !== false) {
+            $phone = number_format((float)$phone, 0, '', '');
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone);
+        if (strlen($digits) === 11) {
+            $digits = '55' . $digits;
+        }
+
+        if (strlen($digits) === 13 && !str_starts_with($digits, '55')) {
+            $digits = '55' . substr($digits, -11);
+        }
+
+        return $digits;
+    }
+
+    private static function isValidPhone(string $phone): bool
+    {
+        return str_starts_with($phone, '55') && strlen($phone) >= 12 && strlen($phone) <= 13;
+    }
+
+    private static function normalizeService(?string $service): string
+    {
+        $service = strtolower(trim((string)$service));
+
+        if (in_array($service, ['protocolo', 'protocol'], true)) {
+            return 'short';
+        }
+
+        return in_array($service, self::ALLOWED_SERVICES, true) ? $service : 'short';
+    }
+
+    private static function normalizeCoding(?string $coding): string
+    {
+        $coding = trim((string)$coding);
+        return in_array($coding, self::ALLOWED_CODINGS, true) ? $coding : '0';
+    }
+
+    private static function calculateSmsUnits(string $message, string $coding): int
+    {
+        $length = mb_strlen($message, 'UTF-8');
+        if ($length === 0) {
+            return 0;
+        }
+
+        if ($coding === '8') {
+            if ($length > 1340) {
+                return 0;
+            }
+
+            return $length <= 70 ? 1 : (int)ceil($length / 67);
+        }
+
+        if ($length > 1377) {
+            return 0;
+        }
+
+        return $length <= 160 ? 1 : (int)ceil($length / 153);
+    }
+
+    private static function prepareContacts(array $contacts): array
+    {
+        $prepared = [];
+        $seen = [];
+
+        foreach ($contacts as $cont) {
+            $phone = self::normalizePhone((string)($cont['phone'] ?? ''));
+            $message = trim((string)($cont['message'] ?? ''));
+            $service = self::normalizeService($cont['type_msg'] ?? null);
+            $coding = self::normalizeCoding(isset($cont['charset_msg']) ? (string)$cont['charset_msg'] : '0');
+            $units = self::calculateSmsUnits($message, $coding);
+
+            if (!self::isValidPhone($phone) || $units < 1) {
+                continue;
+            }
+
+            $key = $phone . '|' . sha1($message) . '|' . $service . '|' . $coding;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $prepared[] = [
+                'phone' => $phone,
+                'type_msg' => $service,
+                'message' => $message,
+                'charset_msg' => $coding,
+                'name' => trim((string)($cont['name'] ?? '')),
+                'sms_units' => $units
+            ];
+        }
+
+        return $prepared;
+    }
 
     public static function sendSms($obUser, ?int $campaignId = null, array $phones = [], ?string $message = null, ?string $service = null, ?string $coding = "0"): Response {
         $isReseller = isset($obUser['function']) && $obUser['function'] === 'reseller';
@@ -76,7 +176,16 @@ class SendSms extends ViewComponents
             }
         }
 
+        $contacts = self::prepareContacts($contacts);
+        if (empty($contacts)) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Nenhum SMS válido para envio. Verifique telefones, mensagem, serviço e codificação.'
+            ], 'application/json');
+        }
+
         $totalMessages = count($contacts);
+        $totalUnits = array_sum(array_column($contacts, 'sms_units'));
         if ($isReseller) {
 
             $resellerInfo = UserSearch::getResellers($obUser['tenancy_id'], $obUser['id']);
@@ -93,7 +202,7 @@ class SendSms extends ViewComponents
 
             $valueSms         = (float)$rateData['rate'];
             $availableBalance = (float)$reseller['reseller_balance'];
-            $valueTotal       = $totalMessages * $valueSms;
+            $valueTotal       = $totalUnits * $valueSms;
 
             if ($availableBalance < $valueTotal) {
                 return new Response(403, [
@@ -105,9 +214,13 @@ class SendSms extends ViewComponents
             }
 
             $obBalance   = BalanceSms::getBalanceSms(null, $obUser['tenancy_id'], $currentPlan);
+            if (!$obBalance || (float)$obBalance->value_sms <= 0) {
+                return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa da conta principal não configurados.'], 'application/json');
+            }
+
             $obSmsAccept = CallbackSms::countSentSmsAccept($obUser['id'], $obUser['tenancy_id']);
 
-            $valueTotalTenant = $totalMessages * (float)$obBalance->value_sms;
+            $valueTotalTenant = $totalUnits * (float)$obBalance->value_sms;
             $valueAccept      = (float)($obSmsAccept->value_total ?? 0);
             $availableTenant  = (float)$obBalance->balance - $valueAccept;
 
@@ -124,8 +237,12 @@ class SendSms extends ViewComponents
         } else {
             // 🔹 Fluxo normal (somente plano)
             $obBalance   = BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'], $currentPlan);
+            if (!$obBalance || (float)$obBalance->value_sms <= 0) {
+                return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa SMS não configurados.'], 'application/json');
+            }
+
             $obSmsAccept = CallbackSms::countSentSmsAccept($obUser['id'], $obUser['tenancy_id']);
-            $valueTotal       = $totalMessages * (float)$obBalance->value_sms;
+            $valueTotal       = $totalUnits * (float)$obBalance->value_sms;
             $valueAccept      = (float)($obSmsAccept->value_total ?? 0);
             $availableBalance = (float)$obBalance->balance - $valueAccept;
 
@@ -140,6 +257,15 @@ class SendSms extends ViewComponents
                     'necessary' => (float)$obBalance->value_sms
                 ], 'application/json');
             }
+
+            if ($availableBalance < $valueTotal) {
+                return new Response(403, [
+                    'status'    => 403,
+                    'message'   => 'Saldo insuficiente para enviar todos os SMS.',
+                    'balance'   => $availableBalance,
+                    'necessary' => $valueTotal
+                ], 'application/json');
+            }
         }
 
         // 🔹 4) Cria batch
@@ -150,24 +276,45 @@ class SendSms extends ViewComponents
         ]);
 
         $dispro    = new DisproClient();
-        $totalSent = 0;
+        $totalAccepted = 0;
+        $totalProcessed = 0;
+        $totalFailed = 0;
+        $apiErrors = [];
 
         // 🔹 5) Disparo SMS
-        foreach ($contacts as $cont) {
+        foreach ($contacts as $index => $cont) {
+            $partnerId = substr(sprintf('u%s-b%s-%s', $obUser['id'], $batchId, $index + 1), 0, 100);
             $messages = [[
                 "numero"        => $cont['phone'],
                 "servico"       => $cont['type_msg'],
                 "mensagem"      => $cont['message'],
-                "parceiro_id"   => $obUser['id'],
-                "codificacao"   => isset($cont['charset_msg']) ? (string)$cont['charset_msg'] : "0",
+                "parceiro_id"   => $partnerId,
+                "codificacao"   => (string)$cont['charset_msg'],
                 "nome_campanha" => $cont['name'] ?? ''
             ]];
 
             $responseArray = $dispro->send($messages);
 
-            if (!$responseArray) continue;
+            if (!$responseArray) {
+                $apiErrors[] = $dispro->getLastError() ?: 'Falha sem detalhe ao enviar SMS.';
+                $totalFailed++;
+                continue;
+            }
 
-            foreach ($responseArray['detail'] ?? [] as $smsResult) {
+            $details = $responseArray['detail'] ?? [];
+            if (empty($details)) {
+                $apiErrors[] = 'API DisparoPro não retornou detalhes para o SMS.';
+                $totalFailed++;
+                continue;
+            }
+
+            foreach ($details as $smsResult) {
+                if (!is_array($smsResult)) {
+                    $apiErrors[] = (string)$smsResult;
+                    $totalFailed++;
+                    continue;
+                }
+
                 $callback                 = new CallbackSms();
                 $callback->phone_sms      = $smsResult['numero'] ?? '';
                 $callback->status_sms     = $smsResult['status'] ?? '';
@@ -180,41 +327,49 @@ class SendSms extends ViewComponents
                 $callback->date_send      = date('Y-m-d H:i:s');
 
                 if (strtoupper($smsResult['status'] ?? '') === 'ACCEPTED') {
+                    $totalAccepted++;
+                    $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : (float)$obBalance->value_sms);
                     if ($isReseller) {
-                        $callback->value_sms = $valueSms;
-                        $availableBalance -= $valueSms;
-                      BalanceSms::decrementResellerBalance($valueSms, $obUser['id'], $obUser['tenancy_id']);
+                        $callback->value_sms = $chargeValue;
+                        $availableBalance -= $chargeValue;
+                        BalanceSms::decrementResellerBalance($chargeValue, $obUser['id'], $obUser['tenancy_id']);
 
                     } else {
-                        $callback->value_sms = (float)$obBalance->value_sms;
+                        $callback->value_sms = $chargeValue;
                     }
                 } else {
                     $callback->value_sms = 0.00;
+                    $totalFailed++;
                 }
 
                $callback->insertStatus();
-                $totalSent++;
+                $totalProcessed++;
             }
         }
 
         // 🔹 6) Atualiza campanha
-        if ($campaignId && $totalSent > 0) {
+        if ($campaignId && $totalProcessed > 0) {
            CampaignSearch::updateStatusCamp($campaignId, $obUser['tenancy_id'], 'f');
         }
 
         // 🔹 7) Retorno
-        if ($totalSent > 0) {
+        if ($totalAccepted > 0) {
             return new Response(200, [
                 'status'     => 200,
                 'message'    => 'SMS(s) enviado(s) com sucesso!',
-                'total_sent' => $totalSent,
+                'total_sent' => $totalAccepted,
+                'total_processed' => $totalProcessed,
+                'total_failed' => $totalFailed,
+                'sms_units' => $totalUnits,
                 'batch_id'   => $batchId
             ], 'application/json');
         }
 
         return new Response(400, [
             'status'=>400,
-            'message'=>'Não foi possível enviar os SMS.'],
+            'message'=>'Não foi possível enviar os SMS.',
+            'errors' => array_values(array_unique(array_filter($apiErrors)))
+        ],
             'application/json');
     }
 
@@ -269,10 +424,16 @@ class SendSms extends ViewComponents
 
         $postVars = $request->getPostVars();
 
-        $phones = $postVars['phones'] ?? [];
+        $phones = $postVars['phones'] ?? $postVars['phone'] ?? $postVars['numero'] ?? $postVars['number'] ?? [];
+        if (!is_array($phones) && trim((string)$phones) !== '') {
+            $phones = str_contains((string)$phones, ',')
+                ? array_map('trim', explode(',', (string)$phones))
+                : [(string)$phones];
+        }
+
         $message = $postVars['message'] ?? null;
 
-        // Se não vier optionGroup1/2, assume null
+        // Se nao vier optionGroup1/2, assume envio curto com codificacao normal.
         $optionGroup1 = $postVars['optionGroup1'] ?? null;
         $optionGroup2 = $postVars['optionGroup2'] ?? "0";
 
@@ -288,5 +449,3 @@ class SendSms extends ViewComponents
 
 
 }
-
-

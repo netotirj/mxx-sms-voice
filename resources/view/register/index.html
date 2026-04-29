@@ -62,14 +62,15 @@
             </p>
           </div>
 
-          <form id="registerForm" class="space-y-4">
+          <form id="registerForm" class="space-y-4" data-social-registration="{{registerSocialMode}}">
+            <input type="hidden" id="socialRegistration" value="{{registerSocialInput}}">
             <div class="relative flex items-center justify-center">
               <div class="w-full border-t border-gray-700"></div>
               <span class="absolute bg-darkCard px-3 text-xs font-bold uppercase tracking-widest text-gray-500">cadastre-se com</span>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button type="button" data-social-provider="google" data-social-url="{{URL}}/auth/social/google?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+              <button type="button" data-social-provider="google" data-social-url="{{SOCIAL_URL}}/auth/social/google?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5A9.5 9.5 0 1 0 12 21.5c5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6H12Z"/>
                   <path fill="#FBBC05" d="M3.6 7.9 6.8 10.2A5.9 5.9 0 0 1 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5c-3.7 0-7 2.1-8.4 5.4Z"/>
@@ -78,11 +79,11 @@
                 </svg>
                 <span>Google</span>
               </button>
-              <button type="button" data-social-provider="apple" data-social-url="{{URL}}/auth/social/apple?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+              <button type="button" data-social-provider="apple" data-social-url="{{SOCIAL_URL}}/auth/social/apple?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.702z"/></svg>
                 <span>Apple</span>
               </button>
-              <button type="button" data-social-provider="facebook" data-social-url="{{URL}}/auth/social/facebook?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+              <button type="button" data-social-provider="facebook" data-social-url="{{SOCIAL_URL}}/auth/social/facebook?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.24 10.44 22v-7.03H7.9v-2.91h2.54V9.84c0-2.52 1.49-3.91 3.77-3.91 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.9h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z"/></svg>
                 <span>Facebook</span>
               </button>
@@ -96,11 +97,11 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label for="firstName" class="block mb-1.5 text-xs font-medium text-gray-300">Nome</label>
-                <input type="text" id="firstName" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Nome">
+                <input type="text" id="firstName" required value="{{registerFirstName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Nome">
               </div>
               <div>
                 <label for="lastName" class="block mb-1.5 text-xs font-medium text-gray-300">Sobrenome</label>
-                <input type="text" id="lastName" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Sobrenome">
+                <input type="text" id="lastName" required value="{{registerLastName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Sobrenome">
               </div>
               <div>
                 <label for="phone" class="block mb-1.5 text-xs font-medium text-gray-300">Telefone</label>
@@ -108,22 +109,29 @@
               </div>
               <div>
                 <label for="email" class="block mb-1.5 text-xs font-medium text-gray-300">E-mail</label>
-                <input type="email" id="email" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="nome@empresa.com">
+                <input type="email" id="email" required value="{{registerEmail}}" {{registerEmailReadonly}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200 disabled:cursor-not-allowed disabled:opacity-80" placeholder="nome@empresa.com">
               </div>
-              <div>
+              <div class="{{registerPasswordClass}}">
                 <label for="password" class="block mb-1.5 text-xs font-medium text-gray-300">Senha</label>
-                <input type="password" id="password" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+                <input type="password" id="password" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
               </div>
-              <div>
+              <div class="{{registerPasswordClass}}">
                 <label for="confirmPassword" class="block mb-1.5 text-xs font-medium text-gray-300">Confirmar senha</label>
-                <input type="password" id="confirmPassword" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+                <input type="password" id="confirmPassword" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
               </div>
             </div>
 
-            <label class="flex items-start cursor-pointer">
-              <input id="acceptTerms" type="checkbox" checked class="mt-1 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-600 focus:ring-offset-gray-800">
-              <span class="ml-2 text-xs text-gray-400">Concordo com os Termos e Condições.</span>
-            </label>
+            <div class="rounded-xl border border-gray-700 bg-slate-900/30 p-3">
+              <label class="flex items-start cursor-pointer">
+                <input id="acceptTerms" type="checkbox" class="mt-1 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-600 focus:ring-offset-gray-800">
+                <span class="ml-2 text-xs text-gray-400">
+                  Li e aceito os Termos de Serviço e a Política de Privacidade.
+                </span>
+              </label>
+              <button id="openTermsModal" type="button" class="mt-2 text-xs font-semibold text-primary-500 hover:underline">
+                Ler termos de aceite
+              </button>
+            </div>
 
             <div class="{{captchaWidgetClass}} flex justify-center">
               <div class="cf-turnstile" data-sitekey="{{captchaSiteKey}}" data-theme="dark" data-language="pt-BR"></div>
@@ -149,6 +157,49 @@
       </div>
     </div>
   </section>
+
+  <div id="modalTermos" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 px-4 py-6">
+    <div class="w-full max-w-2xl rounded-2xl border border-gray-700 bg-darkCard shadow-2xl">
+      <div class="border-b border-gray-700 px-6 py-4">
+        <h2 class="text-lg font-bold text-white">Termos de aceite</h2>
+        <p class="mt-1 text-xs text-gray-400">Maxx Solutions - SMS</p>
+      </div>
+      <div id="termosContent" class="max-h-80 overflow-y-auto px-6 py-5 text-sm leading-6 text-gray-300">
+        <p class="mb-4">
+          Ao criar sua conta, você confirma que as informações fornecidas são verdadeiras e que possui autorização para usar o telefone e o e-mail informados.
+        </p>
+        <p class="mb-4">
+          O uso da plataforma deve respeitar as leis aplicáveis, as regras das operadoras e as políticas contra spam, fraude, abuso, phishing e envio de mensagens sem consentimento.
+        </p>
+        <p class="mb-4">
+          A Maxx Solutions pode bloquear ou revisar contas, campanhas e créditos quando houver indícios de uso indevido, dados inconsistentes, duplicidade de cadastro ou tentativa de burlar validações.
+        </p>
+        <p class="mb-4">
+          O crédito promocional inicial é concedido uma única vez por conta legítima. Cadastros duplicados por e-mail, telefone ou outros sinais de identificação poderão ser recusados.
+        </p>
+        <p class="mb-4">
+          Você também declara ciência da nossa Política de Privacidade e autoriza o tratamento dos dados necessários para criação da conta, autenticação, segurança, suporte e operação dos serviços contratados.
+        </p>
+        <p class="mb-4">
+          Consulte os documentos completos em
+          <a href="{{URL}}/termos-de-servico" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary-500 hover:underline">Termos de Serviço</a>
+          e
+          <a href="{{URL}}/politica-de-privacidade" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary-500 hover:underline">Política de Privacidade</a>.
+        </p>
+        <p>
+          Role até o fim e confirme somente se estiver de acordo com estes termos.
+        </p>
+      </div>
+      <div class="flex flex-col-reverse gap-3 border-t border-gray-700 px-6 py-4 sm:flex-row sm:justify-end">
+        <button id="btnRecusarTermos" type="button" class="rounded-xl border border-gray-600 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-slate-700">
+          Recusar
+        </button>
+        <button id="btnAceitarTermos" type="button" disabled class="rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white opacity-50 transition hover:bg-primary-500 disabled:cursor-not-allowed">
+          Li e aceito
+        </button>
+      </div>
+    </div>
+  </div>
 
   <a id="support-whatsapp-floating"
      href="https://wa.me/5521968943160"
@@ -177,6 +228,14 @@
     const btnText = btnRegister.querySelector('.btn-text');
     const btnSpinner = btnRegister.querySelector('.btn-spinner');
     const socialButtons = document.querySelectorAll('.social-register-btn');
+    const isSocialRegistration = registerForm.dataset.socialRegistration === 'true';
+    const acceptTermsInput = document.getElementById('acceptTerms');
+    const openTermsModalButton = document.getElementById('openTermsModal');
+    const termsModal = document.getElementById('modalTermos');
+    const termsContent = document.getElementById('termosContent');
+    const acceptTermsButton = document.getElementById('btnAceitarTermos');
+    const refuseTermsButton = document.getElementById('btnRecusarTermos');
+    let termsAccepted = false;
     const notyf = new Notyf({
       duration: 5000,
       ripple: false,
@@ -207,6 +266,57 @@
       window.history.replaceState({}, document.title, `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`);
     }
 
+    function openTermsModal() {
+      termsModal.classList.remove('hidden');
+      termsModal.classList.add('flex');
+      acceptTermsButton.disabled = true;
+      acceptTermsButton.classList.add('opacity-50');
+      termsContent.scrollTop = 0;
+
+      if (termsContent.scrollHeight <= termsContent.clientHeight + 5) {
+        enableTermsAcceptButton();
+      }
+    }
+
+    function closeTermsModal() {
+      termsModal.classList.add('hidden');
+      termsModal.classList.remove('flex');
+    }
+
+    function enableTermsAcceptButton() {
+      acceptTermsButton.disabled = false;
+      acceptTermsButton.classList.remove('opacity-50');
+    }
+
+    openTermsModalButton.addEventListener('click', openTermsModal);
+
+    acceptTermsInput.addEventListener('click', (event) => {
+      if (!termsAccepted) {
+        event.preventDefault();
+        openTermsModal();
+      }
+    });
+
+    termsContent.addEventListener('scroll', () => {
+      if (termsContent.scrollTop + termsContent.clientHeight >= termsContent.scrollHeight - 5) {
+        enableTermsAcceptButton();
+      }
+    });
+
+    acceptTermsButton.addEventListener('click', () => {
+      termsAccepted = true;
+      acceptTermsInput.checked = true;
+      closeTermsModal();
+      notyf.success('Termos aceitos.');
+    });
+
+    refuseTermsButton.addEventListener('click', () => {
+      termsAccepted = false;
+      acceptTermsInput.checked = false;
+      closeTermsModal();
+      notyf.error('Voce precisa aceitar os termos para continuar.');
+    });
+
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -216,15 +326,15 @@
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value.trim();
       const confirmPass = document.getElementById('confirmPassword').value.trim();
-      const acceptTerms = document.getElementById('acceptTerms').checked;
+      const acceptTerms = acceptTermsInput.checked && termsAccepted;
       const captcha = document.querySelector('[name="cf-turnstile-response"]')?.value;
 
-      if (!name || !lastname || !phone || !email || !password || !confirmPass) {
+      if (!name || !lastname || !phone || !email || (!isSocialRegistration && (!password || !confirmPass))) {
         notyf.error('Preencha todos os campos obrigatorios.');
         return;
       }
 
-      if (password !== confirmPass) {
+      if (!isSocialRegistration && password !== confirmPass) {
         notyf.error('As senhas nao coincidem.');
         return;
       }
@@ -250,6 +360,7 @@
         dataPost.append('phone', phone);
         dataPost.append('email', email);
         dataPost.append('password', password);
+        dataPost.append('social_registration', document.getElementById('socialRegistration').value);
         dataPost.append('accept_terms', 'on');
         if (captcha) dataPost.append('cf-turnstile-response', captcha);
 

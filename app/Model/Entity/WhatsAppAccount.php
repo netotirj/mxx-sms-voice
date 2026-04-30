@@ -31,27 +31,32 @@ class WhatsAppAccount
 
     public static function listForUser(array $user): array
     {
-        $where = TenancyHelper::applySecurityFilter('', $user, 'user_id', 'whatsapp_accounts');
+        $where = TenancyHelper::applySecurityFilter('wa.status = :status', $user, 'user_id', 'wa');
 
-        return (new Database('whatsapp_accounts'))
-            ->select($where, [], 'id DESC', '', [
-                'id',
-                'tenancy_id',
-                'user_id',
-                'label',
-                'display_phone_number',
-                'status',
-                'created_at',
-                'updated_at',
+        return (new Database('whatsapp_accounts wa LEFT JOIN whatsapp_numbers wn ON wn.whatsapp_account_id = wa.id'))
+            ->select($where, [':status' => 'active'], 'wa.id DESC', '', [
+                'wa.id',
+                'wa.tenancy_id',
+                'wa.user_id',
+                'wa.label',
+                'wa.display_phone_number',
+                'wa.status',
+                'wa.created_at',
+                'wa.updated_at',
+                'wn.internal_label',
+                'wn.display_name_meta',
+                'wn.display_name',
+                'wn.display_name_status',
+                'wn.status AS number_status',
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function getForUser(int $id, array $user): ?array
     {
-        $where = TenancyHelper::applySecurityFilter('id = :id', $user, 'user_id', 'whatsapp_accounts');
+        $where = TenancyHelper::applySecurityFilter('id = :id AND status = :status', $user, 'user_id', 'whatsapp_accounts');
         $row = (new Database('whatsapp_accounts'))
-            ->select($where, [':id' => $id], '', '1')
+            ->select($where, [':id' => $id, ':status' => 'active'], '', '1')
             ->fetch(PDO::FETCH_ASSOC);
 
         return self::withOpenSecrets($row ?: null);

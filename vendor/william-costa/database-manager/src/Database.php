@@ -59,6 +59,9 @@ class Database
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
+
+            $offset = date('P');
+            $this->connection->exec("SET time_zone = '{$offset}'");
         } catch (PDOException $e) {
             die('DB Connection Error: ' . $e->getMessage());
         }

@@ -70,8 +70,12 @@ class TenancyHelper
 
             // 🤝 Parceiros
             case 'reseller':
-                // Mantive sua lógica original para não quebrar comportamento existente
-                $securityFilter .= " AND ({$prefix}id = {$userId} OR {$prefix}{$userColumn} = {$userId})";
+                $securityFilter .= " AND ({$prefix}{$userColumn} = {$userId}
+                    OR {$prefix}{$userColumn} IN (
+                        SELECT id FROM users
+                        WHERE user_id = {$userId}
+                          AND tenancy_id = " . self::sqlString($tenancyId) . "
+                    ))";
                 break;
 
             // 🎧 Operacional / restrito

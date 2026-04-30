@@ -20,7 +20,7 @@ class WhatsAppTemplate
             'components' => isset($data['components'])
                 ? json_encode($data['components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : null,
-            'status' => $data['status'] ?? 'approved',
+            'status' => $data['status'] ?? 'pending',
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
@@ -59,6 +59,24 @@ class WhatsAppTemplate
                 ':name' => $name,
                 ':language' => $language,
             ], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    public static function getByNameForTenant(string $name, string $language, string $tenancyId): ?array
+    {
+        $row = (new Database('whatsapp_templates'))
+            ->select(
+                'tenancy_id = :tenancy_id AND name = :name AND language = :language',
+                [
+                    ':tenancy_id' => $tenancyId,
+                    ':name' => $name,
+                    ':language' => $language,
+                ],
+                '',
+                '1'
+            )
             ->fetch(PDO::FETCH_ASSOC);
 
         return $row ?: null;

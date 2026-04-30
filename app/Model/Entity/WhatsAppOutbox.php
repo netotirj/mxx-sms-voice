@@ -28,8 +28,9 @@ class WhatsAppOutbox
                 ? json_encode($data['template_components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : null,
             'service_window_open' => (int)($data['service_window_open'] ?? 0),
-            'billable_estimate' => (int)($data['billable_estimate'] ?? 0),
-            'estimated_cost_usd' => (float)($data['estimated_cost_usd'] ?? 0),
+            'message_category' => isset($data['message_category']) ? strtolower((string)$data['message_category']) : null,
+            'price_brl' => (float)($data['price_brl'] ?? 0),
+            'billed' => (int)($data['billed'] ?? 0),
             'status' => $data['status'] ?? 'queued',
             'attempts' => 0,
             'max_attempts' => (int)($data['max_attempts'] ?? 3),
@@ -90,6 +91,18 @@ class WhatsAppOutbox
                 'wamid' => $wamid,
                 'message_id' => $messageId,
                 'sent_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [':id' => $id]
+        );
+    }
+
+    public static function markBilled(int $id): bool
+    {
+        return (new Database('whatsapp_outbox'))->update(
+            'id = :id',
+            [
+                'billed' => 1,
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [':id' => $id]

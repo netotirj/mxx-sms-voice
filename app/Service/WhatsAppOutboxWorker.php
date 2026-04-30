@@ -6,6 +6,7 @@ use App\Model\Entity\WhatsAppAccount;
 use App\Model\Entity\WhatsAppCampaign;
 use App\Model\Entity\WhatsAppConversation;
 use App\Model\Entity\WhatsAppOutbox;
+use App\Model\Entity\WhatsAppTemplate;
 
 class WhatsAppOutboxWorker
 {
@@ -36,6 +37,11 @@ class WhatsAppOutboxWorker
             return false;
         }
 
+        if ((string)($row['tenancy_id'] ?? '') !== (string)($account['tenancy_id'] ?? '')) {
+            WhatsAppOutbox::markFailed($id, 'Envio bloqueado: conta WhatsApp pertence a outro tenant.', (int)$row['attempts'] + 1, (int)$row['max_attempts']);
+            return false;
+        }
+
         if (!WhatsAppOutbox::markSending($id)) {
             return false;
         }
@@ -47,8 +53,28 @@ class WhatsAppOutboxWorker
         }
 
         try {
+            $billing = WhatsAppBilling::authorizeOutbox($row);
             $api = new MetaWhatsAppCloudApi();
             if ($row['message_type'] === 'template') {
+                $template = WhatsAppTemplate::getByNameForTenant(
+                    (string)$row['template_name'],
+                    (string)($row['template_language'] ?: 'pt_BR'),
+                    (string)$row['tenancy_id']
+                );
+                if (!$template) {
+                    WhatsAppOutbox::markFailed($id, 'Template não encontrado', (int)$row['max_attempts'], (int)$row['max_attempts']);
+                    $this->markCampaignRecipient($row, 'failed', null, 'Template não encontrado');
+                    WhatsAppBilling::recordBlocked($row, 'Template não encontrado');
+                    return false;
+                }
+
+                if ((string)$template['status'] !== 'approved') {
+                    WhatsAppOutbox::markFailed($id, 'Template não aprovado pela Meta', (int)$row['max_attempts'], (int)$row['max_attempts']);
+                    $this->markCampaignRecipient($row, 'failed', null, 'Template não aprovado pela Meta');
+                    WhatsAppBilling::recordBlocked($row, 'Template não aprovado pela Meta');
+                    return false;
+                }
+
                 $components = json_decode((string)($row['template_components'] ?? '[]'), true);
                 $result = $api->sendTemplate(
                     (string)$account['access_token'],
@@ -73,6 +99,7 @@ class WhatsAppOutboxWorker
                 $attempts = (int)$row['attempts'] + 1;
                 $maxAttempts = (int)$row['max_attempts'];
                 WhatsAppOutbox::markFailed($id, $error, $attempts, $maxAttempts);
+                WhatsAppBilling::recordFailed($row, $error);
                 if ($attempts >= $maxAttempts) {
                     $this->markCampaignRecipient($row, 'failed', null, $error);
                 }
@@ -91,14 +118,9 @@ class WhatsAppOutboxWorker
             ]));
 
             $payload = array_merge($result['data'] ?? [], [
-                'pricing_estimate' => [
-                    'country' => 'BR',
-                    'currency' => 'USD',
-                    'message_type' => $row['message_type'],
-                    'template_category' => $row['template_category'],
-                    'service_window_open' => (bool)$row['service_window_open'],
-                    'billable_estimate' => (bool)$row['billable_estimate'],
-                    'estimated_cost_usd' => (float)$row['estimated_cost_usd'],
+                'billing' => [
+                    'message_category' => strtolower((string)$billing['message_category']),
+                    'billed' => false,
                     'outbox_id' => $id,
                 ],
             ]);
@@ -109,19 +131,38 @@ class WhatsAppOutboxWorker
                 'wamid' => $wamid,
                 'direction' => 'outbound',
                 'message_type' => (string)$row['message_type'],
+                'template_name' => $row['template_name'] ?? null,
+                'template_category' => $row['template_category'] ?? null,
+                'service_window_open' => (int)($row['service_window_open'] ?? 0),
+                'message_category' => $billing['message_category'],
+                'price_brl' => (float)$billing['price_brl'],
                 'body' => (string)($row['body'] ?? ''),
                 'status' => 'sent',
                 'payload' => $payload,
             ]);
 
+            $billed = WhatsAppBilling::billSent($row, $messageId, $wamid, $billing);
             WhatsAppOutbox::markSent($id, $wamid, $messageId);
+            if ($billed) {
+                WhatsAppOutbox::markBilled($id);
+                WhatsAppConversation::markMessageBilled($messageId);
+                WhatsAppConversation::updateMessageStatusByWamid((string)$wamid, 'sent', null, [
+                    'billing' => array_merge($payload['billing'], ['billed' => true]),
+                ]);
+            }
             WhatsAppNumberSafety::recordSent((int)$row['account_id']);
             $this->markCampaignRecipient($row, 'sent', $wamid, null);
             return true;
         } catch (\Throwable $e) {
             $attempts = (int)$row['attempts'] + 1;
             $maxAttempts = (int)$row['max_attempts'];
+            if ($e->getMessage() === WhatsAppBilling::ERROR_INSUFFICIENT_BALANCE) {
+                $attempts = $maxAttempts;
+            }
             WhatsAppOutbox::markFailed($id, $e->getMessage(), $attempts, $maxAttempts);
+            if ($e->getMessage() === WhatsAppBilling::ERROR_INSUFFICIENT_BALANCE) {
+                WhatsAppBilling::recordBlocked($row, $e->getMessage());
+            }
             if ($attempts >= $maxAttempts) {
                 $this->markCampaignRecipient($row, 'failed', null, $e->getMessage());
             }

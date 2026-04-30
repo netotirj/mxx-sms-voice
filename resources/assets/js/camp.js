@@ -11,7 +11,16 @@
 const baseUrl = (document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '').replace(/\/$/, '');
 
 // Instancia notyf globalmente para notificações
-window.notyf = window.notyf || new Notyf({ duration: 4000, position: { x: 'right', y: 'top' } });
+window.notyf = window.notyf || new Notyf({
+    duration: 4000,
+    ripple: false,
+    position: { x: 'right', y: 'top' },
+    types: [
+        { type: 'success', backgroundColor: '#10b981', icon: { className: 'notyf__icon--success', tagName: 'i' } },
+        { type: 'error', backgroundColor: '#e11d48', icon: { className: 'notyf__icon--error', tagName: 'i' } },
+        { type: 'info', className: 'notyf__toast--info', backgroundColor: '#334155', icon: false }
+    ]
+});
 
 async function parseJsonResponse(response) {
     const text = await response.text();

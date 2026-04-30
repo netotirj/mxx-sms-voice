@@ -15,12 +15,16 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label class="wa-field">
-                                <span>Apelido</span>
-                                <input id="wa-account-label" type="text" placeholder="Ex: Suporte Matriz">
+                                <span>Nome do número no painel</span>
+                                <input id="wa-account-label" type="text" placeholder="Ex: Suporte Financeiro">
                             </label>
                             <label class="wa-field">
                                 <span>Número exibido</span>
                                 <input id="wa-account-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                            </label>
+                            <label class="wa-field md:col-span-2">
+                                <span>Nome enviado para a Meta</span>
+                                <input id="wa-account-display-name-meta" type="text" placeholder="Nome da empresa ou pessoa cadastrada">
                             </label>
                         </div>
 
@@ -57,18 +61,18 @@
                         <div id="wa-verification-code-area" class="hidden">
                             <label class="wa-field">
                                 <span>Código recebido</span>
-                                <input id="wa-verification-code" type="text" inputmode="numeric" maxlength="8" placeholder="Digite o código">
+                                <input id="wa-verification-code" type="text" inputmode="numeric" maxlength="12" placeholder="Digite o código">
                             </label>
                             <div class="flex items-center justify-between gap-3 mt-2">
                                 <p id="wa-verification-timer" class="text-xs font-bold text-slate-500 mb-0">05:00</p>
-                                <button id="wa-verification-resend" type="button" class="text-xs font-black uppercase text-blue-600 disabled:text-slate-300" disabled>Reenviar código</button>
+                                <button id="wa-verification-resend" type="button" class="text-xs font-black uppercase text-blue-600 disabled:text-slate-300" disabled>Tentar novamente</button>
                             </div>
                         </div>
 
                         <p id="wa-verification-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
 
                         <div class="flex justify-end gap-2 mt-5">
-                            <button id="wa-verification-confirm" type="button" class="hidden px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Validar código</button>
+                            <button id="wa-verification-confirm" type="button" class="hidden px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Confirmar código</button>
                         </div>
                     </div>
                 </div>
@@ -96,6 +100,7 @@
                             <select id="wa-new-chat-type">
                                 <option value="template" selected>Template aprovado</option>
                                 <option value="text">Texto livre</option>
+                                <option value="audio">Áudio</option>
                             </select>
                         </label>
                         <div id="wa-new-chat-template-fields" class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -121,6 +126,10 @@
                         <label id="wa-new-chat-message-field" class="wa-field hidden">
                             <span>Mensagem</span>
                             <textarea id="wa-new-chat-message" rows="4" placeholder="Digite a mensagem"></textarea>
+                        </label>
+                        <label id="wa-new-chat-audio-field" class="wa-field hidden">
+                            <span>Áudio</span>
+                            <input id="wa-new-chat-audio" type="file" accept="audio/*">
                         </label>
 
                         <p id="wa-new-chat-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
@@ -291,6 +300,11 @@
 
                         <div class="p-4 bg-white border-t border-slate-100">
                             <div class="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
+                                <input id="wa-audio-input" type="file" accept="audio/*" class="hidden">
+                                <button id="wa-btn-audio" type="button" disabled
+                                        class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-white text-slate-500 rounded-full shadow-sm transition-all outline-none border border-slate-200 disabled:opacity-30" title="Enviar áudio">
+                                    <i class="fa fa-microphone"></i>
+                                </button>
                                 <input type="text" id="wa-msg-input" placeholder="Escreva uma mensagem..."
                                        class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-slate-700 disabled:opacity-50" disabled>
 
@@ -493,12 +507,16 @@
                             <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Solicitar número</h6>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label class="wa-field">
-                                    <span>Apelido</span>
-                                    <input id="wa-page-account-label" type="text" placeholder="Ex: Suporte Matriz">
+                                    <span>Nome do número no painel</span>
+                                    <input id="wa-page-account-label" type="text" placeholder="Ex: Suporte Financeiro">
                                 </label>
                                 <label class="wa-field">
                                     <span>Número exibido</span>
                                     <input id="wa-page-account-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                                </label>
+                                <label class="wa-field md:col-span-2">
+                                    <span>Nome enviado para a Meta</span>
+                                    <input id="wa-page-account-display-name-meta" type="text" placeholder="Nome da empresa ou pessoa cadastrada">
                                 </label>
                             </div>
                             <p id="wa-page-account-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
@@ -580,6 +598,8 @@
         const chatAvatar = document.getElementById('chat-avatar');
         const msgInput = document.getElementById('wa-msg-input');
         const sendBtn = document.getElementById('wa-btn-send');
+        const audioInput = document.getElementById('wa-audio-input');
+        const audioBtn = document.getElementById('wa-btn-audio');
         const sendFeedback = document.getElementById('wa-send-feedback');
         const searchInput = document.getElementById('wa-chat-search');
         const refreshConversationsBtn = document.getElementById('wa-refresh-conversations');
@@ -591,6 +611,7 @@
         const newChatType = document.getElementById('wa-new-chat-type');
         const newChatTemplateFields = document.getElementById('wa-new-chat-template-fields');
         const newChatMessageField = document.getElementById('wa-new-chat-message-field');
+        const newChatAudioField = document.getElementById('wa-new-chat-audio-field');
         const newChatTemplateSelect = document.getElementById('wa-new-chat-template-select');
         const templateList = document.getElementById('wa-template-list');
         const campaignList = document.getElementById('wa-campaign-list');
@@ -637,6 +658,7 @@
         let activeVerificationRequestId = null;
         let verificationPollTimer = null;
         let verificationCountdownTimer = null;
+        let realtimeSyncBusy = false;
 
         const notify = (type, message) => {
             if (typeof notyf !== 'undefined' && notyf && typeof notyf[type] === 'function') {
@@ -658,7 +680,7 @@
 
         async function confirmSendNumberRequestToMeta(id) {
             const request = getNumberRequest(id);
-            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+            const label = request?.internal_label || request?.display_name || request?.phone_number || 'esta solicitação';
 
             if (typeof Swal === 'undefined') {
                 return window.confirm(`Enviar ${label} para a Meta?`);
@@ -681,18 +703,18 @@
 
         async function confirmApproveNumberRequest(id) {
             const request = getNumberRequest(id);
-            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+            const label = request?.internal_label || request?.display_name || request?.phone_number || 'esta solicitação';
 
             if (typeof Swal === 'undefined') {
-                return window.confirm(`Aprovar ${label}?`);
+                return window.confirm(`Aprovar ${label} após confirmação do código na Meta?`);
             }
 
             const result = await Swal.fire({
-                title: 'Aprovar solicitação?',
-                html: `<p class="mb-0">Confirma que a Meta aceitou <b>${escapeHtml(label)}</b> e deseja aprovar para o solicitante?</p>`,
+                title: 'Aprovar final?',
+                html: `<p class="mb-0">Confirma que o cliente já validou o código na Meta para <b>${escapeHtml(label)}</b>?</p>`,
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Aprovar',
+                confirmButtonText: 'Aprovar final',
                 cancelButtonText: 'Cancelar',
                 buttonsStyling: false,
                 customClass: swalButtonClasses,
@@ -704,7 +726,7 @@
 
         async function confirmRejectNumberRequest(id) {
             const request = getNumberRequest(id);
-            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+            const label = request?.internal_label || request?.display_name || request?.phone_number || 'esta solicitação';
             const defaultReason = 'Não foi possível conectar este número agora.';
 
             if (typeof Swal === 'undefined') {
@@ -739,41 +761,7 @@
                 }
             });
 
-            return result.isConfirmed ? String(result.value || '').trim() : null;
-        }
-
-        async function promptVerificationCode(id) {
-            const number = getNumber(id);
-            const label = number?.display_name || number?.phone_number || 'este número';
-
-            if (typeof Swal === 'undefined') {
-                return window.prompt(`Código recebido para ${label}:`);
-            }
-
-            const result = await Swal.fire({
-                title: 'Confirmar código',
-                html: `<p class="mb-0">Informe o código recebido em <b>${escapeHtml(label)}</b>.</p>`,
-                icon: 'info',
-                input: 'text',
-                inputAttributes: {
-                    inputmode: 'numeric',
-                    maxlength: 12,
-                    'aria-label': 'Código de confirmação'
-                },
-                showCancelButton: true,
-                confirmButtonText: 'Confirmar',
-                cancelButtonText: 'Cancelar',
-                buttonsStyling: false,
-                customClass: swalButtonClasses,
-                inputValidator: (value) => {
-                    if (digits(value || '').length < 4) {
-                        return 'Informe o código recebido.';
-                    }
-                    return null;
-                }
-            });
-
-            return result.isConfirmed ? digits(result.value || '') : null;
+            return result.isConfirmed ? String(result.value || '') : null;
         }
 
         async function confirmDangerAction({ title, message, confirmText = 'Confirmar' }) {
@@ -817,18 +805,35 @@
             el.className = `text-xs font-bold mt-2 mb-0 min-h-4 ${ok === true ? 'text-emerald-600' : ok === false ? 'text-red-600' : 'text-slate-400'}`;
         }
 
+        function sendErrorFeedback(message = '') {
+            const text = String(message || '').toLowerCase();
+            if (text.includes('24') || text.includes('janela') || text.includes('template aprovado')) {
+                return 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.';
+            }
+            return 'Mensagem não enviada.';
+        }
+
+        function displayNameStatusLabel(status = '') {
+            const value = String(status || '').toUpperCase();
+            if (['APPROVED', 'VERIFIED'].includes(value)) return 'Aprovado';
+            if (['REJECTED', 'DECLINED'].includes(value)) return 'Rejeitado';
+            if (['PENDING', 'PENDING_REVIEW', 'IN_REVIEW', 'UNKNOWN'].includes(value)) return 'Em análise';
+            return status || 'Em análise';
+        }
+
         function modal(el, show) {
             el?.classList.toggle('hidden', !show);
             el?.classList.toggle('flex', show);
         }
 
         async function api(path, options = {}) {
+            const isFormData = options.body instanceof FormData;
             const response = await fetch(`${baseUrl}${path}`, {
                 cache: 'no-store',
                 headers: {
                     'Accept': 'application/json',
                     'Cache-Control': 'no-store',
-                    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                    ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
                     ...(options.headers || {})
                 },
                 ...options
@@ -857,7 +862,9 @@
 
             try {
                 const result = await api(`/campaign/whatsapp/accounts?_=${Date.now()}`);
-                accounts = Array.isArray(result.data) ? result.data : [];
+                accounts = Array.isArray(result.data)
+                    ? result.data.filter((account) => String(account.status || 'active') === 'active')
+                    : [];
 
                 if (!accounts.length) {
                     selectedAccountId = 0;
@@ -931,6 +938,20 @@
             }
         }
 
+        async function refreshNumberConnectionRealtime() {
+            if (realtimeSyncBusy || document.hidden) return;
+            realtimeSyncBusy = true;
+
+            try {
+                await loadNumberRequests();
+                await loadNumbers();
+            } catch (error) {
+                console.warn('whatsapp realtime sync failed', error);
+            } finally {
+                realtimeSyncBusy = false;
+            }
+        }
+
         function openVerificationModal(request) {
             if (!request?.id) return;
             activeVerificationRequestId = String(request.id);
@@ -989,20 +1010,20 @@
             const tick = () => {
                 const remaining = expiresAt ? expiresAt.getTime() - Date.now() : 0;
                 const expired = remaining <= 0;
-                verificationTimer.textContent = expired ? 'Código expirado' : formatCountdown(remaining);
+                verificationTimer.textContent = expired ? 'Tentativa expirada' : formatCountdown(remaining);
                 verificationResend.disabled = !expired;
             };
             tick();
             verificationCountdownTimer = window.setInterval(tick, 1000);
         }
 
-        function setVerificationState({ icon, iconClass, title, message, showCode = false, feedback = '' }) {
+        function setVerificationState({ icon, iconClass, title, message, showCode = false, showConfirm = false, feedback = '' }) {
             verificationIcon.className = `w-10 h-10 rounded-xl flex items-center justify-center ${iconClass}`;
             verificationIcon.innerHTML = `<i class="fa ${icon}"></i>`;
             verificationTitle.textContent = title;
             verificationMessage.textContent = message;
             verificationCodeArea.classList.toggle('hidden', !showCode);
-            verificationConfirm.classList.toggle('hidden', !showCode);
+            verificationConfirm?.classList.toggle('hidden', !showConfirm);
             verificationFeedback.textContent = feedback;
         }
 
@@ -1012,45 +1033,73 @@
             const request = getNumberRequest(activeVerificationRequestId);
             if (!request) return;
 
-            verificationSubtitle.textContent = `${request.display_name || 'Número WhatsApp'} - ${request.phone_number || ''}`;
+            verificationSubtitle.textContent = `${request.internal_label || request.display_name || 'Número WhatsApp'} - ${request.phone_number || ''}`;
             const status = String(request.status || 'pending');
             const numberStatus = String(request.number_status || '');
 
-            if (numberStatus === 'active' || request.verified_at) {
+            if (numberStatus === 'active') {
                 stopVerificationPolling();
                 stopVerificationCountdown();
                 setVerificationState({
                     icon: 'fa-check',
                     iconClass: 'bg-emerald-100 text-emerald-700',
-                    title: 'Número verificado',
-                    message: 'Seu número WhatsApp foi conectado com sucesso.',
+                    title: 'Número conectado',
+                    message: request.number_last_error || 'Seu número já está conectado e pode ser utilizado. O nome comercial ainda está em análise pela Meta e será exibido após aprovação.',
                     showCode: false
                 });
                 return;
             }
 
-            if (status === 'approved' && numberStatus === 'code_sent') {
+            if (numberStatus === 'pending_name_approval') {
+                stopVerificationCountdown();
+                setVerificationState({
+                    icon: 'fa-clock',
+                    iconClass: 'bg-amber-100 text-amber-700',
+                    title: 'Número conectado',
+                    message: request.number_last_error || 'Seu número já está conectado e pode ser utilizado. O nome comercial ainda está em análise pela Meta e será exibido após aprovação.',
+                    showCode: false,
+                    showConfirm: false
+                });
+                return;
+            }
+
+            if (request.verified_at) {
+                stopVerificationCountdown();
+                setVerificationState({
+                    icon: 'fa-check',
+                    iconClass: 'bg-blue-100 text-blue-700',
+                    title: 'Código confirmado',
+                    message: 'Seu código foi confirmado. Finalizando a conexão técnica do número.',
+                    showCode: false,
+                    showConfirm: false
+                });
+                return;
+            }
+
+            if (['meta_submitted', 'approved'].includes(status) && ['code_sent', 'pending_verification'].includes(numberStatus)) {
                 setVerificationState({
                     icon: 'fa-key',
                     iconClass: 'bg-emerald-100 text-emerald-700',
-                    title: 'Digite o código de verificação',
-                    message: 'Enviamos o código para o número informado.',
-                    showCode: true
+                    title: 'Confirme o código',
+                    message: 'Digite o código recebido por SMS ou ligação para concluir a verificação na Meta.',
+                    showCode: true,
+                    showConfirm: true
                 });
                 startVerificationCountdown(request);
                 return;
             }
 
-            if (status === 'approved' && numberStatus === 'failed') {
+            if (['meta_submitted', 'approved'].includes(status) && ['failed', 'blocked'].includes(numberStatus)) {
                 setVerificationState({
                     icon: 'fa-triangle-exclamation',
                     iconClass: 'bg-red-100 text-red-700',
-                    title: 'Código não enviado',
-                    message: request.number_last_error || 'Não foi possível enviar o código. Tente reenviar.',
-                    showCode: true
+                    title: 'Código não confirmado',
+                    message: request.number_last_error || 'Não foi possível confirmar o código. Tente novamente ou solicite outro envio.',
+                    showCode: true,
+                    showConfirm: true
                 });
                 stopVerificationCountdown();
-                verificationTimer.textContent = 'Código não enviado';
+                verificationTimer.textContent = 'Confirmação pendente';
                 verificationResend.disabled = false;
                 return;
             }
@@ -1061,8 +1110,8 @@
                 setVerificationState({
                     icon: 'fa-spinner fa-spin',
                     iconClass: 'bg-blue-100 text-blue-700',
-                    title: 'Solicitando código de verificação...',
-                    message: 'A aprovação foi concluída e o envio do código está em andamento.'
+                    title: 'Solicitando confirmação automática...',
+                    message: 'A aprovação foi concluída e a confirmação está em andamento.'
                 });
                 return;
             }
@@ -1097,6 +1146,12 @@
             numberRequestList.innerHTML = numberRequests.map((request) => {
                 const status = String(request.status || 'pending');
                 const numberStatus = String(request.number_status || '');
+                const internalLabel = request.internal_label || request.display_name || 'Número WhatsApp';
+                const metaName = request.display_name_meta || request.display_name || '';
+                const codeConfirmed = Boolean(request.verified_at) && numberStatus !== 'active';
+                const waitingNameApproval = numberStatus === 'pending_name_approval';
+                const nameRejected = String(request.display_name_status || '').toUpperCase() === 'REJECTED' || String(request.display_name_status || '').toUpperCase() === 'DECLINED';
+                const displayNamePending = ['PENDING', 'PENDING_REVIEW', 'IN_REVIEW', 'UNKNOWN'].includes(String(request.display_name_status || '').toUpperCase());
                 const badge = {
                     approved: 'bg-emerald-50 text-emerald-700',
                     rejected: 'bg-red-50 text-red-700',
@@ -1111,13 +1166,40 @@
                     approved: 'Aprovada',
                     rejected: 'Recusada'
                 }[status] || status;
+                const metaPending = waitingNameApproval || (numberStatus === 'active' && displayNamePending) || (codeConfirmed && canManageNumbers && Boolean(request.number_last_error));
+                const displayBadge = nameRejected ? 'bg-red-50 text-red-700' : (numberStatus === 'active' ? 'bg-emerald-50 text-emerald-700' : (metaPending ? 'bg-amber-50 text-amber-700' : (codeConfirmed ? 'bg-emerald-50 text-emerald-700' : badge)));
+                const displayStatusLabel = nameRejected ? 'Conectado - nome rejeitado' : (numberStatus === 'active' ? 'Conectado' : (metaPending ? 'Conectado - nome em análise' : (codeConfirmed ? 'Código confirmado' : statusLabel)));
+                const waitingCode = canManageNumbers && status === 'meta_submitted' && ['code_sent', 'pending_verification'].includes(numberStatus) && !codeConfirmed;
+                const statusNote = (() => {
+                    if (nameRejected) {
+                        return request.number_last_error || 'Número conectado, mas o nome comercial foi rejeitado pela Meta. Corrija o nome exibido.';
+                    }
+                    if (metaPending) {
+                        const submittedAt = request.display_name_submitted_at ? new Date(String(request.display_name_submitted_at).replace(' ', 'T')) : null;
+                        const waitingHours = submittedAt && !Number.isNaN(submittedAt.getTime()) ? (Date.now() - submittedAt.getTime()) / 3600000 : 0;
+                        if (waitingHours > 24) {
+                            return 'Nome em análise há mais de 24 horas. Sugira ao cliente revisar o nome exibido se a Meta não aprovar.';
+                        }
+                        return request.number_last_error || 'Seu número já está conectado e pode ser utilizado. O nome comercial ainda está em análise pela Meta e será exibido após aprovação.';
+                    }
+                    if (codeConfirmed && canManageNumbers) {
+                        return 'O cliente confirmou o código. Você já pode fazer a aprovação final.';
+                    }
+                    if (waitingCode) {
+                        return 'Aguardando o cliente digitar e confirmar o código recebido por SMS ou ligação.';
+                    }
+                    if (request.number_last_error && canManageNumbers) {
+                        return request.number_last_error;
+                    }
+                    return '';
+                })();
                 const sendMetaAction = canManageNumbers && ['pending', 'meta_failed'].includes(status)
                     ? `<button type="button" data-request-send-meta="${request.id}" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase">Enviar Meta</button>`
                     : '';
-                const canApprove = status === 'meta_submitted';
+                const canApprove = status === 'meta_submitted' && (numberStatus === 'active' || codeConfirmed);
                 const canReject = ['meta_submitted', 'meta_failed'].includes(status);
                 const reviewActions = canManageNumbers && (canApprove || canReject)
-                    ? `${canApprove ? `<button type="button" data-request-approve="${request.id}" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Aprovar</button>` : ''}
+                    ? `${canApprove ? `<button type="button" data-request-approve="${request.id}" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Aprovar final</button>` : ''}
                         ${canReject ? `<button type="button" data-request-reject="${request.id}" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase">Recusar</button>` : ''}`
                     : '';
                 const trackAction = !canManageNumbers && ['pending', 'meta_submitted', 'meta_failed', 'approved'].includes(status)
@@ -1138,11 +1220,13 @@
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(request.display_name || 'Número WhatsApp')}</h6>
-                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${badge}">${escapeHtml(statusLabel)}</span>
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(internalLabel)}</h6>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${displayBadge}">${escapeHtml(displayStatusLabel)}</span>
                                 ${ticketLabel}
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(request.phone_number || '')}${request.requested_by_name ? ` - ${escapeHtml(request.requested_by_name)}` : ''}</p>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">Número: ${escapeHtml(request.phone_number || '')}${request.requested_by_name ? ` - ${escapeHtml(request.requested_by_name)}` : ''}</p>
+                            ${metaName ? `<p class="text-[11px] text-slate-500 mt-1 mb-0">Nome Meta: ${escapeHtml(metaName)}${request.display_name_status ? ` - ${escapeHtml(displayNameStatusLabel(request.display_name_status))}` : ''}</p>` : ''}
+                            ${statusNote ? `<p class="text-[11px] ${metaPending ? 'text-amber-600' : (codeConfirmed ? 'text-emerald-600' : 'text-slate-500')} mt-1 mb-0">${escapeHtml(statusNote)}</p>` : ''}
                             ${request.admin_notes && (canManageNumbers || status === 'rejected') ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(request.admin_notes)}</p>` : ''}
                         </div>
                         ${actions}
@@ -1159,7 +1243,7 @@
                 return;
             }
 
-            const visibleNumbers = numbers.filter((number) => String(number.status || '') !== 'removed');
+            const visibleNumbers = numbers.filter((number) => !['removed', 'active'].includes(String(number.status || '')));
 
             if (!visibleNumbers.length) {
                 numberList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum número em validação agora.</div>';
@@ -1168,8 +1252,13 @@
 
             numberList.innerHTML = visibleNumbers.map((number) => {
                 const status = String(number.status || 'pending');
+                const internalLabel = number.internal_label || number.display_name || 'Número WhatsApp';
+                const metaName = number.display_name_meta || number.display_name || '';
                 const badge = {
                     active: 'bg-emerald-50 text-emerald-700',
+                    pending_name_approval: 'bg-emerald-50 text-emerald-700',
+                    pending_verification: 'bg-blue-50 text-blue-700',
+                    blocked: 'bg-red-50 text-red-700',
                     code_sent: 'bg-blue-50 text-blue-700',
                     failed: 'bg-red-50 text-red-700',
                     available: 'bg-slate-100 text-slate-600',
@@ -1178,30 +1267,36 @@
                 }[status] || 'bg-slate-100 text-slate-600';
                 const statusLabel = {
                     active: 'Ativo',
-                    pending: 'Aguardando código',
-                    code_sent: 'Código enviado',
+                    pending_name_approval: 'Conectado',
+                    pending_verification: 'Aguardando código',
+                    blocked: 'Bloqueado',
+                    pending: 'Aguardando confirmação',
+                    code_sent: 'Conectando',
                     failed: 'Falhou',
                     available: 'Disponível',
                     removing: 'Removendo'
                 }[status] || status;
-                const canValidate = canManageNumbers && ['pending', 'code_sent', 'failed'].includes(status) && number.meta_id;
-                const actions = canValidate
-                    ? `<div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <button type="button" data-number-send-code="${number.id}" data-method="SMS" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase">SMS</button>
-                        <button type="button" data-number-send-code="${number.id}" data-method="VOICE" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Ligação</button>
-                        <button type="button" data-number-confirm-code="${number.id}" class="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Confirmar</button>
-                    </div>`
+                const canValidate = canManageNumbers && ['pending', 'code_sent', 'failed', 'pending_verification', 'blocked'].includes(status) && number.meta_id;
+                const canRemove = canManageNumbers && !['removed', 'removing'].includes(status);
+                const actionButtons = [
+                    canValidate ? `<button type="button" data-number-send-code="${number.id}" data-method="SMS" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase">Conectar SMS</button>` : '',
+                    canValidate ? `<button type="button" data-number-send-code="${number.id}" data-method="VOICE" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Conectar ligação</button>` : '',
+                    canRemove ? `<button type="button" data-number-remove="${number.id}" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase">Excluir</button>` : ''
+                ].filter(Boolean).join('');
+                const actions = actionButtons
+                    ? `<div class="flex flex-wrap items-center gap-2 shrink-0">${actionButtons}</div>`
                     : '';
 
                 return `
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(number.display_name || 'Número WhatsApp')}</h6>
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(internalLabel)}</h6>
                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${badge}">${escapeHtml(statusLabel)}</span>
                                 ${number.origin ? `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(number.origin)}</span>` : ''}
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(number.phone_number || '')}${number.account_label ? ` - ${escapeHtml(number.account_label)}` : ''}</p>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">Número: ${escapeHtml(number.phone_number || '')}${number.account_label ? ` - ${escapeHtml(number.account_label)}` : ''}</p>
+                            ${metaName ? `<p class="text-[11px] text-slate-500 mt-1 mb-0">Nome Meta: ${escapeHtml(metaName)}${number.display_name_status ? ` - ${escapeHtml(displayNameStatusLabel(number.display_name_status))}` : ''}</p>` : ''}
                             ${number.last_error ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(number.last_error)}</p>` : ''}
                         </div>
                         ${actions}
@@ -1218,22 +1313,27 @@
                 return;
             }
 
-            if (!accounts.length) {
+            const activeAccounts = accounts.filter((account) => String(account.status || 'active') === 'active');
+
+            if (!activeAccounts.length) {
                 pageAccountList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum número WhatsApp conectado ainda.</div>';
                 return;
             }
 
-            pageAccountList.innerHTML = accounts.map((account) => {
+            pageAccountList.innerHTML = activeAccounts.map((account) => {
                 const isSelected = Number(account.id) === selectedAccountId;
+                const metaName = account.display_name_meta || account.display_name || '';
+                const numberStatus = account.number_status || 'active';
                 return `
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border ${isSelected ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-100'} mb-2">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(account.label)}</h6>
-                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(account.status || 'active')}</span>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(numberStatus === 'active' ? 'Conectado' : numberStatus)}</span>
                                 ${isSelected ? '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Selecionada</span>' : ''}
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(account.display_phone_number || '')}</p>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">Número: ${escapeHtml(account.display_phone_number || '')}</p>
+                            ${metaName ? `<p class="text-[11px] text-slate-500 mt-1 mb-0">Nome Meta: ${escapeHtml(metaName)}${account.display_name_status ? ` - ${escapeHtml(displayNameStatusLabel(account.display_name_status))}` : ''}</p>` : ''}
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <button type="button" data-account-select="${account.id}" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Usar</button>
@@ -1717,13 +1817,15 @@
             try {
                 const payload = {
                     label: document.getElementById('wa-account-label')?.value || '',
+                    display_name_meta: document.getElementById('wa-account-display-name-meta')?.value || '',
                     display_phone_number: document.getElementById('wa-account-display-phone')?.value || ''
                 };
 
                 const result = await api('/campaign/whatsapp/numbers/client', {
                     method: 'POST',
                     body: JSON.stringify({
-                        display_name: payload.label,
+                        internal_label: payload.label,
+                        display_name_meta: payload.display_name_meta,
                         phone_number: payload.display_phone_number
                     })
                 });
@@ -1749,13 +1851,15 @@
             try {
                 const payload = {
                     label: document.getElementById('wa-page-account-label')?.value || '',
+                    display_name_meta: document.getElementById('wa-page-account-display-name-meta')?.value || '',
                     display_phone_number: document.getElementById('wa-page-account-display-phone')?.value || ''
                 };
 
                 const result = await api('/campaign/whatsapp/numbers/client', {
                     method: 'POST',
                     body: JSON.stringify({
-                        display_name: payload.label,
+                        internal_label: payload.label,
+                        display_name_meta: payload.display_name_meta,
                         phone_number: payload.display_phone_number
                     })
                 });
@@ -1765,6 +1869,7 @@
                 rememberCreatedNumberRequest(result.data);
                 openVerificationModal(result.data);
                 document.getElementById('wa-page-account-label').value = '';
+                document.getElementById('wa-page-account-display-name-meta').value = '';
                 document.getElementById('wa-page-account-display-phone').value = '';
                 suppressEmptyAccountModal = true;
                 await loadNumberRequests();
@@ -1781,7 +1886,7 @@
 
             try {
                 await api(`/campaign/whatsapp/number-requests/${id}/approve`, { method: 'POST' });
-                notify('success', 'Solicitação aprovada.');
+                notify('success', 'Solicitação aprovada. Número liberado.');
                 await loadNumberRequests();
                 await loadNumbers();
                 await loadAccounts();
@@ -1827,13 +1932,15 @@
 
             try {
                 verificationResend.disabled = true;
-                verificationFeedback.textContent = 'Reenviando código...';
+                verificationFeedback.textContent = 'Solicitando confirmação automática...';
                 await api(`/campaign/whatsapp/number-requests/${activeVerificationRequestId}/resend-code`, {
                     method: 'POST',
                     body: JSON.stringify({ method })
                 });
-                verificationFeedback.textContent = 'Código reenviado.';
+                verificationFeedback.textContent = 'Número conectado.';
                 await loadNumberRequests();
+                await loadNumbers();
+                await loadAccounts();
             } catch (error) {
                 verificationFeedback.textContent = error.message;
                 notify('error', error.message);
@@ -1843,28 +1950,32 @@
 
         async function confirmVerificationModalCode() {
             if (!activeVerificationRequestId) return;
-            const code = digits(verificationCodeInput?.value || '');
+            const code = verificationCodeInput?.value || '';
             if (code.length < 4) {
                 verificationFeedback.textContent = 'Informe o código recebido.';
+                verificationFeedback.className = 'text-xs font-bold mt-3 mb-0 min-h-4 text-red-500';
                 return;
             }
 
             try {
                 verificationConfirm.disabled = true;
-                verificationFeedback.textContent = 'Validando código...';
+                verificationFeedback.textContent = 'Confirmando código...';
                 await api(`/campaign/whatsapp/number-requests/${activeVerificationRequestId}/confirm-code`, {
                     method: 'POST',
                     body: JSON.stringify({ code })
                 });
-                verificationFeedback.textContent = 'Número conectado.';
-                notify('success', 'Número conectado.');
+                verificationFeedback.textContent = 'Código confirmado. Aguarde a aprovação final.';
+                verificationFeedback.className = 'text-xs font-bold mt-3 mb-0 min-h-4 text-emerald-600';
+                notify('success', 'Código confirmado.');
                 await loadNumberRequests();
                 await loadNumbers();
-                await loadAccounts();
+                refreshVerificationModal();
             } catch (error) {
                 verificationFeedback.textContent = error.message;
+                verificationFeedback.className = 'text-xs font-bold mt-3 mb-0 min-h-4 text-red-500';
                 notify('error', error.message);
                 await loadNumberRequests();
+                await loadNumbers();
             } finally {
                 verificationConfirm.disabled = false;
             }
@@ -1876,8 +1987,9 @@
                     method: 'POST',
                     body: JSON.stringify({ method })
                 });
-                notify('success', method === 'VOICE' ? 'Ligação solicitada.' : 'SMS solicitado.');
+                notify('success', 'Código solicitado. Aguarde a confirmação do cliente.');
                 await loadNumbers();
+                await loadAccounts();
             } catch (error) {
                 notify('error', error.message);
                 await loadNumbers();
@@ -1885,19 +1997,38 @@
         }
 
         async function confirmNumberVerificationCode(id) {
-            const code = await promptVerificationCode(id);
-            if (code === null) return;
-
             try {
                 await api(`/campaign/whatsapp/numbers/${id}/confirm-code`, {
-                    method: 'POST',
-                    body: JSON.stringify({ code })
+                    method: 'POST'
                 });
                 notify('success', 'Número conectado.');
                 await loadNumbers();
                 await loadAccounts();
             } catch (error) {
                 notify('error', error.message);
+                await loadNumbers();
+            }
+        }
+
+        async function removeWhatsAppNumber(id) {
+            const confirmed = await confirmDangerAction({
+                title: 'Excluir número',
+                message: 'Este número será removido da Meta quando possível e desvinculado do sistema.',
+                confirmText: 'Excluir'
+            });
+            if (!confirmed) return;
+
+            try {
+                await api(`/campaign/whatsapp/numbers/${id}/remove`, { method: 'POST' });
+                notify('success', 'Número removido.');
+                await loadAccounts();
+                await loadNumberRequests();
+                await loadNumbers();
+                await loadConversations();
+            } catch (error) {
+                notify('error', error.message);
+                await loadAccounts();
+                await loadNumberRequests();
                 await loadNumbers();
             }
         }
@@ -1962,7 +2093,7 @@
                 messagesSignature = nextSignature;
                 renderMessages(nextMessages);
             } catch (error) {
-                setTextFeedback(sendFeedback, error.message, false);
+                setTextFeedback(sendFeedback, 'Não foi possível atualizar a conversa.', false);
             }
         }
 
@@ -2075,10 +2206,16 @@
             messages.forEach((message) => {
                 const outbound = message.direction === 'outbound';
                 const meta = renderWhatsAppStatus(message.status, outbound ? 'bubble-outbound' : 'bubble-inbound');
+                const media = message.media || message.payload?.media || null;
+                const isAudio = String(message.message_type || '') === 'audio';
+                const bodyHtml = isAudio && media?.url
+                    ? `<audio controls preload="metadata" class="wa-audio-player" src="${escapeHtml(media.url)}"></audio>`
+                    : `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">${escapeHtml(message.body || '')}</p>`;
                 const html = `
                     <div class="flex ${outbound ? 'justify-end' : 'justify-start'}">
                         <div class="${outbound ? 'bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'} p-3 rounded-2xl shadow-sm max-w-[80%]">
-                            <p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">${escapeHtml(message.body || '')}</p>
+                            ${bodyHtml}
+                            ${isAudio && !media?.url ? `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">Áudio indisponível</p>` : ''}
                             <span class="flex items-center justify-end gap-1 text-[9px] ${outbound ? 'text-emerald-100' : 'text-slate-400'} text-right mt-1 font-bold uppercase">
                                 <span>${formatTime(message.created_at)}</span>
                                 ${meta}
@@ -2131,6 +2268,10 @@
                 markUnreadBtn.disabled = !hasConversation || unread;
                 markUnreadBtn.classList.toggle('is-active', hasConversation && unread);
             }
+
+            if (audioBtn) {
+                audioBtn.disabled = !hasConversation;
+            }
         }
 
         async function setSelectedConversationReadState(read) {
@@ -2169,14 +2310,45 @@
                 });
 
                 msgInput.value = '';
-                setTextFeedback(sendFeedback, result.message || 'Enviado.', true);
+                setTextFeedback(sendFeedback, 'Mensagem enviada.', true);
                 await loadConversations(false, true);
                 await openConversation(result.conversation_id || selectedConversation.id);
             } catch (error) {
-                setTextFeedback(sendFeedback, error.message, false);
+                setTextFeedback(sendFeedback, sendErrorFeedback(error.message), false);
                 await openConversation(selectedConversation.id);
             } finally {
                 sendBtn.disabled = false;
+            }
+        }
+
+        async function sendCurrentAudio(file) {
+            if (!selectedConversation || !file) return;
+
+            setTextFeedback(sendFeedback, 'Enviando áudio...', null);
+            if (audioBtn) audioBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('account_id', selectedAccountId);
+            formData.append('to', selectedConversation.contact_phone);
+            formData.append('name', selectedConversation.contact_name || '');
+            formData.append('message_type', 'audio');
+            formData.append('audio', file);
+
+            try {
+                const result = await api('/campaign/whatsapp/messages/send', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                setTextFeedback(sendFeedback, 'Áudio enviado.', true);
+                await loadConversations(false, true);
+                await openConversation(result.conversation_id || selectedConversation.id);
+            } catch (error) {
+                setTextFeedback(sendFeedback, sendErrorFeedback(error.message), false);
+                await openConversation(selectedConversation.id);
+            } finally {
+                if (audioInput) audioInput.value = '';
+                if (audioBtn) audioBtn.disabled = !selectedConversation;
             }
         }
 
@@ -2189,30 +2361,44 @@
             const templateName = document.getElementById('wa-new-chat-template-name')?.value || 'hello_world';
             const templateLanguage = document.getElementById('wa-new-chat-template-language')?.value || 'en_US';
             const templateComponents = document.getElementById('wa-new-chat-template-components')?.value || '';
+            const audioFile = document.getElementById('wa-new-chat-audio')?.files?.[0] || null;
 
             setTextFeedback(feedback, 'Enviando...', null);
 
             try {
-                const result = await api('/campaign/whatsapp/messages/send', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        account_id: selectedAccountId,
-                        to: phone,
-                        name,
-                        message_type: messageType,
-                        message,
-                        template_name: templateName,
-                        template_language: templateLanguage,
-                        template_components: templateComponents
-                    })
-                });
+                let requestOptions;
+                if (messageType === 'audio') {
+                    const formData = new FormData();
+                    formData.append('account_id', selectedAccountId);
+                    formData.append('to', phone);
+                    formData.append('name', name);
+                    formData.append('message_type', 'audio');
+                    if (audioFile) formData.append('audio', audioFile);
+                    requestOptions = { method: 'POST', body: formData };
+                } else {
+                    requestOptions = {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            account_id: selectedAccountId,
+                            to: phone,
+                            name,
+                            message_type: messageType,
+                            message,
+                            template_name: templateName,
+                            template_language: templateLanguage,
+                            template_components: templateComponents
+                        })
+                    };
+                }
 
-                setTextFeedback(feedback, result.message || 'Enviado.', true);
+                const result = await api('/campaign/whatsapp/messages/send', requestOptions);
+
+                setTextFeedback(feedback, 'Mensagem enviada.', true);
                 modal(newChatModal, false);
                 await loadConversations(false, true);
                 await openConversation(result.conversation_id);
             } catch (error) {
-                setTextFeedback(feedback, error.message, false);
+                setTextFeedback(feedback, sendErrorFeedback(error.message), false);
             }
         }
 
@@ -2234,9 +2420,12 @@
         }
 
         function toggleNewChatType() {
-            const isTemplate = (newChatType?.value || 'template') === 'template';
+            const type = newChatType?.value || 'template';
+            const isTemplate = type === 'template';
+            const isAudio = type === 'audio';
             newChatTemplateFields?.classList.toggle('hidden', !isTemplate);
-            newChatMessageField?.classList.toggle('hidden', isTemplate);
+            newChatMessageField?.classList.toggle('hidden', isTemplate || isAudio);
+            newChatAudioField?.classList.toggle('hidden', !isAudio);
         }
 
         async function deleteSelectedConversation() {
@@ -2325,13 +2514,13 @@
                 return;
             }
 
-            const confirmCodeBtn = event.target.closest('[data-number-confirm-code]');
-            if (confirmCodeBtn) {
-                confirmCodeBtn.disabled = true;
-                confirmCodeBtn.classList.add('opacity-60', 'cursor-wait');
-                await confirmNumberVerificationCode(confirmCodeBtn.dataset.numberConfirmCode);
-                confirmCodeBtn.disabled = false;
-                confirmCodeBtn.classList.remove('opacity-60', 'cursor-wait');
+            const removeBtn = event.target.closest('[data-number-remove]');
+            if (removeBtn) {
+                removeBtn.disabled = true;
+                removeBtn.classList.add('opacity-60', 'cursor-wait');
+                await removeWhatsAppNumber(removeBtn.dataset.numberRemove);
+                removeBtn.disabled = false;
+                removeBtn.classList.remove('opacity-60', 'cursor-wait');
             }
         });
         numberRequestList?.addEventListener('click', async (event) => {
@@ -2447,6 +2636,11 @@
             notify('success', 'Qualidade dos números sincronizada.');
         });
         sendBtn.addEventListener('click', sendCurrentMessage);
+        audioBtn?.addEventListener('click', () => audioInput?.click());
+        audioInput?.addEventListener('change', () => {
+            const file = audioInput.files?.[0] || null;
+            if (file) sendCurrentAudio(file);
+        });
         msgInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -2469,6 +2663,12 @@
             await loadConversations(false);
             await refreshCurrentConversation();
         }, 15000);
+        window.setInterval(refreshNumberConnectionRealtime, 7000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                refreshNumberConnectionRealtime();
+            }
+        });
     });
 </script>
 
@@ -2744,6 +2944,11 @@
         border-radius: 999px;
         background: #f97316;
         box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
+    }
+    .wa-audio-player {
+        width: min(260px, 62vw);
+        height: 38px;
+        display: block;
     }
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(5px); }

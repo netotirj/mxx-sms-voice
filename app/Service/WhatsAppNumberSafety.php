@@ -48,6 +48,26 @@ class WhatsAppNumberSafety
     {
         $accountId = (int)$account['id'];
         $health = self::ensureHealth($account);
+        try {
+            $verification = self::syncVerificationStatus($account);
+        } catch (\Throwable $e) {
+            return [
+                'allowed' => false,
+                'delay_seconds' => 300,
+                'reason' => $e->getMessage(),
+                'snapshot' => self::calculateSnapshot($account, $health),
+            ];
+        }
+
+        if (!$verification['verified']) {
+            return [
+                'allowed' => false,
+                'delay_seconds' => 3600,
+                'reason' => self::unverifiedMessage($verification['status']),
+                'snapshot' => self::calculateSnapshot($account, $health),
+            ];
+        }
+
         $snapshot = self::calculateSnapshot($account, $health);
         self::persistSnapshot($account, $snapshot);
 
@@ -133,16 +153,65 @@ class WhatsAppNumberSafety
 
     public static function syncFromMeta(array $account): array
     {
-        $result = (new MetaWhatsAppCloudApi())->getPhoneNumber(
+        $verification = self::fetchVerificationStatus(
             (string)$account['access_token'],
             (string)$account['phone_number_id']
         );
 
-        if (!$result['ok']) {
-            throw new \RuntimeException($result['error'] ?: 'Falha ao consultar qualidade do número.');
+        $snapshot = self::updateFromMetaPayload($account, $verification['payload'], 'api');
+        if (!$verification['verified']) {
+            self::demoteUnverifiedAccount($account, $verification['status']);
         }
 
-        return self::updateFromMetaPayload($account, $result['data'], 'api');
+        return $snapshot;
+    }
+
+    public static function assertVerifiedForUse(array $account): array
+    {
+        $verification = self::syncVerificationStatus($account);
+        if (!$verification['verified']) {
+            throw new \RuntimeException(self::unverifiedMessage($verification['status']));
+        }
+
+        return $verification['payload'];
+    }
+
+    public static function syncVerificationStatus(array $account): array
+    {
+        $verification = self::fetchVerificationStatus(
+            (string)$account['access_token'],
+            (string)$account['phone_number_id']
+        );
+
+        self::updateFromMetaPayload($account, $verification['payload'], 'verification_check');
+        if (!$verification['verified']) {
+            self::demoteUnverifiedAccount($account, $verification['status']);
+        }
+
+        self::syncDisplayNameStatusForAccount($account, $verification);
+
+        return $verification;
+    }
+
+    public static function fetchVerificationStatus(string $accessToken, string $phoneNumberId): array
+    {
+        $result = (new MetaWhatsAppCloudApi())->getPhoneNumber($accessToken, $phoneNumberId);
+
+        if (!$result['ok']) {
+            throw new \RuntimeException($result['error'] ?: 'Falha ao consultar status de verificação do número na Meta.');
+        }
+
+        $status = strtoupper((string)($result['data']['code_verification_status'] ?? ''));
+        $nameStatus = strtoupper((string)($result['data']['name_status'] ?? ''));
+        $newNameStatus = strtoupper((string)($result['data']['new_name_status'] ?? ''));
+
+        return [
+            'verified' => $status === 'VERIFIED',
+            'status' => $status !== '' ? $status : 'UNKNOWN',
+            'name_status' => $nameStatus !== '' ? $nameStatus : 'UNKNOWN',
+            'new_name_status' => $newNameStatus !== '' ? $newNameStatus : 'UNKNOWN',
+            'payload' => $result['data'],
+        ];
     }
 
     public static function syncAllForUser(array $user): array
@@ -155,7 +224,7 @@ class WhatsAppNumberSafety
         $summary = ['synced' => 0, 'failed' => 0, 'errors' => []];
         foreach ($accounts as $account) {
             try {
-                self::syncFromMeta($account);
+                self::syncVerificationStatus($account);
                 $summary['synced']++;
             } catch (\Throwable $e) {
                 $summary['failed']++;
@@ -167,6 +236,69 @@ class WhatsAppNumberSafety
         }
 
         return $summary;
+    }
+
+    private static function isDisplayNameApproved(array $verification): bool
+    {
+        $status = self::currentDisplayNameStatus($verification);
+        return in_array($status, ['APPROVED', 'AVAILABLE_WITHOUT_REVIEW'], true);
+    }
+
+    private static function isDisplayNameRejected(array $verification): bool
+    {
+        $status = self::currentDisplayNameStatus($verification);
+        return in_array($status, ['REJECTED', 'DECLINED'], true);
+    }
+
+    private static function currentDisplayNameStatus(array $verification): string
+    {
+        $newStatus = strtoupper((string)($verification['new_name_status'] ?? ''));
+        if ($newStatus !== '' && $newStatus !== 'UNKNOWN') {
+            return $newStatus;
+        }
+
+        $status = strtoupper((string)($verification['name_status'] ?? ''));
+        return $status !== '' ? $status : 'UNKNOWN';
+    }
+
+    private static function syncDisplayNameStatusForAccount(array $account, array $verification): void
+    {
+        $accountId = (int)($account['id'] ?? 0);
+        $phoneNumberId = (string)($account['phone_number_id'] ?? '');
+        if ($accountId <= 0 || $phoneNumberId === '') {
+            return;
+        }
+
+        $displayNameStatus = self::currentDisplayNameStatus($verification);
+        $lastError = null;
+        if (self::isDisplayNameRejected($verification)) {
+            $lastError = 'Número conectado, mas o nome comercial foi rejeitado pela Meta. Corrija o nome exibido.';
+        } elseif (!self::isDisplayNameApproved($verification)) {
+            $lastError = 'Seu número já está conectado e pode ser utilizado. O nome comercial ainda está em análise pela Meta e será exibido após aprovação.';
+        }
+
+        (new Database('whatsapp_numbers'))->execute(
+            "UPDATE whatsapp_numbers
+             SET status = 'active',
+                 display_name_status = :display_name_status,
+                 display_name_rejected_at = IF(:is_rejected = 1, NOW(), display_name_rejected_at),
+                 display_name_last_checked_at = NOW(),
+                 last_error = :last_error,
+                 last_meta_error = :last_meta_error,
+                 last_meta_error_at = IF(:has_last_meta_error = 1, NOW(), NULL),
+                 updated_at = NOW()
+             WHERE whatsapp_account_id = :account_id
+                OR meta_id = :phone_number_id",
+            [
+                ':display_name_status' => $displayNameStatus,
+                ':last_error' => $lastError,
+                ':last_meta_error' => $lastError,
+                ':has_last_meta_error' => $lastError !== null ? 1 : 0,
+                ':is_rejected' => self::isDisplayNameRejected($verification) ? 1 : 0,
+                ':account_id' => $accountId,
+                ':phone_number_id' => $phoneNumberId,
+            ]
+        );
     }
 
     public static function handleMetaWebhook(array $value): void
@@ -224,6 +356,70 @@ class WhatsAppNumberSafety
         );
 
         return $snapshot;
+    }
+
+    private static function unverifiedMessage(string $status): string
+    {
+        return 'Número WhatsApp bloqueado: status de verificação na Meta é '
+            . ($status !== '' ? $status : 'UNKNOWN')
+            . '. Confirme o código na Meta antes de usar este número.';
+    }
+
+    private static function demoteUnverifiedAccount(array $account, string $status): void
+    {
+        $accountId = (int)($account['id'] ?? 0);
+        $phoneNumberId = (string)($account['phone_number_id'] ?? '');
+        if ($accountId <= 0 || $phoneNumberId === '') {
+            return;
+        }
+
+        $isNamePending = $status === 'PENDING_NAME_APPROVAL';
+        $isNameRejected = $status === 'DISPLAY_NAME_REJECTED';
+        $message = $isNamePending
+            ? 'Seu número já está conectado e pode ser utilizado. O nome comercial ainda está em análise pela Meta e será exibido após aprovação.'
+            : ($isNameRejected ? 'Nome exibido rejeitado pela Meta. Corrija o nome antes de usar este número.' : self::unverifiedMessage($status));
+        $numberStatus = $isNamePending ? 'pending_name_approval' : ($isNameRejected ? 'blocked' : 'pending_verification');
+
+        (new Database('whatsapp_accounts'))->update('id = :id', [
+            'status' => 'inactive',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], [':id' => $accountId]);
+
+        (new Database('whatsapp_numbers'))->execute(
+            "UPDATE whatsapp_numbers
+             SET whatsapp_account_id = NULL,
+                 status = :number_status,
+                 verified_at = IF(:keep_verified = 1, verified_at, NULL),
+                 display_name_rejected_at = IF(:is_name_rejected = 1, NOW(), display_name_rejected_at),
+                 last_error = :last_error,
+                 last_meta_error = :last_meta_error,
+                 last_meta_error_at = NOW(),
+                 updated_at = NOW()
+             WHERE whatsapp_account_id = :account_id
+                OR meta_id = :phone_number_id",
+            [
+                ':last_error' => $message,
+                ':last_meta_error' => $message,
+                ':number_status' => $numberStatus,
+                ':keep_verified' => $numberStatus === 'pending_verification' ? 0 : 1,
+                ':is_name_rejected' => $isNameRejected ? 1 : 0,
+                ':account_id' => $accountId,
+                ':phone_number_id' => $phoneNumberId,
+            ]
+        );
+
+        (new Database('whatsapp_outbox'))->execute(
+            "UPDATE whatsapp_outbox
+             SET status = 'failed',
+                 error_message = :error_message,
+                 updated_at = NOW()
+             WHERE account_id = :account_id
+               AND status IN ('queued', 'sending')",
+            [
+                ':error_message' => $message,
+                ':account_id' => $accountId,
+            ]
+        );
     }
 
     private static function ensureHealth(array $account): array

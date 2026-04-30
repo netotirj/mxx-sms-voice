@@ -538,12 +538,13 @@ class Voice extends ViewComponents
             //   CRIA CANAL DE ESCUTA (Spy)
             // -------------------------------
 
-            $targetChannel = $callId;
+            $targetChannel = self::resolveSpyChannelName($client, $ariBase, $callId);
             $spyChannel = "PJSIP/{$adminExtension}";
 
             // Variáveis enviadas ao dialplan
             $variables = [
                 'SPY_CHANNEL' => $targetChannel,
+                'SPY_CHANNEL_ID' => $callId,
                 'SPY_OPTS' => $spyOpts,   // ← Aqui você coloca as opções desejadas
                 'SPY_NUMBER' => $spyNumber,
                 'SPY_DESTINATION' => $spyDestination,
@@ -586,6 +587,7 @@ class Voice extends ViewComponents
                     'spy_channel_id' => $body['id'] ?? null,
                     'admin_extension' => $adminExtension,
                     'target_channel' => $targetChannel,
+                    'target_channel_id' => $callId,
                     'variables_sent' => $variables,
                 ]
             ], 'application/json');
@@ -605,6 +607,32 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
+    }
+
+    private static function resolveSpyChannelName(Client $client, string $ariBase, string $callId): string
+    {
+        if (str_contains($callId, '/')) {
+            return $callId;
+        }
+
+        try {
+            $res = $client->get("{$ariBase}channels/" . rawurlencode($callId), [
+                'http_errors' => false,
+            ]);
+
+            if ($res->getStatusCode() >= 200 && $res->getStatusCode() < 300) {
+                $body = json_decode((string)$res->getBody(), true);
+                $name = trim((string)($body['name'] ?? ''));
+
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        } catch (GuzzleException) {
+            // Mantem o fluxo atual: se nao conseguir resolver, usa o valor original.
+        }
+
+        return $callId;
     }
 
 

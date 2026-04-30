@@ -19,6 +19,40 @@ CREATE TABLE IF NOT EXISTS whatsapp_accounts (
     KEY idx_whatsapp_accounts_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS plan_whatsapp_pricing (
+    plan_id INT UNSIGNED NOT NULL,
+    category ENUM('marketing', 'utility') NOT NULL,
+    price_brl DECIMAL(10, 4) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (plan_id, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS whatsapp_message_cdr (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    client_id INT UNSIGNED NOT NULL,
+    tenancy_id VARCHAR(64) NOT NULL,
+    type VARCHAR(32) NOT NULL DEFAULT 'whatsapp',
+    phone_number VARCHAR(32) NOT NULL,
+    message_category ENUM('marketing', 'utility', 'service') NOT NULL,
+    template_name VARCHAR(160) NULL,
+    direction ENUM('outbound', 'inbound') NOT NULL,
+    price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0,
+    billed TINYINT(1) NOT NULL DEFAULT 0,
+    status ENUM('sent', 'failed', 'blocked') NOT NULL,
+    whatsapp_outbox_id BIGINT UNSIGNED NULL,
+    whatsapp_message_id INT UNSIGNED NULL,
+    wamid VARCHAR(255) NULL,
+    error_message TEXT NULL,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_whatsapp_cdr_client (client_id, timestamp),
+    KEY idx_whatsapp_cdr_tenancy (tenancy_id, timestamp),
+    KEY idx_whatsapp_cdr_status (status, timestamp),
+    KEY idx_whatsapp_cdr_category (message_category, billed, timestamp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS whatsapp_campaigns (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     tenancy_id VARCHAR(64) NOT NULL,
@@ -32,7 +66,6 @@ CREATE TABLE IF NOT EXISTS whatsapp_campaigns (
     template_category ENUM('MARKETING', 'UTILITY', 'AUTHENTICATION') NULL,
     template_components JSON NULL,
     scheduled_at DATETIME NULL,
-    estimated_cost_usd DECIMAL(12, 6) NOT NULL DEFAULT 0,
     total_recipients INT UNSIGNED NOT NULL DEFAULT 0,
     sent_count INT UNSIGNED NOT NULL DEFAULT 0,
     failed_count INT UNSIGNED NOT NULL DEFAULT 0,
@@ -58,7 +91,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_templates (
     category ENUM('MARKETING', 'UTILITY', 'AUTHENTICATION') NOT NULL DEFAULT 'MARKETING',
     body TEXT NULL,
     components JSON NULL,
-    status ENUM('draft', 'pending', 'approved', 'rejected', 'paused') NOT NULL DEFAULT 'approved',
+    status ENUM('draft', 'pending', 'approved', 'rejected', 'paused') NOT NULL DEFAULT 'pending',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -122,8 +155,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
     template_name VARCHAR(160) NULL,
     template_category ENUM('MARKETING', 'UTILITY', 'AUTHENTICATION') NULL,
     service_window_open TINYINT(1) NOT NULL DEFAULT 0,
-    billable_estimate TINYINT(1) NOT NULL DEFAULT 0,
-    estimated_cost_usd DECIMAL(12, 6) NOT NULL DEFAULT 0,
+    message_category ENUM('marketing', 'utility', 'service') NULL,
+    price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0,
+    billed TINYINT(1) NOT NULL DEFAULT 0,
     body TEXT NULL,
     status ENUM('pending', 'sent', 'delivered', 'read', 'failed', 'received') NOT NULL DEFAULT 'sent',
     error_message TEXT NULL,
@@ -134,7 +168,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
     UNIQUE KEY uq_whatsapp_messages_wamid (wamid),
     KEY idx_whatsapp_messages_conversation (conversation_id),
     KEY idx_whatsapp_messages_account (account_id),
-    KEY idx_whatsapp_messages_cost (template_category, billable_estimate, created_at),
+    KEY idx_whatsapp_messages_billing (message_category, billed, created_at),
     CONSTRAINT fk_whatsapp_messages_conversation
         FOREIGN KEY (conversation_id) REFERENCES whatsapp_conversations(id)
         ON DELETE CASCADE,
@@ -177,8 +211,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_outbox (
     template_category ENUM('MARKETING', 'UTILITY', 'AUTHENTICATION') NULL,
     template_components JSON NULL,
     service_window_open TINYINT(1) NOT NULL DEFAULT 0,
-    billable_estimate TINYINT(1) NOT NULL DEFAULT 0,
-    estimated_cost_usd DECIMAL(12, 6) NOT NULL DEFAULT 0,
+    message_category ENUM('marketing', 'utility', 'service') NOT NULL,
+    price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0,
+    billed TINYINT(1) NOT NULL DEFAULT 0,
     status ENUM('queued', 'sending', 'sent', 'failed', 'cancelled') NOT NULL DEFAULT 'queued',
     attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
     max_attempts TINYINT UNSIGNED NOT NULL DEFAULT 3,
@@ -192,6 +227,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_outbox (
     KEY idx_whatsapp_outbox_due (status, available_at),
     KEY idx_whatsapp_outbox_campaign (campaign_id, template_category, status),
     KEY idx_whatsapp_outbox_account (account_id, status),
+    KEY idx_whatsapp_outbox_billing (message_category, billed, status),
     KEY idx_whatsapp_outbox_phone (contact_phone),
     CONSTRAINT fk_whatsapp_outbox_account
         FOREIGN KEY (account_id) REFERENCES whatsapp_accounts(id)

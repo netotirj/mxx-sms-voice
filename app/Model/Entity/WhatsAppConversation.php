@@ -52,7 +52,7 @@ class WhatsAppConversation
 
     public static function listForUser(array $user, ?int $accountId = null): array
     {
-        $where = TenancyHelper::applySecurityFilter('', $user, 'user_id', 'wc');
+        $where = TenancyHelper::applySecurityFilter("wa.status = 'active'", $user, 'user_id', 'wc');
         $params = [];
 
         if ($accountId !== null && $accountId > 0) {
@@ -100,9 +100,24 @@ class WhatsAppConversation
         self::update($conversationId, ['unread_count' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
         self::markInboundMessagesRead($conversationId);
 
-        return (new Database('whatsapp_messages'))
+        $rows = (new Database('whatsapp_messages'))
             ->select('conversation_id = :conversation_id', [':conversation_id' => $conversationId], 'id ASC')
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($rows as &$row) {
+            $payload = json_decode((string)($row['payload'] ?? ''), true);
+            $row['payload'] = is_array($payload) ? $payload : null;
+            unset($row['price_brl']);
+            if (is_array($row['payload']['billing'] ?? null)) {
+                unset($row['payload']['billing']['price_brl']);
+            }
+            $row['media'] = is_array($row['payload'] ?? null) && isset($row['payload']['media']) && is_array($row['payload']['media'])
+                ? $row['payload']['media']
+                : null;
+        }
+        unset($row);
+
+        return $rows;
     }
 
     public static function markReadForUser(int $conversationId, array $user): bool
@@ -149,6 +164,12 @@ class WhatsAppConversation
             'wamid' => $data['wamid'] ?? null,
             'direction' => $data['direction'],
             'message_type' => $data['message_type'] ?? 'text',
+            'template_name' => $data['template_name'] ?? null,
+            'template_category' => $data['template_category'] ?? null,
+            'service_window_open' => (int)($data['service_window_open'] ?? 0),
+            'message_category' => isset($data['message_category']) ? strtolower((string)$data['message_category']) : null,
+            'price_brl' => (float)($data['price_brl'] ?? 0),
+            'billed' => (int)($data['billed'] ?? 0),
             'body' => $data['body'] ?? null,
             'status' => $data['status'] ?? 'sent',
             'error_message' => $data['error_message'] ?? null,
@@ -305,13 +326,34 @@ class WhatsAppConversation
         }
 
         if ($payload !== []) {
-            $values['payload'] = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $existingPayload = [];
+            $payloadRow = (new Database('whatsapp_messages'))
+                ->select('wamid = :wamid', [':wamid' => $wamid], '', '1', ['payload'])
+                ->fetch(PDO::FETCH_ASSOC);
+            if (!empty($payloadRow['payload'])) {
+                $decodedPayload = json_decode((string)$payloadRow['payload'], true);
+                $existingPayload = is_array($decodedPayload) ? $decodedPayload : [];
+            }
+
+            $values['payload'] = json_encode(array_merge($existingPayload, $payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         return (new Database('whatsapp_messages'))->update(
             'wamid = :wamid',
             $values,
             [':wamid' => $wamid]
+        );
+    }
+
+    public static function markMessageBilled(int $id): bool
+    {
+        return (new Database('whatsapp_messages'))->update(
+            'id = :id',
+            [
+                'billed' => 1,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [':id' => $id]
         );
     }
 

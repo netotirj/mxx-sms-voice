@@ -68,6 +68,60 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    public function sendAudioLink(string $accessToken, string $phoneNumberId, string $to, string $audioUrl): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return $this->fakeMessageResponse($to);
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'audio',
+            'audio' => [
+                'link' => $audioUrl,
+            ],
+        ]);
+    }
+
+    public function getMedia(string $accessToken, string $mediaId): array
+    {
+        return $this->request('GET', $mediaId, $accessToken);
+    }
+
+    public function downloadMediaToFile(string $accessToken, string $mediaUrl, string $targetPath): array
+    {
+        $response = $this->client->request('GET', $mediaUrl, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept' => '*/*',
+            ],
+        ]);
+
+        $status = $response->getStatusCode();
+        if ($status < 200 || $status >= 300) {
+            return [
+                'ok' => false,
+                'status' => $status,
+                'data' => [],
+                'error' => 'Falha ao baixar mídia da Meta.',
+            ];
+        }
+
+        file_put_contents($targetPath, (string)$response->getBody());
+
+        return [
+            'ok' => true,
+            'status' => $status,
+            'data' => [
+                'path' => $targetPath,
+                'size' => filesize($targetPath) ?: 0,
+            ],
+            'error' => null,
+        ];
+    }
+
     public function getMe(string $accessToken): array
     {
         return $this->request('GET', 'me', $accessToken);
@@ -142,6 +196,8 @@ class MetaWhatsAppCloudApi
                     'id' => $phoneNumberId,
                     'display_phone_number' => 'local-test',
                     'verified_name' => 'Ambiente local',
+                    'name_status' => 'APPROVED',
+                    'new_name_status' => null,
                     'quality_rating' => 'GREEN',
                     'messaging_limit_tier' => 'TIER_1K',
                     'code_verification_status' => 'VERIFIED',
@@ -153,7 +209,7 @@ class MetaWhatsAppCloudApi
 
         return $this->request('GET', $phoneNumberId, $accessToken, [
             'query' => [
-                'fields' => 'id,display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status,platform_type',
+                'fields' => 'id,display_phone_number,verified_name,name_status,new_display_name,new_name_status,quality_rating,messaging_limit_tier,code_verification_status,platform_type',
             ],
         ]);
     }
@@ -184,6 +240,24 @@ class MetaWhatsAppCloudApi
                 'cc' => $countryCode,
                 'phone_number' => $phoneNumber,
                 'verified_name' => $verifiedName,
+            ],
+        ]);
+    }
+
+    public function updatePhoneNumberDisplayName(string $accessToken, string $phoneNumberId, string $displayName): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $phoneNumberId, $accessToken, [
+            'query' => [
+                'new_display_name' => $displayName,
             ],
         ]);
     }
@@ -280,8 +354,27 @@ class MetaWhatsAppCloudApi
         $options['headers']['Content-Type'] = 'application/json';
 
         $response = $this->client->request($method, ltrim($uri, '/'), $options);
+        $result = $this->responseToArray($response);
 
-        return $this->responseToArray($response);
+        if (
+            str_contains($uri, '/request_code')
+            || str_contains($uri, '/verify_code')
+            || str_contains($uri, '/register')
+            || array_key_exists('new_display_name', $options['query'] ?? [])
+            || ($method === 'POST' && str_ends_with($uri, '/phone_numbers'))
+        ) {
+            error_log(json_encode([
+                'event' => 'meta_whatsapp_api_response',
+                'method' => $method,
+                'endpoint' => ltrim($uri, '/'),
+                'status' => $result['status'],
+                'ok' => $result['ok'],
+                'error' => $result['error'],
+                'response' => $result['data'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+
+        return $result;
     }
 
     private function responseToArray($response): array

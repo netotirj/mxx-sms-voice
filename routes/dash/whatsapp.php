@@ -197,6 +197,42 @@ $obRouter->post('/campaign/whatsapp/numbers/{id}/confirm-code', [
     }
 ]);
 
+$obRouter->post('/whatsapp/verification', [
+    'name' => '/whatsapp/verification',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        $input = json_decode(file_get_contents('php://input') ?: '', true);
+        $input = is_array($input) ? $input : $_POST;
+        $id = $input['request_id'] ?? null;
+        if ($id !== null && $id !== '') {
+            return Pages\WhatsApp::resendNumberRequestCode($request, $id);
+        }
+
+        return Pages\WhatsApp::sendNumberVerificationCode($request, $input['number_id'] ?? $input['id'] ?? 0);
+    }
+]);
+
+$obRouter->post('/whatsapp/confirm-number', [
+    'name' => '/whatsapp/confirm-number',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        $input = json_decode(file_get_contents('php://input') ?: '', true);
+        $input = is_array($input) ? $input : $_POST;
+        $id = $input['request_id'] ?? null;
+        if ($id !== null && $id !== '') {
+            return Pages\WhatsApp::confirmNumberRequestCode($request, $id);
+        }
+
+        return Pages\WhatsApp::confirmNumberVerificationCode($request, $input['number_id'] ?? $input['id'] ?? 0);
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/numbers/{id}/remove', [
     'name' => '/campaign/whatsapp/numbers/{id}/remove',
     'middlewares' => [
@@ -210,6 +246,17 @@ $obRouter->post('/campaign/whatsapp/numbers/{id}/remove', [
 
 $obRouter->post('/campaign/whatsapp/accounts', [
     'name' => '/campaign/whatsapp/accounts/create',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::createAccount();
+    }
+]);
+
+$obRouter->post('/whatsapp/connection', [
+    'name' => '/whatsapp/connection',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'
@@ -463,6 +510,17 @@ $obRouter->post('/campaign/whatsapp/conversations/{id}/delete', [
 
 $obRouter->post('/campaign/whatsapp/messages/send', [
     'name' => '/campaign/whatsapp/messages/send',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::sendDirectMessage();
+    }
+]);
+
+$obRouter->post('/whatsapp/send-message', [
+    'name' => '/whatsapp/send-message',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'

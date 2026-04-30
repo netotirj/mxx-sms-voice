@@ -11,6 +11,19 @@
   box-shadow: 0 22px 60px rgba(2, 6, 23, 0.34);
   isolation: isolate;
   overflow: hidden;
+  color: #ffffff;
+}
+
+.notyf__toast--success {
+  background: #10b981;
+}
+
+.notyf__toast--error {
+  background: #e11d48;
+}
+
+.notyf__toast--info {
+  background: #334155;
 }
 
 .notyf__ripple {

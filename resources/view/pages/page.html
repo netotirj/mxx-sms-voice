@@ -1067,9 +1067,16 @@
 
     <script>
     const notyf = new Notyf({
-    duration: 4000,
-    position: { x: 'right', y: 'top' }
+        duration: 4000,
+        ripple: false,
+        position: { x: 'right', y: 'top' },
+        types: [
+            { type: 'success', backgroundColor: '#10b981', icon: { className: 'notyf__icon--success', tagName: 'i' } },
+            { type: 'error', backgroundColor: '#e11d48', icon: { className: 'notyf__icon--error', tagName: 'i' } },
+            { type: 'info', className: 'notyf__toast--info', backgroundColor: '#334155', icon: false }
+        ]
     });
+    window.notyf = window.notyf || notyf;
     </script>
 
 <script>

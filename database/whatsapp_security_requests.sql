@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS number_requests (
     owner_type ENUM('admin', 'client', 'reseller') NOT NULL DEFAULT 'client',
     owner_id INT UNSIGNED NOT NULL,
     phone_number VARCHAR(32) NOT NULL,
+    internal_label VARCHAR(160) NULL,
+    display_name_meta VARCHAR(128) NULL,
     display_name VARCHAR(160) NULL,
     status ENUM('pending', 'meta_submitted', 'meta_failed', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
     admin_notes TEXT NULL,

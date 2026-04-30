@@ -261,8 +261,8 @@ $obRouter->post('/campaign/voice/listening', [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function ($request, $id) {
-        return new Response(200, Pages\Voice::getVoiceListening($request, $id));
+    function ($request) {
+        return new Response(200, Pages\Voice::getVoiceListening($request));
     }
 ]);
 
@@ -273,8 +273,8 @@ $obRouter->post('/campaign/voice/stop-listening', [
         'require-session-login',
         'require-permissions-tenancies'
     ],
-    function ($request, $id) {
-        return new Response(200, Pages\Voice::setVoiceListeningHangup($request, $id));
+    function ($request) {
+        return new Response(200, Pages\Voice::setVoiceListeningHangup($request));
     }
 ]);
 

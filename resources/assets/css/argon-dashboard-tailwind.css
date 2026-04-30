@@ -5955,6 +5955,11 @@ h6 {
   cursor: not-allowed;
 }
 
+.disabled\:text-slate-300:disabled {
+  --tw-text-opacity: 1;
+  color: rgb(168 184 216 / var(--tw-text-opacity, 1));
+}
+
 .disabled\:opacity-30:disabled {
   opacity: 0.3;
 }
@@ -6983,10 +6988,6 @@ h6 {
 
   .xl\:left-\[18\%\] {
     left: 18%;
-  }
-
-  .xl\:col-span-12 {
-    grid-column: span 12 / span 12;
   }
 
   .xl\:col-span-5 {

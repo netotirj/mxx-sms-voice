@@ -11,8 +11,9 @@ class WhatsAppOutboxWorker
 {
     public function runOnce(int $limit = 50, ?string $cancelCategory = null): array
     {
+        $requeued = WhatsAppOutbox::resetStaleSending();
         $rows = WhatsAppOutbox::nextDue($limit, $cancelCategory);
-        $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0];
+        $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => $requeued];
 
         foreach ($rows as $row) {
             $summary['processed']++;

@@ -282,6 +282,7 @@
 
         let isListening = false;
         let listeningCallId = null;
+        let listeningSpyChannelId = null;
 
         const listenBadge = document.getElementById('listenBadge');
         const stopListeningBtn = document.getElementById('stopListening');
@@ -698,14 +699,15 @@
             currentCalls
                 .filter(c => (c.status || '').includes('Atendida'))
                 .forEach(call => {
-                    const selected = isListening && listeningCallId === call.name;
+                    const callId = String(call.id ?? call.name ?? '');
+                    const selected = isListening && listeningCallId === callId;
 
                     activeCallsList.insertAdjacentHTML('beforeend', `
                 <label class="flex items-center gap-3 p-2 border-b last:border-none cursor-pointer
                        ${selected ? 'bg-blue-50 border-blue-300' : ''}">
                     <input type="radio"
                            name="selectedCall"
-                           value="${call.name}"
+                           value="${callId}"
                            ${selected ? 'checked' : ''}
                            class="text-blue-600">
 
@@ -738,7 +740,7 @@
                 return;
             }
 
-            const selectedCall = currentCalls.find(c => String(c.name) === selected.value);
+            const selectedCall = currentCalls.find(c => String(c.id ?? c.name ?? '') === selected.value);
 
             if (!selectedCall) {
                 notyf.error('Não foi possível encontrar a chamada.');
@@ -768,6 +770,7 @@
 
                     isListening = true;
                     listeningCallId = selected.value;
+                    listeningSpyChannelId = result.data?.spy_channel_id || null;
 
                     const listenBadge = document.getElementById("listenBadge");
                     const stopListeningBtn = document.getElementById("stopListening");
@@ -818,9 +821,13 @@
 
 
         stopListeningBtn?.addEventListener('click', async () => {
+            const spyChannelId = listeningSpyChannelId;
+
             try {
                 const res = await fetch(`${baseUrl}/campaign/voice/stop-listening`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ spy_channel_id: spyChannelId })
                 });
 
                 const result = await res.json();
@@ -828,6 +835,7 @@
                 if (result.success) {
                     isListening = false;
                     listeningCallId = null;
+                    listeningSpyChannelId = null;
 
                     listenBadge.classList.add('hidden');
                     stopListeningBtn.classList.add('hidden');

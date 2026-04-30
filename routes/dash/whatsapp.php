@@ -17,7 +17,7 @@ $obRouter->post('/webhooks/meta/whatsapp', [
     'name' => '/webhooks/meta/whatsapp',
     'middlewares' => [],
     function ($request) {
-        return Pages\WhatsApp::receiveWebhook();
+        return Pages\WhatsApp::receiveWebhook($request);
     }
 ]);
 
@@ -98,6 +98,17 @@ $obRouter->get('/campaign/whatsapp/number-requests', [
     }
 ]);
 
+$obRouter->post('/campaign/whatsapp/number-requests/{id}/send-meta', [
+    'name' => '/campaign/whatsapp/number-requests/send-meta',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::sendNumberRequestToMeta($request, $id);
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/number-requests/{id}/approve', [
     'name' => '/campaign/whatsapp/number-requests/approve',
     'middlewares' => [
@@ -117,6 +128,28 @@ $obRouter->post('/campaign/whatsapp/number-requests/{id}/reject', [
     ],
     function ($request, $id) {
         return Pages\WhatsApp::rejectNumberRequest($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/number-requests/{id}/resend-code', [
+    'name' => '/campaign/whatsapp/number-requests/resend-code',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::resendNumberRequestCode($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/number-requests/{id}/confirm-code', [
+    'name' => '/campaign/whatsapp/number-requests/confirm-code',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::confirmNumberRequestCode($request, $id);
     }
 ]);
 

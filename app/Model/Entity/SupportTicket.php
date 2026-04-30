@@ -20,7 +20,7 @@ class SupportTicket
             'requester_name' => $user['name'] ?? null,
             'requester_phone' => $phone,
             'department' => $department,
-            'subject' => self::subjectFromDepartment($department),
+            'subject' => self::normalizeSubject((string)($data['subject'] ?? ''), $department),
             'status' => 'open',
             'priority' => 'normal',
             'last_message' => mb_substr($message, 0, 500),
@@ -128,5 +128,13 @@ class SupportTicket
             'finance' => 'Financeiro',
             default => 'Suporte tecnico',
         };
+    }
+
+    private static function normalizeSubject(string $subject, string $department): string
+    {
+        $subject = trim($subject);
+        return $subject !== ''
+            ? mb_substr($subject, 0, 160)
+            : self::subjectFromDepartment($department);
     }
 }

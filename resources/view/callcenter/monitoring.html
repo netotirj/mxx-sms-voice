@@ -20,12 +20,6 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <button id="ccBtnListenCalls"
-                                type="button"
-                                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition">
-                            <i class="fa fa-headphones"></i>
-                            Escutar Chamadas
-                        </button>
                         <span class="flex items-center gap-1 text-xs font-bold text-emerald-500 animate-pulse">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span> LIVE
                         </span>
@@ -226,6 +220,22 @@
                    class="mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
 
+        <div id="ccSipPasswordWrap" class="mb-3 hidden">
+            <label for="ccSipPassword" class="text-sm text-slate-600 dark:text-slate-300 font-medium">
+                Senha SIP
+            </label>
+            <input type="password"
+                   id="ccSipPassword"
+                   placeholder="Senha do ramal WebRTC..."
+                   autocomplete="current-password"
+                   class="mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div id="ccWebrtcStatus"
+             class="mb-3 text-xs font-semibold text-slate-500 dark:text-slate-300">
+            WebRTC desconectado
+        </div>
+
         <div id="ccActiveCallsList"
              class="border border-slate-200 dark:border-slate-600 rounded-lg p-3 h-44 overflow-y-auto text-sm text-slate-600 dark:text-slate-300">
             <p class="italic text-center text-slate-400">Aguardando dados...</p>
@@ -262,6 +272,8 @@
     </div>
 </div>
 
+<audio id="ccRemoteAudio" autoplay playsinline></audio>
+
 <script>
     // Variáveis globais de controle
     const animations = new Map();
@@ -278,6 +290,22 @@
     let ccListenStartTime = null;
     let ccListenTimerInterval = null;
     let ccListenModalUpdateTimeout = null;
+    let ccPendingSelectedCallId = null;
+    let ccUa = null;
+    let ccUaRamal = null;
+    let ccUaRegistered = false;
+    let ccWebrtcRegisterPromise = null;
+    let ccSpySession = null;
+    let ccListeningSpyChannelId = null;
+    const ccServidor = '{{ASTERISK_WS_HOST}}';
+    const ccPortaWebrtc = '{{ASTERISK_WS_PORT}}';
+    const ccRtcConfig = {
+        iceServers: [
+            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        ],
+        iceTransportPolicy: 'all',
+        rtcpMuxPolicy: 'require'
+    };
 
     // Configurações
     let selectsPopulados = false;
@@ -511,6 +539,196 @@
         })[char]);
     }
 
+    function ccSetWebrtcStatus(message, connected = false) {
+        const el = document.getElementById('ccWebrtcStatus');
+        if (!el) return;
+
+        el.textContent = message;
+        el.classList.toggle('text-emerald-600', connected);
+        el.classList.toggle('text-slate-500', !connected);
+    }
+
+    function ccGetStoredSipSession(ramal) {
+        const keys = ['agente_sessao', 'monitor_webrtc_sessao'];
+
+        for (const key of keys) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) continue;
+
+                const data = JSON.parse(raw);
+                if (String(data?.ramal ?? '') === String(ramal) && data?.senha) {
+                    return data;
+                }
+            } catch (e) {}
+        }
+
+        return null;
+    }
+
+    function ccUpdateSipPasswordVisibility() {
+        const ramal = document.getElementById('ccAdminExtension')?.value.trim() || '';
+        const passwordWrap = document.getElementById('ccSipPasswordWrap');
+        if (!passwordWrap) return;
+
+        const hasStoredPassword = !!ccGetStoredSipSession(ramal);
+        passwordWrap.classList.toggle('hidden', !ramal || hasStoredPassword);
+    }
+
+    function ccGetSipPassword(ramal) {
+        const stored = ccGetStoredSipSession(ramal);
+        if (stored?.senha) return stored.senha;
+
+        return document.getElementById('ccSipPassword')?.value.trim() || '';
+    }
+
+    function ccAttachRemoteAudio(session) {
+        const remoteAudio = document.getElementById('ccRemoteAudio');
+        const peerconnection = session?.connection;
+        if (!remoteAudio || !peerconnection) return;
+
+        const playStream = (stream) => {
+            if (!stream) return;
+            if (remoteAudio.srcObject !== stream) {
+                remoteAudio.srcObject = stream;
+            }
+            remoteAudio.autoplay = true;
+            remoteAudio.playsInline = true;
+            remoteAudio.volume = 1;
+            remoteAudio.muted = false;
+            remoteAudio.play().catch(() => {});
+        };
+
+        if (!peerconnection.__ccAudioHandlerAttached) {
+            peerconnection.__ccAudioHandlerAttached = true;
+            peerconnection.addEventListener('track', (event) => {
+                playStream(event.streams?.[0] || new MediaStream([event.track]));
+            });
+        }
+
+        const tracks = peerconnection.getReceivers?.()
+            .map(receiver => receiver.track)
+            .filter(track => track && track.kind === 'audio') || [];
+
+        if (tracks.length) {
+            playStream(new MediaStream(tracks));
+        }
+    }
+
+    function ccAnswerIncomingSpySession(session) {
+        if (!session || session.direction !== 'incoming') return;
+
+        ccSpySession = session;
+        session.on('peerconnection', () => ccAttachRemoteAudio(session));
+        session.on('accepted', () => ccAttachRemoteAudio(session));
+        session.on('confirmed', () => ccAttachRemoteAudio(session));
+        session.on('ended', () => {
+            if (ccSpySession === session) ccSpySession = null;
+            ccSetWebrtcStatus('WebRTC conectado', true);
+        });
+        session.on('failed', () => {
+            if (ccSpySession === session) ccSpySession = null;
+            ccSetWebrtcStatus('WebRTC conectado', true);
+        });
+
+        try {
+            session.answer({
+                mediaConstraints: { audio: true, video: false },
+                pcConfig: ccRtcConfig
+            });
+            ccSetWebrtcStatus('WebRTC em chamada de escuta', true);
+        } catch (e) {
+            ccNotify('error', 'Falha ao atender o WebRTC da escuta.');
+        }
+    }
+
+    async function ccEnsureWebrtcConnected(ramal) {
+        if (!ramal) {
+            ccNotify('error', 'Informe o ramal antes de iniciar a escuta.');
+            return false;
+        }
+
+        if (ccUa && ccUaRamal === ramal && ccUaRegistered) {
+            return true;
+        }
+
+        if (ccWebrtcRegisterPromise) {
+            return ccWebrtcRegisterPromise;
+        }
+
+        if (typeof JsSIP === 'undefined') {
+            ccNotify('error', 'Biblioteca WebRTC não carregada nesta tela.');
+            return false;
+        }
+
+        const senha = ccGetSipPassword(ramal);
+        if (!senha) {
+            ccUpdateSipPasswordVisibility();
+            ccNotify('error', 'Informe a senha SIP para conectar o WebRTC neste monitor.');
+            return false;
+        }
+
+        try {
+            if (ccUa) ccUa.stop();
+        } catch (e) {}
+
+        ccSetWebrtcStatus('Conectando WebRTC...');
+
+        ccWebrtcRegisterPromise = new Promise((resolve) => {
+            const socket = new JsSIP.WebSocketInterface(`wss://${ccServidor}:${ccPortaWebrtc}/ws`);
+            const configuration = {
+                sockets: [socket],
+                uri: `sip:${ramal}@${ccServidor}`,
+                password: senha,
+                register: true,
+                authorization_user: ramal,
+                display_name: ramal,
+                contact_uri: `sip:${ramal}@${ccServidor};transport=ws`,
+                session_timers: false
+            };
+
+            ccUa = new JsSIP.UA(configuration);
+            ccUaRamal = ramal;
+            ccUaRegistered = false;
+
+            const timeout = setTimeout(() => {
+                ccWebrtcRegisterPromise = null;
+                ccSetWebrtcStatus('WebRTC não conectado');
+                resolve(false);
+            }, 10000);
+
+            ccUa.on('registered', () => {
+                clearTimeout(timeout);
+                ccUaRegistered = true;
+                localStorage.setItem('monitor_webrtc_sessao', JSON.stringify({ ramal, senha }));
+                ccSetWebrtcStatus(`WebRTC conectado no ramal ${ramal}`, true);
+                ccWebrtcRegisterPromise = null;
+                resolve(true);
+            });
+
+            ccUa.on('unregistered', () => {
+                ccUaRegistered = false;
+                ccSetWebrtcStatus('WebRTC desconectado');
+            });
+
+            ccUa.on('registrationFailed', () => {
+                clearTimeout(timeout);
+                ccUaRegistered = false;
+                ccSetWebrtcStatus('Falha no registro WebRTC');
+                ccWebrtcRegisterPromise = null;
+                resolve(false);
+            });
+
+            ccUa.on('newRTCSession', (data) => {
+                ccAnswerIncomingSpySession(data.session);
+            });
+
+            ccUa.start();
+        });
+
+        return ccWebrtcRegisterPromise;
+    }
+
     function ccGetCallId(call) {
         return String(call?.id ?? call?.name ?? call?.channel_id ?? '');
     }
@@ -590,7 +808,8 @@
 
         activeCalls.forEach(call => {
             const callId = ccGetCallId(call);
-            const selected = ccIsListening && ccListeningCallId === callId;
+            const selected = (ccIsListening && ccListeningCallId === callId)
+                || (!ccIsListening && ccPendingSelectedCallId === callId);
             const origin = call.caller ?? call.number ?? '—';
             const destination = call.dest ?? call.destination ?? '—';
             const campaign = call.campanha_nome ?? call.campaign_name ?? 'Chamada Manual';
@@ -628,6 +847,12 @@
             return;
         }
 
+        const webrtcReady = await ccEnsureWebrtcConnected(adminExtension);
+        if (!webrtcReady) {
+            ccNotify('error', 'Conecte o WebRTC antes de iniciar a escuta.');
+            return;
+        }
+
         const selectedCall = ccGetActiveCalls().find(call => ccGetCallId(call) === selected.value);
         if (!selectedCall) {
             ccNotify('error', 'Não foi possível encontrar essa chamada ativa.');
@@ -660,6 +885,7 @@
 
             ccIsListening = true;
             ccListeningCallId = selected.value;
+            ccListeningSpyChannelId = result.data?.spy_channel_id || null;
             ccSetListeningUi(true);
             ccStopListenTimer();
             ccStartListenTimer();
@@ -678,11 +904,28 @@
     }
 
     async function ccStopListening(silent = false) {
+        const spyChannelId = ccListeningSpyChannelId;
+
         ccResetListeningUi();
+        ccListeningSpyChannelId = null;
+
+        try {
+            if (ccSpySession && typeof ccSpySession.terminate === 'function') {
+                ccSpySession.terminate();
+            }
+        } catch (err) {}
+        ccSpySession = null;
+
+        if (!spyChannelId) {
+            if (!silent) ccNotify('success', 'Escuta finalizada.');
+            return;
+        }
 
         try {
             const res = await fetch(`${baseUrl}/campaign/voice/stop-listening`, {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ spy_channel_id: spyChannelId })
             });
             const result = await res.json().catch(() => ({}));
 
@@ -714,17 +957,11 @@
 
     function setupCallcenterListeningModal() {
         const modal = document.getElementById('ccListenModal');
-        const openBtn = document.getElementById('ccBtnListenCalls');
         const closeBtn = document.getElementById('ccCancelListen');
         const listenBtn = document.getElementById('ccBtnListenOnly');
         const whisperBtn = document.getElementById('ccBtnWhisper');
         const stopBtn = document.getElementById('ccStopListening');
-
-        openBtn?.addEventListener('click', () => {
-            modal?.classList.remove('hidden');
-            ccListenModalOpen = true;
-            ccLoadActiveCalls();
-        });
+        const adminExtensionInput = document.getElementById('ccAdminExtension');
 
         closeBtn?.addEventListener('click', () => {
             modal?.classList.add('hidden');
@@ -741,6 +978,16 @@
         listenBtn?.addEventListener('click', () => ccStartSpy('listen'));
         whisperBtn?.addEventListener('click', () => ccStartSpy('whisper'));
         stopBtn?.addEventListener('click', () => ccStopListening(false));
+        adminExtensionInput?.addEventListener('input', ccUpdateSipPasswordVisibility);
+
+        try {
+            const stored = JSON.parse(localStorage.getItem('agente_sessao') || '{}');
+            if (stored?.ramal && adminExtensionInput && !adminExtensionInput.value) {
+                adminExtensionInput.value = stored.ramal;
+            }
+        } catch (e) {}
+
+        ccUpdateSipPasswordVisibility();
     }
 
     // Função para desenhar a tabela de chamadas (com suporte a cronômetro local)
@@ -795,8 +1042,8 @@
                 </td>
                 <td class="p-4 text-center">
                     <div class="flex items-center justify-center gap-2">
-                        ${isUp ? `<button onclick="snoop('${call.id}', 'both')" class="text-emerald-500"><i class="fa fa-headphones"></i></button>` : ''}
-                        <button onclick="hangup('${call.id}')" class="text-red-500"><i class="fa fa-phone-slash"></i></button>
+                        ${isUp ? `<button onclick="openCallcenterListenModal('${call.id}')" class="text-emerald-500"><i class="fa fa-headphones"></i></button>` : ''}
+                        <button onclick="event.stopPropagation(); hangup('${call.id}')" class="text-red-500"><i class="fa fa-phone-slash"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -963,11 +1210,12 @@
         }
     };
 
-    window.snoop = (id, mode) => {
-        fetch(`${baseUrl}/telefonia/snoop`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({channelId: id, mode: mode})
-        }).then(r => !r.ok && alert('Erro ao iniciar escuta.'));
+    window.openCallcenterListenModal = (id) => {
+        const modal = document.getElementById('ccListenModal');
+        ccPendingSelectedCallId = String(id || '');
+        modal?.classList.remove('hidden');
+        ccListenModalOpen = true;
+        ccUpdateSipPasswordVisibility();
+        ccLoadActiveCalls();
     };
 </script>

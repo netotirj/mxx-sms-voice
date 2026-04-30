@@ -68,6 +68,70 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    public function getMe(string $accessToken): array
+    {
+        return $this->request('GET', 'me', $accessToken);
+    }
+
+    public function debugToken(string $inputToken, string $appId, string $appSecret): array
+    {
+        if ($appId === '' || $appSecret === '') {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [
+                    'error' => [
+                        'message' => 'Configure WHATSAPP_META_APP_ID e WHATSAPP_META_APP_SECRET para validar tokens da Cloud API.',
+                    ],
+                ],
+                'error' => 'Configure WHATSAPP_META_APP_ID e WHATSAPP_META_APP_SECRET para validar tokens da Cloud API.',
+            ];
+        }
+
+        $response = $this->client->request('GET', '../debug_token', [
+            'query' => [
+                'input_token' => $inputToken,
+                'access_token' => $appId . '|' . $appSecret,
+            ],
+            'headers' => [
+                'Accept' => 'application/json',
+            ],
+        ]);
+
+        return $this->responseToArray($response);
+    }
+
+    public function getWaba(string $accessToken, string $wabaId): array
+    {
+        return $this->request('GET', $wabaId, $accessToken);
+    }
+
+    public function listPhoneNumbers(string $accessToken, string $wabaId): array
+    {
+        return $this->request('GET', $wabaId . '/phone_numbers', $accessToken);
+    }
+
+    public function validatePlatformCredentials(): array
+    {
+        $accessToken = WhatsAppConfig::platformAccessToken();
+        $wabaId = WhatsAppConfig::platformWabaId();
+
+        return [
+            'me' => $accessToken !== ''
+                ? $this->getMe($accessToken)
+                : $this->missingConfig('WHATSAPP_PLATFORM_ACCESS_TOKEN'),
+            'waba' => $accessToken !== '' && $wabaId !== ''
+                ? $this->getWaba($accessToken, $wabaId)
+                : $this->missingConfig('WHATSAPP_PLATFORM_WABA_ID ou WHATSAPP_PLATFORM_ACCESS_TOKEN'),
+            'phone_numbers' => $accessToken !== '' && $wabaId !== ''
+                ? $this->listPhoneNumbers($accessToken, $wabaId)
+                : $this->missingConfig('WHATSAPP_PLATFORM_WABA_ID ou WHATSAPP_PLATFORM_ACCESS_TOKEN'),
+            'debug_token' => $accessToken !== ''
+                ? $this->debugToken($accessToken, WhatsAppConfig::metaAppId(), WhatsAppConfig::metaAppSecret())
+                : $this->missingConfig('WHATSAPP_PLATFORM_ACCESS_TOKEN'),
+        ];
+    }
+
     public function getPhoneNumber(string $accessToken, string $phoneNumberId): array
     {
         if (WhatsAppConfig::fakeSend()) {
@@ -216,6 +280,12 @@ class MetaWhatsAppCloudApi
         $options['headers']['Content-Type'] = 'application/json';
 
         $response = $this->client->request($method, ltrim($uri, '/'), $options);
+
+        return $this->responseToArray($response);
+    }
+
+    private function responseToArray($response): array
+    {
         $status = $response->getStatusCode();
         $body = (string) $response->getBody();
         $data = json_decode($body, true);
@@ -228,8 +298,83 @@ class MetaWhatsAppCloudApi
             'ok' => $status >= 200 && $status < 300,
             'status' => $status,
             'data' => $data,
-            'error' => $data['error']['message'] ?? null,
+            'error' => $this->normalizeError($data['error'] ?? null),
         ];
+    }
+
+    private function missingConfig(string $name): array
+    {
+        $message = 'Configuração ausente: ' . $name . '.';
+
+        return [
+            'ok' => false,
+            'status' => 0,
+            'data' => [
+                'error' => [
+                    'message' => $message,
+                ],
+            ],
+            'error' => $message,
+        ];
+    }
+
+    private function normalizeError(mixed $error): ?string
+    {
+        if (!is_array($error)) {
+            return null;
+        }
+
+        $message = (string)($error['message'] ?? '');
+        $code = (string)($error['code'] ?? '');
+        $subcode = (string)($error['error_subcode'] ?? '');
+        $type = (string)($error['type'] ?? '');
+        $userTitle = (string)($error['error_user_title'] ?? '');
+        $userMessage = (string)($error['error_user_msg'] ?? '');
+        $lowerMessage = strtolower($message);
+
+        if (
+            $code === '190'
+            || str_contains($lowerMessage, 'validating access token')
+            || str_contains($lowerMessage, 'session has expired')
+        ) {
+            return 'Token de acesso da Meta expirado ou inválido. Atualize WHATSAPP_PLATFORM_ACCESS_TOKEN e tente novamente.';
+        }
+
+        if (
+            str_contains($lowerMessage, 'phone_numbers')
+            && (
+                str_contains($lowerMessage, 'node type (application)')
+                || str_contains($lowerMessage, 'nonexisting field')
+            )
+        ) {
+            return 'WHATSAPP_PLATFORM_WABA_ID parece estar com o ID do aplicativo Meta. Configure o ID da conta WhatsApp Business (WABA), não o ID do app.';
+        }
+
+        if (
+            str_contains($lowerMessage, 'unsupported post request')
+            || str_contains($lowerMessage, 'object with id')
+            || str_contains($lowerMessage, 'does not exist')
+        ) {
+            return 'Não foi possível acessar a WABA configurada. Verifique WHATSAPP_PLATFORM_WABA_ID, permissões do token e vínculo da conta WhatsApp Business ao app Meta.';
+        }
+
+        if ($userMessage !== '') {
+            $prefix = $userTitle !== '' ? $userTitle . ': ' : '';
+            $suffix = $subcode !== '' ? ' (Meta subcode: ' . $subcode . ')' : '';
+
+            return $prefix . $userMessage . $suffix;
+        }
+
+        $details = (string)($error['error_data']['details'] ?? '');
+        if ($message !== '' && $details !== '') {
+            return $message . ' Detalhes: ' . $details;
+        }
+
+        if ($message !== '' && $subcode !== '') {
+            return $message . ' (Meta subcode: ' . $subcode . ')';
+        }
+
+        return $message !== '' ? $message : null;
     }
 
     private function fakeMessageResponse(string $to): array

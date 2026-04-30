@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Config\WhatsAppConfig;
+use App\Model\Entity\SupportTicket;
 use App\Model\Entity\WhatsAppAccount;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
@@ -57,7 +58,7 @@ class WhatsAppNumberManager
     {
         [$where, $params] = self::requestOwnerScope($user, 'nr');
 
-        return (new Database('number_requests nr LEFT JOIN users u ON u.id = nr.requested_by_user_id'))
+        return (new Database('number_requests nr LEFT JOIN users u ON u.id = nr.requested_by_user_id LEFT JOIN whatsapp_numbers wn ON wn.id = nr.whatsapp_number_id'))
             ->select($where, $params, 'nr.created_at DESC, nr.id DESC', '', [
                 'nr.id',
                 'nr.company_id',
@@ -69,10 +70,17 @@ class WhatsAppNumberManager
                 'nr.status',
                 'nr.admin_notes',
                 'nr.whatsapp_number_id',
+                'nr.support_ticket_id',
                 'nr.reviewed_by_user_id',
                 'nr.reviewed_at',
                 'nr.created_at',
                 'nr.updated_at',
+                'wn.status AS number_status',
+                'wn.last_error AS number_last_error',
+                'wn.verification_method',
+                'wn.verified_at',
+                'wn.updated_at AS number_updated_at',
+                "CASE WHEN wn.status = 'code_sent' THEN DATE_ADD(wn.updated_at, INTERVAL 5 MINUTE) ELSE NULL END AS code_expires_at",
                 'u.name AS requested_by_name',
                 'u.email AS requested_by_email',
             ])
@@ -92,92 +100,33 @@ class WhatsAppNumberManager
         }
 
         $existing = self::findByPhone($phone);
-        if ($existing && !(self::isPlatformAdmin($user) && empty($existing['meta_id']) && $existing['status'] === 'pending')) {
+        if ($existing) {
             throw new \RuntimeException('Este número já está vinculado ou em validação.');
         }
 
-        if (!self::isPlatformAdmin($user)) {
-            if ($existing || self::findOpenRequestByPhone($phone)) {
-                throw new \RuntimeException('Este número já está vinculado ou em validação.');
-            }
-
-            $id = (int)(new Database('number_requests'))->insert([
-                'company_id' => $targetOwner['tenancy_id'],
-                'requested_by_user_id' => (int)$user['id'],
-                'owner_type' => $targetOwner['owner_type'],
-                'owner_id' => (int)$targetOwner['id'],
-                'phone_number' => $phone,
-                'display_name' => self::nullableString($input['display_name'] ?? $input['label'] ?? null) ?: self::defaultDisplayName($targetOwner),
-                'status' => 'pending',
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-
-            return self::getRequestForUser($id, $user) ?: ['id' => $id, 'phone_number' => $phone, 'status' => 'pending'];
+        if (self::findOpenRequestByPhone($phone)) {
+            throw new \RuntimeException('Este número já está vinculado ou em validação.');
         }
 
-        $displayName = self::nullableString($input['display_name'] ?? $input['label'] ?? null)
-            ?: self::defaultDisplayName($targetOwner);
-        $countryCode = self::extractCountryCode($phone, (string)($input['country_code'] ?? '55'));
-        $nationalNumber = substr($phone, strlen($countryCode));
+        $id = (int)(new Database('number_requests'))->insert([
+            'company_id' => $targetOwner['tenancy_id'],
+            'requested_by_user_id' => (int)$user['id'],
+            'owner_type' => $targetOwner['owner_type'],
+            'owner_id' => (int)$targetOwner['id'],
+            'phone_number' => $phone,
+            'display_name' => self::nullableString($input['display_name'] ?? $input['label'] ?? null) ?: self::defaultDisplayName($targetOwner),
+            'status' => 'pending',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
 
-        $created = (new MetaWhatsAppCloudApi())->createPhoneNumber(
-            self::platformAccessToken(),
-            self::platformWabaId(),
-            $countryCode,
-            $nationalNumber,
-            $displayName
-        );
+        $ticketId = self::createNumberRequestSupportTicket($user, $id, $targetOwner, $phone);
+        (new Database('number_requests'))->update('id = :id', [
+            'support_ticket_id' => $ticketId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], [':id' => $id]);
 
-        if (!$created['ok']) {
-            throw new \RuntimeException($created['error'] ?: 'Não foi possível iniciar a conexão do número.');
-        }
-
-        $metaId = (string)($created['data']['id'] ?? '');
-        if ($metaId === '') {
-            throw new \RuntimeException('A Meta não retornou o identificador do número.');
-        }
-
-        if ($existing) {
-            (new Database('whatsapp_numbers'))->update('id = :id', [
-                'company_id' => $targetOwner['tenancy_id'],
-                'user_id' => (int)$targetOwner['id'],
-                'owner_type' => $targetOwner['owner_type'],
-                'owner_id' => (int)$targetOwner['id'],
-                'requested_by_user_id' => (int)($existing['requested_by_user_id'] ?? $user['id']),
-                'display_name' => $displayName,
-                'origin' => 'client',
-                'status' => 'pending',
-                'meta_id' => $metaId,
-                'waba_id' => self::platformWabaId(),
-                'last_error' => null,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ], [':id' => (int)$existing['id']]);
-            $id = (int)$existing['id'];
-        } else {
-            $id = (int)(new Database('whatsapp_numbers'))->insert([
-                'company_id' => $targetOwner['tenancy_id'],
-                'user_id' => (int)$targetOwner['id'],
-                'owner_type' => $targetOwner['owner_type'],
-                'owner_id' => (int)$targetOwner['id'],
-                'requested_by_user_id' => (int)$user['id'],
-                'whatsapp_account_id' => null,
-                'phone_number' => $phone,
-                'display_name' => $displayName,
-                'origin' => 'client',
-                'status' => 'pending',
-                'meta_id' => $metaId,
-                'waba_id' => self::platformWabaId(),
-                'verification_method' => null,
-                'verified_at' => null,
-                'removed_at' => null,
-                'last_error' => null,
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-        }
-
-        return self::getForUser($id, $user) ?: ['id' => $id, 'phone_number' => $phone, 'status' => 'pending'];
+        return self::getRequestForUser($id, $user) ?: ['id' => $id, 'phone_number' => $phone, 'status' => 'pending'];
     }
 
     public static function approveNumberRequest(array $user, int $requestId): array
@@ -185,8 +134,8 @@ class WhatsAppNumberManager
         self::assertPlatformAdmin($user);
 
         $request = self::getRequestForUser($requestId, $user);
-        if (!$request || $request['status'] !== 'pending') {
-            throw new \RuntimeException('Solicitação não encontrada ou já analisada.');
+        if (!$request || $request['status'] !== 'meta_submitted' || empty($request['whatsapp_number_id'])) {
+            throw new \RuntimeException('Envie a solicitação para a Meta antes de aprovar para o solicitante.');
         }
 
         $affected = (new Database('number_requests'))->execute(
@@ -195,7 +144,7 @@ class WhatsAppNumberManager
                  reviewed_by_user_id = :reviewed_by_user_id,
                  reviewed_at = NOW(),
                  updated_at = NOW()
-             WHERE id = :id AND status = 'pending'",
+             WHERE id = :id AND status = 'meta_submitted'",
             [
                 ':reviewed_by_user_id' => (int)$user['id'],
                 ':id' => $requestId,
@@ -206,17 +155,50 @@ class WhatsAppNumberManager
             throw new \RuntimeException('Solicitação já foi processada por outro administrador.');
         }
 
+        self::appendNumberRequestTicketMessage(
+            $request,
+            $user,
+            'agent',
+            'Solicitação aprovada. O número foi aceito na Meta e o código de confirmação será enviado agora.'
+        );
+
+        $number = self::sendVerificationCode($user, (int)$request['whatsapp_number_id'], 'SMS');
+
+        return [
+            'request' => self::getRequestForUser($requestId, $user),
+            'number' => $number,
+        ];
+    }
+
+    public static function submitNumberRequestToMeta(array $user, int $requestId): array
+    {
+        self::assertPlatformAdmin($user);
+
+        $request = self::getRequestForUser($requestId, $user);
+        if (!$request || !in_array((string)$request['status'], ['pending', 'meta_failed'], true)) {
+            throw new \RuntimeException('Solicitação não encontrada ou não está pronta para envio à Meta.');
+        }
+
+        if (!empty($request['whatsapp_number_id'])) {
+            throw new \RuntimeException('Solicitação já foi enviada para a Meta.');
+        }
+
         try {
-            $number = self::registerClientNumber($user, [
-                'phone_number' => $request['phone_number'],
-                'display_name' => $request['display_name'],
-                'owner_user_id' => (int)$request['owner_id'],
-            ]);
+            $number = self::provisionNumberRequestOnMeta($user, $request);
 
             (new Database('number_requests'))->update('id = :id', [
+                'status' => 'meta_submitted',
                 'whatsapp_number_id' => (int)($number['id'] ?? 0),
+                'admin_notes' => null,
                 'updated_at' => date('Y-m-d H:i:s'),
             ], [':id' => $requestId]);
+
+            self::appendNumberRequestTicketMessage(
+                $request,
+                $user,
+                'agent',
+                'Solicitação enviada para a Meta. Retorno inicial: número aceito para validação. Aguardando decisão final do super administrador.'
+            );
 
             return [
                 'request' => self::getRequestForUser($requestId, $user),
@@ -224,12 +206,11 @@ class WhatsAppNumberManager
             ];
         } catch (\Throwable $e) {
             (new Database('number_requests'))->update('id = :id', [
-                'status' => 'pending',
+                'status' => 'meta_failed',
                 'admin_notes' => $e->getMessage(),
-                'reviewed_by_user_id' => null,
-                'reviewed_at' => null,
                 'updated_at' => date('Y-m-d H:i:s'),
             ], [':id' => $requestId]);
+
             throw $e;
         }
     }
@@ -239,7 +220,7 @@ class WhatsAppNumberManager
         self::assertPlatformAdmin($user);
 
         $request = self::getRequestForUser($requestId, $user);
-        if (!$request || $request['status'] !== 'pending') {
+        if (!$request || !in_array((string)$request['status'], ['meta_submitted', 'meta_failed'], true)) {
             throw new \RuntimeException('Solicitação não encontrada ou já analisada.');
         }
 
@@ -250,7 +231,7 @@ class WhatsAppNumberManager
                  reviewed_by_user_id = :reviewed_by_user_id,
                  reviewed_at = NOW(),
                  updated_at = NOW()
-             WHERE id = :id AND status = 'pending'",
+             WHERE id = :id AND status IN ('meta_submitted', 'meta_failed')",
             [
                 ':admin_notes' => self::nullableString($reason) ?: 'Solicitação recusada.',
                 ':reviewed_by_user_id' => (int)$user['id'],
@@ -261,6 +242,13 @@ class WhatsAppNumberManager
         if ($affected !== 1) {
             throw new \RuntimeException('Solicitação já foi processada por outro administrador.');
         }
+
+        self::appendNumberRequestTicketMessage(
+            $request,
+            $user,
+            'agent',
+            'Solicitação recusada. Motivo: ' . (self::nullableString($reason) ?: 'Solicitação recusada.')
+        );
 
         return self::getRequestForUser($requestId, $user) ?: $request;
     }
@@ -274,35 +262,37 @@ class WhatsAppNumberManager
             throw new \RuntimeException('Número não encontrado.');
         }
 
-        if (!in_array($number['status'], ['pending', 'code_sent', 'failed'], true)) {
-            throw new \RuntimeException('Este número não está aguardando código.');
+        self::assertApprovedRequestForNumber($numberId);
+
+        return self::requestVerificationCodeForNumber($numberId, $number, $method);
+    }
+
+    public static function resendNumberRequestVerificationCode(array $user, int $requestId, string $method = 'SMS'): array
+    {
+        $request = self::getRequestForUser($requestId, $user);
+        if (!$request || (string)$request['status'] !== 'approved' || empty($request['whatsapp_number_id'])) {
+            throw new \RuntimeException('Código disponível apenas após aprovação da solicitação.');
+        }
+        self::assertCanHandleRequestCode($user, $request);
+
+        $number = self::getForUser((int)$request['whatsapp_number_id'], $user);
+        if (!$number) {
+            throw new \RuntimeException('Número da solicitação não encontrado.');
         }
 
-        if (empty($number['meta_id'])) {
-            throw new \RuntimeException('Solicitação ainda não foi registrada na Meta pelo administrador.');
-        }
+        $number = self::requestVerificationCodeForNumber((int)$number['id'], $number, $method);
 
-        $method = strtoupper($method) === 'VOICE' ? 'VOICE' : 'SMS';
-        $result = (new MetaWhatsAppCloudApi())->requestVerificationCode(
-            self::platformAccessToken(),
-            (string)$number['meta_id'],
-            $method,
-            'pt_BR'
+        self::appendNumberRequestTicketMessage(
+            $request,
+            $user,
+            'customer',
+            'Reenvio do código de verificação solicitado.'
         );
 
-        if (!$result['ok']) {
-            self::markFailed($numberId, $result['error'] ?: 'Falha ao enviar código.');
-            throw new \RuntimeException($result['error'] ?: 'Não foi possível enviar o código.');
-        }
-
-        (new Database('whatsapp_numbers'))->update('id = :id', [
-            'status' => 'code_sent',
-            'verification_method' => $method,
-            'last_error' => null,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ], [':id' => $numberId]);
-
-        return self::getForUser($numberId, $user) ?: $number;
+        return [
+            'request' => self::getRequestForUser($requestId, $user),
+            'number' => $number,
+        ];
     }
 
     public static function confirmVerificationCode(array $user, int $numberId, string $code): array
@@ -319,21 +309,37 @@ class WhatsAppNumberManager
             throw new \InvalidArgumentException('Informe o código recebido.');
         }
 
-        $api = new MetaWhatsAppCloudApi();
-        $verified = $api->verifyPhoneNumberCode(self::platformAccessToken(), (string)$number['meta_id'], $code);
-        if (!$verified['ok']) {
-            self::markFailed($numberId, $verified['error'] ?: 'Código inválido.');
-            throw new \RuntimeException($verified['error'] ?: 'Código inválido ou expirado.');
+        self::assertApprovedRequestForNumber($numberId);
+
+        return self::verifyAndAttachNumber($user, $number, $code);
+    }
+
+    public static function confirmNumberRequestVerificationCode(array $user, int $requestId, string $code): array
+    {
+        $request = self::getRequestForUser($requestId, $user);
+        if (!$request || (string)$request['status'] !== 'approved' || empty($request['whatsapp_number_id'])) {
+            throw new \RuntimeException('Código disponível apenas após aprovação da solicitação.');
+        }
+        self::assertCanHandleRequestCode($user, $request);
+
+        $number = self::getForUser((int)$request['whatsapp_number_id'], $user);
+        if (!$number) {
+            throw new \RuntimeException('Número da solicitação não encontrado.');
         }
 
-        $pin = self::platformPin();
-        $registered = $api->registerPhoneNumber(self::platformAccessToken(), (string)$number['meta_id'], $pin);
-        if (!$registered['ok']) {
-            self::markFailed($numberId, $registered['error'] ?: 'Número validado, mas não conectado para envio.');
-            throw new \RuntimeException($registered['error'] ?: 'Número validado, mas não conectado para envio.');
-        }
+        $connected = self::verifyAndAttachNumber($user, $number, $code);
 
-        return self::attachNumberToCompany($user, $numberId);
+        self::appendNumberRequestTicketMessage(
+            $request,
+            $user,
+            'customer',
+            'Código confirmado. Número WhatsApp conectado.'
+        );
+
+        return [
+            'request' => self::getRequestForUser($requestId, $user),
+            'number' => $connected,
+        ];
     }
 
     public static function attachNumberToCompany(array $user, int $numberId): array
@@ -345,6 +351,11 @@ class WhatsAppNumberManager
             throw new \RuntimeException('Número não encontrado.');
         }
 
+        return self::attachNumberToCompanyInternal($user, $numberId, $number);
+    }
+
+    private static function attachNumberToCompanyInternal(array $user, int $numberId, array $number): array
+    {
         $owner = self::ownerFromNumber($number);
         self::assertOwnerHasNoActiveNumber($owner, $numberId);
 
@@ -564,6 +575,218 @@ class WhatsAppNumberManager
         ], [':id' => $accountId]);
     }
 
+    private static function createNumberRequestSupportTicket(array $requester, int $requestId, array $owner, string $phone): int
+    {
+        $displayName = self::defaultDisplayName($owner);
+        $message = implode("\n", [
+            'Solicitação de número WhatsApp registrada.',
+            '',
+            'Solicitação: #' . $requestId,
+            'Número: +' . $phone,
+            'Status: pendente de aprovação do super administrador.',
+            'Solicitante: ' . trim((string)($requester['name'] ?? 'Usuário #' . ($requester['id'] ?? ''))),
+            'Dono do número: ' . $displayName . ' (' . (string)($owner['owner_type'] ?? 'client') . ' #' . (int)($owner['id'] ?? 0) . ')',
+        ]);
+
+        return SupportTicket::create($requester, [
+            'department' => 'support',
+            'requester_phone' => $phone,
+            'subject' => 'Solicitação de número WhatsApp #' . $requestId,
+            'message' => $message,
+        ]);
+    }
+
+    private static function appendNumberRequestTicketMessage(array $request, array $actor, string $senderType, string $body): void
+    {
+        $ticketId = (int)($request['support_ticket_id'] ?? 0);
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        SupportTicket::addMessage($ticketId, $actor, $senderType, $body);
+    }
+
+    private static function requestVerificationCodeForNumber(int $numberId, array $number, string $method = 'SMS'): array
+    {
+        if (!in_array((string)$number['status'], ['pending', 'code_sent', 'failed'], true)) {
+            throw new \RuntimeException('Este número não está aguardando código.');
+        }
+
+        if (empty($number['meta_id'])) {
+            throw new \RuntimeException('Solicitação ainda não foi registrada na Meta pelo administrador.');
+        }
+
+        $method = strtoupper($method) === 'VOICE' ? 'VOICE' : 'SMS';
+        $result = (new MetaWhatsAppCloudApi())->requestVerificationCode(
+            self::platformAccessToken(),
+            (string)$number['meta_id'],
+            $method,
+            'pt_BR'
+        );
+
+        if (!$result['ok']) {
+            self::markFailed($numberId, $result['error'] ?: 'Falha ao enviar código.');
+            throw new \RuntimeException($result['error'] ?: 'Não foi possível enviar o código.');
+        }
+
+        (new Database('whatsapp_numbers'))->update('id = :id', [
+            'status' => 'code_sent',
+            'verification_method' => $method,
+            'last_error' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], [':id' => $numberId]);
+
+        return self::getForUser($numberId, self::ownerFromNumber($number)) ?: $number;
+    }
+
+    private static function verifyAndAttachNumber(array $user, array $number, string $code): array
+    {
+        $numberId = (int)($number['id'] ?? 0);
+        $code = preg_replace('/\D+/', '', $code) ?: '';
+        if (strlen($code) < 4) {
+            throw new \InvalidArgumentException('Informe o código recebido.');
+        }
+
+        self::assertVerificationCodeFresh($number);
+
+        $api = new MetaWhatsAppCloudApi();
+        $verified = $api->verifyPhoneNumberCode(self::platformAccessToken(), (string)$number['meta_id'], $code);
+        if (!$verified['ok']) {
+            self::markFailed($numberId, $verified['error'] ?: 'Código inválido.');
+            throw new \RuntimeException($verified['error'] ?: 'Código inválido ou expirado.');
+        }
+
+        $pin = self::platformPin();
+        $registered = $api->registerPhoneNumber(self::platformAccessToken(), (string)$number['meta_id'], $pin);
+        if (!$registered['ok']) {
+            self::markFailed($numberId, $registered['error'] ?: 'Número validado, mas não conectado para envio.');
+            throw new \RuntimeException($registered['error'] ?: 'Número validado, mas não conectado para envio.');
+        }
+
+        return self::attachNumberToCompanyInternal($user, $numberId, $number);
+    }
+
+    private static function assertVerificationCodeFresh(array $number): void
+    {
+        if ((string)($number['status'] ?? '') !== 'code_sent') {
+            throw new \RuntimeException('Solicite o código de verificação antes de confirmar.');
+        }
+
+        $sentAt = strtotime((string)($number['updated_at'] ?? ''));
+        if (!$sentAt || $sentAt + 300 < time()) {
+            throw new \RuntimeException('Código expirado. Solicite um novo código.');
+        }
+    }
+
+    private static function provisionNumberRequestOnMeta(array $user, array $request): array
+    {
+        self::assertPlatformAdmin($user);
+
+        $requestId = (int)($request['id'] ?? 0);
+        $metaRequest = $requestId > 0 ? self::getRequestForUser($requestId, $user) : null;
+        if (!$metaRequest || !in_array((string)$metaRequest['status'], ['pending', 'meta_failed'], true)) {
+            throw new \RuntimeException('A integração com a Meta exige uma solicitação pendente.');
+        }
+
+        if (!empty($metaRequest['whatsapp_number_id'])) {
+            throw new \RuntimeException('Solicitação já possui número vinculado.');
+        }
+
+        $phone = self::normalizePhone((string)$metaRequest['phone_number']);
+        if (self::findByPhone($phone)) {
+            throw new \RuntimeException('Este número já está vinculado ou em validação.');
+        }
+
+        $owner = self::ownerFromRequest($metaRequest);
+        self::assertOwnerHasNoActiveNumber($owner);
+
+        $displayName = self::nullableString($metaRequest['display_name'] ?? null)
+            ?: self::defaultDisplayName($owner);
+        $countryCode = self::extractCountryCode($phone, '55');
+        $nationalNumber = substr($phone, strlen($countryCode));
+
+        $accessToken = self::platformAccessToken();
+        $wabaId = self::platformWabaId();
+        $api = new MetaWhatsAppCloudApi();
+        $created = self::findExistingMetaPhoneNumber($api, $accessToken, $wabaId, $phone);
+
+        if ($created === null) {
+            $created = $api->createPhoneNumber(
+                $accessToken,
+                $wabaId,
+                $countryCode,
+                $nationalNumber,
+                $displayName
+            );
+        }
+
+        if (!$created['ok']) {
+            throw new \RuntimeException($created['error'] ?: 'Não foi possível iniciar a conexão do número.');
+        }
+
+        $metaId = (string)($created['data']['id'] ?? '');
+        if ($metaId === '') {
+            throw new \RuntimeException('A Meta não retornou o identificador do número.');
+        }
+
+        $id = (int)(new Database('whatsapp_numbers'))->insert([
+            'company_id' => (string)$metaRequest['company_id'],
+            'user_id' => (int)$owner['id'],
+            'owner_type' => (string)$metaRequest['owner_type'],
+            'owner_id' => (int)$metaRequest['owner_id'],
+            'requested_by_user_id' => (int)$metaRequest['requested_by_user_id'],
+            'whatsapp_account_id' => null,
+            'phone_number' => $phone,
+            'display_name' => $displayName,
+            'origin' => 'client',
+            'status' => 'pending',
+            'meta_id' => $metaId,
+            'waba_id' => $wabaId,
+            'verification_method' => null,
+            'verified_at' => null,
+            'removed_at' => null,
+            'last_error' => null,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return self::getForUser($id, $user) ?: ['id' => $id, 'phone_number' => $phone, 'status' => 'pending'];
+    }
+
+    private static function findExistingMetaPhoneNumber(
+        MetaWhatsAppCloudApi $api,
+        string $accessToken,
+        string $wabaId,
+        string $phone
+    ): ?array {
+        $listed = $api->listPhoneNumbers($accessToken, $wabaId);
+        if (!$listed['ok']) {
+            return null;
+        }
+
+        foreach (($listed['data']['data'] ?? []) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $displayPhone = self::normalizePhone((string)($item['display_phone_number'] ?? ''));
+            $metaId = trim((string)($item['id'] ?? ''));
+            if ($displayPhone === $phone && $metaId !== '') {
+                return [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => $item + [
+                        'id' => $metaId,
+                        'existing_meta_number' => true,
+                    ],
+                    'error' => null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
     private static function getForUser(int $id, array $user): ?array
     {
         [$scope, $params] = self::numberOwnerScope($user, 'whatsapp_numbers');
@@ -590,6 +813,42 @@ class WhatsAppNumberManager
         return $row ?: null;
     }
 
+    private static function findApprovedRequestForNumber(int $numberId): ?array
+    {
+        $row = (new Database('number_requests'))
+            ->select(
+                "whatsapp_number_id = :number_id AND status = 'approved'",
+                [':number_id' => $numberId],
+                '',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    private static function assertApprovedRequestForNumber(int $numberId): void
+    {
+        if (!self::findApprovedRequestForNumber($numberId)) {
+            throw new \RuntimeException('Integração bloqueada: número sem solicitação aprovada.');
+        }
+    }
+
+    private static function assertCanHandleRequestCode(array $user, array $request): void
+    {
+        if (self::isPlatformAdmin($user)) {
+            return;
+        }
+
+        $userId = (int)($user['id'] ?? 0);
+        if (
+            $userId !== (int)($request['requested_by_user_id'] ?? 0)
+            && $userId !== (int)($request['owner_id'] ?? 0)
+        ) {
+            throw new \RuntimeException('Você não pode validar o código desta solicitação.');
+        }
+    }
+
     private static function findByPhone(string $phone): ?array
     {
         $row = (new Database('whatsapp_numbers'))
@@ -603,7 +862,7 @@ class WhatsAppNumberManager
     {
         $row = (new Database('number_requests'))
             ->select(
-                "phone_number = :phone AND status = 'pending'",
+                "phone_number = :phone AND status IN ('pending', 'meta_submitted', 'meta_failed')",
                 [':phone' => $phone],
                 '',
                 '1'
@@ -652,7 +911,11 @@ class WhatsAppNumberManager
         }
 
         $role = strtolower((string)($row['user_function'] ?? ''));
-        $row['owner_type'] = $role === 'reseller' ? 'reseller' : 'client';
+        $row['owner_type'] = match ($role) {
+            'admin' => 'admin',
+            'reseller' => 'reseller',
+            default => 'client',
+        };
 
         return $row;
     }
@@ -672,6 +935,28 @@ class WhatsAppNumberManager
         }
 
         $row['owner_type'] = $number['owner_type'];
+        return $row;
+    }
+
+    private static function ownerFromRequest(array $request): array
+    {
+        if (empty($request['owner_id']) || empty($request['owner_type'])) {
+            throw new \RuntimeException('Solicitação sem dono definido.');
+        }
+
+        $row = (new Database('users'))
+            ->select('id = :id', [':id' => (int)$request['owner_id']], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            throw new \RuntimeException('Dono do número não encontrado.');
+        }
+
+        if ((string)$row['tenancy_id'] !== (string)$request['company_id']) {
+            throw new \RuntimeException('Dono do número não pertence à empresa da solicitação.');
+        }
+
+        $row['owner_type'] = (string)$request['owner_type'];
         return $row;
     }
 
@@ -731,7 +1016,11 @@ class WhatsAppNumberManager
             $prefix . 'owner_id = :scope_owner_id',
             [
                 ':scope_tenancy_id' => (string)($user['tenancy_id'] ?? ''),
-                ':scope_owner_type' => $role === 'reseller' ? 'reseller' : 'client',
+                ':scope_owner_type' => match ($role) {
+                    'admin' => 'admin',
+                    'reseller' => 'reseller',
+                    default => 'client',
+                },
                 ':scope_owner_id' => (int)($user['id'] ?? 0),
             ],
         ];

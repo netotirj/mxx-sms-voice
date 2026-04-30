@@ -19,9 +19,29 @@ class WhatsAppConfig
         return (string) TelephonyConfig::env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'maxx-whatsapp-webhook');
     }
 
+    public static function webhookAppSecret(): string
+    {
+        return trim((string) TelephonyConfig::env('WHATSAPP_WEBHOOK_APP_SECRET', ''));
+    }
+
+    public static function metaAppId(): string
+    {
+        return trim((string) TelephonyConfig::env('WHATSAPP_META_APP_ID', ''));
+    }
+
+    public static function metaAppSecret(): string
+    {
+        return trim((string) TelephonyConfig::env('WHATSAPP_META_APP_SECRET', ''));
+    }
+
     public static function platformWabaId(): string
     {
         return trim((string) TelephonyConfig::env('WHATSAPP_PLATFORM_WABA_ID', ''));
+    }
+
+    public static function phoneNumberId(): string
+    {
+        return trim((string) TelephonyConfig::env('WHATSAPP_PHONE_NUMBER_ID', ''));
     }
 
     public static function platformAccessToken(): string

@@ -33,6 +33,46 @@
                     </div>
                 </div>
 
+                <div id="wa-verification-modal" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-5">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">WhatsApp Business</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-1 uppercase">Verificação do número</h6>
+                                <p id="wa-verification-subtitle" class="text-xs text-slate-400 mb-0">Acompanhando solicitação...</p>
+                            </div>
+                            <button id="wa-verification-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <div class="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 mb-4">
+                            <span id="wa-verification-icon" class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                                <i class="fa fa-clock"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p id="wa-verification-title" class="text-sm font-black text-slate-700 mb-0 uppercase">Aguardando aprovação...</p>
+                                <p id="wa-verification-message" class="text-xs text-slate-500 mb-0">Sua solicitação foi registrada e será analisada.</p>
+                            </div>
+                        </div>
+
+                        <div id="wa-verification-code-area" class="hidden">
+                            <label class="wa-field">
+                                <span>Código recebido</span>
+                                <input id="wa-verification-code" type="text" inputmode="numeric" maxlength="8" placeholder="Digite o código">
+                            </label>
+                            <div class="flex items-center justify-between gap-3 mt-2">
+                                <p id="wa-verification-timer" class="text-xs font-bold text-slate-500 mb-0">05:00</p>
+                                <button id="wa-verification-resend" type="button" class="text-xs font-black uppercase text-blue-600 disabled:text-slate-300" disabled>Reenviar código</button>
+                            </div>
+                        </div>
+
+                        <p id="wa-verification-feedback" class="text-xs font-bold mt-3 mb-0 min-h-4"></p>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button id="wa-verification-confirm" type="button" class="hidden px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Validar código</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="wa-new-chat-modal" class="absolute inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm">
                     <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 mx-4">
                         <div class="flex items-start justify-between gap-4 mb-4">
@@ -447,8 +487,8 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
-                        <div class="xl:col-span-5 border border-slate-100 rounded-2xl p-4">
+                    <div class="wa-account-grid p-4">
+                        <div class="wa-account-panel wa-account-panel--request border border-slate-100 rounded-2xl p-4">
                             <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Nova conexão</p>
                             <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Solicitar número</h6>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -467,7 +507,7 @@
                             </div>
                         </div>
 
-                        <div class="xl:col-span-7 border border-slate-100 rounded-2xl p-4">
+                        <div class="wa-account-panel wa-account-panel--accounts border border-slate-100 rounded-2xl p-4">
                             <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Números conectados</p>
                             <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Contas ativas</h6>
                             <div id="wa-page-account-list" class="max-h-[560px] overflow-y-auto pr-1 custom-scrollbar">
@@ -475,7 +515,15 @@
                             </div>
                         </div>
 
-                        <div class="xl:col-span-12 border border-slate-100 rounded-2xl p-4">
+                        <div class="wa-account-panel wa-account-panel--full border border-slate-100 rounded-2xl p-4">
+                            <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Validação</p>
+                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Números em conexão</h6>
+                            <div id="wa-number-list" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                <div class="text-center text-slate-400 text-xs italic p-4">Carregando números...</div>
+                            </div>
+                        </div>
+
+                        <div class="wa-account-panel wa-account-panel--full border border-slate-100 rounded-2xl p-4">
                             <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Solicitações</p>
                             <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Conexão de números</h6>
                             <div id="wa-number-request-list" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -519,6 +567,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
         const accountModal = document.getElementById('wa-account-modal');
+        const verificationModal = document.getElementById('wa-verification-modal');
         const newChatModal = document.getElementById('wa-new-chat-modal');
         const templateModal = document.getElementById('wa-template-modal');
         const campaignModal = document.getElementById('wa-campaign-modal');
@@ -557,15 +606,27 @@
         const safetySection = document.getElementById('wa-safety-section');
         const pageTemplateList = document.getElementById('wa-page-template-list');
         const pageAccountList = document.getElementById('wa-page-account-list');
+        const numberList = document.getElementById('wa-number-list');
         const numberRequestList = document.getElementById('wa-number-request-list');
         const safetyList = document.getElementById('wa-safety-list');
         const safetySync = document.getElementById('wa-safety-sync');
+        const verificationSubtitle = document.getElementById('wa-verification-subtitle');
+        const verificationIcon = document.getElementById('wa-verification-icon');
+        const verificationTitle = document.getElementById('wa-verification-title');
+        const verificationMessage = document.getElementById('wa-verification-message');
+        const verificationCodeArea = document.getElementById('wa-verification-code-area');
+        const verificationCodeInput = document.getElementById('wa-verification-code');
+        const verificationTimer = document.getElementById('wa-verification-timer');
+        const verificationResend = document.getElementById('wa-verification-resend');
+        const verificationConfirm = document.getElementById('wa-verification-confirm');
+        const verificationFeedback = document.getElementById('wa-verification-feedback');
 
         let accounts = [];
         let conversations = [];
         let templates = [];
         let campaigns = [];
         let numberHealth = [];
+        let numbers = [];
         let numberRequests = [];
         let canManageNumbers = false;
         let suppressEmptyAccountModal = false;
@@ -573,6 +634,9 @@
         let selectedConversation = null;
         let conversationsSignature = '';
         let messagesSignature = '';
+        let activeVerificationRequestId = null;
+        let verificationPollTimer = null;
+        let verificationCountdownTimer = null;
 
         const notify = (type, message) => {
             if (typeof notyf !== 'undefined' && notyf && typeof notyf[type] === 'function') {
@@ -590,6 +654,30 @@
         };
 
         const getNumberRequest = (id) => numberRequests.find((request) => String(request.id) === String(id));
+        const getNumber = (id) => numbers.find((number) => String(number.id) === String(id));
+
+        async function confirmSendNumberRequestToMeta(id) {
+            const request = getNumberRequest(id);
+            const label = request?.display_name || request?.phone_number || 'esta solicitação';
+
+            if (typeof Swal === 'undefined') {
+                return window.confirm(`Enviar ${label} para a Meta?`);
+            }
+
+            const result = await Swal.fire({
+                title: 'Enviar para a Meta?',
+                html: `<p class="mb-0">A solicitação <b>${escapeHtml(label)}</b> será enviada para validação inicial na Meta.</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Enviar para Meta',
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: swalButtonClasses,
+                focusCancel: true
+            });
+
+            return result.isConfirmed;
+        }
 
         async function confirmApproveNumberRequest(id) {
             const request = getNumberRequest(id);
@@ -601,7 +689,7 @@
 
             const result = await Swal.fire({
                 title: 'Aprovar solicitação?',
-                html: `<p class="mb-0">Deseja aprovar <b>${escapeHtml(label)}</b> e conectar este número?</p>`,
+                html: `<p class="mb-0">Confirma que a Meta aceitou <b>${escapeHtml(label)}</b> e deseja aprovar para o solicitante?</p>`,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Aprovar',
@@ -654,6 +742,40 @@
             return result.isConfirmed ? String(result.value || '').trim() : null;
         }
 
+        async function promptVerificationCode(id) {
+            const number = getNumber(id);
+            const label = number?.display_name || number?.phone_number || 'este número';
+
+            if (typeof Swal === 'undefined') {
+                return window.prompt(`Código recebido para ${label}:`);
+            }
+
+            const result = await Swal.fire({
+                title: 'Confirmar código',
+                html: `<p class="mb-0">Informe o código recebido em <b>${escapeHtml(label)}</b>.</p>`,
+                icon: 'info',
+                input: 'text',
+                inputAttributes: {
+                    inputmode: 'numeric',
+                    maxlength: 12,
+                    'aria-label': 'Código de confirmação'
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: swalButtonClasses,
+                inputValidator: (value) => {
+                    if (digits(value || '').length < 4) {
+                        return 'Informe o código recebido.';
+                    }
+                    return null;
+                }
+            });
+
+            return result.isConfirmed ? digits(result.value || '') : null;
+        }
+
         async function confirmDangerAction({ title, message, confirmText = 'Confirmar' }) {
             if (typeof Swal === 'undefined') {
                 return window.confirm(String(message || '').replace(/<[^>]*>/g, ''));
@@ -702,8 +824,10 @@
 
         async function api(path, options = {}) {
             const response = await fetch(`${baseUrl}${path}`, {
+                cache: 'no-store',
                 headers: {
                     'Accept': 'application/json',
+                    'Cache-Control': 'no-store',
                     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
                     ...(options.headers || {})
                 },
@@ -716,14 +840,28 @@
             return data;
         }
 
+        function rememberCreatedNumberRequest(request) {
+            if (!request || !request.id) return;
+
+            const index = numberRequests.findIndex((item) => String(item.id) === String(request.id));
+            if (index >= 0) {
+                numberRequests[index] = { ...numberRequests[index], ...request };
+            } else {
+                numberRequests = [request, ...numberRequests];
+            }
+            renderNumberRequests();
+        }
+
         async function loadAccounts() {
             accountSelect.innerHTML = '<option value="">Carregando...</option>';
 
             try {
-                const result = await api('/campaign/whatsapp/accounts');
+                const result = await api(`/campaign/whatsapp/accounts?_=${Date.now()}`);
                 accounts = Array.isArray(result.data) ? result.data : [];
 
                 if (!accounts.length) {
+                    selectedAccountId = 0;
+                    localStorage.removeItem('wa_selected_account_id');
                     accountSelect.innerHTML = '<option value="">Nenhuma conta cadastrada</option>';
                     accountLabel.textContent = 'Nenhuma conta';
                     renderAccountsList();
@@ -732,6 +870,7 @@
                     }
                     suppressEmptyAccountModal = false;
                     await loadNumberRequests();
+                    await loadNumbers();
                     renderConversations([]);
                     return;
                 }
@@ -752,13 +891,29 @@
                 updateAccountLabel();
                 renderAccountsList();
                 await loadNumberRequests();
+                await loadNumbers();
                 await loadConversations();
             } catch (error) {
+                selectedAccountId = 0;
+                localStorage.removeItem('wa_selected_account_id');
                 accountSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                 accountLabel.textContent = 'Erro';
                 renderAccountsList(error.message);
+                renderNumbers(error.message);
                 renderConversations([]);
                 notify('error', error.message);
+            }
+        }
+
+        async function loadNumbers() {
+            if (!numberList) return;
+
+            try {
+                const result = await api(`/campaign/whatsapp/numbers?_=${Date.now()}`);
+                numbers = Array.isArray(result.data) ? result.data : [];
+                renderNumbers();
+            } catch (error) {
+                renderNumbers(error.message);
             }
         }
 
@@ -766,13 +921,169 @@
             if (!numberRequestList) return;
 
             try {
-                const result = await api('/campaign/whatsapp/number-requests');
+                const result = await api(`/campaign/whatsapp/number-requests?_=${Date.now()}`);
                 numberRequests = Array.isArray(result.data) ? result.data : [];
                 canManageNumbers = Boolean(result.can_manage_numbers);
                 renderNumberRequests();
+                refreshVerificationModal();
             } catch (error) {
                 numberRequestList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error.message)}</div>`;
             }
+        }
+
+        function openVerificationModal(request) {
+            if (!request?.id) return;
+            activeVerificationRequestId = String(request.id);
+            rememberCreatedNumberRequest(request);
+            modal(verificationModal, true);
+            startVerificationPolling();
+            refreshVerificationModal();
+        }
+
+        function closeVerificationModal() {
+            modal(verificationModal, false);
+            activeVerificationRequestId = null;
+            stopVerificationPolling();
+            stopVerificationCountdown();
+        }
+
+        function startVerificationPolling() {
+            stopVerificationPolling();
+            verificationPollTimer = window.setInterval(async () => {
+                if (!activeVerificationRequestId || document.hidden) return;
+                await loadNumberRequests();
+            }, 5000);
+        }
+
+        function stopVerificationPolling() {
+            if (verificationPollTimer) {
+                window.clearInterval(verificationPollTimer);
+                verificationPollTimer = null;
+            }
+        }
+
+        function stopVerificationCountdown() {
+            if (verificationCountdownTimer) {
+                window.clearInterval(verificationCountdownTimer);
+                verificationCountdownTimer = null;
+            }
+        }
+
+        function parseServerDate(value) {
+            if (!value) return null;
+            const normalized = String(value).replace(' ', 'T');
+            const date = new Date(normalized);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        function formatCountdown(ms) {
+            const total = Math.max(0, Math.ceil(ms / 1000));
+            const minutes = String(Math.floor(total / 60)).padStart(2, '0');
+            const seconds = String(total % 60).padStart(2, '0');
+            return `${minutes}:${seconds}`;
+        }
+
+        function startVerificationCountdown(request) {
+            stopVerificationCountdown();
+            const expiresAt = parseServerDate(request?.code_expires_at);
+            const tick = () => {
+                const remaining = expiresAt ? expiresAt.getTime() - Date.now() : 0;
+                const expired = remaining <= 0;
+                verificationTimer.textContent = expired ? 'Código expirado' : formatCountdown(remaining);
+                verificationResend.disabled = !expired;
+            };
+            tick();
+            verificationCountdownTimer = window.setInterval(tick, 1000);
+        }
+
+        function setVerificationState({ icon, iconClass, title, message, showCode = false, feedback = '' }) {
+            verificationIcon.className = `w-10 h-10 rounded-xl flex items-center justify-center ${iconClass}`;
+            verificationIcon.innerHTML = `<i class="fa ${icon}"></i>`;
+            verificationTitle.textContent = title;
+            verificationMessage.textContent = message;
+            verificationCodeArea.classList.toggle('hidden', !showCode);
+            verificationConfirm.classList.toggle('hidden', !showCode);
+            verificationFeedback.textContent = feedback;
+        }
+
+        function refreshVerificationModal() {
+            if (!activeVerificationRequestId || !verificationModal || verificationModal.classList.contains('hidden')) return;
+
+            const request = getNumberRequest(activeVerificationRequestId);
+            if (!request) return;
+
+            verificationSubtitle.textContent = `${request.display_name || 'Número WhatsApp'} - ${request.phone_number || ''}`;
+            const status = String(request.status || 'pending');
+            const numberStatus = String(request.number_status || '');
+
+            if (numberStatus === 'active' || request.verified_at) {
+                stopVerificationPolling();
+                stopVerificationCountdown();
+                setVerificationState({
+                    icon: 'fa-check',
+                    iconClass: 'bg-emerald-100 text-emerald-700',
+                    title: 'Número verificado',
+                    message: 'Seu número WhatsApp foi conectado com sucesso.',
+                    showCode: false
+                });
+                return;
+            }
+
+            if (status === 'approved' && numberStatus === 'code_sent') {
+                setVerificationState({
+                    icon: 'fa-key',
+                    iconClass: 'bg-emerald-100 text-emerald-700',
+                    title: 'Digite o código de verificação',
+                    message: 'Enviamos o código para o número informado.',
+                    showCode: true
+                });
+                startVerificationCountdown(request);
+                return;
+            }
+
+            if (status === 'approved' && numberStatus === 'failed') {
+                setVerificationState({
+                    icon: 'fa-triangle-exclamation',
+                    iconClass: 'bg-red-100 text-red-700',
+                    title: 'Código não enviado',
+                    message: request.number_last_error || 'Não foi possível enviar o código. Tente reenviar.',
+                    showCode: true
+                });
+                stopVerificationCountdown();
+                verificationTimer.textContent = 'Código não enviado';
+                verificationResend.disabled = false;
+                return;
+            }
+
+            stopVerificationCountdown();
+
+            if (status === 'approved') {
+                setVerificationState({
+                    icon: 'fa-spinner fa-spin',
+                    iconClass: 'bg-blue-100 text-blue-700',
+                    title: 'Solicitando código de verificação...',
+                    message: 'A aprovação foi concluída e o envio do código está em andamento.'
+                });
+                return;
+            }
+
+            if (status === 'rejected') {
+                stopVerificationPolling();
+                setVerificationState({
+                    icon: 'fa-xmark',
+                    iconClass: 'bg-red-100 text-red-700',
+                    title: 'Solicitação recusada',
+                    message: request.admin_notes || 'Não foi possível conectar este número agora.'
+                });
+                return;
+            }
+
+            setVerificationState({
+                icon: status === 'meta_submitted' || status === 'meta_failed' ? 'fa-spinner fa-spin' : 'fa-clock',
+                iconClass: status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700',
+                title: status === 'pending' ? 'Aguardando aprovação...' : 'Aguardando conclusão da análise...',
+                message: 'Você pode acompanhar esta solicitação por aqui em tempo real.'
+            });
         }
 
         function renderNumberRequests() {
@@ -785,21 +1096,42 @@
 
             numberRequestList.innerHTML = numberRequests.map((request) => {
                 const status = String(request.status || 'pending');
-                const badge = status === 'approved'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : status === 'rejected'
-                        ? 'bg-red-50 text-red-700'
-                        : 'bg-amber-50 text-amber-700';
+                const numberStatus = String(request.number_status || '');
+                const badge = {
+                    approved: 'bg-emerald-50 text-emerald-700',
+                    rejected: 'bg-red-50 text-red-700',
+                    meta_submitted: 'bg-blue-50 text-blue-700',
+                    meta_failed: canManageNumbers ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700',
+                    pending: 'bg-amber-50 text-amber-700'
+                }[status] || 'bg-slate-100 text-slate-600';
                 const statusLabel = {
                     pending: 'Pendente',
+                    meta_submitted: canManageNumbers ? 'Enviada à Meta' : 'Em análise',
+                    meta_failed: canManageNumbers ? 'Falha na Meta' : 'Em análise',
                     approved: 'Aprovada',
                     rejected: 'Recusada'
                 }[status] || status;
-                const actions = canManageNumbers && status === 'pending'
-                    ? `<div class="flex items-center gap-2 shrink-0">
-                        <button type="button" data-request-approve="${request.id}" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Aprovar</button>
-                        <button type="button" data-request-reject="${request.id}" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase">Recusar</button>
+                const sendMetaAction = canManageNumbers && ['pending', 'meta_failed'].includes(status)
+                    ? `<button type="button" data-request-send-meta="${request.id}" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase">Enviar Meta</button>`
+                    : '';
+                const canApprove = status === 'meta_submitted';
+                const canReject = ['meta_submitted', 'meta_failed'].includes(status);
+                const reviewActions = canManageNumbers && (canApprove || canReject)
+                    ? `${canApprove ? `<button type="button" data-request-approve="${request.id}" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">Aprovar</button>` : ''}
+                        ${canReject ? `<button type="button" data-request-reject="${request.id}" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase">Recusar</button>` : ''}`
+                    : '';
+                const trackAction = !canManageNumbers && ['pending', 'meta_submitted', 'meta_failed', 'approved'].includes(status)
+                    ? `<button type="button" data-request-track="${request.id}" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Acompanhar</button>`
+                    : '';
+                const actions = (canManageNumbers && (sendMetaAction || reviewActions)) || trackAction
+                    ? `<div class="flex items-center gap-2 shrink-0 flex-wrap">
+                        ${sendMetaAction}
+                        ${reviewActions}
+                        ${trackAction}
                     </div>`
+                    : '';
+                const ticketLabel = request.support_ticket_id
+                    ? `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">Ticket #${escapeHtml(request.support_ticket_id)}</span>`
                     : '';
 
                 return `
@@ -808,9 +1140,69 @@
                             <div class="flex flex-wrap items-center gap-2">
                                 <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(request.display_name || 'Número WhatsApp')}</h6>
                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${badge}">${escapeHtml(statusLabel)}</span>
+                                ${ticketLabel}
                             </div>
                             <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(request.phone_number || '')}${request.requested_by_name ? ` - ${escapeHtml(request.requested_by_name)}` : ''}</p>
-                            ${request.admin_notes ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(request.admin_notes)}</p>` : ''}
+                            ${request.admin_notes && (canManageNumbers || status === 'rejected') ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(request.admin_notes)}</p>` : ''}
+                        </div>
+                        ${actions}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderNumbers(error = '') {
+            if (!numberList) return;
+
+            if (error) {
+                numberList.innerHTML = `<div class="text-center text-red-500 text-xs p-4">${escapeHtml(error)}</div>`;
+                return;
+            }
+
+            const visibleNumbers = numbers.filter((number) => String(number.status || '') !== 'removed');
+
+            if (!visibleNumbers.length) {
+                numberList.innerHTML = '<div class="text-center text-slate-400 text-xs italic p-4">Nenhum número em validação agora.</div>';
+                return;
+            }
+
+            numberList.innerHTML = visibleNumbers.map((number) => {
+                const status = String(number.status || 'pending');
+                const badge = {
+                    active: 'bg-emerald-50 text-emerald-700',
+                    code_sent: 'bg-blue-50 text-blue-700',
+                    failed: 'bg-red-50 text-red-700',
+                    available: 'bg-slate-100 text-slate-600',
+                    pending: 'bg-amber-50 text-amber-700',
+                    removing: 'bg-orange-50 text-orange-700'
+                }[status] || 'bg-slate-100 text-slate-600';
+                const statusLabel = {
+                    active: 'Ativo',
+                    pending: 'Aguardando código',
+                    code_sent: 'Código enviado',
+                    failed: 'Falhou',
+                    available: 'Disponível',
+                    removing: 'Removendo'
+                }[status] || status;
+                const canValidate = canManageNumbers && ['pending', 'code_sent', 'failed'].includes(status) && number.meta_id;
+                const actions = canValidate
+                    ? `<div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <button type="button" data-number-send-code="${number.id}" data-method="SMS" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase">SMS</button>
+                        <button type="button" data-number-send-code="${number.id}" data-method="VOICE" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Ligação</button>
+                        <button type="button" data-number-confirm-code="${number.id}" class="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Confirmar</button>
+                    </div>`
+                    : '';
+
+                return `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(number.display_name || 'Número WhatsApp')}</h6>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${badge}">${escapeHtml(statusLabel)}</span>
+                                ${number.origin ? `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(number.origin)}</span>` : ''}
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">${escapeHtml(number.phone_number || '')}${number.account_label ? ` - ${escapeHtml(number.account_label)}` : ''}</p>
+                            ${number.last_error ? `<p class="text-[11px] text-red-500 mt-1 mb-0">${escapeHtml(number.last_error)}</p>` : ''}
                         </div>
                         ${actions}
                     </div>
@@ -1328,7 +1720,7 @@
                     display_phone_number: document.getElementById('wa-account-display-phone')?.value || ''
                 };
 
-                await api('/campaign/whatsapp/numbers/client', {
+                const result = await api('/campaign/whatsapp/numbers/client', {
                     method: 'POST',
                     body: JSON.stringify({
                         display_name: payload.label,
@@ -1338,10 +1730,13 @@
 
                 setTextFeedback(feedback, 'Solicitação enviada.', true);
                 notify('success', 'Solicitação enviada para análise.');
+                rememberCreatedNumberRequest(result.data);
                 modal(accountModal, false);
+                openVerificationModal(result.data);
                 suppressEmptyAccountModal = true;
-                await loadAccounts();
                 await loadNumberRequests();
+                await loadNumbers();
+                await loadAccounts();
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
             }
@@ -1357,7 +1752,7 @@
                     display_phone_number: document.getElementById('wa-page-account-display-phone')?.value || ''
                 };
 
-                await api('/campaign/whatsapp/numbers/client', {
+                const result = await api('/campaign/whatsapp/numbers/client', {
                     method: 'POST',
                     body: JSON.stringify({
                         display_name: payload.label,
@@ -1367,11 +1762,14 @@
 
                 setTextFeedback(feedback, 'Solicitação enviada.', true);
                 notify('success', 'Solicitação enviada para análise.');
+                rememberCreatedNumberRequest(result.data);
+                openVerificationModal(result.data);
                 document.getElementById('wa-page-account-label').value = '';
                 document.getElementById('wa-page-account-display-phone').value = '';
                 suppressEmptyAccountModal = true;
-                await loadAccounts();
                 await loadNumberRequests();
+                await loadNumbers();
+                await loadAccounts();
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
             }
@@ -1385,9 +1783,26 @@
                 await api(`/campaign/whatsapp/number-requests/${id}/approve`, { method: 'POST' });
                 notify('success', 'Solicitação aprovada.');
                 await loadNumberRequests();
+                await loadNumbers();
                 await loadAccounts();
             } catch (error) {
                 notify('error', error.message);
+            }
+        }
+
+        async function sendNumberRequestToMeta(id) {
+            const confirmed = await confirmSendNumberRequestToMeta(id);
+            if (!confirmed) return;
+
+            try {
+                await api(`/campaign/whatsapp/number-requests/${id}/send-meta`, { method: 'POST' });
+                notify('success', 'Solicitação enviada para a Meta.');
+                await loadNumberRequests();
+                await loadNumbers();
+                await loadAccounts();
+            } catch (error) {
+                notify('error', error.message);
+                await loadNumberRequests();
             }
         }
 
@@ -1404,6 +1819,86 @@
                 await loadNumberRequests();
             } catch (error) {
                 notify('error', error.message);
+            }
+        }
+
+        async function resendVerificationModalCode(method = 'SMS') {
+            if (!activeVerificationRequestId) return;
+
+            try {
+                verificationResend.disabled = true;
+                verificationFeedback.textContent = 'Reenviando código...';
+                await api(`/campaign/whatsapp/number-requests/${activeVerificationRequestId}/resend-code`, {
+                    method: 'POST',
+                    body: JSON.stringify({ method })
+                });
+                verificationFeedback.textContent = 'Código reenviado.';
+                await loadNumberRequests();
+            } catch (error) {
+                verificationFeedback.textContent = error.message;
+                notify('error', error.message);
+                await loadNumberRequests();
+            }
+        }
+
+        async function confirmVerificationModalCode() {
+            if (!activeVerificationRequestId) return;
+            const code = digits(verificationCodeInput?.value || '');
+            if (code.length < 4) {
+                verificationFeedback.textContent = 'Informe o código recebido.';
+                return;
+            }
+
+            try {
+                verificationConfirm.disabled = true;
+                verificationFeedback.textContent = 'Validando código...';
+                await api(`/campaign/whatsapp/number-requests/${activeVerificationRequestId}/confirm-code`, {
+                    method: 'POST',
+                    body: JSON.stringify({ code })
+                });
+                verificationFeedback.textContent = 'Número conectado.';
+                notify('success', 'Número conectado.');
+                await loadNumberRequests();
+                await loadNumbers();
+                await loadAccounts();
+            } catch (error) {
+                verificationFeedback.textContent = error.message;
+                notify('error', error.message);
+                await loadNumberRequests();
+            } finally {
+                verificationConfirm.disabled = false;
+            }
+        }
+
+        async function sendNumberVerificationCode(id, method = 'SMS') {
+            try {
+                await api(`/campaign/whatsapp/numbers/${id}/send-code`, {
+                    method: 'POST',
+                    body: JSON.stringify({ method })
+                });
+                notify('success', method === 'VOICE' ? 'Ligação solicitada.' : 'SMS solicitado.');
+                await loadNumbers();
+            } catch (error) {
+                notify('error', error.message);
+                await loadNumbers();
+            }
+        }
+
+        async function confirmNumberVerificationCode(id) {
+            const code = await promptVerificationCode(id);
+            if (code === null) return;
+
+            try {
+                await api(`/campaign/whatsapp/numbers/${id}/confirm-code`, {
+                    method: 'POST',
+                    body: JSON.stringify({ code })
+                });
+                notify('success', 'Número conectado.');
+                await loadNumbers();
+                await loadAccounts();
+            } catch (error) {
+                notify('error', error.message);
+                await loadNumbers();
             }
         }
 
@@ -1792,6 +2287,9 @@
         document.getElementById('wa-account-cancel')?.addEventListener('click', () => modal(accountModal, false));
         document.getElementById('wa-account-save')?.addEventListener('click', saveAccount);
         document.getElementById('wa-page-account-save')?.addEventListener('click', savePageAccount);
+        document.getElementById('wa-verification-close')?.addEventListener('click', closeVerificationModal);
+        verificationResend?.addEventListener('click', () => resendVerificationModalCode('SMS'));
+        verificationConfirm?.addEventListener('click', confirmVerificationModalCode);
         pageAccountList?.addEventListener('click', async (event) => {
             const selectBtn = event.target.closest('[data-account-select]');
             if (selectBtn) {
@@ -1816,7 +2314,44 @@
                 testAccount();
             }
         });
+        numberList?.addEventListener('click', async (event) => {
+            const sendCodeBtn = event.target.closest('[data-number-send-code]');
+            if (sendCodeBtn) {
+                sendCodeBtn.disabled = true;
+                sendCodeBtn.classList.add('opacity-60', 'cursor-wait');
+                await sendNumberVerificationCode(sendCodeBtn.dataset.numberSendCode, sendCodeBtn.dataset.method || 'SMS');
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.classList.remove('opacity-60', 'cursor-wait');
+                return;
+            }
+
+            const confirmCodeBtn = event.target.closest('[data-number-confirm-code]');
+            if (confirmCodeBtn) {
+                confirmCodeBtn.disabled = true;
+                confirmCodeBtn.classList.add('opacity-60', 'cursor-wait');
+                await confirmNumberVerificationCode(confirmCodeBtn.dataset.numberConfirmCode);
+                confirmCodeBtn.disabled = false;
+                confirmCodeBtn.classList.remove('opacity-60', 'cursor-wait');
+            }
+        });
         numberRequestList?.addEventListener('click', async (event) => {
+            const trackBtn = event.target.closest('[data-request-track]');
+            if (trackBtn) {
+                const request = getNumberRequest(trackBtn.dataset.requestTrack);
+                if (request) openVerificationModal(request);
+                return;
+            }
+
+            const sendMetaBtn = event.target.closest('[data-request-send-meta]');
+            if (sendMetaBtn) {
+                sendMetaBtn.disabled = true;
+                sendMetaBtn.classList.add('opacity-60', 'cursor-wait');
+                await sendNumberRequestToMeta(sendMetaBtn.dataset.requestSendMeta);
+                sendMetaBtn.disabled = false;
+                sendMetaBtn.classList.remove('opacity-60', 'cursor-wait');
+                return;
+            }
+
             const approveBtn = event.target.closest('[data-request-approve]');
             if (approveBtn) {
                 approveBtn.disabled = true;
@@ -2077,6 +2612,17 @@
     .wa-actions-dropdown button:hover {
         background: #f8fafc;
     }
+    .wa-account-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        gap: 1rem;
+    }
+    .wa-account-panel {
+        min-width: 0;
+    }
+    .wa-account-panel--full {
+        grid-column: 1 / -1;
+    }
     .wa-field {
         display: block;
     }
@@ -2204,6 +2750,12 @@
         to { opacity: 1; transform: translateY(0); }
     }
     @media (max-width: 1180px) {
+        .wa-account-grid {
+            grid-template-columns: 1fr;
+        }
+        .wa-account-panel--full {
+            grid-column: auto;
+        }
         .wa-central-header {
             align-items: flex-start;
             flex-direction: column;

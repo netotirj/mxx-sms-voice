@@ -1,10 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
 
-    const notyf = new Notyf({
+    window.notyf = window.notyf || new Notyf({
         duration: 4000,
+        ripple: false,
         position: { x: 'right', y: 'top' },
     });
+    const notyf = window.notyf;
 
     let heartbeatIntervalId = null;
     let inactivityTimer = null;

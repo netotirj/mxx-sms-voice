@@ -54,13 +54,31 @@ class WhatsAppOutbox
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public static function resetStaleSending(int $olderThanSeconds = 300): int
+    {
+        $olderThanSeconds = max(60, $olderThanSeconds);
+
+        return (new Database('whatsapp_outbox'))->execute(
+            "UPDATE whatsapp_outbox
+             SET status = 'queued',
+                 error_message = 'Envio retomado após interrupção do worker.',
+                 available_at = NOW(),
+                 updated_at = NOW()
+             WHERE status = 'sending'
+               AND updated_at < DATE_SUB(NOW(), INTERVAL {$olderThanSeconds} SECOND)"
+        )->rowCount();
+    }
+
     public static function markSending(int $id): bool
     {
-        return (new Database('whatsapp_outbox'))->update(
-            "id = :id AND status = 'queued'",
-            ['status' => 'sending', 'updated_at' => date('Y-m-d H:i:s')],
+        return (new Database('whatsapp_outbox'))->execute(
+            "UPDATE whatsapp_outbox
+             SET status = 'sending',
+                 updated_at = NOW()
+             WHERE id = :id
+               AND status = 'queued'",
             [':id' => $id]
-        );
+        )->rowCount() === 1;
     }
 
     public static function markSent(int $id, ?string $wamid, ?int $messageId = null): bool

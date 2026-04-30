@@ -9,17 +9,26 @@
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 14px;
   box-shadow: 0 22px 60px rgba(2, 6, 23, 0.34);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.notyf__ripple {
+  display: none !important;
 }
 
 .notyf__wrapper {
   align-items: center;
   padding: 14px 16px;
+  position: relative;
+  z-index: 2;
 }
 
 .notyf__message {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .notyf__icon {

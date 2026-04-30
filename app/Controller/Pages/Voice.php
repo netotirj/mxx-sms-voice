@@ -653,6 +653,63 @@ class Voice extends ViewComponents
         }
     }
 
+    public static function setVoiceListeningHangup($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $params = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($params)) {
+            $params = [];
+        }
+
+        $spyChannelId = trim((string)($params['spy_channel_id'] ?? ''));
+
+        if ($spyChannelId === '') {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Canal de escuta não informado.'
+            ], 'application/json');
+        }
+
+        try {
+            $client = new Client([
+                'auth' => TelephonyConfig::ariAuth(),
+                'timeout' => 5,
+                'http_errors' => false
+            ]);
+            $ariBase = TelephonyConfig::ariBaseUrl();
+
+            $res = $client->delete("{$ariBase}channels/{$spyChannelId}");
+            $status = $res->getStatusCode();
+
+            if ($status >= 200 && $status < 300 || $status === 404) {
+                return new Response(200, [
+                    'success' => true,
+                    'message' => 'Escuta finalizada.'
+                ], 'application/json');
+            }
+
+            return new Response(500, [
+                'success' => false,
+                'message' => 'ARI retornou erro ao finalizar escuta.',
+                'ari_status' => $status,
+                'ari_response' => json_decode((string)$res->getBody(), true)
+            ], 'application/json');
+        } catch (GuzzleException $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Erro ARI ao finalizar escuta: ' . $e->getMessage()
+            ], 'application/json');
+        }
+    }
+
     public static function setVoiceAnswer($request): Response
     {
         return new Response(410, json_encode([

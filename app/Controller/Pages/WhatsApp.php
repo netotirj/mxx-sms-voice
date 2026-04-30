@@ -104,15 +104,17 @@ class WhatsApp extends ViewComponents
 
             return self::json(201, [
                 'success' => true,
-                'message' => empty($number['meta_id'])
-                    ? 'Solicitação recebida. O administrador fará a conexão do número.'
-                    : 'Número recebido. Agora envie o código de confirmação.',
+                'message' => 'Solicitação recebida. O administrador fará a conexão do número.',
                 'data' => $number,
             ]);
         } catch (\InvalidArgumentException $e) {
             return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
         } catch (\Throwable $e) {
-            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+            return self::json(409, [
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Não foi possível salvar a solicitação do número.',
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -147,8 +149,33 @@ class WhatsApp extends ViewComponents
         try {
             return self::json(200, [
                 'success' => true,
-                'message' => 'Solicitação aprovada. Agora envie o código de confirmação.',
+                'message' => 'Solicitação aprovada para o solicitante. Agora envie o código de confirmação.',
                 'data' => WhatsAppNumberManager::approveNumberRequest($obUser, (int)$id),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function sendNumberRequestToMeta($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Solicitação enviada para a Meta.',
+                'data' => WhatsAppNumberManager::submitNumberRequestToMeta($obUser, (int)$id),
             ]);
         } catch (\Throwable $e) {
             return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
@@ -176,6 +203,56 @@ class WhatsApp extends ViewComponents
                 'message' => 'Solicitação recusada.',
                 'data' => WhatsAppNumberManager::rejectNumberRequest($obUser, (int)$id, (string)($input['reason'] ?? '')),
             ]);
+        } catch (\Throwable $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function resendNumberRequestCode($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Código reenviado.',
+                'data' => WhatsAppNumberManager::resendNumberRequestVerificationCode(
+                    $obUser,
+                    (int)$id,
+                    (string)($input['method'] ?? 'SMS')
+                ),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function confirmNumberRequestCode($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Número conectado.',
+                'data' => WhatsAppNumberManager::confirmNumberRequestVerificationCode(
+                    $obUser,
+                    (int)$id,
+                    (string)($input['code'] ?? '')
+                ),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
         } catch (\Throwable $e) {
             return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
         }
@@ -812,9 +889,20 @@ class WhatsApp extends ViewComponents
         return new Response(403, 'Invalid verify token');
     }
 
-    public static function receiveWebhook(): Response
+    public static function receiveWebhook($request = null): Response
     {
-        $payload = self::jsonInput();
+        $rawPayload = file_get_contents('php://input') ?: '';
+        if (!self::isValidWebhookSignature($rawPayload, $request)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Assinatura do webhook inválida.',
+            ]);
+        }
+
+        $payload = json_decode($rawPayload, true);
+        if (!is_array($payload)) {
+            $payload = $_POST ?: [];
+        }
         $processed = 0;
 
         try {
@@ -860,6 +948,31 @@ class WhatsApp extends ViewComponents
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private static function isValidWebhookSignature(string $rawPayload, mixed $request = null): bool
+    {
+        $secret = WhatsAppConfig::webhookAppSecret();
+        if ($secret === '') {
+            return true;
+        }
+
+        $headers = is_object($request) && method_exists($request, 'getHeaders')
+            ? $request->getHeaders()
+            : [];
+        $signature = (string)(
+            $headers['X-Hub-Signature-256']
+            ?? $headers['x-hub-signature-256']
+            ?? $_SERVER['HTTP_X_HUB_SIGNATURE_256']
+            ?? ''
+        );
+
+        if (!str_starts_with($signature, 'sha256=')) {
+            return false;
+        }
+
+        $expected = 'sha256=' . hash_hmac('sha256', $rawPayload, $secret);
+        return hash_equals($expected, $signature);
     }
 
     private static function storeInboundWebhookMessage(array $account, array $message, array $value): bool

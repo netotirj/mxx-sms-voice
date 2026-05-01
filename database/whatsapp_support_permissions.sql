@@ -43,6 +43,18 @@ SELECT 'WhatsApp - Configuração', '/campaign/whatsapp/accounts/{id}/test'
 WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/accounts/{id}/test');
 
 INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Perfil Meta', '/campaign/whatsapp/accounts/{id}/profile'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/accounts/{id}/profile');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Perfil Meta', '/campaign/whatsapp/accounts/{id}/profile/update'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/accounts/{id}/profile/update');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Perfil Meta', '/campaign/whatsapp/accounts/{id}/profile/photo'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/accounts/{id}/profile/photo');
+
+INSERT INTO sys_routes (module_name, route_path)
 SELECT 'WhatsApp - Números', '/campaign/whatsapp/numbers/health/sync'
 WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/numbers/health/sync');
 
@@ -103,6 +115,14 @@ SELECT 'WhatsApp - Templates', '/campaign/whatsapp/templates/{id}/delete'
 WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/templates/{id}/delete');
 
 INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Templates', '/campaign/whatsapp/templates/sync'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/templates/sync');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Templates', '/campaign/whatsapp/templates/{id}/sync'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/templates/{id}/sync');
+
+INSERT INTO sys_routes (module_name, route_path)
 SELECT 'WhatsApp - Campanhas', '/campaign/whatsapp/campaigns/create'
 WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/campaigns/create');
 
@@ -117,6 +137,22 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsap
 INSERT INTO sys_routes (module_name, route_path)
 SELECT 'WhatsApp - Atendimento', '/campaign/whatsapp/messages/send'
 WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/campaign/whatsapp/messages/send');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Compatibilidade', '/whatsapp/connection'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/whatsapp/connection');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Compatibilidade', '/whatsapp/verification'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/whatsapp/verification');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Compatibilidade', '/whatsapp/confirm-number'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/whatsapp/confirm-number');
+
+INSERT INTO sys_routes (module_name, route_path)
+SELECT 'WhatsApp - Compatibilidade', '/whatsapp/send-message'
+WHERE NOT EXISTS (SELECT 1 FROM sys_routes WHERE route_path = '/whatsapp/send-message');
 
 INSERT INTO sys_routes (module_name, route_path)
 SELECT 'WhatsApp - Atendimento', '/campaign/whatsapp/conversations/{id}/read'
@@ -201,4 +237,7 @@ INNER JOIN sys_routes base_route
     ON base_route.id = base_perm.route_id
     AND base_route.route_path = '/campaign/whatsapp'
 INNER JOIN sys_routes whatsapp_routes
-    ON whatsapp_routes.route_path LIKE '/campaign/whatsapp%';
+    ON (
+        whatsapp_routes.route_path LIKE '/campaign/whatsapp%'
+        OR whatsapp_routes.route_path LIKE '/whatsapp/%'
+    );

@@ -16,7 +16,7 @@ $options = getopt('', [
 ]);
 
 $limit = max(1, (int)($options['limit'] ?? 50));
-$sleepSeconds = max(1, (int)($options['sleep'] ?? 3));
+$sleepSeconds = max(5, (int)($options['sleep'] ?? 10));
 $maxLoops = max(0, (int)($options['max-loops'] ?? 0));
 $cancelCategory = isset($options['cancel-category']) && $options['cancel-category'] !== ''
     ? strtoupper((string)$options['cancel-category'])
@@ -54,6 +54,7 @@ while ($running) {
             'processed' => $summary['processed'] ?? 0,
             'sent' => $summary['sent'] ?? 0,
             'failed' => $summary['failed'] ?? 0,
+            'locked' => $summary['locked'] ?? false,
             'duration_ms' => (int)round((microtime(true) - $startedAt) * 1000),
             'memory_mb' => round(memory_get_usage(true) / 1048576, 2),
         ]);

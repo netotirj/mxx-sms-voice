@@ -20,6 +20,7 @@ use App\Model\Entity\BalanceSms;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\RefillsResellers;
+use App\Service\DashboardService;
 use GuzzleHttp\Client;
 use WilliamCosta\DatabaseManager\Database;
 
@@ -250,7 +251,7 @@ class Dashboard extends ViewComponents
                 'status' => $smsTotal > 0 ? ($smsDeliveryRate >= 80 ? 'ok' : 'warning') : 'warning'
             ],
             'whatsapp' => [
-                'title' => 'WhatsApp Central',
+                'title' => 'WhatsApp',
                 'metric_label' => 'Conversas / Não lidas',
                 'primary_value' => $whatsTotal,
                 'secondary_text' => $whatsUnread . ' não lidas',
@@ -313,6 +314,22 @@ class Dashboard extends ViewComponents
     {
         $row = (new Database())->execute($sql, $params)->fetch(\PDO::FETCH_ASSOC);
         return (int)($row['total'] ?? 0);
+    }
+
+    private static function formatWhatsAppAccountLabel(array $row, bool $withPhone = true): string
+    {
+        $label = trim((string)($row['label'] ?? ''));
+        $phone = trim((string)($row['display_phone_number'] ?? ''));
+
+        if ($label === '') {
+            $label = $phone !== '' ? $phone : 'Conta WhatsApp';
+        }
+
+        if ($withPhone && $phone !== '' && $phone !== $label) {
+            return $label . ' (' . $phone . ')';
+        }
+
+        return $label;
     }
 
     private static function whatsappTablesReady(): bool
@@ -468,37 +485,163 @@ class Dashboard extends ViewComponents
         return $map;
     }
 
+    private static function costMapWhatsAppForPeriod(array $obUser, string $period, string $mode = 'current'): array
+    {
+        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wc');
+        $periodWhere = self::whatsPeriodCondition($period, $mode);
+
+        try {
+            $rows = (new Database())->execute(
+                "SELECT wm.direction, wm.status, COALESCE(SUM(wm.price_brl), 0) AS total_cost
+                 FROM whatsapp_messages wm
+                 INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+                 WHERE {$where}
+                   AND {$periodWhere}
+                 GROUP BY wm.direction, wm.status
+                 ORDER BY total_cost DESC",
+                $params
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [
+                'map' => [],
+                'total' => 0,
+            ];
+        }
+
+        $map = [];
+        $total = 0.0;
+        foreach ($rows as $row) {
+            $direction = (string)($row['direction'] ?? '');
+            $status = (string)($row['status'] ?? '');
+            $label = self::whatsStatusLabel($direction, $status);
+            $cost = (float)($row['total_cost'] ?? 0);
+
+            $map[$label] = (float)($map[$label] ?? 0) + $cost;
+            $total += $cost;
+        }
+
+        return [
+            'map' => $map,
+            'total' => round($total, 4),
+        ];
+    }
+
+    private static function companyCostMapWhatsAppForPeriod(array $obUser, string $period): array
+    {
+        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wa');
+        $periodWhere = self::whatsPeriodCondition($period, 'current');
+
+        try {
+            $rows = (new Database())->execute(
+                "SELECT
+                    COALESCE(NULLIF(t.name, ''), NULLIF(wa.label, ''), wa.display_phone_number) AS company_name,
+                    COUNT(wm.id) AS quantity,
+                    COALESCE(SUM(wm.price_brl), 0) AS cost
+                 FROM whatsapp_accounts wa
+                 LEFT JOIN tenancies t ON t.id = wa.tenancy_id
+                 LEFT JOIN whatsapp_conversations wc ON wc.account_id = wa.id
+                 LEFT JOIN whatsapp_messages wm ON wm.conversation_id = wc.id
+                    AND {$periodWhere}
+                 WHERE {$where}
+                   AND wa.status = 'active'
+                 GROUP BY wa.tenancy_id, company_name
+                 ORDER BY quantity DESC, cost DESC",
+                $params
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($rows as $row) {
+            $label = trim((string)($row['company_name'] ?? 'Empresa'));
+            $label = preg_split('/\s+/', $label)[0] ?? $label;
+
+            if (!isset($map[$label])) {
+                $map[$label] = [
+                    'quantity' => 0,
+                    'cost' => 0.0,
+                ];
+            }
+
+            $map[$label]['quantity'] += (int)($row['quantity'] ?? 0);
+            $map[$label]['cost'] += (float)($row['cost'] ?? 0);
+            $map[$label]['cost'] = round($map[$label]['cost'], 4);
+        }
+
+        return $map;
+    }
+
     private static function buildDashboardWhatsAppCharts(array $obUser): array
     {
-        try {
+        $cacheKey = 'dashboard:whatsapp_charts:' . md5(json_encode([
+            'role' => strtolower((string)($obUser['function'] ?? '')),
+            'tenancy_id' => (string)($obUser['tenancy_id'] ?? ''),
+            'user_id' => (int)($obUser['id'] ?? 0),
+        ]));
+
+        return DashboardService::remember($cacheKey, 20, static function () use ($obUser): array {
+            try {
             if (!self::whatsappTablesReady()) {
                 throw new \RuntimeException('WhatsApp tables not ready');
             }
+
+            $costDiaAtual = self::costMapWhatsAppForPeriod($obUser, 'day');
+            $costDiaAnterior = self::costMapWhatsAppForPeriod($obUser, 'day', 'previous');
+            $costSemanaAtual = self::costMapWhatsAppForPeriod($obUser, 'week');
+            $costSemanaAnterior = self::costMapWhatsAppForPeriod($obUser, 'week', 'previous');
+            $costMesAtual = self::costMapWhatsAppForPeriod($obUser, 'month');
+            $costMesAnterior = self::costMapWhatsAppForPeriod($obUser, 'month', 'previous');
 
             return [
                 'statusMapDiaWhats' => self::statusMapWhatsAppForPeriod($obUser, 'day'),
                 'statusMapSemanaWhats' => self::statusMapWhatsAppForPeriod($obUser, 'week'),
                 'statusMapMesWhats' => self::statusMapWhatsAppForPeriod($obUser, 'month'),
+                'costMapDiaWhats' => $costDiaAtual['map'],
+                'costMapSemanaWhats' => $costSemanaAtual['map'],
+                'costMapMesWhats' => $costMesAtual['map'],
+                'companyCostMapDiaWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'day'),
+                'companyCostMapSemanaWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'week'),
+                'companyCostMapMesWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'month'),
                 'totalDiaAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'day', 'current'),
                 'totalDiaAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'day', 'previous'),
                 'totalSemanaAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'week', 'current'),
                 'totalSemanaAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'week', 'previous'),
                 'totalMesAtualWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'month', 'current'),
                 'totalMesAnteriorWhats' => self::countWhatsAppMessagesForPeriod($obUser, 'month', 'previous'),
+                'totalCustoDiaAtualWhats' => $costDiaAtual['total'],
+                'totalCustoDiaAnteriorWhats' => $costDiaAnterior['total'],
+                'totalCustoSemanaAtualWhats' => $costSemanaAtual['total'],
+                'totalCustoSemanaAnteriorWhats' => $costSemanaAnterior['total'],
+                'totalCustoMesAtualWhats' => $costMesAtual['total'],
+                'totalCustoMesAnteriorWhats' => $costMesAnterior['total'],
             ];
         } catch (\Throwable) {
             return [
                 'statusMapDiaWhats' => [],
                 'statusMapSemanaWhats' => [],
                 'statusMapMesWhats' => [],
+                'costMapDiaWhats' => [],
+                'costMapSemanaWhats' => [],
+                'costMapMesWhats' => [],
+                'companyCostMapDiaWhats' => [],
+                'companyCostMapSemanaWhats' => [],
+                'companyCostMapMesWhats' => [],
                 'totalDiaAtualWhats' => 0,
                 'totalDiaAnteriorWhats' => 0,
                 'totalSemanaAtualWhats' => 0,
                 'totalSemanaAnteriorWhats' => 0,
                 'totalMesAtualWhats' => 0,
                 'totalMesAnteriorWhats' => 0,
+                'totalCustoDiaAtualWhats' => 0,
+                'totalCustoDiaAnteriorWhats' => 0,
+                'totalCustoSemanaAtualWhats' => 0,
+                'totalCustoSemanaAnteriorWhats' => 0,
+                'totalCustoMesAtualWhats' => 0,
+                'totalCustoMesAnteriorWhats' => 0,
             ];
         }
+        });
     }
 
     private static function buildTrunkNameMap(array $obUser): array
@@ -755,6 +898,7 @@ class Dashboard extends ViewComponents
 
     public static function getDataViewDash($request)
     {
+        $startedAt = microtime(true);
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
@@ -762,6 +906,8 @@ class Dashboard extends ViewComponents
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+        DashboardService::sseRetryLine(DashboardService::CARDS_RETRY_MS);
 
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
@@ -787,7 +933,10 @@ class Dashboard extends ViewComponents
         // SUPER ADMIN
         // ============================
         if ($isSuperAdmin) {
-            $currentBalance = DisproClient::getBalanceDISPRO() ?: 0;
+            $currentBalance = DashboardService::cachedSmsBalance(
+                (string)($obUser['tenancy_id'] ?? 'global'),
+                static fn() => DisproClient::getBalanceDISPRO()
+            ) ?? 0;
             $dataPix = PixSearch::getPixLast($obUser['id'], $obUser['tenancy_id']);
             $currentPix = ($dataPix && isset($dataPix->value)) ? str_replace('.', ',', sprintf("%0.2f", (float)$dataPix->value)) : '00,00';
             $currentData = ($dataPix && !empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date)) ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date)) : '--/--/---- --:--';
@@ -978,6 +1127,10 @@ class Dashboard extends ViewComponents
         }
 
         echo "data: " . json_encode($data) . "\n\n";
+        DashboardService::log('/dashboard/cards', 'sse_emit', $startedAt, [
+            'role' => $role,
+            'tenancy_id' => $obUser['tenancy_id'] ?? null,
+        ]);
         flush();
         exit;
     }
@@ -985,11 +1138,14 @@ class Dashboard extends ViewComponents
 
     public static function getDataChartsDashboard($request): Response
     {
+        $startedAt = microtime(true);
         if (session_status() == PHP_SESSION_ACTIVE) session_write_close();
 
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+        DashboardService::sseRetryLine(DashboardService::CHARTS_RETRY_MS);
 
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
@@ -1136,12 +1292,24 @@ class Dashboard extends ViewComponents
                 'statusMapMesWhats'       => $whatsappCharts['statusMapMesWhats'],
                 'statusMapDiaWhats'       => $whatsappCharts['statusMapDiaWhats'],
                 'statusMapSemanaWhats'    => $whatsappCharts['statusMapSemanaWhats'],
+                'costMapMesWhats'         => $whatsappCharts['costMapMesWhats'],
+                'costMapDiaWhats'         => $whatsappCharts['costMapDiaWhats'],
+                'costMapSemanaWhats'      => $whatsappCharts['costMapSemanaWhats'],
+                'companyCostMapMesWhats'  => $whatsappCharts['companyCostMapMesWhats'],
+                'companyCostMapDiaWhats'  => $whatsappCharts['companyCostMapDiaWhats'],
+                'companyCostMapSemanaWhats' => $whatsappCharts['companyCostMapSemanaWhats'],
                 'totalMesAtualWhats'      => $whatsappCharts['totalMesAtualWhats'],
                 'totalMesAnteriorWhats'   => $whatsappCharts['totalMesAnteriorWhats'],
                 'totalDiaAtualWhats'      => $whatsappCharts['totalDiaAtualWhats'],
                 'totalDiaAnteriorWhats'   => $whatsappCharts['totalDiaAnteriorWhats'],
                 'totalSemanaAtualWhats'   => $whatsappCharts['totalSemanaAtualWhats'],
                 'totalSemanaAnteriorWhats'=> $whatsappCharts['totalSemanaAnteriorWhats'],
+                'totalCustoMesAtualWhats' => $whatsappCharts['totalCustoMesAtualWhats'],
+                'totalCustoMesAnteriorWhats' => $whatsappCharts['totalCustoMesAnteriorWhats'],
+                'totalCustoDiaAtualWhats' => $whatsappCharts['totalCustoDiaAtualWhats'],
+                'totalCustoDiaAnteriorWhats' => $whatsappCharts['totalCustoDiaAnteriorWhats'],
+                'totalCustoSemanaAtualWhats' => $whatsappCharts['totalCustoSemanaAtualWhats'],
+                'totalCustoSemanaAnteriorWhats' => $whatsappCharts['totalCustoSemanaAnteriorWhats'],
 
                 'sipCodeCountsDay'        => $sipCodesDay,
                 'sipCodeCountsWeek'       => $sipCodesWeek,
@@ -1160,6 +1328,10 @@ class Dashboard extends ViewComponents
             ];
 
             echo "data: " . json_encode($response) . "\n\n";
+            DashboardService::log('/dashboard/charts', 'sse_emit', $startedAt, [
+                'role' => $role,
+                'tenancy_id' => $tenancyId ?? null,
+            ]);
             flush();
 
         } catch (\Exception $e) {

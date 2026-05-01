@@ -16,10 +16,6 @@ class TelephonyConfig
 
         self::$envLoaded = true;
 
-        if (getenv('REDIS_HOST') !== false || getenv('ARI_HOST') !== false || getenv('SERVERASTERISK') !== false) {
-            return;
-        }
-
         $root = dirname(__DIR__, 2);
         if (is_file($root . DIRECTORY_SEPARATOR . '.env')) {
             Environment::load($root);

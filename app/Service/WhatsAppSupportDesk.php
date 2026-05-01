@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Model\Entity\WhatsAppAccount;
 use App\Utils\TenancyHelper;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
@@ -16,7 +17,7 @@ class WhatsAppSupportDesk
     {
         [$where, $params] = self::queueScope($user, 'q');
 
-        return (new Database('whatsapp_support_queues q LEFT JOIN whatsapp_accounts wa ON wa.id = q.account_id'))
+        return (new Database('whatsapp_support_queues q LEFT JOIN whatsapp_accounts wa ON wa.id = q.account_id AND wa.tenancy_id = q.tenancy_id'))
             ->select($where, $params, 'q.priority DESC, q.name ASC', '', [
                 'q.*',
                 'wa.label AS account_label',
@@ -34,10 +35,15 @@ class WhatsAppSupportDesk
             throw new \InvalidArgumentException('Informe o nome da fila.');
         }
 
+        $accountId = self::nullableInt($input['account_id'] ?? null);
+        if ($accountId !== null && !WhatsAppAccount::getForUser($accountId, $user)) {
+            throw new \InvalidArgumentException('Conta WhatsApp não encontrada para esta tenancy.');
+        }
+
         return (int)(new Database('whatsapp_support_queues'))->insert([
             'tenancy_id' => $user['tenancy_id'],
             'user_id' => (int)$user['id'],
-            'account_id' => self::nullableInt($input['account_id'] ?? null),
+            'account_id' => $accountId,
             'name' => $name,
             'description' => self::nullableString($input['description'] ?? null),
             'priority' => (int)($input['priority'] ?? 0),
@@ -493,7 +499,7 @@ class WhatsAppSupportDesk
     {
         [$where, $params] = self::agentScope($user, 'qa');
 
-        return (new Database('whatsapp_support_queue_agents qa INNER JOIN whatsapp_support_queues q ON q.id = qa.queue_id LEFT JOIN users u ON u.id = qa.agent_user_id'))
+        return (new Database('whatsapp_support_queue_agents qa INNER JOIN whatsapp_support_queues q ON q.id = qa.queue_id AND q.tenancy_id = qa.tenancy_id LEFT JOIN users u ON u.id = qa.agent_user_id AND u.tenancy_id = qa.tenancy_id'))
             ->select($where, $params, 'q.name ASC, u.name ASC, qa.agent_user_id ASC', '', [
                 'qa.*',
                 'q.name AS queue_name',
@@ -512,7 +518,7 @@ class WhatsAppSupportDesk
         $where = "s.state = :state AND ({$scope})";
         $params[':state'] = $state;
 
-        $sessions = (new Database('whatsapp_support_sessions s INNER JOIN whatsapp_conversations wc ON wc.id = s.conversation_id INNER JOIN whatsapp_support_queues q ON q.id = s.queue_id LEFT JOIN users u ON u.id = s.assigned_agent_user_id'))
+        $sessions = (new Database('whatsapp_support_sessions s INNER JOIN whatsapp_conversations wc ON wc.id = s.conversation_id AND wc.tenancy_id = s.tenancy_id INNER JOIN whatsapp_support_queues q ON q.id = s.queue_id AND q.tenancy_id = s.tenancy_id LEFT JOIN users u ON u.id = s.assigned_agent_user_id AND u.tenancy_id = s.tenancy_id'))
             ->select($where, $params, 's.priority DESC, s.is_vip DESC, s.queued_at ASC, s.id ASC', '', [
                 's.*',
                 'wc.contact_phone',

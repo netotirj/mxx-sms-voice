@@ -33,7 +33,7 @@ class WhatsAppAccount
     {
         $where = TenancyHelper::applySecurityFilter('wa.status = :status', $user, 'user_id', 'wa');
 
-        return (new Database('whatsapp_accounts wa LEFT JOIN whatsapp_numbers wn ON wn.whatsapp_account_id = wa.id'))
+        return (new Database('whatsapp_accounts wa LEFT JOIN whatsapp_numbers wn ON wn.whatsapp_account_id = wa.id AND wn.company_id = wa.tenancy_id'))
             ->select($where, [':status' => 'active'], 'wa.id DESC', '', [
                 'wa.id',
                 'wa.tenancy_id',
@@ -41,6 +41,15 @@ class WhatsAppAccount
                 'wa.label',
                 'wa.display_phone_number',
                 'wa.status',
+                'wa.profile_picture_url',
+                'wa.profile_about',
+                'wa.profile_description',
+                'wa.profile_email',
+                'wa.profile_website',
+                'wa.profile_address',
+                'wa.profile_vertical',
+                'wa.profile_updated_at',
+                'wa.profile_last_error',
                 'wa.created_at',
                 'wa.updated_at',
                 'wn.internal_label',
@@ -89,6 +98,16 @@ class WhatsAppAccount
             ->fetch(PDO::FETCH_ASSOC);
 
         return self::withOpenSecrets($row ?: null);
+    }
+
+    public static function updateBusinessProfile(int $id, array $user, array $values): bool
+    {
+        if (!self::getForUser($id, $user)) {
+            return false;
+        }
+
+        $values['updated_at'] = date('Y-m-d H:i:s');
+        return (new Database('whatsapp_accounts'))->update('id = :id', $values, [':id' => $id]);
     }
 
     public static function getSupportAccount(): ?array

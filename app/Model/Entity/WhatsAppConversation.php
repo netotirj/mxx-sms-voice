@@ -60,7 +60,7 @@ class WhatsAppConversation
             $params[':account_id'] = $accountId;
         }
 
-        return (new Database('whatsapp_conversations wc INNER JOIN whatsapp_accounts wa ON wa.id = wc.account_id'))
+        return (new Database('whatsapp_conversations wc INNER JOIN whatsapp_accounts wa ON wa.id = wc.account_id AND wa.tenancy_id = wc.tenancy_id'))
             ->select($where, $params, 'wc.last_message_at DESC, wc.id DESC', '', [
                 'wc.*',
                 'wa.label AS account_label',

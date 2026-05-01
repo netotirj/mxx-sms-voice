@@ -43,6 +43,8 @@ class UserSearch
             'monitor'     => 'Monitor de Qualidade',
             'support_l1'  => 'Suporte Nível 1',
             'support_l2'  => 'Suporte Nível 2',
+            'ticket_support' => 'Atendimento de Tickets',
+            'support_ticket_manager' => 'Gestor de Tickets',
             'reseller'    => 'Revendedor',
             'operator'    => 'Operador (Antigo)',
             'o'           => 'Operador'
@@ -59,19 +61,18 @@ class UserSearch
      */
     public static function getUsers(string $tenancyId, ?int $userId = null): array
     {
-        // Respeitamos o que o Controller mandou para montar o contexto do Helper
-        $userContext = [
-            'tenancy_id'    => $tenancyId,
-            'id'            => $userId,
-            'user_function' => is_null($userId) ? 'admin' : 'reseller'
-        ];
+        $where = 'u.tenancy_id = :tenancy_id';
+        $params = [':tenancy_id' => $tenancyId];
 
-        $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id');
+        if ($userId !== null) {
+            $where .= ' AND (u.id = :user_id OR u.user_id = :user_id)';
+            $params[':user_id'] = $userId;
+        }
 
         $result = (new Database('users u
             INNER JOIN tenancies t ON t.id = u.tenancy_id
             LEFT JOIN address a ON a.tenancy_id = t.id'))
-            ->select($where, [], null, null,
+            ->select($where, $params, 'u.id ASC', null,
                 'u.id, u.user_id, u.name, u.role_id, u.tenancy_id, u.last_name, u.email, u.image,               
                  u.job_title, u.status_account, u.reseller_balance, u.user_function, u.last_activity, 
                  u.createdAt, t.name AS tenancy_name, t.tenancy_phone AS tenancy_phone,

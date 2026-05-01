@@ -540,6 +540,7 @@
         let statusChartSignature = '';
         let secondaryChartSignature = '';
         let sipCodeChartSignature = '';
+        let chartsPayloadSignature = '';
 
         const chartPalette = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316'];
         const statusColors = {
@@ -908,6 +909,29 @@
             };
         }
 
+        function formatCurrencyBR(value) {
+            return Number(value || 0).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4
+            });
+        }
+
+        function getWhatsCostForPeriod() {
+            const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
+            return {
+                map: chartsPayload?.[`costMap${periodKey}Whats`] || {},
+                current: Number(chartsPayload?.[`totalCusto${periodKey}AtualWhats`] || 0),
+                previous: Number(chartsPayload?.[`totalCusto${periodKey}AnteriorWhats`] || 0)
+            };
+        }
+
+        function getWhatsCompanyCostForPeriod() {
+            const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
+            return Object.entries(chartsPayload?.[`companyCostMap${periodKey}Whats`] || {});
+        }
+
         function getPeriodContextValue(suffix = '') {
             const key = selectedPeriod === 'month'
                 ? `totalDiaAtual${suffix}`
@@ -998,6 +1022,7 @@
             }));
             const smsPeriod = getPeriodPayload('', '');
             const whatsPeriod = getPeriodPayload('', 'Whats');
+            const whatsCost = getWhatsCostForPeriod();
             const voicePeriod = getPeriodPayload('', 'Voice');
             const operatorEntries = getOperatorCountsForPeriod();
             const operatorLabels = operatorEntries.map(([name]) => name);
@@ -1011,7 +1036,6 @@
             const whatsappConversations = Number(cardsPayload?.whatsappConversas || 0);
             const whatsappUnread = Number(cardsPayload?.whatsappNaoLidas || 0);
             const whatsappCampaigns = Number(cardsPayload?.whatsappCampanhas || 0);
-            const whatsappAccounts = Number(cardsPayload?.whatsappContas || 0);
 
             if (service === 'sms') {
                 return {
@@ -1048,38 +1072,52 @@
             }
 
             if (service === 'whatsapp') {
+                const whatsappCostValue = Number(whatsCost.current.toFixed(4));
+                const companyEntries = getWhatsCompanyCostForPeriod();
+                const companyLabels = companyEntries.map(([label]) => label);
+                const companyQuantities = companyEntries.map(([, item]) => Number(item?.quantity || 0));
+                const companyCosts = companyEntries.map(([, item]) => Number(item?.cost || 0));
+
                 return {
-                    title: 'Resumo da Central WhatsApp',
-                    subtitle: `Mensagens por ${whatsPeriod.labels.title.toLowerCase()}, conversas, campanhas e contas conectadas.`,
+                    title: 'Resumo WhatsApp',
+                    subtitle: `Status de entrega, quantidade e custo por empresa no filtro de ${whatsPeriod.labels.title.toLowerCase()}.`,
                     tag: 'WHATSAPP',
                     color: '#10b981',
                     today: whatsPeriod.current,
-                    todayLabel: `Mensagens - ${whatsPeriod.labels.current}`,
+                    todayLabel: `Quantidade - ${whatsPeriod.labels.current}`,
                     month: whatsPeriod.previous,
-                    monthLabel: `Mensagens - ${whatsPeriod.labels.previous}`,
-                    previous: whatsappCampaigns,
-                    previousLabel: 'Campanhas WhatsApp',
+                    monthLabel: `Quantidade - ${whatsPeriod.labels.previous}`,
+                    previous: whatsCost.current,
+                    previousPrefix: 'R$ ',
+                    previousDecimals: 'smart',
+                    previousLabel: `Custo total - ${whatsPeriod.labels.current}`,
                     line: whatsPeriod.status,
                     doughnut: whatsPeriod.status,
                     secondary: {
-                        title: 'Operacao WhatsApp',
-                        tag: 'Central',
+                        title: companyLabels.length ? 'Quantidade e custo por empresa' : 'Quantidade e custo',
+                        tag: whatsPeriod.labels.title,
                         type: 'bar',
-                        labels: ['Conversas', 'Mensagens', 'Nao lidas', 'Campanhas', 'Contas'],
-                        values: [
-                            whatsappConversations,
-                            whatsappMessages,
-                            whatsappUnread,
-                            whatsappCampaigns,
-                            whatsappAccounts
-                        ],
-                        color: ['#10b981', '#14b8a6', '#f59e0b', '#8b5cf6', '#0ea5e9']
+                        labels: companyLabels.length ? companyLabels : ['Quantidade', 'Custo'],
+                        values: companyLabels.length ? companyQuantities : [whatsPeriod.current, whatsappCostValue],
+                        color: companyLabels.length
+                            ? companyLabels.map((_, index) => chartPalette[index % chartPalette.length])
+                            : ['#10b981', '#6366f1'],
+                        meta: companyLabels.length
+                            ? companyLabels.map((label, index) => ({
+                                label,
+                                value: companyQuantities[index] || 0,
+                                cost: companyCosts[index] || 0,
+                                companyCost: true
+                            }))
+                            : [
+                                { label: 'Quantidade', value: whatsPeriod.current },
+                                { label: 'Custo total', value: whatsCost.current, currency: true }
+                            ]
                     },
                     details: [
-                        ['Conversas', String(whatsappConversations)],
-                        ['Mensagens enviadas', String(whatsappMessages)],
-                        ['Nao lidas', String(whatsappUnread)],
-                        ['Contas ativas', String(whatsappAccounts)],
+                        ['Quantidade', String(whatsPeriod.current)],
+                        ['Custo total', formatCurrencyBR(whatsCost.current)],
+                        ['Campanhas', String(whatsappCampaigns)],
                         ['Ultima atualizacao', health.last_check || '--:--:--']
                     ].slice(0, 4)
                 };
@@ -1254,7 +1292,8 @@
             const signature = JSON.stringify({
                 service: selectedService,
                 labels: finalLabels,
-                values: finalValues
+                values: finalValues,
+                displayLabels: config.doughnut.displayLabels || []
             });
 
             if (signature === statusChartSignature) {
@@ -1262,7 +1301,9 @@
             }
 
             statusChartSignature = signature;
-            statusChart.data.labels = finalLabels;
+            statusChart.data.labels = hasRealData && config.doughnut.displayLabels?.length
+                ? config.doughnut.displayLabels
+                : finalLabels;
             statusChart.data.datasets[0].data = finalValues;
             statusChart.data.datasets[0].backgroundColor = colors;
             statusChart.update('none');
@@ -1315,6 +1356,25 @@
                             const total = item.count ?? context.raw ?? 0;
                             const name = item.label ? `${item.label}: ` : '';
                             return `${name}${total} chamada${Number(total) === 1 ? '' : 's'}`;
+                        }
+                    }
+                };
+            } else if (selectedService === 'whatsapp') {
+                delete secondaryChart.options.scales.y.max;
+                secondaryChart.options.scales.y.ticks.callback = undefined;
+                secondaryChart.options.plugins.tooltip = {
+                    callbacks: {
+                        label: (context) => {
+                            const item = secondary.meta?.[context.dataIndex] || {};
+                            if (item.companyCost) {
+                                return `${item.label || context.label}: ${item.value ?? context.raw} msg • ${formatCurrencyBR(item.cost || 0)}`;
+                            }
+
+                            if (item.currency) {
+                                return `${item.label || context.label}: ${formatCurrencyBR(item.value ?? context.raw)}`;
+                            }
+
+                            return `${item.label || context.label}: ${context.raw}`;
                         }
                     }
                 };
@@ -1431,7 +1491,11 @@
             setValue('service-stat-previous-title', periodLabels.context);
             animateCountUp(document.getElementById('service-stat-today'), config.today);
             animateCountUp(document.getElementById('service-stat-month'), config.month);
-            animateCountUp(document.getElementById('service-stat-previous'), config.previous);
+            const previousStat = document.getElementById('service-stat-previous');
+            if (previousStat) {
+                previousStat.dataset.decimals = config.previousDecimals || 'int';
+            }
+            animateCountUp(previousStat, config.previous, config.previousPrefix || '');
             setValue('service-stat-today-label', config.todayLabel);
             setValue('service-stat-month-label', config.monthLabel);
             setValue('service-stat-previous-label', config.previousLabel);
@@ -1484,8 +1548,17 @@
             }
         });
 
+        if (window.__dashboardSseConnections) {
+            window.__dashboardSseConnections.cards?.close?.();
+            window.__dashboardSseConnections.charts?.close?.();
+        }
+
         const cardsSource = new EventSource(`${baseUrl}/dashboard/cards`);
         const chartsSource = new EventSource(`${baseUrl}/dashboard/charts`);
+        window.__dashboardSseConnections = {
+            cards: cardsSource,
+            charts: chartsSource
+        };
 
         bootstrapStaticCounts();
 
@@ -1542,6 +1615,11 @@
 
         chartsSource.onmessage = function (event) {
             try {
+                if (event.data === chartsPayloadSignature) {
+                    return;
+                }
+
+                chartsPayloadSignature = event.data;
                 chartsPayload = JSON.parse(event.data);
                 renderSelectedService();
             } catch {

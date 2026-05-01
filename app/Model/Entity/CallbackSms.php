@@ -40,14 +40,14 @@ class CallbackSms
     /**
      * Associa um batch_id a todos os callbacks de uma campanha específica
      *
-     * @param int|null $userId
+     * @param int|string|null $userId
      * @param string|null $tenancyId
      * @param int|null $batchId
      * @return object
      */
 
 
-    public static function countSentSms(?int $userId, ?string $tenancyId, ?int $batchId = null): object
+    public static function countSentSms(int|string|null $userId, ?string $tenancyId, ?int $batchId = null): object
     {
         $where = '
         status_sms IN ("SENT", "DELIVERED", "UNDELIVERABLE", "EXPIRED")
@@ -63,7 +63,7 @@ class CallbackSms
         }
 
         // 🔹 Aplica filtro por usuário, se houver
-        if ($userId !== null) {
+        if ($userId !== null && $userId !== '') {
             $where .= ' AND user_id = :user_id';
             $params[':user_id'] = $userId;
         }

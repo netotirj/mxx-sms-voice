@@ -7,25 +7,35 @@ use App\Model\Entity\WhatsAppCampaign;
 use App\Model\Entity\WhatsAppConversation;
 use App\Model\Entity\WhatsAppOutbox;
 use App\Model\Entity\WhatsAppTemplate;
+use WilliamCosta\DatabaseManager\Database;
 
 class WhatsAppOutboxWorker
 {
     public function runOnce(int $limit = 50, ?string $cancelCategory = null): array
     {
-        $requeued = WhatsAppOutbox::resetStaleSending();
-        $rows = WhatsAppOutbox::nextDue($limit, $cancelCategory);
-        $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => $requeued];
-
-        foreach ($rows as $row) {
-            $summary['processed']++;
-            if ($this->processRow($row)) {
-                $summary['sent']++;
-            } else {
-                $summary['failed']++;
-            }
+        $lock = $this->acquireLock();
+        if (!$lock['acquired']) {
+            return ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => 0, 'locked' => true];
         }
 
-        return $summary;
+        try {
+            $requeued = WhatsAppOutbox::resetStaleSending();
+            $rows = WhatsAppOutbox::nextDue($limit, $cancelCategory);
+            $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => $requeued, 'locked' => false];
+
+            foreach ($rows as $row) {
+                $summary['processed']++;
+                if ($this->processRow($row)) {
+                    $summary['sent']++;
+                } else {
+                    $summary['failed']++;
+                }
+            }
+
+            return $summary;
+        } finally {
+            $this->releaseLock($lock['connection']);
+        }
     }
 
     private function processRow(array $row): bool
@@ -62,16 +72,16 @@ class WhatsAppOutboxWorker
                     (string)$row['tenancy_id']
                 );
                 if (!$template) {
-                    WhatsAppOutbox::markFailed($id, 'Template não encontrado', (int)$row['max_attempts'], (int)$row['max_attempts']);
-                    $this->markCampaignRecipient($row, 'failed', null, 'Template não encontrado');
-                    WhatsAppBilling::recordBlocked($row, 'Template não encontrado');
+                    WhatsAppOutbox::markFailed($id, 'Template não encontrado.', (int)$row['max_attempts'], (int)$row['max_attempts']);
+                    $this->markCampaignRecipient($row, 'failed', null, 'Template não encontrado.');
+                    WhatsAppBilling::recordBlocked($row, 'Template não encontrado.');
                     return false;
                 }
 
                 if ((string)$template['status'] !== 'approved') {
-                    WhatsAppOutbox::markFailed($id, 'Template não aprovado pela Meta', (int)$row['max_attempts'], (int)$row['max_attempts']);
-                    $this->markCampaignRecipient($row, 'failed', null, 'Template não aprovado pela Meta');
-                    WhatsAppBilling::recordBlocked($row, 'Template não aprovado pela Meta');
+                    WhatsAppOutbox::markFailed($id, 'Template ainda não aprovado pela Meta.', (int)$row['max_attempts'], (int)$row['max_attempts']);
+                    $this->markCampaignRecipient($row, 'failed', null, 'Template ainda não aprovado pela Meta.');
+                    WhatsAppBilling::recordBlocked($row, 'Template ainda não aprovado pela Meta.');
                     return false;
                 }
 
@@ -98,9 +108,14 @@ class WhatsAppOutboxWorker
                 $error = $result['error'] ?? 'Falha no envio pela Meta.';
                 $attempts = (int)$row['attempts'] + 1;
                 $maxAttempts = (int)$row['max_attempts'];
-                WhatsAppOutbox::markFailed($id, $error, $attempts, $maxAttempts);
+                $rateLimit = WhatsAppMetaRateLimitGuard::handleMetaResult($result, $account);
+                if ($rateLimit) {
+                    WhatsAppOutbox::postpone($id, (int)$rateLimit['delay_seconds'], $rateLimit['reason']);
+                } else {
+                    WhatsAppOutbox::markFailed($id, $error, $attempts, $maxAttempts);
+                }
                 WhatsAppBilling::recordFailed($row, $error);
-                if ($attempts >= $maxAttempts) {
+                if (!$rateLimit && $attempts >= $maxAttempts) {
                     $this->markCampaignRecipient($row, 'failed', null, $error);
                 }
                 return false;
@@ -168,6 +183,24 @@ class WhatsAppOutboxWorker
             }
             return false;
         }
+    }
+
+    private function acquireLock(): array
+    {
+        $connection = new Database();
+        $acquired = (int)$connection
+            ->execute("SELECT GET_LOCK('maxx_whatsapp_outbox_worker', 0) AS acquired")
+            ->fetchColumn() === 1;
+
+        return [
+            'acquired' => $acquired,
+            'connection' => $connection,
+        ];
+    }
+
+    private function releaseLock(Database $connection): void
+    {
+        $connection->execute("SELECT RELEASE_LOCK('maxx_whatsapp_outbox_worker')");
     }
 
     private function markCampaignRecipient(array $row, string $status, ?string $wamid, ?string $error): void

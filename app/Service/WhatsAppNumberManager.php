@@ -14,7 +14,7 @@ class WhatsAppNumberManager
     {
         [$where, $params] = self::numberOwnerScope($user, 'wn');
 
-        return (new Database('whatsapp_numbers wn LEFT JOIN whatsapp_accounts wa ON wa.id = wn.whatsapp_account_id'))
+        return (new Database('whatsapp_numbers wn LEFT JOIN whatsapp_accounts wa ON wa.id = wn.whatsapp_account_id AND wa.tenancy_id = wn.company_id'))
             ->select($where, $params, 'wn.created_at DESC, wn.id DESC', '', [
                 'wn.id',
                 'wn.company_id',
@@ -125,7 +125,14 @@ class WhatsAppNumberManager
     private static function syncOpenRequestVerificationStatus(array $user): void
     {
         [$where, $params] = self::requestOwnerScope($user, 'nr');
-        $where = "({$where}) AND nr.status = 'meta_submitted' AND wn.id IS NOT NULL AND wn.status IN ('code_sent', 'pending_verification', 'pending_name_approval')";
+        $where = "({$where})
+            AND nr.status = 'meta_submitted'
+            AND wn.id IS NOT NULL
+            AND wn.status IN ('code_sent', 'pending_verification', 'pending_name_approval')
+            AND (
+                wn.display_name_last_checked_at IS NULL
+                OR wn.display_name_last_checked_at <= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            )";
 
         $rows = (new Database('number_requests nr INNER JOIN whatsapp_numbers wn ON wn.id = nr.whatsapp_number_id'))
             ->select($where, $params, '', '10', [
@@ -156,6 +163,13 @@ class WhatsAppNumberManager
 
                 self::applyMetaOnboardingStatus($user, $row, $verification);
             } catch (\Throwable $e) {
+                (new Database('whatsapp_numbers'))->update('id = :id', [
+                    'display_name_last_checked_at' => date('Y-m-d H:i:s'),
+                    'last_error' => $e->getMessage(),
+                    'last_meta_error' => $e->getMessage(),
+                    'last_meta_error_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], [':id' => (int)$row['number_id']]);
                 error_log('[whatsapp_number_request_sync] ' . $e->getMessage());
             }
         }
@@ -927,7 +941,7 @@ class WhatsAppNumberManager
     private static function currentMetaDisplayNameStatus(array $verification): string
     {
         $newStatus = strtoupper((string)($verification['new_name_status'] ?? ''));
-        if ($newStatus !== '' && $newStatus !== 'UNKNOWN') {
+        if ($newStatus !== '' && !in_array($newStatus, ['UNKNOWN', 'NONE'], true)) {
             return $newStatus;
         }
 

@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maxx Solutions | VoIP, WhatsApp API e SMS</title>
+  <meta name="description" content="Plataforma completa de comunicação empresarial com VoIP, Call Center, WhatsApp Business API e SMS em massa." />
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PSJ8EB364V"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-PSJ8EB364V');
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://kit.fontawesome.com/ed8de5f6c8.js" crossorigin="anonymous"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              900: '#0f172a'
+            }
+          },
+          animation: {
+            'fade-up': 'fadeUp .8s ease-out both',
+            'float': 'float 4s ease-in-out infinite',
+            'pulse-soft': 'pulseSoft 2.4s ease-in-out infinite'
+          },
+          keyframes: {
+            fadeUp: {
+              '0%': { opacity: '0', transform: 'translateY(24px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' }
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-14px)' }
+            },
+            pulseSoft: {
+              '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+              '50%': { transform: 'scale(1.04)', opacity: '.9' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity .75s ease, transform .75s ease;
+    }
+
+    .reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .motion-card {
+      transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease, background-color .28s ease;
+      will-change: transform;
+    }
+
+    .motion-card:hover {
+      transform: translateY(-8px);
+    }
+
+    .motion-card.click-pop {
+      transform: translateY(-4px) scale(.98);
+    }
+
+    .metric-bar {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-bar::after {
+      animation: shimmer 2.4s ease-in-out infinite;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
+      content: "";
+      inset: 0;
+      position: absolute;
+      transform: translateX(-100%);
+    }
+
+    .soft-glow {
+      box-shadow: 0 24px 80px rgba(37, 99, 235, .18);
+    }
+
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white antialiased">
+  <header class="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <a href="#inicio" class="flex items-center gap-3">
+        <img src="/logo.png" alt="Maxx Solutions" class="h-10 w-10 rounded-full object-contain" />
+        <div>
+          <p class="text-lg font-bold leading-none">Maxx Solutions</p>
+          <p class="text-xs text-slate-400">Comunicação inteligente</p>
+        </div>
+      </a>
+
+      <nav class="hidden items-center gap-8 text-sm text-slate-300 md:flex">
+        <a href="#inicio" class="hover:text-white">Início</a>
+        <a href="#solucoes" class="hover:text-white">Soluções</a>
+        <a href="#funciona" class="hover:text-white">Como funciona</a>
+        <a href="#contato" class="hover:text-white">Contato</a>
+      </nav>
+
+      <a href="/login" class="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:-translate-y-0.5 hover:bg-blue-500">
+        Acessar Painel
+      </a>
+    </div>
+  </header>
+
+  <main id="inicio" class="overflow-hidden pt-24">
+    <section class="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:px-8 lg:py-28">
+      <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,.28),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,.18),transparent_35%)]"></div>
+
+      <div class="animate-fade-up">
+        <span class="inline-flex rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-200">
+          VoIP + WhatsApp API + SMS em uma única plataforma
+        </span>
+        <h1 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+          Comunicação inteligente para sua empresa vender, atender e escalar.
+        </h1>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+          Centralize chamadas, campanhas, notificações e atendimento em uma plataforma web moderna, segura e preparada para múltiplos clientes.
+        </p>
+        <div class="mt-8 flex flex-col gap-4 sm:flex-row">
+          <a href="/register" class="rounded-full bg-blue-600 px-7 py-4 text-center font-semibold shadow-xl shadow-blue-600/30 transition hover:-translate-y-1 hover:bg-blue-500">
+            Começar agora
+          </a>
+          <a href="#contato" class="rounded-full border border-white/15 bg-white/5 px-7 py-4 text-center font-semibold text-white transition hover:-translate-y-1 hover:bg-white/10">
+            Falar com especialista
+          </a>
+        </div>
+      </div>
+
+      <div class="relative animate-float">
+        <div class="rounded-[2rem] border border-white/10 bg-white/10 p-4 shadow-2xl shadow-blue-950/50 backdrop-blur-xl">
+          <div class="rounded-[1.5rem] bg-slate-900 p-5">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <p class="text-sm text-slate-400">Dashboard em tempo real</p>
+                <h2 class="text-xl font-bold">Operação ativa</h2>
+              </div>
+              <span class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">Online</span>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-4">
+              <div class="rounded-2xl bg-white/5 p-4">
+                <p class="text-sm text-slate-400">Chamadas hoje</p>
+                <p class="mt-2 text-3xl font-black" data-site-stat="voice">0</p>
+              </div>
+              <div class="rounded-2xl bg-white/5 p-4">
+                <p class="text-sm text-slate-400">SMS enviados</p>
+                <p class="mt-2 text-3xl font-black" data-site-stat="sms">0</p>
+              </div>
+              <div class="rounded-2xl bg-white/5 p-4">
+                <p class="text-sm text-slate-400">WhatsApp</p>
+                <p class="mt-2 text-3xl font-black" data-site-stat="whatsapp">0</p>
+              </div>
+              <div class="rounded-2xl bg-white/5 p-4">
+                <p class="text-sm text-slate-400">Testes totais</p>
+                <p class="mt-2 text-3xl font-black" data-site-stat="total">0</p>
+              </div>
+            </div>
+            <div class="mt-5 rounded-2xl bg-blue-600/15 p-4">
+              <div class="h-3 rounded-full bg-blue-400 transition-all duration-500" data-site-bar="sms" style="width: 0%"></div>
+              <div class="mt-3 h-3 rounded-full bg-emerald-300/70 transition-all duration-500" data-site-bar="voice" style="width: 0%"></div>
+              <div class="mt-3 h-3 rounded-full bg-cyan-200/70 transition-all duration-500" data-site-bar="whatsapp" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="projeto" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <div class="grid gap-10 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+        <div>
+          <p class="font-semibold text-blue-300">O projeto</p>
+          <h2 class="mt-2 text-3xl font-black sm:text-4xl">Uma central de comunicação para operar tudo em um painel.</h2>
+          <p class="mt-5 leading-8 text-slate-300">
+            A Maxx Solutions reúne telefonia VoIP, WhatsApp Business API, SMS, campanhas, atendimento e relatórios em uma plataforma web única para empresas que precisam organizar a comunicação com clientes e equipes.
+          </p>
+          <p class="mt-4 leading-8 text-slate-300">
+            O sistema foi pensado para operação real: controle de usuários, permissões, saldos, números conectados, histórico de mensagens, indicadores e visão multi-cliente para crescer sem depender de várias ferramentas separadas.
+          </p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-xl">
+              <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <h3 class="text-lg font-bold">Centralização</h3>
+            <p class="mt-3 text-sm leading-6 text-slate-300">Chamadas, SMS, WhatsApp e campanhas reunidos no mesmo ambiente.</p>
+          </div>
+          <div class="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-xl">
+              <i class="fa-solid fa-sliders"></i>
+            </div>
+            <h3 class="text-lg font-bold">Controle operacional</h3>
+            <p class="mt-3 text-sm leading-6 text-slate-300">Gestão de usuários, saldos, permissões, filas e relatórios por cliente.</p>
+          </div>
+          <div class="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 sm:col-span-2">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-600 text-xl">
+              <i class="fa-solid fa-chart-line"></i>
+            </div>
+            <h3 class="text-lg font-bold">Escalabilidade</h3>
+            <p class="mt-3 text-sm leading-6 text-slate-300">Estrutura preparada para operações maiores, múltiplos clientes e acompanhamento em tempo real.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="solucoes" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <div class="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+        <div>
+          <p class="font-semibold text-blue-300">Soluções</p>
+          <h2 class="mt-2 text-3xl font-black sm:text-4xl">Tudo que sua operação precisa em um só lugar.</h2>
+        </div>
+        <div class="flex gap-3">
+          <button id="prevSlide" class="rounded-full border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">‹</button>
+          <button id="nextSlide" class="rounded-full border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">›</button>
+        </div>
+      </div>
+
+      <div class="overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-4">
+        <div id="carousel" class="flex transition-transform duration-500 ease-out">
+          <article class="min-w-full p-3 md:min-w-[50%] lg:min-w-[33.333%]">
+            <div class="h-full rounded-[1.5rem] bg-slate-900 p-8 transition hover:-translate-y-2 hover:bg-slate-800">
+              <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl">☎</div>
+              <h3 class="text-2xl font-bold">VoIP e Call Center</h3>
+              <p class="mt-4 leading-7 text-slate-300">Faça e receba chamadas pela internet, monitore agentes, filas e campanhas em tempo real.</p>
+            </div>
+          </article>
+          <article class="min-w-full p-3 md:min-w-[50%] lg:min-w-[33.333%]">
+            <div class="h-full rounded-[1.5rem] bg-slate-900 p-8 transition hover:-translate-y-2 hover:bg-slate-800">
+              <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl">💬</div>
+              <h3 class="text-2xl font-bold">WhatsApp Business API</h3>
+              <p class="mt-4 leading-7 text-slate-300">Automatize notificações, templates, atendimento e comunicação oficial via WhatsApp.</p>
+            </div>
+          </article>
+          <article class="min-w-full p-3 md:min-w-[50%] lg:min-w-[33.333%]">
+            <div class="h-full rounded-[1.5rem] bg-slate-900 p-8 transition hover:-translate-y-2 hover:bg-slate-800">
+              <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl">✉</div>
+              <h3 class="text-2xl font-bold">SMS em massa</h3>
+              <p class="mt-4 leading-7 text-slate-300">Envie campanhas, alertas, lembretes e notificações com controle de saldo e relatórios.</p>
+            </div>
+          </article>
+          <article class="min-w-full p-3 md:min-w-[50%] lg:min-w-[33.333%]">
+            <div class="h-full rounded-[1.5rem] bg-slate-900 p-8 transition hover:-translate-y-2 hover:bg-slate-800">
+              <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-600 text-2xl">📊</div>
+              <h3 class="text-2xl font-bold">Relatórios inteligentes</h3>
+              <p class="mt-4 leading-7 text-slate-300">Acompanhe performance, chamadas atendidas, campanhas, custos e produtividade.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="funciona" class="bg-white py-20 text-slate-950">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-3xl text-center">
+          <p class="font-semibold text-blue-600">Como funciona</p>
+          <h2 class="mt-2 text-3xl font-black sm:text-4xl">Tecnologia simples de entender e poderosa para operar.</h2>
+        </div>
+
+        <div class="mt-14 grid gap-6 md:grid-cols-3">
+          <div class="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm transition hover:-translate-y-2 hover:shadow-xl">
+            <h3 class="text-2xl font-bold">O que é VoIP?</h3>
+            <p class="mt-4 leading-7 text-slate-600">VoIP permite realizar chamadas telefônicas pela internet, reduzindo custos e facilitando operações com agentes, filas, gravações e relatórios.</p>
+          </div>
+          <div class="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm transition hover:-translate-y-2 hover:shadow-xl">
+            <h3 class="text-2xl font-bold">WhatsApp API</h3>
+            <p class="mt-4 leading-7 text-slate-600">A API oficial permite enviar notificações, templates aprovados, automações e atendimentos com mais controle e segurança.</p>
+          </div>
+          <div class="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm transition hover:-translate-y-2 hover:shadow-xl">
+            <h3 class="text-2xl font-bold">SMS corporativo</h3>
+            <p class="mt-4 leading-7 text-slate-600">Ideal para alertas, campanhas, confirmação de dados, cobranças, lembretes e comunicações rápidas com alta taxa de entrega.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <div class="grid gap-10 lg:grid-cols-2 lg:items-center">
+        <div>
+          <p class="font-semibold text-blue-300">Diferenciais</p>
+          <h2 class="mt-2 text-3xl font-black sm:text-4xl">Uma plataforma pensada para operação real.</h2>
+          <p class="mt-5 leading-8 text-slate-300">Gerencie clientes, usuários, saldos, campanhas e relatórios em um ambiente multi-tenant, com controle por permissões e visão em tempo real.</p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="rounded-3xl bg-white/5 p-6">✅ Plataforma 100% web</div>
+          <div class="rounded-3xl bg-white/5 p-6">✅ Multi-clientes</div>
+          <div class="rounded-3xl bg-white/5 p-6">✅ API integrada</div>
+          <div class="rounded-3xl bg-white/5 p-6">✅ Monitoramento em tempo real</div>
+          <div class="rounded-3xl bg-white/5 p-6">✅ Controle de saldo</div>
+          <div class="rounded-3xl bg-white/5 p-6">✅ Relatórios completos</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-slate-900 py-20">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+          <p class="font-semibold text-blue-300">Dashboard</p>
+          <h2 class="mt-2 text-3xl font-black sm:text-4xl">Controle total da comunicação da sua empresa.</h2>
+          <p class="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">Acompanhe canais, campanhas e atendimentos em uma visão operacional simples de interpretar.</p>
+        </div>
+        <div class="mt-12 grid gap-6 lg:grid-cols-3">
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold">Painel de chamadas</h3>
+              <span class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">ao vivo</span>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-slate-950/60 p-4">
+                <p class="text-xs uppercase text-slate-400">Atendidas</p>
+                <p class="mt-2 text-3xl font-black">384</p>
+              </div>
+              <div class="rounded-2xl bg-slate-950/60 p-4">
+                <p class="text-xs uppercase text-slate-400">Fila</p>
+                <p class="mt-2 text-3xl font-black">12</p>
+              </div>
+            </div>
+            <div class="mt-5 space-y-4">
+              <div>
+                <div class="mb-2 flex justify-between text-xs text-slate-400">
+                  <span>Ocupação dos agentes</span>
+                  <span>78%</span>
+                </div>
+                <div class="h-3 rounded-full bg-white/10">
+                  <div class="metric-bar h-3 w-[78%] rounded-full bg-blue-500"></div>
+                </div>
+              </div>
+              <div>
+                <div class="mb-2 flex justify-between text-xs text-slate-400">
+                  <span>Chamadas resolvidas</span>
+                  <span>91%</span>
+                </div>
+                <div class="h-3 rounded-full bg-white/10">
+                  <div class="metric-bar h-3 w-[91%] rounded-full bg-emerald-500"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold">Campanhas SMS</h3>
+              <span class="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-200">envios</span>
+            </div>
+            <div class="mt-6 rounded-2xl bg-slate-950/60 p-5">
+              <div class="flex h-36 items-end gap-3">
+                <div class="metric-bar h-[42%] flex-1 rounded-t-xl bg-blue-400"></div>
+                <div class="metric-bar h-[68%] flex-1 rounded-t-xl bg-cyan-400"></div>
+                <div class="metric-bar h-[55%] flex-1 rounded-t-xl bg-blue-500"></div>
+                <div class="metric-bar h-[82%] flex-1 rounded-t-xl bg-emerald-400"></div>
+                <div class="metric-bar h-[74%] flex-1 rounded-t-xl bg-blue-300"></div>
+              </div>
+              <div class="mt-4 flex justify-between text-xs text-slate-500">
+                <span>Seg</span>
+                <span>Ter</span>
+                <span>Qua</span>
+                <span>Qui</span>
+                <span>Sex</span>
+              </div>
+            </div>
+            <p class="mt-5 text-sm leading-6 text-slate-300">Volume, entrega e custos agrupados para conferência rápida da operação.</p>
+          </div>
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold">Atendimento WhatsApp</h3>
+              <span class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">online</span>
+            </div>
+            <div class="mt-6 space-y-3 rounded-2xl bg-slate-950/60 p-4">
+              <div class="max-w-[82%] rounded-2xl rounded-tl-sm bg-white/10 p-3 text-sm text-slate-200">
+                Preciso confirmar o status do pedido.
+              </div>
+              <div class="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-emerald-500/20 p-3 text-sm text-emerald-100">
+                Pedido localizado. A atualização foi enviada ao cliente.
+              </div>
+              <div class="flex items-center gap-2 text-xs text-slate-500">
+                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                <span>3 conversas aguardando atendimento</span>
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-3 gap-3 text-center text-xs text-slate-400">
+              <div class="rounded-2xl bg-slate-950/60 p-3"><strong class="block text-lg text-white">48</strong>abertas</div>
+              <div class="rounded-2xl bg-slate-950/60 p-3"><strong class="block text-lg text-white">35</strong>resolvidas</div>
+              <div class="rounded-2xl bg-slate-950/60 p-3"><strong class="block text-lg text-white">2m</strong>média</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="teste" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8" data-demo-api-base="/sms" data-turnstile-sitekey="{{PUBLIC_DEMO_TURNSTILE_SITE_KEY}}">
+      <div class="mx-auto max-w-3xl text-center">
+        <p class="font-semibold text-blue-300">Teste agora</p>
+        <h2 class="mt-2 text-3xl font-black sm:text-4xl">Experimente uma chamada, um SMS ou uma mensagem WhatsApp.</h2>
+        <p class="mx-auto mt-5 max-w-2xl leading-8 text-slate-300">
+          Informe seu telefone com DDD e escolha um canal. Cada teste é limitado por telefone e por acesso para manter a demonstração segura.
+        </p>
+      </div>
+
+      <div class="mt-12 grid gap-6 lg:grid-cols-3">
+        <form class="demo-form rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow" data-channel="call">
+          <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl">
+            <i class="fa-solid fa-phone"></i>
+          </div>
+          <h3 class="text-xl font-bold">Chamada de teste</h3>
+          <p class="mt-3 min-h-[72px] text-sm leading-6 text-slate-300">O sistema inicia uma chamada para validar a conexão. A intenção é apenas demonstrar o disparo.</p>
+          <label class="mt-5 block text-sm font-semibold text-slate-200" for="demo-call-phone">Telefone</label>
+          <input id="demo-call-phone" name="phone" type="tel" inputmode="tel" placeholder="(11) 99999-9999" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-blue-400" required>
+          <label class="mt-4 block text-sm font-semibold text-slate-200" for="demo-call-email">E-mail</label>
+          <input id="demo-call-email" name="email" type="email" placeholder="voce@empresa.com.br" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-blue-400" required>
+          <input type="text" name="company_site" class="hidden" tabindex="-1" autocomplete="off">
+          <label class="mt-4 flex gap-3 text-sm text-slate-300">
+            <input name="consent" type="checkbox" value="1" class="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950" required>
+            Autorizo receber esta chamada de teste.
+          </label>
+          <div class="mt-4 cf-turnstile" data-sitekey="{{PUBLIC_DEMO_TURNSTILE_SITE_KEY}}" data-theme="dark"></div>
+          <button type="submit" class="mt-5 w-full rounded-full bg-blue-600 px-5 py-3 font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500">Receber chamada</button>
+          <p class="demo-result mt-4 min-h-[24px] text-sm text-slate-300"></p>
+        </form>
+
+        <form class="demo-form rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow" data-channel="sms">
+          <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-600 text-2xl">
+            <i class="fa-solid fa-message"></i>
+          </div>
+          <h3 class="text-xl font-bold">SMS de teste</h3>
+          <p class="mt-3 min-h-[72px] text-sm leading-6 text-slate-300">Receba uma mensagem curta de demonstração enviada pelo gateway da plataforma.</p>
+          <label class="mt-5 block text-sm font-semibold text-slate-200" for="demo-sms-phone">Telefone</label>
+          <input id="demo-sms-phone" name="phone" type="tel" inputmode="tel" placeholder="(11) 99999-9999" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-400" required>
+          <label class="mt-4 block text-sm font-semibold text-slate-200" for="demo-sms-email">E-mail</label>
+          <input id="demo-sms-email" name="email" type="email" placeholder="voce@empresa.com.br" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-400" required>
+          <input type="text" name="company_site" class="hidden" tabindex="-1" autocomplete="off">
+          <label class="mt-4 flex gap-3 text-sm text-slate-300">
+            <input name="consent" type="checkbox" value="1" class="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950" required>
+            Autorizo receber este SMS de teste.
+          </label>
+          <div class="mt-4 cf-turnstile" data-sitekey="{{PUBLIC_DEMO_TURNSTILE_SITE_KEY}}" data-theme="dark"></div>
+          <button type="submit" class="mt-5 w-full rounded-full bg-cyan-600 px-5 py-3 font-bold text-white shadow-lg shadow-cyan-600/25 transition hover:bg-cyan-500">Receber SMS</button>
+          <p class="demo-result mt-4 min-h-[24px] text-sm text-slate-300"></p>
+        </form>
+
+        <form class="demo-form rounded-[2rem] border border-white/10 bg-white/5 p-6 soft-glow" data-channel="whatsapp">
+          <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl">
+            <i class="fa-brands fa-whatsapp"></i>
+          </div>
+          <h3 class="text-xl font-bold">WhatsApp de teste</h3>
+          <p class="mt-3 min-h-[72px] text-sm leading-6 text-slate-300">Receba uma mensagem de demonstração enviada pela conta empresarial configurada.</p>
+          <label class="mt-5 block text-sm font-semibold text-slate-200" for="demo-whatsapp-phone">Telefone</label>
+          <input id="demo-whatsapp-phone" name="phone" type="tel" inputmode="tel" placeholder="(11) 99999-9999" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-emerald-400" required>
+          <label class="mt-4 block text-sm font-semibold text-slate-200" for="demo-whatsapp-email">E-mail</label>
+          <input id="demo-whatsapp-email" name="email" type="email" placeholder="voce@empresa.com.br" class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-emerald-400" required>
+          <input type="text" name="company_site" class="hidden" tabindex="-1" autocomplete="off">
+          <label class="mt-4 flex gap-3 text-sm text-slate-300">
+            <input name="consent" type="checkbox" value="1" class="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950" required>
+            Autorizo receber este WhatsApp de teste.
+          </label>
+          <div class="mt-4 cf-turnstile" data-sitekey="{{PUBLIC_DEMO_TURNSTILE_SITE_KEY}}" data-theme="dark"></div>
+          <button type="submit" class="mt-5 w-full rounded-full bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-600/25 transition hover:bg-emerald-500">Receber WhatsApp</button>
+          <p class="demo-result mt-4 min-h-[24px] text-sm text-slate-300"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="contato" class="relative px-4 py-20 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-5xl rounded-[2.5rem] border border-blue-400/20 bg-blue-600 p-10 text-center shadow-2xl shadow-blue-600/30 md:p-16">
+        <h2 class="text-3xl font-black sm:text-5xl">Comece agora a transformar sua comunicação.</h2>
+        <p class="mx-auto mt-5 max-w-2xl text-blue-100">Tenha VoIP, WhatsApp API, SMS, campanhas e relatórios em uma plataforma única para sua operação.</p>
+        <div class="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+          <a href="/login" class="rounded-full bg-white px-8 py-4 font-bold text-blue-700 transition hover:-translate-y-1 hover:bg-blue-50">Acessar Painel</a>
+          <a href="/register" class="rounded-full border border-white/30 px-8 py-4 font-bold text-white transition hover:-translate-y-1 hover:bg-white/10">Criar Conta</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/10 bg-slate-950 py-10">
+    <div class="mx-auto flex max-w-7xl flex-col gap-8 px-4 text-sm text-slate-400 sm:px-6 lg:px-8">
+      <div class="flex flex-col justify-between gap-6 md:flex-row md:items-center">
+        <p>© 2026 Maxx Solutions. Todos os direitos reservados.</p>
+        <div class="flex flex-wrap gap-6">
+          <a href="#inicio" class="hover:text-white">Início</a>
+          <a href="#solucoes" class="hover:text-white">Soluções</a>
+          <a href="/login" class="hover:text-white">Acessar Painel</a>
+        </div>
+      </div>
+
+      <div class="flex flex-col justify-between gap-4 border-t border-white/10 pt-6 md:flex-row md:items-center">
+        <p class="font-semibold text-slate-300">Siga-nos nas redes sociais</p>
+        <div class="flex flex-wrap gap-3">
+          <a href="https://www.facebook.com/profile.php?id=100065260129802&locale=pt_BR" target="_blank" rel="noopener noreferrer" aria-label="Facebook" class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-600 shadow-md shadow-transparent transition hover:-translate-y-1 hover:shadow-blue-500/20">
+            <i class="fa-brands fa-facebook-f"></i>
+          </a>
+          <a href="https://www.instagram.com/maxx.solutions?utm_source=ig_web_button_share_sheet&igsh=dmw1N3Rtazl0Ynh0" target="_blank" rel="noopener noreferrer" aria-label="Instagram" class="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-orange-100 via-pink-100 to-purple-100 text-xl text-pink-600 shadow-md shadow-transparent transition hover:-translate-y-1 hover:shadow-pink-500/20">
+            <i class="fa-brands fa-instagram"></i>
+          </a>
+          <a href="#" target="_blank" rel="noopener noreferrer" aria-label="YouTube" class="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-xl text-red-600 shadow-md shadow-transparent transition hover:-translate-y-1 hover:shadow-red-500/20">
+            <i class="fa-brands fa-youtube"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const revealTargets = document.querySelectorAll('main section, footer, section article, section .grid > div, #contato > div');
+    const motionTargets = document.querySelectorAll('a, button, section article > div, section .grid > div[class*="rounded"], #contato > div, footer a');
+
+    motionTargets.forEach((element) => {
+      element.classList.add('motion-card');
+      element.addEventListener('click', () => {
+        element.classList.add('click-pop');
+        window.setTimeout(() => element.classList.remove('click-pop'), 180);
+      });
+    });
+
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.14 });
+
+    revealTargets.forEach((element, position) => {
+      element.classList.add('reveal');
+      element.style.transitionDelay = `${Math.min(position * 45, 240)}ms`;
+      revealObserver.observe(element);
+    });
+
+    const demoSection = document.getElementById('teste');
+    const demoApiBase = demoSection?.dataset.demoApiBase || '';
+    const statValues = new Map();
+
+    function formatStat(value) {
+      return `+${Number(value || 0).toLocaleString('pt-BR')}`;
+    }
+
+    function animateStat(element, nextValue) {
+      const key = element.dataset.siteStat;
+      const currentValue = statValues.get(key) ?? 0;
+      const targetValue = Number(nextValue || 0);
+      const startedAt = performance.now();
+      const duration = 520;
+
+      function tick(now) {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const value = Math.round(currentValue + (targetValue - currentValue) * progress);
+        element.textContent = formatStat(value);
+
+        if (progress < 1) {
+          requestAnimationFrame(tick);
+          return;
+        }
+
+        statValues.set(key, targetValue);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    async function refreshSiteStats() {
+      try {
+        const response = await fetch(`${demoApiBase}/api/site/stats`, {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+
+        if (!response.ok) return;
+
+        const stats = await response.json();
+        document.querySelectorAll('[data-site-stat]').forEach((element) => {
+          animateStat(element, stats[element.dataset.siteStat] || 0);
+        });
+
+        const total = Math.max(Number(stats.total || 0), 1);
+        document.querySelectorAll('[data-site-bar]').forEach((element) => {
+          const value = Number(stats[element.dataset.siteBar] || 0);
+          element.style.width = `${Math.max(8, Math.round((value / total) * 100))}%`;
+        });
+      } catch (error) {
+        // Dashboard público: mantém o último valor renderizado se a API oscilar.
+      }
+    }
+
+    refreshSiteStats();
+    setInterval(refreshSiteStats, 5000);
+
+    document.querySelectorAll('.demo-form').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        const result = form.querySelector('.demo-result');
+        const turnstileResponse = form.querySelector('input[name="cf-turnstile-response"]')?.value || '';
+        const data = new FormData(form);
+        const channel = form.dataset.channel;
+
+        if (!turnstileResponse) {
+          result.textContent = 'Confirme a validação de segurança.';
+          result.className = 'demo-result mt-4 min-h-[24px] text-sm text-rose-300';
+          return;
+        }
+
+        result.textContent = 'Enviando solicitação...';
+        result.className = 'demo-result mt-4 min-h-[24px] text-sm text-blue-200';
+        button.disabled = true;
+        button.classList.add('opacity-70', 'cursor-not-allowed');
+
+        try {
+          const response = await fetch(`${demoApiBase}/api/public/demo/${channel}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+              phone: data.get('phone'),
+              email: data.get('email'),
+              consent: data.get('consent') === '1',
+              turnstile_token: turnstileResponse,
+              company_site: data.get('company_site') || ''
+            })
+          });
+
+          const payload = await response.json();
+          result.textContent = payload.message || (payload.success ? 'Teste solicitado.' : 'Não foi possível solicitar o teste.');
+          result.className = `demo-result mt-4 min-h-[24px] text-sm ${payload.success ? 'text-emerald-300' : 'text-rose-300'}`;
+
+          if (payload.success) {
+            form.reset();
+          }
+        } catch (error) {
+          result.textContent = 'Falha de comunicação com a API de demonstração.';
+          result.className = 'demo-result mt-4 min-h-[24px] text-sm text-rose-300';
+        } finally {
+          if (window.turnstile) {
+            const widget = form.querySelector('.cf-turnstile');
+            if (widget) window.turnstile.reset(widget);
+          }
+          button.disabled = false;
+          button.classList.remove('opacity-70', 'cursor-not-allowed');
+        }
+      });
+    });
+
+    const carousel = document.getElementById('carousel');
+    const prev = document.getElementById('prevSlide');
+    const next = document.getElementById('nextSlide');
+    let index = 0;
+
+    function visibleItems() {
+      if (window.innerWidth >= 1024) return 3;
+      if (window.innerWidth >= 768) return 2;
+      return 1;
+    }
+
+    function maxIndex() {
+      return Math.max(0, carousel.children.length - visibleItems());
+    }
+
+    function updateCarousel() {
+      const itemWidth = carousel.children[0].getBoundingClientRect().width;
+      carousel.style.transform = `translateX(-${index * itemWidth}px)`;
+    }
+
+    next.addEventListener('click', () => {
+      index = index >= maxIndex() ? 0 : index + 1;
+      updateCarousel();
+    });
+
+    prev.addEventListener('click', () => {
+      index = index <= 0 ? maxIndex() : index - 1;
+      updateCarousel();
+    });
+
+    window.addEventListener('resize', () => {
+      if (index > maxIndex()) index = maxIndex();
+      updateCarousel();
+    });
+
+    setInterval(() => {
+      index = index >= maxIndex() ? 0 : index + 1;
+      updateCarousel();
+    }, 4500);
+  </script>
+</body>
+</html>

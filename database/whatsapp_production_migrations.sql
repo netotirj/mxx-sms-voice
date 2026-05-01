@@ -169,3 +169,146 @@ CREATE TABLE IF NOT EXISTS whatsapp_message_cdr (
     KEY idx_whatsapp_cdr_status (status, timestamp),
     KEY idx_whatsapp_cdr_category (message_category, billed, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE whatsapp_templates
+    ADD COLUMN IF NOT EXISTS account_id INT UNSIGNED NULL AFTER user_id,
+    ADD COLUMN IF NOT EXISTS waba_id VARCHAR(64) NULL AFTER account_id,
+    ADD COLUMN IF NOT EXISTS meta_template_id VARCHAR(64) NULL AFTER waba_id,
+    ADD COLUMN IF NOT EXISTS variable_map JSON NULL AFTER components,
+    ADD COLUMN IF NOT EXISTS is_system_template TINYINT(1) NOT NULL DEFAULT 0 AFTER variable_map,
+    ADD COLUMN IF NOT EXISTS template_type ENUM('system', 'tenant') NOT NULL DEFAULT 'tenant' AFTER is_system_template,
+    MODIFY status ENUM('draft', 'pending', 'approved', 'rejected', 'paused', 'disabled') NOT NULL DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS template_submitted_at DATETIME NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS template_approved_at DATETIME NULL AFTER template_submitted_at,
+    ADD COLUMN IF NOT EXISTS template_rejected_at DATETIME NULL AFTER template_approved_at,
+    ADD COLUMN IF NOT EXISTS template_last_sync_at DATETIME NULL AFTER template_rejected_at,
+    ADD COLUMN IF NOT EXISTS template_last_error TEXT NULL AFTER template_last_sync_at,
+    ADD COLUMN IF NOT EXISTS meta_payload JSON NULL AFTER template_last_error,
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_type (template_type, is_system_template),
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_account (account_id),
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_meta (waba_id, meta_template_id);
+
+CREATE TABLE IF NOT EXISTS whatsapp_template_audit_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    template_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    tenancy_id VARCHAR(64) NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    template_type ENUM('system', 'tenant') NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_whatsapp_template_audit_template (template_id, created_at),
+    KEY idx_whatsapp_template_audit_user (user_id, created_at),
+    KEY idx_whatsapp_template_audit_tenancy (tenancy_id, created_at),
+    KEY idx_whatsapp_template_audit_action (action, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE whatsapp_accounts
+    ADD COLUMN IF NOT EXISTS profile_picture_url TEXT NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS profile_picture_handle VARCHAR(255) NULL AFTER profile_picture_url,
+    ADD COLUMN IF NOT EXISTS profile_about VARCHAR(139) NULL AFTER profile_picture_handle,
+    ADD COLUMN IF NOT EXISTS profile_description TEXT NULL AFTER profile_about,
+    ADD COLUMN IF NOT EXISTS profile_email VARCHAR(160) NULL AFTER profile_description,
+    ADD COLUMN IF NOT EXISTS profile_website VARCHAR(520) NULL AFTER profile_email,
+    ADD COLUMN IF NOT EXISTS profile_address VARCHAR(255) NULL AFTER profile_website,
+    ADD COLUMN IF NOT EXISTS profile_vertical VARCHAR(64) NULL AFTER profile_address,
+    ADD COLUMN IF NOT EXISTS profile_updated_at DATETIME NULL AFTER profile_vertical,
+    ADD COLUMN IF NOT EXISTS profile_last_error TEXT NULL AFTER profile_updated_at;
+
+INSERT INTO whatsapp_templates
+    (tenancy_id, user_id, name, language, category, body, components, is_system_template, template_type, status, created_at, updated_at)
+SELECT tb.tenancy_id, tb.user_id, seed.name, 'pt_BR', seed.category, seed.body, seed.components, 1, 'system', 'draft', NOW(), NOW()
+FROM (
+    SELECT 'confirmacao_atendimento' AS name, 'UTILITY' AS category,
+           'Olá {{1}}, seu atendimento foi registrado com o protocolo {{2}}.' AS body,
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, seu atendimento foi registrado com o protocolo {{2}}.')) AS components
+    UNION ALL SELECT 'aviso_protocolo', 'UTILITY', 'Seu protocolo {{1}} está em andamento. Retornaremos em breve.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Seu protocolo {{1}} está em andamento. Retornaremos em breve.'))
+    UNION ALL SELECT 'lembrete_agendamento', 'UTILITY', 'Olá {{1}}, lembramos do seu agendamento em {{2}} às {{3}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, lembramos do seu agendamento em {{2}} às {{3}}.'))
+    UNION ALL SELECT 'confirmacao_pagamento', 'UTILITY', 'Olá {{1}}, confirmamos o pagamento referente a {{2}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, confirmamos o pagamento referente a {{2}}.'))
+    UNION ALL SELECT 'campanha_promocional', 'MARKETING', 'Olá {{1}}, temos uma oferta especial para você: {{2}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, temos uma oferta especial para você: {{2}}.'))
+    UNION ALL SELECT 'reativacao_cliente', 'MARKETING', 'Olá {{1}}, sentimos sua falta. Veja esta novidade: {{2}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, sentimos sua falta. Veja esta novidade: {{2}}.'))
+    UNION ALL SELECT 'campanha_informativa', 'MARKETING', 'Olá {{1}}, temos uma informação importante sobre {{2}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, temos uma informação importante sobre {{2}}.'))
+    UNION ALL SELECT 'codigo_verificacao', 'AUTHENTICATION', 'Seu código de verificação é {{1}}.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Seu código de verificação é {{1}}.'))
+) seed
+INNER JOIN (
+    SELECT tenancy_id, MIN(user_id) AS user_id
+    FROM whatsapp_accounts
+    GROUP BY tenancy_id
+) tb ON 1 = 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM whatsapp_templates wt
+    WHERE wt.tenancy_id = tb.tenancy_id
+      AND wt.name = seed.name
+      AND wt.language = 'pt_BR'
+);
+
+UPDATE whatsapp_templates
+SET is_system_template = 1,
+    template_type = 'system',
+    updated_at = NOW()
+WHERE name IN (
+    'boas_vindas_padrao',
+    'confirmacao_atendimento',
+    'aviso_protocolo',
+    'lembrete_agendamento',
+    'confirmacao_pagamento',
+    'campanha_promocional',
+    'reativacao_cliente',
+    'campanha_informativa',
+    'codigo_verificacao'
+)
+  AND language = 'pt_BR';
+
+INSERT INTO whatsapp_templates
+    (tenancy_id, user_id, account_id, waba_id, name, language, category, body, components, variable_map, is_system_template, template_type, status, meta_payload, created_at, updated_at)
+SELECT tb.tenancy_id, tb.user_id, tb.account_id, tb.waba_id, seed.name, 'pt_BR', seed.category, seed.body, seed.components, seed.variable_map, 1, 'system', 'draft', seed.meta_payload, NOW(), NOW()
+FROM (
+    SELECT 'pedido_confirmado_padrao' AS name, 'UTILITY' AS category,
+           'Olá {{1}}, seu pedido {{2}} foi registrado em nosso sistema. Esta é uma confirmação automática de recebimento.' AS body,
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, seu pedido {{2}} foi registrado em nosso sistema. Esta é uma confirmação automática de recebimento.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('Maria','PED-12345'))))) AS components,
+           JSON_OBJECT('1',JSON_OBJECT('key','nome_cliente','description','Nome do cliente','example','Maria'),'2',JSON_OBJECT('key','numero_pedido','description','Identificador do pedido','example','PED-12345')) AS variable_map,
+           JSON_OBJECT('system_default_template',true,'approval_note','Confirmacao transacional de pedido ja registrado, sem chamada comercial.') AS meta_payload
+    UNION ALL SELECT 'atualizacao_pedido_padrao', 'UTILITY',
+           'Olá {{1}}, o status do pedido {{2}} foi atualizado para: {{3}}. Esta é uma notificação automática de acompanhamento.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, o status do pedido {{2}} foi atualizado para: {{3}}. Esta é uma notificação automática de acompanhamento.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('Maria','PED-12345','em separação'))))),
+           JSON_OBJECT('1',JSON_OBJECT('key','nome_cliente','description','Nome do cliente','example','Maria'),'2',JSON_OBJECT('key','numero_pedido','description','Identificador do pedido','example','PED-12345'),'3',JSON_OBJECT('key','status_pedido','description','Novo status do pedido','example','em separação')),
+           JSON_OBJECT('system_default_template',true,'approval_note','Atualizacao operacional de status de pedido existente.')
+    UNION ALL SELECT 'boleto_disponivel_padrao', 'UTILITY',
+           'Olá {{1}}, o boleto referente à cobrança {{2}} está disponível. Consulte o documento no painel do cliente ou no canal oficial de atendimento.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, o boleto referente à cobrança {{2}} está disponível. Consulte o documento no painel do cliente ou no canal oficial de atendimento.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('Maria','COB-98765'))))),
+           JSON_OBJECT('1',JSON_OBJECT('key','nome_cliente','description','Nome do cliente','example','Maria'),'2',JSON_OBJECT('key','cobranca_id','description','Identificador da cobrança','example','COB-98765')),
+           JSON_OBJECT('system_default_template',true,'approval_note','Aviso financeiro transacional sobre documento de cobranca existente.')
+    UNION ALL SELECT 'lembrete_pagamento_padrao', 'UTILITY',
+           'Olá {{1}}, identificamos uma cobrança pendente {{2}} com vencimento em {{3}}. Esta é uma notificação automática.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, identificamos uma cobrança pendente {{2}} com vencimento em {{3}}. Esta é uma notificação automática.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('Maria','COB-98765','10/05/2026'))))),
+           JSON_OBJECT('1',JSON_OBJECT('key','nome_cliente','description','Nome do cliente','example','Maria'),'2',JSON_OBJECT('key','cobranca_id','description','Identificador da cobrança','example','COB-98765'),'3',JSON_OBJECT('key','data_vencimento','description','Data de vencimento da cobrança','example','10/05/2026')),
+           JSON_OBJECT('system_default_template',true,'approval_note','Lembrete factual de pagamento pendente, sem urgencia artificial ou incentivo comercial.')
+    UNION ALL SELECT 'notificacao_sistema_padrao', 'UTILITY',
+           'Olá {{1}}, há uma atualização relacionada ao registro {{2}}. Consulte os detalhes no painel do cliente ou no canal oficial de atendimento.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Olá {{1}}, há uma atualização relacionada ao registro {{2}}. Consulte os detalhes no painel do cliente ou no canal oficial de atendimento.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('Maria','ATD-45678'))))),
+           JSON_OBJECT('1',JSON_OBJECT('key','nome_cliente','description','Nome do cliente','example','Maria'),'2',JSON_OBJECT('key','referencia_id','description','Identificador do registro, atendimento, cadastro, pedido ou solicitação','example','ATD-45678')),
+           JSON_OBJECT('system_default_template',true,'approval_note','Template coringa com referencia transacional identificavel.')
+    UNION ALL SELECT 'codigo_verificacao_padrao', 'AUTHENTICATION',
+           'Seu código de verificação é {{1}}. Use este código para concluir a autenticação. Não compartilhe este código com outras pessoas.',
+           JSON_ARRAY(JSON_OBJECT('type','BODY','text','Seu código de verificação é {{1}}. Use este código para concluir a autenticação. Não compartilhe este código com outras pessoas.','example',JSON_OBJECT('body_text',JSON_ARRAY(JSON_ARRAY('123456')))),JSON_OBJECT('type','BUTTONS','buttons',JSON_ARRAY(JSON_OBJECT('type','OTP','otp_type','COPY_CODE','text','Copiar código')))),
+           JSON_OBJECT('1',JSON_OBJECT('key','codigo_verificacao','description','Código temporário de autenticação','example','123456')),
+           JSON_OBJECT('system_default_template',true,'approval_note','Template de autenticacao com OTP e orientacao de seguranca.')
+) seed
+INNER JOIN (
+    SELECT tenancy_id, MIN(user_id) AS user_id, MIN(id) AS account_id, MIN(waba_id) AS waba_id
+    FROM whatsapp_accounts
+    GROUP BY tenancy_id
+) tb ON 1 = 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM whatsapp_templates wt
+    WHERE wt.tenancy_id = tb.tenancy_id
+      AND wt.name = seed.name
+      AND wt.language = 'pt_BR'
+);

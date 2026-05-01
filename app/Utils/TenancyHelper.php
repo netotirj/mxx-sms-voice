@@ -53,7 +53,7 @@ class TenancyHelper
 
         switch ($role) {
             case 'super_admin':
-                // Acesso total
+                // Dono/desenvolvedor do sistema: acesso global, sem filtro de tenancy.
                 $securityFilter = '1=1';
                 break;
 

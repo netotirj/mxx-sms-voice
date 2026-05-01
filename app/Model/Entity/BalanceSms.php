@@ -16,8 +16,10 @@ class BalanceSms
     public float $value_torpedo = 0.0;
     public float $value_whatsapp = 0.0;
     public float $service_fee = 0.0;
+    public ?string $payment_invoice = null;
+    public ?string $created_at = null;
 
-    public string $updated_at;
+    public ?string $updated_at = null;
 
 
     public static function getBalanceSms(?int $userId, ?string $tenancyId, ?int $planId = null): ?self

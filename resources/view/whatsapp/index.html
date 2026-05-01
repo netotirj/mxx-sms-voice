@@ -77,6 +77,77 @@
                     </div>
                 </div>
 
+                <div id="wa-business-profile-modal" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-5">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">WhatsApp Business</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-1 uppercase">Perfil comercial</h6>
+                                <p id="wa-business-profile-subtitle" class="text-xs text-slate-400 mb-0">Configure os dados exibidos no perfil do número.</p>
+                            </div>
+                            <button id="wa-business-profile-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-5">
+                            <div class="wa-profile-photo-panel">
+                                <div class="wa-profile-photo-preview">
+                                    <img id="wa-business-profile-photo-preview" src="" alt="Preview da foto do perfil" class="hidden">
+                                    <span id="wa-business-profile-photo-initials">WA</span>
+                                </div>
+                                <input id="wa-business-profile-photo-input" type="file" accept="image/jpeg,image/png" class="hidden">
+                                <p id="wa-business-profile-photo-name" class="text-[11px] text-slate-400 font-bold text-center mb-0 min-h-4"></p>
+                                <div class="grid grid-cols-1 gap-2 w-full">
+                                    <button id="wa-business-profile-photo-pick" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-black uppercase">Escolher foto</button>
+                                    <button id="wa-business-profile-photo-save" type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase shadow disabled:opacity-50" disabled>Enviar foto</button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field md:col-span-2">
+                                    <span>Sobre</span>
+                                    <input id="wa-business-profile-about" type="text" maxlength="139" placeholder="Ex: Atendimento oficial da empresa">
+                                </label>
+                                <label class="wa-field md:col-span-2">
+                                    <span>Descrição</span>
+                                    <textarea id="wa-business-profile-description" rows="3" placeholder="Descreva brevemente a empresa ou atendimento"></textarea>
+                                </label>
+                                <label class="wa-field">
+                                    <span>E-mail</span>
+                                    <input id="wa-business-profile-email" type="email" placeholder="contato@empresa.com.br">
+                                </label>
+                                <label class="wa-field">
+                                    <span>Site</span>
+                                    <input id="wa-business-profile-website" type="url" placeholder="https://empresa.com.br">
+                                </label>
+                                <label class="wa-field">
+                                    <span>Vertical</span>
+                                    <select id="wa-business-profile-vertical">
+                                        <option value="OTHER">Outro</option>
+                                        <option value="PROF_SERVICES">Serviços profissionais</option>
+                                        <option value="RETAIL">Varejo</option>
+                                        <option value="EDU">Educação</option>
+                                        <option value="FINANCE">Financeiro</option>
+                                        <option value="HEALTH">Saúde</option>
+                                        <option value="TRAVEL">Viagens</option>
+                                        <option value="AUTO">Automotivo</option>
+                                    </select>
+                                </label>
+                                <label class="wa-field">
+                                    <span>Endereço</span>
+                                    <input id="wa-business-profile-address" type="text" placeholder="Rua, número, cidade">
+                                </label>
+                            </div>
+                        </div>
+
+                        <p id="wa-business-profile-feedback" class="text-xs font-bold mt-4 mb-0 min-h-4"></p>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button id="wa-business-profile-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Cancelar</button>
+                            <button id="wa-business-profile-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar perfil</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="wa-new-chat-modal" class="absolute inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm">
                     <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 mx-4">
                         <div class="flex items-start justify-between gap-4 mb-4">
@@ -169,22 +240,14 @@
                                     <option value="MARKETING">Marketing</option>
                                 </select>
                             </label>
-                            <label class="wa-field">
-                                <span>Status</span>
-                                <select id="wa-template-status">
-                                    <option value="approved">Aprovado</option>
-                                    <option value="pending">Pendente</option>
-                                    <option value="draft">Rascunho</option>
-                                    <option value="rejected">Rejeitado</option>
-                                </select>
-                            </label>
+                                <p class="text-[11px] text-slate-500 mb-0 md:col-span-1">O status será retornado pela Meta após a análise.</p>
                             <label class="wa-field md:col-span-5">
                                 <span>Texto de referência</span>
                                 <textarea id="wa-template-body" rows="3" placeholder="Ex: Olá {{1}}, sua oferta está disponível até {{2}}."></textarea>
                             </label>
                             <label class="wa-field md:col-span-5">
                                 <span>Componentes JSON opcional</span>
-                                <textarea id="wa-template-components" rows="3" placeholder='Ex: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                                <textarea id="wa-template-components" rows="3" placeholder='Opcional para criação na Meta: [{"type":"BODY","text":"Olá {{1}}"}]'></textarea>
                             </label>
                         </div>
 
@@ -228,7 +291,7 @@
                 <div id="wa-conversations-section">
                 <div class="wa-central-header">
                     <div class="wa-central-title">
-                        <span class="wa-central-icon">
+                        <span id="wa-selected-account-avatar" data-wa-account-avatar-slot class="wa-central-icon wa-central-account-avatar">
                             <i class="fa-brands fa-whatsapp"></i>
                         </span>
                         <div>
@@ -247,7 +310,6 @@
                             <div id="wa-actions-dropdown" class="wa-actions-dropdown hidden">
                                 <button id="wa-test-account" type="button"><i class="fa fa-plug"></i> Testar conexão</button>
                                 <button id="wa-add-account" type="button"><i class="fa fa-plus"></i> Conectar número</button>
-                                <button id="wa-open-templates" type="button"><i class="fa fa-file-lines"></i> Templates</button>
                             </div>
                         </div>
                         <button id="wa-refresh-conversations" type="button" class="wa-toolbar-btn wa-toolbar-btn--dark" title="Atualizar">
@@ -429,6 +491,12 @@
                                 <p class="text-xs text-slate-400 mb-0">Cadastre somente templates aprovados na Meta e classifique custo corretamente.</p>
                             </div>
                         </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700">
+                                <i class="fa fa-clock text-[10px]"></i>
+                                Análise Meta: até 24h
+                            </span>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
@@ -454,15 +522,7 @@
                                         <option value="MARKETING">Marketing</option>
                                     </select>
                                 </label>
-                                <label class="wa-field">
-                                    <span>Status</span>
-                                    <select id="wa-page-template-status">
-                                        <option value="approved">Aprovado</option>
-                                        <option value="pending">Pendente</option>
-                                        <option value="draft">Rascunho</option>
-                                        <option value="rejected">Rejeitado</option>
-                                    </select>
-                                </label>
+                                <p class="text-[11px] text-slate-500 mb-0">O status será sincronizado da Meta.</p>
                             </div>
                             <label class="wa-field">
                                 <span>Texto de referência</span>
@@ -470,11 +530,12 @@
                             </label>
                             <label class="wa-field">
                                 <span>Componentes JSON opcional</span>
-                                <textarea id="wa-page-template-components" rows="3" placeholder='Ex: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                                <textarea id="wa-page-template-components" rows="3" placeholder='Opcional para criação na Meta: [{"type":"BODY","text":"Olá {{1}}"}]'></textarea>
                             </label>
                             <p id="wa-page-template-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
                             <div class="flex justify-end gap-2 mt-4">
-                                <button id="wa-page-template-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Salvar template</button>
+                                <button id="wa-template-sync" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Sincronizar</button>
+                                <button id="wa-page-template-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Enviar à Meta</button>
                             </div>
                         </div>
 
@@ -498,6 +559,12 @@
                                 <h6 class="text-sm font-bold text-slate-700 mb-0 uppercase">WhatsApp - Números</h6>
                                 <p class="text-xs text-slate-400 mb-0">Gerencie os números conectados e solicitações de conexão.</p>
                             </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black text-blue-700">
+                                <i class="fa fa-id-card text-[10px]"></i>
+                                Nome comercial: até 24-48h
+                            </span>
                         </div>
                     </div>
 
@@ -586,6 +653,7 @@
         const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
         const accountModal = document.getElementById('wa-account-modal');
         const verificationModal = document.getElementById('wa-verification-modal');
+        const businessProfileModal = document.getElementById('wa-business-profile-modal');
         const newChatModal = document.getElementById('wa-new-chat-modal');
         const templateModal = document.getElementById('wa-template-modal');
         const campaignModal = document.getElementById('wa-campaign-modal');
@@ -641,6 +709,13 @@
         const verificationResend = document.getElementById('wa-verification-resend');
         const verificationConfirm = document.getElementById('wa-verification-confirm');
         const verificationFeedback = document.getElementById('wa-verification-feedback');
+        const businessProfileSubtitle = document.getElementById('wa-business-profile-subtitle');
+        const businessProfilePhotoPreview = document.getElementById('wa-business-profile-photo-preview');
+        const businessProfilePhotoInitials = document.getElementById('wa-business-profile-photo-initials');
+        const businessProfilePhotoInput = document.getElementById('wa-business-profile-photo-input');
+        const businessProfilePhotoName = document.getElementById('wa-business-profile-photo-name');
+        const businessProfilePhotoSave = document.getElementById('wa-business-profile-photo-save');
+        const businessProfileFeedback = document.getElementById('wa-business-profile-feedback');
 
         let accounts = [];
         let conversations = [];
@@ -659,6 +734,9 @@
         let verificationPollTimer = null;
         let verificationCountdownTimer = null;
         let realtimeSyncBusy = false;
+        let activeBusinessProfileAccountId = null;
+        let activeBusinessProfilePhotoFile = null;
+        let activeBusinessProfilePhotoUrl = '';
 
         const notify = (type, message) => {
             if (typeof notyf !== 'undefined' && notyf && typeof notyf[type] === 'function') {
@@ -798,6 +876,54 @@
             const value = parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
             return value || String(phone || 'WA').slice(-2).toUpperCase() || 'WA';
         };
+        const accountProfilePhoto = (account = {}) => {
+            const raw = String(account.profile_picture_url || account.profile_picture || '').trim();
+            if (!raw) return '';
+
+            const version = String(account.profile_updated_at || account.updated_at || '').replace(/\D+/g, '');
+            if (!version) return raw;
+
+            return `${raw}${raw.includes('?') ? '&' : '?'}_wa_profile=${encodeURIComponent(version)}`;
+        };
+
+        const selectedAccount = () => accounts.find((item) => Number(item.id) === Number(selectedAccountId)) || null;
+        const accountAvatarInnerMarkup = (account = {}, fallback = '') => {
+            const metaName = account.display_name_meta || account.display_name || '';
+            const label = account.label || metaName || 'WhatsApp';
+            const photoUrl = accountProfilePhoto(account);
+            const fallbackInitials = fallback || initials(label, account.display_phone_number);
+
+            return photoUrl
+                ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(label)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.classList.add('hidden'); if (this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');"><span class="hidden">${escapeHtml(fallbackInitials)}</span>`
+                : `<span>${escapeHtml(fallbackInitials)}</span>`;
+        };
+        const accountAvatarMarkup = (account = {}, className = 'wa-account-avatar', fallback = '') => {
+            return `
+                <span class="${className}">
+                    ${accountAvatarInnerMarkup(account, fallback)}
+                </span>
+            `;
+        };
+
+        function setInputValue(id, value = '') {
+            const el = document.getElementById(id);
+            if (el) el.value = value || '';
+        }
+
+        function resetBusinessProfilePhotoObjectUrl() {
+            if (activeBusinessProfilePhotoUrl) {
+                URL.revokeObjectURL(activeBusinessProfilePhotoUrl);
+                activeBusinessProfilePhotoUrl = '';
+            }
+        }
+
+        function setBusinessProfilePhotoPreview(src = '', fallback = 'WA') {
+            if (!businessProfilePhotoPreview || !businessProfilePhotoInitials) return;
+            businessProfilePhotoPreview.src = src || '';
+            businessProfilePhotoPreview.classList.toggle('hidden', !src);
+            businessProfilePhotoInitials.textContent = fallback || 'WA';
+            businessProfilePhotoInitials.classList.toggle('hidden', Boolean(src));
+        }
 
         function setTextFeedback(el, message, ok = null) {
             if (!el) return;
@@ -818,7 +944,89 @@
             if (['APPROVED', 'VERIFIED'].includes(value)) return 'Aprovado';
             if (['REJECTED', 'DECLINED'].includes(value)) return 'Rejeitado';
             if (['PENDING', 'PENDING_REVIEW', 'IN_REVIEW', 'UNKNOWN'].includes(value)) return 'Em análise';
+            if (value === 'NONE') return 'Aprovado';
             return status || 'Em análise';
+        }
+
+        function templateStatusLabel(status = '') {
+            const value = String(status || 'pending').toLowerCase();
+            return {
+                approved: 'Aprovado',
+                pending: 'Pendente',
+                draft: 'Rascunho',
+                rejected: 'Rejeitado',
+                paused: 'Pausado',
+                disabled: 'Desativado'
+            }[value] || status || 'Pendente';
+        }
+
+        function templateStatusBadge(status = '') {
+            const value = String(status || 'pending').toLowerCase();
+            return {
+                approved: 'bg-emerald-50 text-emerald-700',
+                pending: 'bg-amber-50 text-amber-700',
+                draft: 'bg-slate-100 text-slate-500',
+                rejected: 'bg-red-50 text-red-700',
+                paused: 'bg-orange-50 text-orange-700',
+                disabled: 'bg-slate-200 text-slate-600'
+            }[value] || 'bg-slate-100 text-slate-500';
+        }
+
+        function reviewElapsedLabel(value = '') {
+            if (!value) return '';
+            const submittedAt = new Date(String(value).replace(' ', 'T'));
+            if (Number.isNaN(submittedAt.getTime())) return '';
+
+            const diffMs = Date.now() - submittedAt.getTime();
+            if (diffMs < 0) return '';
+
+            const hours = Math.floor(diffMs / 3600000);
+            if (hours < 1) {
+                const minutes = Math.max(1, Math.floor(diffMs / 60000));
+                return `Em análise há ${minutes}min`;
+            }
+            if (hours < 48) {
+                return `Em análise há ${hours}h`;
+            }
+
+            const days = Math.floor(hours / 24);
+            return `Em análise há ${days}d`;
+        }
+
+        function whatsappCategoryLabel(category = '') {
+            const value = String(category || '').toUpperCase();
+            return {
+                MARKETING: 'Marketing',
+                UTILITY: 'Utilidade',
+                AUTHENTICATION: 'Autenticação',
+                SERVICE: 'Atendimento'
+            }[value] || category || 'Utilidade';
+        }
+
+        function numberQualityLabel(quality = '') {
+            const value = String(quality || 'unknown').toLowerCase();
+            return {
+                high: 'Alta',
+                medium: 'Média',
+                low: 'Baixa',
+                unknown: 'Desconhecida'
+            }[value] || quality || 'Desconhecida';
+        }
+
+        function numberStatusLabel(status = '') {
+            const value = String(status || 'active').toLowerCase();
+            return {
+                active: 'Ativo',
+                pending_name_approval: 'Conectado - nome em análise',
+                pending_verification: 'Aguardando código',
+                code_sent: 'Código enviado',
+                pending: 'Aguardando confirmação',
+                failed: 'Falhou',
+                blocked: 'Bloqueado',
+                available: 'Disponível',
+                removing: 'Removendo',
+                removed: 'Removido'
+            }[value] || status || 'Ativo';
         }
 
         function modal(el, show) {
@@ -840,7 +1048,7 @@
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || data.success === false) {
-                throw new Error(data.message || 'Falha na requisição.');
+                throw new Error(data.message || data.detail || data.title || 'Falha na requisição.');
             }
             return data;
         }
@@ -1326,18 +1534,22 @@
                 const numberStatus = account.number_status || 'active';
                 return `
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border ${isSelected ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-100'} mb-2">
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(account.label)}</h6>
-                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(numberStatus === 'active' ? 'Conectado' : numberStatus)}</span>
-                                ${isSelected ? '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Selecionada</span>' : ''}
+                        <div class="min-w-0 flex items-center gap-3">
+                            ${accountAvatarMarkup(account)}
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(account.label)}</h6>
+                                    <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(numberStatus === 'active' ? 'Conectado' : numberStatus)}</span>
+                                    ${isSelected ? '<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Selecionada</span>' : ''}
+                                </div>
+                                <p class="text-[11px] text-slate-500 mt-1 mb-0">Número: ${escapeHtml(account.display_phone_number || '')}</p>
+                                ${metaName ? `<p class="text-[11px] text-slate-500 mt-1 mb-0">Nome Meta: ${escapeHtml(metaName)}${account.display_name_status ? ` - ${escapeHtml(displayNameStatusLabel(account.display_name_status))}` : ''}</p>` : ''}
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 mb-0">Número: ${escapeHtml(account.display_phone_number || '')}</p>
-                            ${metaName ? `<p class="text-[11px] text-slate-500 mt-1 mb-0">Nome Meta: ${escapeHtml(metaName)}${account.display_name_status ? ` - ${escapeHtml(displayNameStatusLabel(account.display_name_status))}` : ''}</p>` : ''}
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <button type="button" data-account-select="${account.id}" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase">Usar</button>
                             <button type="button" data-account-test="${account.id}" class="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Testar</button>
+                            <button type="button" data-account-profile="${account.id}" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase">Editar perfil</button>
                         </div>
                     </div>
                 `;
@@ -1345,8 +1557,15 @@
         }
 
         function updateAccountLabel() {
-            const account = accounts.find((item) => Number(item.id) === selectedAccountId);
+            const account = selectedAccount();
             accountLabel.textContent = account ? `${account.label} (${account.display_phone_number})` : 'Selecione';
+            document.querySelectorAll('[data-wa-account-avatar-slot]').forEach((slot) => {
+                slot.className = 'wa-central-icon wa-central-account-avatar';
+                slot.classList.toggle('hidden', !account && slot.id !== 'wa-selected-account-avatar');
+                slot.innerHTML = account
+                    ? accountAvatarInnerMarkup(account)
+                    : '<i class="fa-brands fa-whatsapp"></i>';
+            });
             const campaignAccount = document.getElementById('wa-campaign-current-account');
             if (campaignAccount) {
                 campaignAccount.textContent = account ? `${account.label} (${account.display_phone_number})` : 'Selecione uma conta';
@@ -1516,6 +1735,7 @@
 
             safetyList.innerHTML = numberHealth.map((item) => {
                 const quality = String(item.quality_status || 'unknown').toLowerCase();
+                const numberStatus = String(item.account_status || item.number_status || 'active').toLowerCase();
                 const badge = quality === 'high'
                     ? 'bg-emerald-50 text-emerald-700'
                     : quality === 'medium'
@@ -1534,8 +1754,9 @@
                             <div class="min-w-0">
                                 <h6 class="text-sm font-black text-slate-700 mb-1 truncate">${escapeHtml(item.label || 'Número WhatsApp')}</h6>
                                 <p class="text-[11px] text-slate-500 mb-0">${escapeHtml(item.display_phone_number || '')}</p>
+                                <p class="text-[11px] text-slate-500 mb-0">Status: ${escapeHtml(numberStatusLabel(numberStatus))}</p>
                             </div>
-                            <span class="text-[10px] font-black px-2 py-1 rounded-full uppercase ${badge}">${escapeHtml(quality)}</span>
+                            <span class="text-[10px] font-black px-2 py-1 rounded-full uppercase ${badge}">${escapeHtml(numberQualityLabel(quality))}</span>
                         </div>
                         <div class="grid grid-cols-3 gap-2 mb-3">
                             <div class="rounded-xl bg-slate-50 p-3">
@@ -1555,6 +1776,7 @@
                             <div class="h-full ${quality === 'low' ? 'bg-red-500' : quality === 'medium' ? 'bg-amber-500' : 'bg-emerald-500'}" style="width: ${percent}%"></div>
                         </div>
                         <p class="text-xs font-bold text-slate-600 mb-1">${escapeHtml(item.recommendation || 'Proteção automática ativa.')}</p>
+                        ${item.meta_quality_rating ? `<p class="text-[11px] text-slate-500 mb-1">Qualidade Meta: ${escapeHtml(numberQualityLabel(item.meta_quality_rating))}</p>` : ''}
                         ${blocked ? `<p class="text-[11px] font-bold text-red-600 mb-0">${blocked}</p>` : ''}
                     </div>
                 `;
@@ -1679,21 +1901,56 @@
                 return;
             }
 
-            const html = templates.map((template) => `
+            const templateOriginBadge = (template) => {
+                const isSystemTemplate = Number(template.is_system_template || 0) === 1 || String(template.template_type || '').toLowerCase() === 'system';
+                const hasMetaIdentity = Boolean(template.meta_template_id || template.waba_id || template.template_submitted_at || template.template_last_sync_at);
+                const status = String(template.status || '').toLowerCase();
+
+                if (isSystemTemplate && status === 'draft') {
+                    return { label: 'Rascunho do sistema', className: 'bg-blue-50 text-blue-700' };
+                }
+                if (isSystemTemplate) {
+                    return { label: 'Modelo do sistema', className: 'bg-blue-50 text-blue-700' };
+                }
+                if (hasMetaIdentity) {
+                    return { label: 'Modelo da Meta', className: 'bg-emerald-50 text-emerald-700' };
+                }
+
+                return { label: 'Rascunho', className: 'bg-slate-100 text-slate-500' };
+            };
+
+            const html = templates.map((template) => {
+                const originBadge = templateOriginBadge(template);
+                const canSync = template.can_sync_status !== false && template.can_sync_status !== 0 && template.can_sync_status !== '0';
+                const canDelete = template.can_delete !== false && template.can_delete !== 0 && template.can_delete !== '0';
+                const reviewElapsed = String(template.status || '').toLowerCase() === 'pending'
+                    ? reviewElapsedLabel(template.template_submitted_at || template.created_at)
+                    : '';
+                return `
                 <div class="flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 mb-2">
                     <div class="min-w-0">
                         <div class="flex items-center gap-2">
                             <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(template.name)}</h6>
                             <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(template.language)}</span>
-                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(template.category)}</span>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(whatsappCategoryLabel(template.category))}</span>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${originBadge.className}">${originBadge.label}</span>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${templateStatusBadge(template.status)}">${escapeHtml(templateStatusLabel(template.status))}</span>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-1 mb-0 line-clamp-2">${escapeHtml(template.body || 'Sem texto de referência')}</p>
+                        ${reviewElapsed ? `<p class="text-[10px] text-amber-600 font-bold mt-1 mb-0">${escapeHtml(reviewElapsed)}. A Meta pode levar até 24h para concluir.</p>` : ''}
+                        ${template.template_last_error ? `<p class="text-[10px] text-red-500 mt-1 mb-0">${escapeHtml(template.template_last_error)}</p>` : ''}
                     </div>
-                    <button type="button" data-template-delete="${template.id}" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 shrink-0" title="Excluir template">
-                        <i class="fa fa-trash text-xs"></i>
-                    </button>
+                    <div class="flex gap-1 shrink-0">
+                        <button type="button" ${canSync ? `data-template-sync="${template.id}"` : 'disabled'} class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed" title="${canSync ? 'Sincronizar status' : 'Sem permissão para alterar status'}">
+                            <i class="fa fa-rotate text-xs"></i>
+                        </button>
+                        <button type="button" ${canDelete ? `data-template-delete="${template.id}"` : 'disabled'} class="w-8 h-8 rounded-lg bg-red-50 text-red-500 disabled:opacity-30 disabled:cursor-not-allowed" title="${canDelete ? 'Excluir template' : 'Sem permissão para excluir'}">
+                            <i class="fa fa-trash text-xs"></i>
+                        </button>
+                    </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
 
             targets.forEach((target) => {
                 target.innerHTML = html;
@@ -1703,7 +1960,7 @@
         function fillTemplateSelect() {
             if (!newChatTemplateSelect) return;
             newChatTemplateSelect.innerHTML = '<option value="">Selecionar template salvo...</option>';
-            templates.forEach((template) => {
+            templates.filter((template) => String(template.status || '') === 'approved').forEach((template) => {
                 const option = document.createElement('option');
                 option.value = String(template.id);
                 option.textContent = `${template.name} (${template.language})`;
@@ -1712,27 +1969,32 @@
 
             if (campaignTemplateSelect) {
                 campaignTemplateSelect.innerHTML = '<option value="">Selecionar template salvo...</option>';
-                templates.forEach((template) => {
-                    const option = document.createElement('option');
-                    option.value = String(template.id);
-                    option.textContent = `${template.name} (${template.language}) - ${template.category}`;
-                    campaignTemplateSelect.appendChild(option);
-                });
+                templates.filter((template) => String(template.status || '') === 'approved').forEach((template) => {
+                const option = document.createElement('option');
+                option.value = String(template.id);
+                option.textContent = `${template.name} (${template.language}) - ${whatsappCategoryLabel(template.category)}`;
+                campaignTemplateSelect.appendChild(option);
+            });
             }
         }
 
         async function saveTemplate() {
             const feedback = document.getElementById('wa-template-feedback');
             setTextFeedback(feedback, 'Salvando...', null);
+            const nameInput = document.getElementById('wa-template-name');
+            const templateName = normalizeTemplateName(nameInput?.value || '') || defaultTemplateName();
+            if (nameInput) {
+                nameInput.value = templateName;
+            }
 
             try {
                 const result = await api('/campaign/whatsapp/templates', {
                     method: 'POST',
                     body: JSON.stringify({
-                        name: document.getElementById('wa-template-name')?.value || '',
+                        name: templateName,
+                        account_id: selectedAccountId || Number(accountSelect?.value || 0),
                         language: document.getElementById('wa-template-language')?.value || 'pt_BR',
                         category: document.getElementById('wa-template-category')?.value || 'MARKETING',
-                        status: document.getElementById('wa-template-status')?.value || 'approved',
                         body: document.getElementById('wa-template-body')?.value || '',
                         components: document.getElementById('wa-template-components')?.value || ''
                     })
@@ -1751,15 +2013,20 @@
         async function savePageTemplate() {
             const feedback = document.getElementById('wa-page-template-feedback');
             setTextFeedback(feedback, 'Salvando...', null);
+            const nameInput = document.getElementById('wa-page-template-name');
+            const templateName = normalizeTemplateName(nameInput?.value || '') || defaultTemplateName();
+            if (nameInput) {
+                nameInput.value = templateName;
+            }
 
             try {
                 const result = await api('/campaign/whatsapp/templates', {
                     method: 'POST',
                     body: JSON.stringify({
-                        name: document.getElementById('wa-page-template-name')?.value || '',
+                        name: templateName,
+                        account_id: selectedAccountId || Number(accountSelect?.value || 0),
                         language: document.getElementById('wa-page-template-language')?.value || 'pt_BR',
                         category: document.getElementById('wa-page-template-category')?.value || 'UTILITY',
-                        status: document.getElementById('wa-page-template-status')?.value || 'approved',
                         body: document.getElementById('wa-page-template-body')?.value || '',
                         components: document.getElementById('wa-page-template-components')?.value || ''
                     })
@@ -1773,6 +2040,24 @@
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
             }
+        }
+
+        function normalizeTemplateName(name) {
+            return String(name || '')
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+        }
+
+        function defaultTemplateName() {
+            const stamp = new Date()
+                .toISOString()
+                .replace(/[-:TZ.]/g, '')
+                .slice(0, 14);
+            return `template_${stamp}`;
         }
 
         async function deleteTemplate(id) {
@@ -1841,6 +2126,133 @@
                 await loadAccounts();
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
+            }
+        }
+
+        async function syncTemplates(id = null) {
+            try {
+                const endpoint = id ? `/campaign/whatsapp/templates/${id}/sync` : '/campaign/whatsapp/templates/sync';
+                const result = await api(endpoint, { method: 'POST' });
+                notify(result.success ? 'success' : 'warning', result.message || 'Sincronização concluída.');
+                await loadTemplates();
+            } catch (error) {
+                notify('error', error.message);
+            }
+        }
+
+        function openBusinessProfileModal(accountId) {
+            const account = accounts.find((item) => Number(item.id) === Number(accountId));
+            if (!account) {
+                notify('error', 'Conta não encontrada.');
+                return;
+            }
+
+            activeBusinessProfileAccountId = Number(accountId);
+            activeBusinessProfilePhotoFile = null;
+            resetBusinessProfilePhotoObjectUrl();
+
+            if (businessProfileSubtitle) {
+                businessProfileSubtitle.textContent = `${account.label || 'Número'} - ${account.display_phone_number || ''}`;
+            }
+            setInputValue('wa-business-profile-about', account.profile_about || '');
+            setInputValue('wa-business-profile-description', account.profile_description || '');
+            setInputValue('wa-business-profile-email', account.profile_email || '');
+            setInputValue('wa-business-profile-website', account.profile_website || '');
+            setInputValue('wa-business-profile-address', account.profile_address || '');
+            setInputValue('wa-business-profile-vertical', account.profile_vertical || 'OTHER');
+            if (businessProfilePhotoInput) businessProfilePhotoInput.value = '';
+            if (businessProfilePhotoName) businessProfilePhotoName.textContent = '';
+            if (businessProfilePhotoSave) businessProfilePhotoSave.disabled = true;
+            setBusinessProfilePhotoPreview(accountProfilePhoto(account), initials(account.label, account.display_phone_number));
+            setTextFeedback(businessProfileFeedback, '', null);
+            modal(businessProfileModal, true);
+        }
+
+        function closeBusinessProfileModal() {
+            modal(businessProfileModal, false);
+            activeBusinessProfileAccountId = null;
+            activeBusinessProfilePhotoFile = null;
+            resetBusinessProfilePhotoObjectUrl();
+            if (businessProfilePhotoInput) businessProfilePhotoInput.value = '';
+        }
+
+        function handleBusinessProfilePhotoSelected() {
+            const file = businessProfilePhotoInput?.files?.[0];
+            if (!file) return;
+
+            const allowed = ['image/jpeg', 'image/png'];
+            if (!allowed.includes(file.type)) {
+                notify('error', 'Use uma imagem JPG ou PNG.');
+                businessProfilePhotoInput.value = '';
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                notify('error', 'A imagem deve ter no máximo 5 MB.');
+                businessProfilePhotoInput.value = '';
+                return;
+            }
+
+            activeBusinessProfilePhotoFile = file;
+            resetBusinessProfilePhotoObjectUrl();
+            activeBusinessProfilePhotoUrl = URL.createObjectURL(file);
+            setBusinessProfilePhotoPreview(activeBusinessProfilePhotoUrl, businessProfilePhotoInitials?.textContent || 'WA');
+            if (businessProfilePhotoName) businessProfilePhotoName.textContent = file.name;
+            if (businessProfilePhotoSave) businessProfilePhotoSave.disabled = false;
+            setTextFeedback(businessProfileFeedback, 'Preview carregado. Envie a foto para atualizar na Meta.', null);
+        }
+
+        async function saveBusinessProfile() {
+            if (!activeBusinessProfileAccountId) return;
+            setTextFeedback(businessProfileFeedback, 'Salvando perfil...', null);
+
+            try {
+                const result = await api(`/campaign/whatsapp/accounts/${activeBusinessProfileAccountId}/profile`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        about: document.getElementById('wa-business-profile-about')?.value || '',
+                        description: document.getElementById('wa-business-profile-description')?.value || '',
+                        email: document.getElementById('wa-business-profile-email')?.value || '',
+                        website: document.getElementById('wa-business-profile-website')?.value || '',
+                        address: document.getElementById('wa-business-profile-address')?.value || '',
+                        vertical: document.getElementById('wa-business-profile-vertical')?.value || 'OTHER'
+                    })
+                });
+                setTextFeedback(businessProfileFeedback, result.message || 'Perfil atualizado.', true);
+                notify(result.success ? 'success' : 'warning', result.message || 'Perfil atualizado.');
+                await loadAccounts();
+            } catch (error) {
+                setTextFeedback(businessProfileFeedback, error.message, false);
+                notify('error', error.message);
+            }
+        }
+
+        async function saveBusinessProfilePhoto() {
+            if (!activeBusinessProfileAccountId || !activeBusinessProfilePhotoFile) return;
+            const formData = new FormData();
+            formData.append('profile_picture', activeBusinessProfilePhotoFile);
+            setTextFeedback(businessProfileFeedback, 'Enviando foto...', null);
+            if (businessProfilePhotoSave) businessProfilePhotoSave.disabled = true;
+
+            try {
+                const result = await api(`/campaign/whatsapp/accounts/${activeBusinessProfileAccountId}/profile/photo`, {
+                    method: 'POST',
+                    body: formData
+                });
+                activeBusinessProfilePhotoFile = null;
+                if (businessProfilePhotoInput) businessProfilePhotoInput.value = '';
+                if (businessProfilePhotoName) businessProfilePhotoName.textContent = '';
+                setTextFeedback(businessProfileFeedback, result.message || 'Foto atualizada.', true);
+                notify(result.success ? 'success' : 'warning', result.message || 'Foto atualizada.');
+                await api(`/campaign/whatsapp/accounts/${activeBusinessProfileAccountId}/profile`).catch(() => null);
+                await loadAccounts();
+                const account = accounts.find((item) => Number(item.id) === Number(activeBusinessProfileAccountId));
+                resetBusinessProfilePhotoObjectUrl();
+                if (account) setBusinessProfilePhotoPreview(accountProfilePhoto(account), initials(account.label, account.display_phone_number));
+            } catch (error) {
+                if (businessProfilePhotoSave) businessProfilePhotoSave.disabled = false;
+                setTextFeedback(businessProfileFeedback, error.message, false);
+                notify('error', error.message);
             }
         }
 
@@ -2205,6 +2617,12 @@
             messagesArea.innerHTML = '';
             messages.forEach((message) => {
                 const outbound = message.direction === 'outbound';
+                const currentAccount = selectedAccount();
+                const conversationLabel = selectedConversation?.contact_name || selectedConversation?.contact_phone || 'Contato';
+                const inboundAvatar = `<span class="wa-message-avatar wa-message-avatar--contact">${escapeHtml(initials(conversationLabel, selectedConversation?.contact_phone))}</span>`;
+                const outboundAvatar = currentAccount
+                    ? accountAvatarMarkup(currentAccount, 'wa-message-avatar wa-message-avatar--business')
+                    : '<span class="wa-message-avatar wa-message-avatar--business"><i class="fa-brands fa-whatsapp"></i></span>';
                 const meta = renderWhatsAppStatus(message.status, outbound ? 'bubble-outbound' : 'bubble-inbound');
                 const media = message.media || message.payload?.media || null;
                 const isAudio = String(message.message_type || '') === 'audio';
@@ -2212,7 +2630,8 @@
                     ? `<audio controls preload="metadata" class="wa-audio-player" src="${escapeHtml(media.url)}"></audio>`
                     : `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">${escapeHtml(message.body || '')}</p>`;
                 const html = `
-                    <div class="flex ${outbound ? 'justify-end' : 'justify-start'}">
+                    <div class="flex ${outbound ? 'justify-end' : 'justify-start'} items-end gap-2">
+                        ${outbound ? '' : inboundAvatar}
                         <div class="${outbound ? 'bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'} p-3 rounded-2xl shadow-sm max-w-[80%]">
                             ${bodyHtml}
                             ${isAudio && !media?.url ? `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">Áudio indisponível</p>` : ''}
@@ -2222,6 +2641,7 @@
                             </span>
                             ${message.error_message ? `<p class="mt-1 text-[10px] font-bold text-red-200">${escapeHtml(message.error_message)}</p>` : ''}
                         </div>
+                        ${outbound ? outboundAvatar : ''}
                     </div>
                 `;
                 messagesArea.insertAdjacentHTML('beforeend', html);
@@ -2501,8 +2921,21 @@
                 updateAccountLabel();
                 renderAccountsList();
                 testAccount();
+                return;
+            }
+
+            const profileBtn = event.target.closest('[data-account-profile]');
+            if (profileBtn) {
+                openBusinessProfileModal(profileBtn.dataset.accountProfile);
+                return;
             }
         });
+        document.getElementById('wa-business-profile-close')?.addEventListener('click', closeBusinessProfileModal);
+        document.getElementById('wa-business-profile-cancel')?.addEventListener('click', closeBusinessProfileModal);
+        document.getElementById('wa-business-profile-save')?.addEventListener('click', saveBusinessProfile);
+        document.getElementById('wa-business-profile-photo-pick')?.addEventListener('click', () => businessProfilePhotoInput?.click());
+        businessProfilePhotoInput?.addEventListener('change', handleBusinessProfilePhotoSelected);
+        businessProfilePhotoSave?.addEventListener('click', saveBusinessProfilePhoto);
         numberList?.addEventListener('click', async (event) => {
             const sendCodeBtn = event.target.closest('[data-number-send-code]');
             if (sendCodeBtn) {
@@ -2564,15 +2997,16 @@
             actionsDropdown?.classList.add('hidden');
             testAccount();
         });
-        document.getElementById('wa-open-templates')?.addEventListener('click', async () => {
-            actionsDropdown?.classList.add('hidden');
-            await loadTemplates();
-            modal(templateModal, true);
-        });
         document.getElementById('wa-template-close')?.addEventListener('click', () => modal(templateModal, false));
         document.getElementById('wa-template-save')?.addEventListener('click', saveTemplate);
         document.getElementById('wa-page-template-save')?.addEventListener('click', savePageTemplate);
+        document.getElementById('wa-template-sync')?.addEventListener('click', () => syncTemplates());
         const handleTemplateListClick = (event) => {
+            const syncBtn = event.target.closest('[data-template-sync]');
+            if (syncBtn) {
+                syncTemplates(syncBtn.dataset.templateSync);
+                return;
+            }
             const btn = event.target.closest('[data-template-delete]');
             if (btn) deleteTemplate(btn.dataset.templateDelete);
         };
@@ -2663,7 +3097,7 @@
             await loadConversations(false);
             await refreshCurrentConversation();
         }, 15000);
-        window.setInterval(refreshNumberConnectionRealtime, 7000);
+        window.setInterval(refreshNumberConnectionRealtime, 30000);
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 refreshNumberConnectionRealtime();
@@ -2730,6 +3164,19 @@
         color: #047857;
         font-size: 1.1rem;
         flex: 0 0 auto;
+    }
+    .wa-central-account-avatar {
+        overflow: hidden;
+        background: #ecfdf5;
+        border: 1px solid #d1fae5;
+        color: #047857;
+        font-size: 0.72rem;
+        font-weight: 900;
+    }
+    .wa-central-account-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
     .wa-toolbar {
         position: relative;
@@ -2822,6 +3269,77 @@
     }
     .wa-account-panel--full {
         grid-column: 1 / -1;
+    }
+    .wa-account-avatar {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.9rem;
+        overflow: hidden;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 0.78rem;
+        font-weight: 900;
+        border: 1px solid #d1fae5;
+    }
+    .wa-account-avatar img,
+    .wa-profile-photo-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .wa-message-avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        overflow: hidden;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #d1fae5;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 0.65rem;
+        font-weight: 900;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08);
+    }
+    .wa-message-avatar--contact {
+        border-color: #e2e8f0;
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    .wa-message-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .wa-profile-photo-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #f8fafc;
+    }
+    .wa-profile-photo-preview {
+        width: 10rem;
+        height: 10rem;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 2rem;
+        font-weight: 900;
+        border: 1px solid #d1fae5;
     }
     .wa-field {
         display: block;

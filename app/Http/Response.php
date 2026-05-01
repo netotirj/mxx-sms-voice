@@ -13,7 +13,9 @@ class Response
     private const array SUPPORTED_CONTENT_TYPES = [
         'text/html',
         'application/json',
-        'text/event-stream'
+        'text/event-stream',
+        'image/png',
+        'image/x-icon'
     ];
 
     public function __construct(int $httpCode = 200, mixed $content = '', string $contentType = 'text/html')
@@ -92,4 +94,3 @@ class Response
         return ob_get_clean();
     }
 }
-

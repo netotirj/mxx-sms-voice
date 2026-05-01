@@ -53,6 +53,13 @@ class SupportTickets extends ViewComponents
         }
 
         try {
+            if (!SupportTicket::can($user, 'create')) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Sem permissão para abrir ticket.',
+                ]);
+            }
+
             $id = SupportTicket::create($user, [
                 'department' => $input['department'] ?? 'support',
                 'requester_phone' => $phone,
@@ -86,6 +93,7 @@ class SupportTickets extends ViewComponents
         return self::json(200, [
             'success' => true,
             'data' => SupportTicket::listForUser($user, $status),
+            'permissions' => SupportTicket::capabilities($user),
         ]);
     }
 
@@ -108,6 +116,12 @@ class SupportTickets extends ViewComponents
             'success' => true,
             'ticket' => $ticket,
             'data' => SupportTicket::listMessagesForUser((int)$id, $user),
+            'permissions' => [
+                'reply' => SupportTicket::can($user, 'reply', $ticket),
+                'change_status' => SupportTicket::can($user, 'change_status', $ticket),
+                'update' => SupportTicket::can($user, 'update', $ticket),
+                'delete' => SupportTicket::can($user, 'delete', $ticket),
+            ],
         ]);
     }
 
@@ -135,7 +149,17 @@ class SupportTickets extends ViewComponents
             ]);
         }
 
-        $messageId = SupportTicket::addMessage((int)$id, $user, 'customer', $message);
+        if (!SupportTicket::can($user, 'reply', $ticket)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Sem permissão para responder este ticket.',
+            ]);
+        }
+
+        $senderType = SupportTicket::can($user, 'view_all') && (int)$ticket['user_id'] !== (int)$user['id']
+            ? 'agent'
+            : 'customer';
+        $messageId = SupportTicket::addMessage((int)$id, $user, $senderType, $message);
 
         return self::json(201, [
             'success' => true,
@@ -160,7 +184,25 @@ class SupportTickets extends ViewComponents
         }
 
         $input = self::jsonInput();
-        SupportTicket::updateStatus((int)$id, (string)($input['status'] ?? 'open'));
+        if (!SupportTicket::can($user, 'change_status', $ticket)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Sem permissão para alterar status de ticket.',
+            ]);
+        }
+
+        $oldStatus = (string)($ticket['status'] ?? '');
+        $newStatus = SupportTicket::normalizeStatusValue((string)($input['status'] ?? 'open'));
+        SupportTicket::updateStatus((int)$id, $newStatus);
+        SupportTicket::audit(
+            (int)$id,
+            $user,
+            'status_changed',
+            'status',
+            $oldStatus,
+            $newStatus,
+            self::clientIp()
+        );
 
         return self::json(200, [
             'success' => true,
@@ -416,5 +458,15 @@ class SupportTickets extends ViewComponents
         $data = json_decode($raw ?: '', true);
 
         return is_array($data) ? $data : ($_POST ?: []);
+    }
+
+    private static function clientIp(): ?string
+    {
+        $forwarded = (string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+        if ($forwarded !== '') {
+            return trim(explode(',', $forwarded)[0]);
+        }
+
+        return $_SERVER['REMOTE_ADDR'] ?? null;
     }
 }

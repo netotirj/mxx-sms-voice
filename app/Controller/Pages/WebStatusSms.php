@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Config\TelephonyConfig;
 use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
@@ -154,6 +155,13 @@ class WebStatusSms
             $phone     = $item['destino'] ?? null;
             if (!$partnerId || !$phone) continue;
 
+            if (str_starts_with((string)$partnerId, 'site-test-sms-')) {
+                if (self::processSiteTestSmsCallback($item, (string)$partnerId, (string)$phone, $rootAction, $rootObject, $rootCreated, $normalizeDate)) {
+                    $count++;
+                }
+                continue;
+            }
+
             $obUser = UserSearch::getUserByPartnerId($partnerId);
             if (!$obUser) continue;
 
@@ -279,6 +287,84 @@ class WebStatusSms
     private static function json(int $status, array $payload): Response
     {
         return new Response($status, $payload, 'application/json');
+    }
+
+    private static function processSiteTestSmsCallback(
+        array $item,
+        string $partnerId,
+        string $phone,
+        ?string $rootAction,
+        ?string $rootObject,
+        ?string $rootCreated,
+        callable $normalizeDate
+    ): bool {
+        $updateDate = $normalizeDate($item['data_atualizacao'] ?? null) ?: date('Y-m-d H:i:s');
+        $status = strtoupper(trim((string)($item['status'] ?? '')));
+
+        $updated = (new Database())->execute("
+            UPDATE callback
+               SET status_sms = :status_sms,
+                   value_sms = 0,
+                   operator = :operator,
+                   update_date = :update_date,
+                   codigo_status = :codigo_status,
+                   codigo_detalhe = :codigo_detalhe,
+                   descricao_detalhe = :descricao_detalhe,
+                   webhook_action = :webhook_action,
+                   webhook_object = :webhook_object,
+                   webhook_created = :webhook_created,
+                   response_text = COALESCE(:response_text, response_text),
+                   origin_id = :origin_id,
+                   received_at = :received_at,
+                   sms_reference_id = :sms_reference_id,
+                   sms_customer_id = :sms_customer_id,
+                   sms_account_id = :sms_account_id,
+                   sms_user_id = :sms_user_id
+             WHERE id_partner = :id_partner
+               AND tenancy_id = :tenancy_id
+        ", [
+            ':status_sms' => $status,
+            ':operator' => $item['sms_operator'] ?? '',
+            ':update_date' => $updateDate,
+            ':codigo_status' => $item['codigo_status'] ?? $item['status_code'] ?? $item['cod_status'] ?? null,
+            ':codigo_detalhe' => $item['codigo_detalhe'] ?? $item['detail_code'] ?? $item['cod_detalhe'] ?? null,
+            ':descricao_detalhe' => $item['descricao_detalhe'] ?? $item['detail_description'] ?? $item['descricao'] ?? $item['message'] ?? null,
+            ':webhook_action' => $item['webhook_action'] ?? $item['action'] ?? $rootAction,
+            ':webhook_object' => $item['webhook_object'] ?? $item['object'] ?? $rootObject,
+            ':webhook_created' => $normalizeDate($item['webhook_created'] ?? $item['created_at'] ?? null) ?: $rootCreated,
+            ':response_text' => $item['resposta'] ?? null,
+            ':origin_id' => $item['origin_id'] ?? $item['id'] ?? null,
+            ':received_at' => date('Y-m-d H:i:s'),
+            ':sms_reference_id' => $item['sms_reference_id'] ?? $item['reference_id'] ?? $item['referencia'] ?? null,
+            ':sms_customer_id' => $item['sms_customer_id'] ?? $item['customer_id'] ?? null,
+            ':sms_account_id' => $item['sms_account_id'] ?? $item['account_id'] ?? null,
+            ':sms_user_id' => $item['sms_user_id'] ?? $item['user_id'] ?? null,
+            ':id_partner' => $partnerId,
+            ':tenancy_id' => (string)TelephonyConfig::env('SITE_TEST_TENANCY_ID', '00000000-0000-4000-8000-000000000001'),
+        ])->rowCount();
+
+        if (preg_match('/^site-test-sms-(\d+)-/', $partnerId, $matches)) {
+            (new Database())->execute("
+                UPDATE site_service_tests
+                   SET status = :status,
+                       provider = 'disparopro',
+                       provider_message_id = :provider_message_id,
+                       provider_response = :provider_response,
+                       error_message = :error_message,
+                       sent_at = COALESCE(sent_at, :sent_at),
+                       updated_at = NOW()
+                 WHERE id = :id
+            ", [
+                ':status' => in_array($status, ['SENT', 'DELIVERED', 'ACCEPTED'], true) ? 'sent' : 'failed',
+                ':provider_message_id' => $item['sms_reference_id'] ?? $item['reference_id'] ?? $partnerId,
+                ':provider_response' => json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ':error_message' => in_array($status, ['SENT', 'DELIVERED', 'ACCEPTED'], true) ? null : ($item['descricao_detalhe'] ?? $item['message'] ?? $status),
+                ':sent_at' => date('Y-m-d H:i:s'),
+                ':id' => (int)$matches[1],
+            ]);
+        }
+
+        return $updated > 0;
     }
 
     private static function getAuthorizationHeader(): string

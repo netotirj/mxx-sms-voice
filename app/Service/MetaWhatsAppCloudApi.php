@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Config\WhatsAppConfig;
 use GuzzleHttp\Client;
+use Throwable;
 
 class MetaWhatsAppCloudApi
 {
@@ -56,7 +57,10 @@ class MetaWhatsAppCloudApi
         ];
 
         if ($components !== []) {
-            $template['components'] = $components;
+            $normalizedComponents = $this->normalizeTemplateSendComponents($components);
+            if ($normalizedComponents !== []) {
+                $template['components'] = $normalizedComponents;
+            }
         }
 
         return $this->postMessage($accessToken, $phoneNumberId, [
@@ -163,6 +167,162 @@ class MetaWhatsAppCloudApi
     public function listPhoneNumbers(string $accessToken, string $wabaId): array
     {
         return $this->request('GET', $wabaId . '/phone_numbers', $accessToken);
+    }
+
+    public function createMessageTemplate(string $accessToken, string $wabaId, array $payload): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'id' => 'local_template_' . substr(hash('sha256', json_encode($payload)), 0, 16),
+                    'status' => 'PENDING',
+                    'category' => $payload['category'] ?? 'UTILITY',
+                    'local_test' => true,
+                ],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('POST', $wabaId . '/message_templates', $accessToken, [
+            'json' => $payload,
+        ]);
+    }
+
+    public function listMessageTemplates(string $accessToken, string $wabaId): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['data' => []],
+                'error' => null,
+            ];
+        }
+
+        return $this->request('GET', $wabaId . '/message_templates', $accessToken, [
+            'query' => [
+                'fields' => 'id,name,language,status,category,components,rejected_reason,quality_score',
+                'limit' => 250,
+            ],
+        ]);
+    }
+
+    public function deleteMessageTemplate(string $accessToken, string $wabaId, string $name, ?string $templateId = null): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => ['success' => true, 'local_test' => true],
+                'error' => null,
+            ];
+        }
+
+        $query = ['name' => $name];
+        if ($templateId !== null && $templateId !== '') {
+            $query['hsm_id'] = $templateId;
+        }
+
+        return $this->request('DELETE', $wabaId . '/message_templates', $accessToken, [
+            'query' => $query,
+        ]);
+    }
+
+    public function getBusinessProfile(string $accessToken, string $phoneNumberId): array
+    {
+        return $this->request('GET', $phoneNumberId . '/whatsapp_business_profile', $accessToken, [
+            'query' => [
+                'fields' => 'about,address,description,email,profile_picture_url,websites,vertical',
+            ],
+        ]);
+    }
+
+    public function updateBusinessProfile(string $accessToken, string $phoneNumberId, array $payload): array
+    {
+        $payload['messaging_product'] = 'whatsapp';
+
+        return $this->request('POST', $phoneNumberId . '/whatsapp_business_profile', $accessToken, [
+            'json' => $payload,
+        ]);
+    }
+
+    public function uploadProfilePicture(string $accessToken, string $filePath, string $mimeType): array
+    {
+        $appId = WhatsAppConfig::metaAppId();
+        if ($appId === '') {
+            return $this->missingConfig('WHATSAPP_META_APP_ID');
+        }
+
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'h' => 'local_profile_picture_handle_' . substr(hash_file('sha256', $filePath), 0, 16),
+                    'local_test' => true,
+                ],
+                'error' => null,
+            ];
+        }
+
+        $session = $this->request('POST', $appId . '/uploads', $accessToken, [
+            'query' => [
+                'file_length' => filesize($filePath) ?: 0,
+                'file_type' => $mimeType,
+                'file_name' => basename($filePath),
+            ],
+        ]);
+
+        if (!$session['ok']) {
+            return $session;
+        }
+
+        $sessionId = (string)($session['data']['id'] ?? '');
+        if ($sessionId === '') {
+            return [
+                'ok' => false,
+                'status' => $session['status'],
+                'data' => $session['data'],
+                'error' => 'Meta não retornou sessão de upload da foto.',
+            ];
+        }
+
+        $handle = fopen($filePath, 'rb');
+        if ($handle === false) {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [],
+                'error' => 'Não foi possível ler a imagem enviada.',
+            ];
+        }
+
+        $uploadUrl = WhatsAppConfig::graphBaseUrl() . '/' . WhatsAppConfig::graphVersion() . '/' . ltrim($sessionId, '/');
+
+        try {
+            $response = $this->client->request('POST', $uploadUrl, [
+                'headers' => [
+                    'Authorization' => 'OAuth ' . $accessToken,
+                    'file_offset' => '0',
+                    'Content-Type' => $mimeType,
+                ],
+                'body' => $handle,
+            ]);
+
+            $result = $this->responseToArray($response);
+            $result['endpoint'] = $sessionId;
+            return $result;
+        } catch (Throwable $e) {
+            $result = $this->exceptionToArray($e);
+            $result['endpoint'] = $sessionId;
+            return $result;
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
     }
 
     public function validatePlatformCredentials(): array
@@ -347,14 +507,71 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    private function normalizeTemplateSendComponents(array $components): array
+    {
+        $normalized = [];
+
+        foreach ($components as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $type = strtolower((string)($component['type'] ?? ''));
+            if ($type === '') {
+                continue;
+            }
+
+            if (isset($component['parameters']) && is_array($component['parameters'])) {
+                $item = [
+                    'type' => $type,
+                    'parameters' => $component['parameters'],
+                ];
+                if (isset($component['sub_type'])) {
+                    $item['sub_type'] = $component['sub_type'];
+                }
+                if (isset($component['index'])) {
+                    $item['index'] = (string)$component['index'];
+                }
+                $normalized[] = $item;
+                continue;
+            }
+
+            if (in_array($type, ['body', 'header'], true) && isset($component['text']) && $this->hasTemplateVariables((string)$component['text'])) {
+                $normalized[] = [
+                    'type' => $type,
+                    'parameters' => [
+                        [
+                            'type' => 'text',
+                            'text' => (string)$component['text'],
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function hasTemplateVariables(string $text): bool
+    {
+        return (bool)preg_match('/\{\{\s*\d+\s*\}\}/', $text);
+    }
+
     private function request(string $method, string $uri, string $accessToken, array $options = []): array
     {
         $options['headers']['Authorization'] = 'Bearer ' . $accessToken;
         $options['headers']['Accept'] = 'application/json';
         $options['headers']['Content-Type'] = 'application/json';
 
-        $response = $this->client->request($method, ltrim($uri, '/'), $options);
-        $result = $this->responseToArray($response);
+        try {
+            $response = $this->client->request($method, ltrim($uri, '/'), $options);
+            $result = $this->responseToArray($response);
+        } catch (Throwable $e) {
+            $result = $this->exceptionToArray($e);
+        }
+
+        $result['endpoint'] = ltrim($uri, '/');
+        $result['method'] = strtoupper($method);
 
         if (
             str_contains($uri, '/request_code')
@@ -387,12 +604,61 @@ class MetaWhatsAppCloudApi
             $data = ['raw' => $body];
         }
 
+        $error = is_array($data['error'] ?? null) ? $data['error'] : [];
+        $errorCode = isset($error['code']) ? (string)$error['code'] : null;
+        $retryAfter = $this->normalizeRetryAfter($response->getHeaderLine('Retry-After'));
+
         return [
             'ok' => $status >= 200 && $status < 300,
             'status' => $status,
             'data' => $data,
             'error' => $this->normalizeError($data['error'] ?? null),
+            'error_code' => $errorCode,
+            'error_subcode' => isset($error['error_subcode']) ? (string)$error['error_subcode'] : null,
+            'retry_after' => $retryAfter,
+            'rate_limited' => $this->isRateLimited($status, $errorCode, (string)($error['message'] ?? '')),
         ];
+    }
+
+    private function exceptionToArray(Throwable $e): array
+    {
+        return [
+            'ok' => false,
+            'status' => 0,
+            'data' => [
+                'exception' => get_class($e),
+            ],
+            'error' => 'Falha de comunicação com a Meta: ' . $e->getMessage(),
+            'error_code' => null,
+            'error_subcode' => null,
+            'retry_after' => null,
+            'rate_limited' => false,
+        ];
+    }
+
+    private function normalizeRetryAfter(string $value): ?int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (ctype_digit($value)) {
+            return max(1, (int)$value);
+        }
+
+        $timestamp = strtotime($value);
+        return $timestamp ? max(1, $timestamp - time()) : null;
+    }
+
+    private function isRateLimited(int $status, ?string $code, string $message): bool
+    {
+        $message = strtolower($message);
+        return $status === 429
+            || in_array((string)$code, ['4', '17', '32', '613', '80008'], true)
+            || str_contains($message, 'too many calls')
+            || str_contains($message, 'rate limit')
+            || str_contains($message, 'rate-limiting');
     }
 
     private function missingConfig(string $name): array

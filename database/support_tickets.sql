@@ -33,3 +33,20 @@ CREATE TABLE IF NOT EXISTS support_ticket_messages (
         FOREIGN KEY (ticket_id) REFERENCES support_tickets(id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS support_ticket_audit_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    ticket_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NULL,
+    tenancy_id VARCHAR(64) NOT NULL,
+    action VARCHAR(64) NOT NULL,
+    field VARCHAR(64) NULL,
+    old_value TEXT NULL,
+    new_value TEXT NULL,
+    ip_address VARCHAR(64) NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_support_ticket_audit_ticket (ticket_id, created_at),
+    KEY idx_support_ticket_audit_user (user_id, created_at),
+    KEY idx_support_ticket_audit_tenancy (tenancy_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

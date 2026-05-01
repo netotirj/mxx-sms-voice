@@ -82,6 +82,11 @@ class Router
         $this->addRoute('POST', $route, $params);
     }
 
+    public function options(string $route, array $params = []): void
+    {
+        $this->addRoute('OPTIONS', $route, $params);
+    }
+
     public function put(string $route, array $params = []): void
     {
         $this->addRoute('PUT', $route, $params);

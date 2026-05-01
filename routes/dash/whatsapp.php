@@ -277,6 +277,39 @@ $obRouter->post('/campaign/whatsapp/accounts/{id}/test', [
     }
 ]);
 
+$obRouter->get('/campaign/whatsapp/accounts/{id}/profile', [
+    'name' => '/campaign/whatsapp/accounts/{id}/profile',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::getBusinessProfile($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/accounts/{id}/profile', [
+    'name' => '/campaign/whatsapp/accounts/{id}/profile/update',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::updateBusinessProfile($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/accounts/{id}/profile/photo', [
+    'name' => '/campaign/whatsapp/accounts/{id}/profile/photo',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::updateBusinessProfilePicture($request, $id);
+    }
+]);
+
 $obRouter->get('/campaign/whatsapp/campaigns', [
     'name' => '/campaign/whatsapp/campaigns',
     'middlewares' => [
@@ -307,6 +340,28 @@ $obRouter->post('/campaign/whatsapp/templates', [
     ],
     function ($request) {
         return Pages\WhatsApp::createTemplate();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/templates/sync', [
+    'name' => '/campaign/whatsapp/templates/sync',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::syncTemplates();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/templates/{id}/sync', [
+    'name' => '/campaign/whatsapp/templates/{id}/sync',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::syncTemplate($request, $id);
     }
 ]);
 

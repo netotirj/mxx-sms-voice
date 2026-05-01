@@ -12,6 +12,7 @@ use \App\Model\Entity\PermissionsRules;
 use DateTime;
 use Exception;
 use Random\RandomException;
+use WilliamCosta\DatabaseManager\Database;
 
 class Users extends ViewComponents
 {
@@ -39,8 +40,7 @@ class Users extends ViewComponents
             ], 'application/json');
         }
 
-        $usersProfile = UserSearch::getUsers($obUser['tenancy_id'], $obUser['id']);
-        $u = $usersProfile[0] ?? []; // Atalho para não repetir [0] toda hora
+        $u = UserSearch::getUserById($obUser['tenancy_id'], (int)$obUser['id']) ?? [];
 
         // Dados básicos
         $name     = $u['name'] ?? '';
@@ -237,6 +237,7 @@ class Users extends ViewComponents
             'monitor'         => 'Monitoria de qualidade, escuta e feedbacks',
             'support_l1'      => 'Suporte Nível 1 - Atendimento inicial',
             'support_l2'      => 'Suporte Nível 2 - Configurações técnicas e TI',
+            'ticket_support'   => 'Atendimento interno autorizado para tickets',
             'reseller'        => 'Acesso para gestão de revendas e clientes finais'
         ];
 
@@ -286,6 +287,7 @@ class Users extends ViewComponents
         if ($newUserId) {
             // 4. Vincula na tabela intermediária de permissões
             PermissionsRules::assignRoleToUser((int)$newUserId, $tenancyId, (int)$roleId);
+            self::grantTicketSupportDefaults($tenancyId, (int)$roleId, $roleName);
 
             return new Response(200, json_encode([
                 'status'  => 200,
@@ -541,6 +543,7 @@ class Users extends ViewComponents
             // --- Suporte Técnico ---
             'role_support_l1' => $userData['user_function'] === 'support_l1' ? 'selected' : '',
             'role_support_l2' => $userData['user_function'] === 'support_l2' ? 'selected' : '',
+            'role_ticket_support' => $userData['user_function'] === 'ticket_support' ? 'selected' : '',
 
             // --- Parceiros ---
             'role_reseller'   => $userData['user_function'] === 'reseller' ? 'selected' : '',
@@ -583,7 +586,8 @@ class Users extends ViewComponents
             'admin', 'rh', 'financial', 'reception',       // Administrativo
             'manager', 'supervisor', 'agent', 'monitor',   // Operação
             'operator',                                    // Legado
-            'support_l1', 'support_l2',                    // Suporte
+            'support_l1', 'support_l2',                    // Suporte técnico genérico
+            'ticket_support', 'support_ticket_manager',    // Atendimento específico de tickets
             'reseller'                                     // Parceiros
         ];
 
@@ -634,6 +638,12 @@ class Users extends ViewComponents
                 ], 'application/json');
             }
 
+            $roleId = self::ensureRoleForUserFunction($data['role'], $obUser);
+            if ($roleId > 0) {
+                PermissionsRules::assignRoleToUser((int)$data['id'], $obUser['tenancy_id'], $roleId);
+                self::grantTicketSupportDefaults($obUser['tenancy_id'], $roleId, $data['role']);
+            }
+
             return new Response(200, [
                 'status' => 200,
                 'message' => 'Usuário atualizado com sucesso.'
@@ -644,6 +654,67 @@ class Users extends ViewComponents
                 'status' => 500,
                 'message' => 'Erro ao atualizar usuário: '.$e->getMessage()
             ], 'application/json');
+        }
+    }
+
+    private static function ensureRoleForUserFunction(string $roleName, array $ownerUser): int
+    {
+        $roleData = PermissionsRules::getRoleByNameAndTenancy($roleName, $ownerUser['tenancy_id']);
+        if ($roleData) {
+            return (int)$roleData->id;
+        }
+
+        $descriptions = [
+            'ticket_support' => 'Atendimento interno autorizado para tickets',
+            'support_ticket_manager' => 'Gestor interno autorizado para tickets',
+        ];
+
+        return (int)PermissionsRules::registerRole(
+            $roleName,
+            $descriptions[$roleName] ?? ('Perfil para ' . ucfirst($roleName)),
+            'y',
+            $ownerUser['tenancy_id'],
+            (int)$ownerUser['id'],
+            null
+        );
+    }
+
+    private static function grantTicketSupportDefaults(string $tenancyId, int $roleId, string $roleName): void
+    {
+        if (!in_array($roleName, ['ticket_support', 'support_ticket_manager'], true)) {
+            return;
+        }
+
+        $paths = [
+            '/support',
+            '/support/tickets',
+            '/support/tickets/create',
+            '/support/tickets/{id}/messages',
+            '/support/tickets/{id}/messages/create',
+            '/support/tickets/{id}/status',
+            'ticket.view_all',
+            'ticket.reply',
+        ];
+
+        $db = new Database();
+        foreach ($paths as $path) {
+            $routeId = (int)$db->execute(
+                'SELECT id FROM sys_routes WHERE route_path = :path LIMIT 1',
+                [':path' => $path]
+            )->fetchColumn();
+
+            if ($routeId <= 0) {
+                continue;
+            }
+
+            $db->execute(
+                'INSERT IGNORE INTO sys_role_permissions (tenancy_id, role_id, route_id) VALUES (:tenancy_id, :role_id, :route_id)',
+                [
+                    ':tenancy_id' => $tenancyId,
+                    ':role_id' => $roleId,
+                    ':route_id' => $routeId,
+                ]
+            );
         }
     }
 

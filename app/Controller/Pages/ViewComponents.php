@@ -295,6 +295,10 @@ class ViewComponents
             $items .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
         }
 
+        if (in_array('SUPERADMIN', $userPerms, true)) {
+            $items .= self::buildMenuItem('/site-tests', 'Testes do Site', 'ni ni-world', 'text-blue-600');
+        }
+
         return self::renderSubmenu('Relatórios', 'ni ni-chart-bar-32', 'text-red-500', $items);
     }
 
@@ -408,8 +412,7 @@ class ViewComponents
     private static function getHeader(): string
     {
         $obUser = SessionUser::getLogged();
-        $usersImage = UserSearch::getUsers($obUser['tenancy_id'], $obUser['id']);
-        $user = $usersImage[0] ?? [];
+        $user = UserSearch::getUserById($obUser['tenancy_id'], (int)$obUser['id']) ?? [];
 
         $userBase = !empty($user) ? $user : $obUser;
 

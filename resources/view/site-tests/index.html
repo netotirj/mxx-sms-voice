@@ -1,0 +1,64 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white dark:bg-slate-850 shadow-xl rounded-2xl border border-slate-100 dark:border-slate-700">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-lg">
+                            <i class="ni ni-world"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">Testes do Site</h2>
+                            <p class="text-xs text-slate-400 dark:text-slate-500">Auditoria dos testes públicos de SMS, Voz e WhatsApp</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                    <div class="min-w-0">
+                        <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase dark:text-white dark:opacity-60">Total filtrado</p>
+                                    <h5 class="mb-0 font-bold dark:text-white">{{total}}</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-blue-500 to-violet-500 flex items-center justify-center text-white">
+                                    <i class="ni ni-chart-bar-32"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-700">
+                    {{filters}}
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">ID</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">E-mail</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Serviço</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Destino</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Status</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">IP</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Provider</th>
+                                <th class="px-6 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Datas</th>
+                                <th class="px-6 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 dark:border-slate-700 tracking-none text-slate-400 opacity-70">Detalhes</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{rows}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>

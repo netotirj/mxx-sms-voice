@@ -132,3 +132,48 @@ CREATE TABLE IF NOT EXISTS whatsapp_message_cdr (
     KEY idx_whatsapp_cdr_status (status, timestamp),
     KEY idx_whatsapp_cdr_category (message_category, billed, timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE whatsapp_templates
+    ADD COLUMN IF NOT EXISTS account_id INT UNSIGNED NULL AFTER user_id,
+    ADD COLUMN IF NOT EXISTS waba_id VARCHAR(64) NULL AFTER account_id,
+    ADD COLUMN IF NOT EXISTS meta_template_id VARCHAR(64) NULL AFTER waba_id,
+    ADD COLUMN IF NOT EXISTS variable_map JSON NULL AFTER components,
+    ADD COLUMN IF NOT EXISTS is_system_template TINYINT(1) NOT NULL DEFAULT 0 AFTER variable_map,
+    ADD COLUMN IF NOT EXISTS template_type ENUM('system', 'tenant') NOT NULL DEFAULT 'tenant' AFTER is_system_template,
+    MODIFY status ENUM('draft', 'pending', 'approved', 'rejected', 'paused', 'disabled') NOT NULL DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS template_submitted_at DATETIME NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS template_approved_at DATETIME NULL AFTER template_submitted_at,
+    ADD COLUMN IF NOT EXISTS template_rejected_at DATETIME NULL AFTER template_approved_at,
+    ADD COLUMN IF NOT EXISTS template_last_sync_at DATETIME NULL AFTER template_rejected_at,
+    ADD COLUMN IF NOT EXISTS template_last_error TEXT NULL AFTER template_last_sync_at,
+    ADD COLUMN IF NOT EXISTS meta_payload JSON NULL AFTER template_last_error,
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_type (template_type, is_system_template),
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_account (account_id),
+    ADD INDEX IF NOT EXISTS idx_whatsapp_templates_meta (waba_id, meta_template_id);
+
+CREATE TABLE IF NOT EXISTS whatsapp_template_audit_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    template_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    tenancy_id VARCHAR(64) NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    template_type ENUM('system', 'tenant') NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_whatsapp_template_audit_template (template_id, created_at),
+    KEY idx_whatsapp_template_audit_user (user_id, created_at),
+    KEY idx_whatsapp_template_audit_tenancy (tenancy_id, created_at),
+    KEY idx_whatsapp_template_audit_action (action, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE whatsapp_accounts
+    ADD COLUMN IF NOT EXISTS profile_picture_url TEXT NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS profile_picture_handle VARCHAR(255) NULL AFTER profile_picture_url,
+    ADD COLUMN IF NOT EXISTS profile_about VARCHAR(139) NULL AFTER profile_picture_handle,
+    ADD COLUMN IF NOT EXISTS profile_description TEXT NULL AFTER profile_about,
+    ADD COLUMN IF NOT EXISTS profile_email VARCHAR(160) NULL AFTER profile_description,
+    ADD COLUMN IF NOT EXISTS profile_website VARCHAR(520) NULL AFTER profile_email,
+    ADD COLUMN IF NOT EXISTS profile_address VARCHAR(255) NULL AFTER profile_website,
+    ADD COLUMN IF NOT EXISTS profile_vertical VARCHAR(64) NULL AFTER profile_address,
+    ADD COLUMN IF NOT EXISTS profile_updated_at DATETIME NULL AFTER profile_vertical,
+    ADD COLUMN IF NOT EXISTS profile_last_error TEXT NULL AFTER profile_updated_at;

@@ -13,6 +13,7 @@ use App\Model\Entity\WhatsAppTemplate;
 use App\Service\MetaWhatsAppCloudApi;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
+use App\Service\WhatsAppDefaultTemplateManager;
 use App\Service\WhatsAppMessagePlanner;
 use App\Service\WhatsAppNumberManager;
 use App\Service\WhatsAppNumberSafety;
@@ -46,6 +47,7 @@ class WhatsApp extends ViewComponents
 
         try {
             WhatsAppNumberSafety::syncAllForUser($obUser);
+            self::syncBusinessProfilesForUser($obUser);
         } catch (\Throwable $e) {
             error_log('[whatsapp_accounts_sync] ' . $e->getMessage());
         }
@@ -515,11 +517,150 @@ class WhatsApp extends ViewComponents
                 'meta' => $result,
             ]);
         } catch (\Throwable $e) {
-            return self::json(502, [
+            return self::json(424, [
                 'success' => false,
                 'message' => 'Falha ao consultar dados do número.',
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    public static function getBusinessProfile($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $account = WhatsAppAccount::getForUser((int)$id, $obUser);
+        if (!$account) {
+            return self::json(404, ['success' => false, 'message' => 'Conta WhatsApp não encontrada.']);
+        }
+
+        $result = (new MetaWhatsAppCloudApi())->getBusinessProfile(
+            (string)$account['access_token'],
+            (string)$account['phone_number_id']
+        );
+
+        if ($result['ok']) {
+            $profile = $result['data']['data'][0] ?? $result['data'];
+            self::persistBusinessProfile($obUser, (int)$account['id'], is_array($profile) ? $profile : [], null);
+        }
+
+        return self::json($result['ok'] ? 200 : 502, [
+            'success' => $result['ok'],
+            'message' => $result['ok'] ? 'Perfil sincronizado.' : ($result['error'] ?: 'Falha ao consultar perfil na Meta.'),
+            'data' => $result['data'],
+        ]);
+    }
+
+    public static function updateBusinessProfile($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $account = WhatsAppAccount::getForUser((int)$id, $obUser);
+        if (!$account) {
+            return self::json(404, ['success' => false, 'message' => 'Conta WhatsApp não encontrada.']);
+        }
+
+        $input = self::jsonInput();
+        $payload = self::businessProfilePayload($input);
+        $result = (new MetaWhatsAppCloudApi())->updateBusinessProfile(
+            (string)$account['access_token'],
+            (string)$account['phone_number_id'],
+            $payload
+        );
+
+        self::persistBusinessProfile($obUser, (int)$account['id'], $payload, $result['ok'] ? null : $result['error']);
+
+            return self::json($result['ok'] ? 200 : 424, [
+                'success' => $result['ok'],
+                'message' => $result['ok'] ? 'Perfil comercial atualizado na Meta.' : ($result['error'] ?: 'Falha ao atualizar perfil comercial.'),
+                'data' => $result['data'],
+            ]);
+    }
+
+    public static function updateBusinessProfilePicture($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $account = WhatsAppAccount::getForUser((int)$id, $obUser);
+        if (!$account) {
+            return self::json(404, ['success' => false, 'message' => 'Conta WhatsApp não encontrada.']);
+        }
+
+        try {
+            if (empty($_FILES['profile_picture'])) {
+                throw new \RuntimeException('Envie a imagem do perfil.');
+            }
+
+            $file = $_FILES['profile_picture'];
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                throw new \RuntimeException('Falha no upload da imagem.');
+            }
+
+            $tmp = (string)($file['tmp_name'] ?? '');
+            $mimeType = self::detectMimeType($tmp, (string)($file['type'] ?? ''));
+            if (!in_array($mimeType, ['image/jpeg', 'image/png'], true)) {
+                throw new \RuntimeException('Envie uma imagem JPG ou PNG.');
+            }
+
+            $size = (int)($file['size'] ?? filesize($tmp) ?: 0);
+            if ($size <= 0 || $size > 5 * 1024 * 1024) {
+                throw new \RuntimeException('A imagem deve ter até 5MB.');
+            }
+
+            $upload = (new MetaWhatsAppCloudApi())->uploadProfilePicture((string)$account['access_token'], $tmp, $mimeType);
+            if (!$upload['ok']) {
+                self::persistBusinessProfile($obUser, (int)$account['id'], [], $upload['error']);
+                return self::json(424, ['success' => false, 'message' => $upload['error'] ?: 'Falha ao enviar foto para a Meta.']);
+            }
+
+            $handle = (string)($upload['data']['h'] ?? $upload['data']['handle'] ?? '');
+            if ($handle === '') {
+                throw new \RuntimeException('Meta não retornou o identificador da foto.');
+            }
+
+            $update = (new MetaWhatsAppCloudApi())->updateBusinessProfile(
+                (string)$account['access_token'],
+                (string)$account['phone_number_id'],
+                ['profile_picture_handle' => $handle]
+            );
+
+            $profileData = $update['data'];
+            if ($update['ok']) {
+                $profile = (new MetaWhatsAppCloudApi())->getBusinessProfile(
+                    (string)$account['access_token'],
+                    (string)$account['phone_number_id']
+                );
+                $profileData = $profile['ok'] ? $profile['data'] : $profileData;
+                $profilePayload = $profile['data']['data'][0] ?? [];
+                if (is_array($profilePayload)) {
+                    $profilePayload['profile_picture_handle'] = $handle;
+                    self::persistBusinessProfile($obUser, (int)$account['id'], $profilePayload, null);
+                } else {
+                    self::persistBusinessProfile($obUser, (int)$account['id'], ['profile_picture_handle' => $handle], null);
+                }
+            } else {
+                self::persistBusinessProfile($obUser, (int)$account['id'], [
+                    'profile_picture_handle' => $handle,
+                ], $update['error']);
+            }
+
+            return self::json($update['ok'] ? 200 : 424, [
+                'success' => $update['ok'],
+                'message' => $update['ok'] ? 'Foto de perfil atualizada na Meta.' : ($update['error'] ?: 'Falha ao atualizar foto na Meta.'),
+                'data' => $profileData,
+            ]);
+        } catch (\Throwable $e) {
+            self::persistBusinessProfile($obUser, (int)$account['id'], [], $e->getMessage());
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
@@ -557,17 +698,44 @@ class WhatsApp extends ViewComponents
         }
 
         $input = self::jsonInput();
-        $name = trim((string)($input['name'] ?? ''));
-        $language = trim((string)($input['language'] ?? 'pt_BR')) ?: 'pt_BR';
-        $category = WhatsAppCostPolicy::normalizeCategory((string)($input['category'] ?? 'UTILITY'));
-        $body = self::nullableString($input['body'] ?? null);
-        $components = $input['components'] ?? null;
-        $status = strtolower(trim((string)($input['status'] ?? 'pending'))) ?: 'pending';
-
-        if ($name === '') {
+        $accountId = (int)($input['account_id'] ?? 0);
+        $account = $accountId > 0 ? WhatsAppAccount::getForUser($accountId, $obUser) : null;
+        if (!$account) {
             return self::json(422, [
                 'success' => false,
-                'message' => 'Informe o nome do template aprovado na Meta.',
+                'message' => 'Informe um número WhatsApp válido para enviar o template à Meta.',
+            ]);
+        }
+
+        if (trim((string)($account['waba_id'] ?? '')) === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Conta WhatsApp sem WABA ID. Configure o WABA antes de criar templates.',
+            ]);
+        }
+
+        $rawName = trim((string)($input['name'] ?? ''));
+        $name = self::normalizeTemplateName($rawName);
+        $language = trim((string)($input['language'] ?? 'pt_BR')) ?: 'pt_BR';
+        $category = strtoupper(trim((string)($input['category'] ?? 'UTILITY')));
+        $body = self::nullableString($input['body'] ?? null);
+        $components = $input['components'] ?? null;
+
+        if ($name === '') {
+            $name = 'template_' . date('YmdHis');
+        }
+
+        if (!preg_match('/^[a-z0-9_]+$/', $name)) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Nome técnico inválido. Use letras, números ou espaços; o sistema converte para minúsculas e underscore.',
+            ]);
+        }
+
+        if (WhatsAppTemplate::getByNameForUser($name, $language, $obUser)) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'Já existe um template local com este nome e idioma.',
             ]);
         }
 
@@ -578,18 +746,11 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
-        if (!in_array($status, ['draft', 'pending', 'approved', 'rejected', 'paused'], true)) {
-            return self::json(422, [
-                'success' => false,
-                'message' => 'Status de template inválido.',
-            ]);
-        }
-
-        if ($status === 'approved') {
-            return self::json(422, [
-                'success' => false,
-                'message' => 'Template aprovado só pode ser sincronizado da Meta.',
-            ]);
+        if (is_string($components)) {
+            $components = trim($components);
+            if ($components === '') {
+                $components = null;
+            }
         }
 
         if (is_string($components) && trim($components) !== '') {
@@ -603,22 +764,69 @@ class WhatsApp extends ViewComponents
             $components = $decoded;
         }
 
+        if (trim((string)($body ?? '')) === '' && (!is_array($components) || $components === [])) {
+            $imported = self::importExistingMetaTemplate($account, $obUser, $name, $language);
+            if ($imported !== null) {
+                return $imported;
+            }
+
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe o texto do template para criar na Meta, ou clique em Sincronizar para importar templates já aprovados.',
+            ]);
+        }
+
         try {
+            $metaPayload = self::buildMetaTemplatePayload($name, $language, $category, $body, is_array($components) ? $components : null);
+            if (empty($metaPayload['components'])) {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'A Meta exige conteúdo no template. Informe o texto da mensagem ou componentes JSON válidos.',
+                ]);
+            }
+
+            $meta = (new MetaWhatsAppCloudApi())->createMessageTemplate(
+                (string)$account['access_token'],
+                (string)$account['waba_id'],
+                $metaPayload
+            );
+            if (!$meta['ok']) {
+                return self::json(424, [
+                    'success' => false,
+                    'message' => $meta['error'] ?: 'Falha ao enviar template para aprovação na Meta.',
+                    'meta' => $meta,
+                ]);
+            }
+
             $id = WhatsAppTemplate::create([
                 'tenancy_id' => $obUser['tenancy_id'],
                 'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'waba_id' => $account['waba_id'] ?? null,
+                'meta_template_id' => $meta['data']['id'] ?? null,
                 'name' => $name,
                 'language' => $language,
                 'category' => $category,
                 'body' => $body,
-                'components' => is_array($components) ? $components : null,
-                'status' => $status,
+                'components' => $metaPayload['components'] ?? null,
+                'is_system_template' => false,
+                'template_type' => 'tenant',
+                'status' => WhatsAppTemplate::normalizeMetaStatus((string)($meta['data']['status'] ?? 'pending')),
+                'template_submitted_at' => date('Y-m-d H:i:s'),
+                'template_last_sync_at' => date('Y-m-d H:i:s'),
+                'meta_payload' => $meta['data'],
+            ]);
+            WhatsAppTemplate::audit($id, $obUser, 'create', [
+                'tenancy_id' => $obUser['tenancy_id'],
+                'is_system_template' => 0,
+                'template_type' => 'tenant',
             ]);
 
             return self::json(201, [
                 'success' => true,
-                'message' => 'Template salvo.',
+                'message' => 'Template enviado para aprovação na Meta.',
                 'id' => $id,
+                'meta' => $meta['data'],
             ]);
         } catch (\Throwable $e) {
             return self::json(500, [
@@ -634,6 +842,20 @@ class WhatsApp extends ViewComponents
         $obUser = self::requireUser();
         if ($obUser instanceof Response) {
             return $obUser;
+        }
+
+        $template = WhatsAppTemplate::getForUser((int)$id, $obUser);
+        if (!$template) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Template não encontrado.',
+            ]);
+        }
+        if (!WhatsAppTemplate::canDelete($template, $obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para excluir este template.',
+            ]);
         }
 
         $ok = WhatsAppTemplate::deleteForUser((int)$id, $obUser);
@@ -839,14 +1061,14 @@ class WhatsApp extends ViewComponents
             if (!$template) {
                 return self::json(404, [
                     'success' => false,
-                    'message' => 'Template não encontrado',
+                    'message' => 'Template não encontrado.',
                 ]);
             }
 
             if ((string)$template['status'] !== 'approved') {
                 return self::json(422, [
                     'success' => false,
-                    'message' => 'Template não aprovado pela Meta',
+                    'message' => 'Template ainda não aprovado pela Meta.',
                 ]);
             }
 
@@ -916,7 +1138,7 @@ class WhatsApp extends ViewComponents
                 );
 
                 if (!$result['ok']) {
-                    return self::json(502, [
+                    return self::json(424, [
                         'success' => false,
                         'message' => $result['error'] ?: 'Falha ao enviar áudio pela Meta.',
                         'meta' => $result,
@@ -1088,6 +1310,173 @@ class WhatsApp extends ViewComponents
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    public static function syncTemplates(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $accounts = WhatsAppAccount::listForUser($obUser);
+        $synced = 0;
+        $submitted = 0;
+        $errors = [];
+        foreach ($accounts as $listedAccount) {
+            $account = WhatsAppAccount::getForUser((int)$listedAccount['id'], $obUser);
+            if (!$account || trim((string)($account['waba_id'] ?? '')) === '') {
+                continue;
+            }
+
+            $result = (new MetaWhatsAppCloudApi())->listMessageTemplates(
+                (string)$account['access_token'],
+                (string)$account['waba_id']
+            );
+            if (!$result['ok']) {
+                $errors[] = ['account_id' => (int)$account['id'], 'error' => $result['error']];
+                continue;
+            }
+
+            $metaTemplates = is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [];
+            $seenMetaTemplates = $metaTemplates;
+            $metaIndex = self::indexMetaTemplates($metaTemplates);
+            foreach ($metaTemplates as $template) {
+                if (is_array($template)) {
+                    WhatsAppTemplate::upsertFromMeta($account, $template, $obUser);
+                    $synced++;
+                }
+            }
+
+            foreach (self::localTemplatesForAccount($account) as $template) {
+                $key = self::templateIdentityKey((string)$template['name'], (string)$template['language']);
+                if (isset($metaIndex[$key])) {
+                    WhatsAppTemplate::updateMetaStatus(
+                        (int)$template['id'],
+                        (string)($metaIndex[$key]['status'] ?? 'pending'),
+                        $metaIndex[$key]
+                    );
+                    continue;
+                }
+
+                if (!in_array((string)($template['status'] ?? ''), ['draft', 'pending', 'rejected'], true)) {
+                    continue;
+                }
+
+                $submit = self::submitLocalTemplateToMeta($account, $template);
+                if ($submit['ok']) {
+                    $submitted++;
+                    $metaData = is_array($submit['data'] ?? null) ? $submit['data'] : [];
+                    if ($metaData !== []) {
+                        $seenMetaTemplates[] = $metaData + [
+                            'name' => (string)$template['name'],
+                            'language' => (string)$template['language'],
+                            'category' => (string)$template['category'],
+                        ];
+                    }
+                    WhatsAppTemplate::updateMetaStatus(
+                        (int)$template['id'],
+                        (string)($metaData['status'] ?? 'pending'),
+                        $metaData
+                    );
+                } else {
+                    $errors[] = [
+                        'account_id' => (int)$account['id'],
+                        'template' => (string)$template['name'],
+                        'error' => $submit['error'] ?: 'Falha ao enviar template para a Meta.',
+                    ];
+                    WhatsAppTemplate::updateMetaStatus(
+                        (int)$template['id'],
+                        (string)($template['status'] ?? 'draft'),
+                        [],
+                        $submit['error'] ?: 'Falha ao enviar template para a Meta.'
+                    );
+                }
+            }
+
+            WhatsAppTemplate::disableMissingFromMeta($account, $seenMetaTemplates, $obUser);
+        }
+
+        return self::json(200, [
+            'success' => $errors === [],
+            'message' => $errors === []
+                ? "Templates sincronizados com a Meta. Enviados: {$submitted}."
+                : "Sincronização concluída com alertas. Enviados: {$submitted}.",
+            'synced' => $synced,
+            'submitted' => $submitted,
+            'errors' => $errors,
+        ]);
+    }
+
+    public static function syncTemplate($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $template = WhatsAppTemplate::getForUser((int)$id, $obUser);
+        if (!$template) {
+            return self::json(404, ['success' => false, 'message' => 'Template não encontrado.']);
+        }
+        if (!WhatsAppTemplate::canMutate($template, $obUser)) {
+            return self::json(403, ['success' => false, 'message' => 'Você não tem permissão para alterar este template.']);
+        }
+
+        $account = !empty($template['account_id'])
+            ? WhatsAppAccount::getForUser((int)$template['account_id'], $obUser)
+            : null;
+        if (!$account || trim((string)($account['waba_id'] ?? '')) === '') {
+            return self::json(422, ['success' => false, 'message' => 'Template sem conta/WABA vinculada para sincronizar.']);
+        }
+
+        $result = (new MetaWhatsAppCloudApi())->listMessageTemplates((string)$account['access_token'], (string)$account['waba_id']);
+        if (!$result['ok']) {
+            WhatsAppTemplate::updateMetaStatusForUser((int)$template['id'], $obUser, (string)$template['status'], [], $result['error']);
+            return self::json(424, ['success' => false, 'message' => $result['error'] ?: 'Falha ao sincronizar template.']);
+        }
+
+        foreach (($result['data']['data'] ?? []) as $metaTemplate) {
+            if (
+                is_array($metaTemplate)
+                && (string)($metaTemplate['name'] ?? '') === (string)$template['name']
+                && (string)($metaTemplate['language'] ?? '') === (string)$template['language']
+            ) {
+                WhatsAppTemplate::updateMetaStatusForUser((int)$template['id'], $obUser, (string)($metaTemplate['status'] ?? 'pending'), $metaTemplate);
+                return self::json(200, ['success' => true, 'message' => 'Template sincronizado.', 'data' => $metaTemplate]);
+            }
+        }
+
+        if (in_array((string)($template['status'] ?? ''), ['draft', 'pending', 'rejected'], true)) {
+            $submit = self::submitLocalTemplateToMeta($account, $template);
+            if ($submit['ok']) {
+                $metaData = is_array($submit['data'] ?? null) ? $submit['data'] : [];
+                WhatsAppTemplate::updateMetaStatus(
+                    (int)$template['id'],
+                    (string)($metaData['status'] ?? 'pending'),
+                    $metaData
+                );
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Template enviado para aprovação na Meta.',
+                    'data' => $metaData,
+                ]);
+            }
+
+            WhatsAppTemplate::updateMetaStatus(
+                (int)$template['id'],
+                (string)($template['status'] ?? 'draft'),
+                [],
+                $submit['error'] ?: 'Falha ao enviar template para a Meta.'
+            );
+            return self::json(424, [
+                'success' => false,
+                'message' => $submit['error'] ?: 'Falha ao enviar template para a Meta.',
+            ]);
+        }
+
+        WhatsAppTemplate::updateMetaStatusForUser((int)$template['id'], $obUser, 'disabled', [], 'Template não retornado pela Meta nesta WABA.');
+        return self::json(404, ['success' => false, 'message' => 'Template não encontrado na Meta.']);
     }
 
     private static function isValidWebhookSignature(string $rawPayload, mixed $request = null): bool
@@ -1305,14 +1694,14 @@ class WhatsApp extends ViewComponents
             if (!$template) {
                 return self::json(404, [
                     'success' => false,
-                    'message' => 'Template não encontrado',
+                    'message' => 'Template não encontrado.',
                 ]);
             }
 
             if ((string)$template['status'] !== 'approved') {
                 return self::json(422, [
                     'success' => false,
-                    'message' => 'Template não aprovado pela Meta',
+                    'message' => 'Template ainda não aprovado pela Meta.',
                 ]);
             }
 
@@ -1425,7 +1814,7 @@ class WhatsApp extends ViewComponents
 
                 return self::json(404, [
                     'success' => false,
-                    'message' => 'Template não encontrado',
+                    'message' => 'Template não encontrado.',
                 ]);
             }
 
@@ -1434,7 +1823,7 @@ class WhatsApp extends ViewComponents
 
                 return self::json(422, [
                     'success' => false,
-                    'message' => 'Template não aprovado pela Meta',
+                    'message' => 'Template ainda não aprovado pela Meta.',
                 ]);
             }
 
@@ -2025,6 +2414,300 @@ class WhatsApp extends ViewComponents
         }
 
         return array_values($recipients);
+    }
+
+    private static function buildMetaTemplatePayload(
+        string $name,
+        string $language,
+        string $category,
+        ?string $body,
+        ?array $components
+    ): array {
+        $payloadComponents = [];
+        if ($components !== null && $components !== []) {
+            foreach ($components as $component) {
+                if (is_array($component)) {
+                    $component['type'] = strtoupper((string)($component['type'] ?? 'BODY'));
+                    if (isset($component['text']) || isset($component['format']) || isset($component['buttons'])) {
+                        $payloadComponents[] = $component;
+                    }
+                }
+            }
+        }
+
+        if ($payloadComponents === [] && $body !== null && trim($body) !== '') {
+            $bodyComponent = [
+                'type' => 'BODY',
+                'text' => $body,
+            ];
+
+            $variables = self::templateVariables($body);
+            if ($variables !== []) {
+                $bodyComponent['example'] = [
+                    'body_text' => [
+                        array_map(fn ($index) => 'exemplo_' . $index, $variables),
+                    ],
+                ];
+            }
+
+            $payloadComponents[] = $bodyComponent;
+        }
+
+        return [
+            'name' => $name,
+            'language' => $language,
+            'category' => $category,
+            'components' => $payloadComponents,
+        ];
+    }
+
+    private static function importExistingMetaTemplate(array $account, array $user, string $name, string $language): ?Response
+    {
+        try {
+            $meta = (new MetaWhatsAppCloudApi())->listMessageTemplates(
+                (string)$account['access_token'],
+                (string)$account['waba_id']
+            );
+            if (!$meta['ok']) {
+                return null;
+            }
+
+            foreach (($meta['data']['data'] ?? []) as $template) {
+                if (!is_array($template)
+                    || (string)($template['name'] ?? '') !== $name
+                    || (string)($template['language'] ?? '') !== $language
+                ) {
+                    continue;
+                }
+
+                WhatsAppTemplate::upsertFromMeta($account, $template, $user);
+                $row = WhatsAppTemplate::getByNameForTenant($name, $language, (string)$account['tenancy_id']);
+
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Template encontrado na Meta e sincronizado na biblioteca local.',
+                    'data' => $row,
+                    'meta' => $template,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_template_import_existing] ' . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    private static function localTemplatesForAccount(array $account): array
+    {
+        $wabaId = (string)($account['waba_id'] ?? '');
+        $where = 'tenancy_id = :tenancy_id AND account_id = :account_id';
+        $params = [
+            ':tenancy_id' => (string)$account['tenancy_id'],
+            ':account_id' => (int)$account['id'],
+        ];
+
+        if ($wabaId !== '') {
+            $where .= ' AND (waba_id = :waba_id OR waba_id IS NULL)';
+            $params[':waba_id'] = $wabaId;
+        }
+
+        return (new \WilliamCosta\DatabaseManager\Database('whatsapp_templates'))
+            ->select($where, $params, 'id ASC')
+            ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function submitLocalTemplateToMeta(array $account, array $template): array
+    {
+        $components = self::jsonColumnToArray($template['components'] ?? null);
+        $body = self::nullableString($template['body'] ?? null);
+
+        if (($components === null || $components === []) && $body === null) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'data' => null,
+                'error' => 'Template local sem BODY/components para enviar à Meta.',
+            ];
+        }
+
+        $payload = self::buildMetaTemplatePayload(
+            (string)$template['name'],
+            (string)($template['language'] ?: 'pt_BR'),
+            strtoupper((string)($template['category'] ?: 'UTILITY')),
+            $body,
+            is_array($components) ? $components : null
+        );
+
+        if (empty($payload['components'])) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'data' => null,
+                'error' => 'Template local sem componentes válidos para enviar à Meta.',
+            ];
+        }
+
+        return (new MetaWhatsAppCloudApi())->createMessageTemplate(
+            (string)$account['access_token'],
+            (string)$account['waba_id'],
+            $payload
+        );
+    }
+
+    private static function indexMetaTemplates(array $templates): array
+    {
+        $index = [];
+        foreach ($templates as $template) {
+            if (!is_array($template)) {
+                continue;
+            }
+
+            $name = (string)($template['name'] ?? '');
+            $language = (string)($template['language'] ?? '');
+            if ($name !== '' && $language !== '') {
+                $index[self::templateIdentityKey($name, $language)] = $template;
+            }
+        }
+
+        return $index;
+    }
+
+    private static function templateIdentityKey(string $name, string $language): string
+    {
+        return strtolower(trim($name)) . "\n" . strtolower(trim($language));
+    }
+
+    private static function jsonColumnToArray(mixed $value): ?array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function normalizeTemplateName(string $name): string
+    {
+        $name = trim(mb_strtolower($name, 'UTF-8'));
+        if ($name === '') {
+            return '';
+        }
+
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        if (is_string($ascii) && $ascii !== '') {
+            $name = $ascii;
+        }
+
+        $name = preg_replace('/[^a-z0-9]+/', '_', $name) ?? '';
+        return trim($name, '_');
+    }
+
+    private static function templateVariables(string $body): array
+    {
+        preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $body, $matches);
+        $numbers = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
+        sort($numbers);
+        return $numbers;
+    }
+
+    private static function businessProfilePayload(array $input): array
+    {
+        $payload = [];
+        foreach (['about', 'description', 'email', 'address', 'vertical'] as $field) {
+            $value = self::nullableString($input[$field] ?? null);
+            if ($value !== null) {
+                $payload[$field] = $field === 'vertical' ? strtoupper($value) : $value;
+            }
+        }
+
+        $website = $input['website'] ?? $input['websites'] ?? null;
+        if (is_string($website)) {
+            $website = preg_split('/[\r\n,;]+/', $website) ?: [];
+        }
+        if (is_array($website)) {
+            $websites = [];
+            foreach ($website as $url) {
+                $url = trim((string)$url);
+                if ($url !== '' && preg_match('#^https?://#i', $url)) {
+                    $websites[] = mb_substr($url, 0, 256);
+                }
+                if (count($websites) >= 2) {
+                    break;
+                }
+            }
+            if ($websites !== []) {
+                $payload['websites'] = $websites;
+            }
+        }
+
+        return $payload;
+    }
+
+    private static function persistBusinessProfile(array $user, int $accountId, array $profile, ?string $error): void
+    {
+        $values = [
+            'profile_last_error' => $error,
+        ];
+
+        if ($error === null) {
+            $values['profile_updated_at'] = date('Y-m-d H:i:s');
+        }
+
+        $map = [
+            'profile_picture_url' => 'profile_picture_url',
+            'profile_picture_handle' => 'profile_picture_handle',
+            'about' => 'profile_about',
+            'description' => 'profile_description',
+            'email' => 'profile_email',
+            'address' => 'profile_address',
+            'vertical' => 'profile_vertical',
+        ];
+
+        foreach ($map as $source => $target) {
+            if (array_key_exists($source, $profile)) {
+                $values[$target] = is_scalar($profile[$source]) ? (string)$profile[$source] : null;
+            }
+        }
+
+        if (array_key_exists('websites', $profile)) {
+            $websites = is_array($profile['websites']) ? $profile['websites'] : [];
+            $values['profile_website'] = implode(',', array_slice(array_map('strval', $websites), 0, 2));
+        }
+
+        WhatsAppAccount::updateBusinessProfile($accountId, $user, $values);
+    }
+
+    private static function syncBusinessProfilesForUser(array $user): void
+    {
+        foreach (WhatsAppAccount::listForUser($user) as $listedAccount) {
+            $account = WhatsAppAccount::getForUser((int)$listedAccount['id'], $user);
+            if (!$account || trim((string)($account['phone_number_id'] ?? '')) === '') {
+                continue;
+            }
+
+            $lastSync = strtotime((string)($listedAccount['profile_updated_at'] ?? '')) ?: 0;
+            $hasPhoto = trim((string)($listedAccount['profile_picture_url'] ?? '')) !== '';
+            if ($hasPhoto && $lastSync > 0 && (time() - $lastSync) < 600) {
+                continue;
+            }
+
+            $result = (new MetaWhatsAppCloudApi())->getBusinessProfile(
+                (string)$account['access_token'],
+                (string)$account['phone_number_id']
+            );
+
+            if ($result['ok']) {
+                $profile = $result['data']['data'][0] ?? $result['data'];
+                self::persistBusinessProfile($user, (int)$account['id'], is_array($profile) ? $profile : [], null);
+            } else {
+                self::persistBusinessProfile($user, (int)$account['id'], [], $result['error']);
+            }
+        }
     }
 
     private static function withWhatsAppBilling(array $base, array $planned, bool $serviceWindowOpen): array

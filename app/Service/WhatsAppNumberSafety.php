@@ -48,22 +48,13 @@ class WhatsAppNumberSafety
     {
         $accountId = (int)$account['id'];
         $health = self::ensureHealth($account);
-        try {
-            $verification = self::syncVerificationStatus($account);
-        } catch (\Throwable $e) {
-            return [
-                'allowed' => false,
-                'delay_seconds' => 300,
-                'reason' => $e->getMessage(),
-                'snapshot' => self::calculateSnapshot($account, $health),
-            ];
-        }
 
-        if (!$verification['verified']) {
+        $metaPause = WhatsAppMetaRateLimitGuard::currentPause($account);
+        if ($metaPause) {
             return [
                 'allowed' => false,
-                'delay_seconds' => 3600,
-                'reason' => self::unverifiedMessage($verification['status']),
+                'delay_seconds' => (int)$metaPause['delay_seconds'],
+                'reason' => 'Envio pausado por rate limit da Meta até ' . $metaPause['blocked_until'] . '.',
                 'snapshot' => self::calculateSnapshot($account, $health),
             ];
         }
@@ -288,7 +279,7 @@ class WhatsAppNumberSafety
                  last_meta_error_at = IF(:has_last_meta_error = 1, NOW(), NULL),
                  updated_at = NOW()
              WHERE whatsapp_account_id = :account_id
-                OR meta_id = :phone_number_id",
+                OR (meta_id = :phone_number_id AND company_id = :tenancy_id)",
             [
                 ':display_name_status' => $displayNameStatus,
                 ':last_error' => $lastError,
@@ -297,6 +288,7 @@ class WhatsAppNumberSafety
                 ':is_rejected' => self::isDisplayNameRejected($verification) ? 1 : 0,
                 ':account_id' => $accountId,
                 ':phone_number_id' => $phoneNumberId,
+                ':tenancy_id' => (string)$account['tenancy_id'],
             ]
         );
     }
@@ -396,7 +388,7 @@ class WhatsAppNumberSafety
                  last_meta_error_at = NOW(),
                  updated_at = NOW()
              WHERE whatsapp_account_id = :account_id
-                OR meta_id = :phone_number_id",
+                OR (meta_id = :phone_number_id AND company_id = :tenancy_id)",
             [
                 ':last_error' => $message,
                 ':last_meta_error' => $message,
@@ -405,6 +397,7 @@ class WhatsAppNumberSafety
                 ':is_name_rejected' => $isNameRejected ? 1 : 0,
                 ':account_id' => $accountId,
                 ':phone_number_id' => $phoneNumberId,
+                ':tenancy_id' => (string)$account['tenancy_id'],
             ]
         );
 

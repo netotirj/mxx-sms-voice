@@ -37,7 +37,7 @@ class WhatsAppCampaign
     {
         $where = TenancyHelper::applySecurityFilter('', $user, 'user_id', 'wc');
 
-        return (new Database('whatsapp_campaigns wc LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id'))
+        return (new Database('whatsapp_campaigns wc LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id AND wa.tenancy_id = wc.tenancy_id'))
             ->select($where, [], 'wc.id DESC', '', [
                 'wc.*',
                 'wa.label AS account_label',

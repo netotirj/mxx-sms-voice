@@ -129,6 +129,28 @@ $obRouter->get('/reports/sms-view-realtime',[
     }
 ]);
 
+$obRouter->get('/reports/whatsapp',[
+    'name' => '/reports/whatsapp',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200,Pages\Reports::getWhatsAppReportView($request));
+    }
+]);
+
+$obRouter->get('/reports/whatsapp-realtime',[
+    'name' => '/reports/whatsapp-realtime',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200,Pages\Reports::getWhatsAppReportRealtime($request));
+    }
+]);
+
 $obRouter->get('/reports/generate/{id}/invoice',[
     'name' => '/reports/generate/{id}/invoice', // nome da rota
     'middlewares' => [

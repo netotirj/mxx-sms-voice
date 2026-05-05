@@ -6,6 +6,7 @@ use App\Utils\View;
 use App\Model\Entity\UserAuthentication;
 use App\Session\User as SessionLogin;
 use App\Model\Entity\PermissionsRules;
+use App\Service\PlanAccessPolicy;
 use JetBrains\PhpStorm\NoReturn;
 use Random\RandomException;
 
@@ -87,6 +88,19 @@ class Login extends ViewComponents
         }
 
         if (($obUser->status ?? 'n') === 'n' || $canReconnect) {
+            $access = PlanAccessPolicy::assertCanLogin([
+                'id' => (int)($obUser->id ?? 0),
+                'tenancy_id' => (string)($obUser->tenancy_id ?? ''),
+                'user_function' => (string)($obUser->user_function ?? ''),
+            ]);
+
+            if (empty($access['allowed'])) {
+                return [
+                    'status' => 'ERROR',
+                    'message' => $access['message'] ?? 'Limite de acessos simultâneos do plano atingido.'
+                ];
+            }
+
             SessionLogin::login($obUser, $remember);
             UserAuthentication::setStatusAndActivity($obUser->email, 'y', date('Y-m-d H:i:s'));
 

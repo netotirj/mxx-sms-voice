@@ -130,8 +130,7 @@
 
             container.innerHTML = "";
 
-            // Garante que os populares fiquem no topo
-            plans.sort((a, b) => (b.is_popular || 0) - (a.is_popular || 0));
+            plans.sort((a, b) => Number(b.price_raw || 0) - Number(a.price_raw || 0));
 
             plans.forEach((plan) => {
                 const isPopular = plan.is_popular === true || plan.is_popular === 1;
@@ -174,16 +173,27 @@
                                 <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_sms}</p>
                             </div>
                             <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">WhatsApp</p>
-                                <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_whatsapp}</p>
-                            </div>
-                            <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
                                 <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Voz</p>
                                 <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_voice}</p>
                             </div>
                             <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
                                 <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Torpedo</p>
                                 <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_torpedo}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div class="p-2 bg-emerald-50 dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
+                                <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Marketing</p>
+                                <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_marketing || plan.v_whatsapp}</p>
+                            </div>
+                            <div class="p-2 bg-emerald-50 dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
+                                <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Utility</p>
+                                <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_utility || plan.v_whatsapp}</p>
+                            </div>
+                            <div class="p-2 bg-emerald-50 dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
+                                <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Auth</p>
+                                <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_authentication || plan.v_whatsapp}</p>
                             </div>
                         </div>
 

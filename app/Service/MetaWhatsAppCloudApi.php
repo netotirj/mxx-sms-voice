@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Config\WhatsAppConfig;
 use GuzzleHttp\Client;
+use InvalidArgumentException;
 use Throwable;
 
 class MetaWhatsAppCloudApi
@@ -502,6 +503,16 @@ class MetaWhatsAppCloudApi
 
     private function postMessage(string $accessToken, string $phoneNumberId, array $payload): array
     {
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_message_request',
+            'phone_number_id' => $phoneNumberId,
+            'to' => $this->maskPhoneForLog((string)($payload['to'] ?? '')),
+            'type' => $payload['type'] ?? null,
+            'template_name' => $payload['template']['name'] ?? null,
+            'parameters' => $this->extractLoggedTemplateParameters($payload),
+            'payload' => $this->maskPayloadForLog($payload),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
         return $this->request('POST', $phoneNumberId . '/messages', $accessToken, [
             'json' => $payload,
         ]);
@@ -521,6 +532,10 @@ class MetaWhatsAppCloudApi
                 continue;
             }
 
+            if (isset($component['example'])) {
+                throw new InvalidArgumentException('Componentes de envio não podem conter example.body_text.');
+            }
+
             if (isset($component['parameters']) && is_array($component['parameters'])) {
                 $item = [
                     'type' => $type,
@@ -536,16 +551,8 @@ class MetaWhatsAppCloudApi
                 continue;
             }
 
-            if (in_array($type, ['body', 'header'], true) && isset($component['text']) && $this->hasTemplateVariables((string)$component['text'])) {
-                $normalized[] = [
-                    'type' => $type,
-                    'parameters' => [
-                        [
-                            'type' => 'text',
-                            'text' => (string)$component['text'],
-                        ],
-                    ],
-                ];
+            if (isset($component['text']) && $this->hasTemplateVariables((string)$component['text'])) {
+                throw new InvalidArgumentException('Componentes de aprovação do template não podem ser usados no envio.');
             }
         }
 
@@ -555,6 +562,48 @@ class MetaWhatsAppCloudApi
     private function hasTemplateVariables(string $text): bool
     {
         return (bool)preg_match('/\{\{\s*\d+\s*\}\}/', $text);
+    }
+
+    private function extractLoggedTemplateParameters(array $payload): array
+    {
+        $parameters = [];
+        foreach (($payload['template']['components'] ?? []) as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+            foreach (($component['parameters'] ?? []) as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+                $parameters[] = [
+                    'component' => $component['type'] ?? null,
+                    'type' => $parameter['type'] ?? null,
+                    'text' => $parameter['text'] ?? null,
+                    'payload' => $parameter['payload'] ?? null,
+                ];
+            }
+        }
+
+        return $parameters;
+    }
+
+    private function maskPayloadForLog(array $payload): array
+    {
+        if (isset($payload['to'])) {
+            $payload['to'] = $this->maskPhoneForLog((string)$payload['to']);
+        }
+
+        return $payload;
+    }
+
+    private function maskPhoneForLog(string $phone): string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if (strlen($phone) <= 6) {
+            return '***';
+        }
+
+        return substr($phone, 0, 4) . '***' . substr($phone, -2);
     }
 
     private function request(string $method, string $uri, string $accessToken, array $options = []): array

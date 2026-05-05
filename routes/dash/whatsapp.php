@@ -332,6 +332,28 @@ $obRouter->get('/campaign/whatsapp/templates', [
     }
 ]);
 
+$obRouter->get('/campaign/whatsapp/templates/library', [
+    'name' => '/campaign/whatsapp/templates/library',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listTemplateModels();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/pricing/simulate', [
+    'name' => '/campaign/whatsapp/pricing/simulate',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::simulatePricing();
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/templates', [
     'name' => '/campaign/whatsapp/templates/create',
     'middlewares' => [
@@ -373,6 +395,17 @@ $obRouter->post('/campaign/whatsapp/templates/{id}/delete', [
     ],
     function ($request, $id) {
         return Pages\WhatsApp::deleteTemplate($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/campaigns/recipients/preview', [
+    'name' => '/campaign/whatsapp/campaigns/recipients/preview',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::previewCampaignRecipientsUpload();
     }
 ]);
 

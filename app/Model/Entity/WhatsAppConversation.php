@@ -76,6 +76,27 @@ class WhatsAppConversation
                     WHERE wm.conversation_id = wc.id
                     ORDER BY wm.id DESC
                     LIMIT 1) AS last_message_status",
+                "(SELECT wm.created_at
+                    FROM whatsapp_messages wm
+                    WHERE wm.conversation_id = wc.id
+                      AND wm.direction = 'inbound'
+                    ORDER BY wm.created_at DESC
+                    LIMIT 1) AS last_inbound_at",
+                "CASE
+                    WHEN (SELECT wm.created_at
+                        FROM whatsapp_messages wm
+                        WHERE wm.conversation_id = wc.id
+                          AND wm.direction = 'inbound'
+                        ORDER BY wm.created_at DESC
+                        LIMIT 1) >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                    THEN 1
+                    ELSE 0
+                END AS service_window_open",
+                "(SELECT COUNT(*)
+                    FROM whatsapp_marketing_opt_outs woo
+                    WHERE woo.account_id = wc.account_id
+                      AND woo.contact_phone = wc.contact_phone
+                    LIMIT 1) AS marketing_opt_out",
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -158,7 +179,7 @@ class WhatsAppConversation
 
     public static function addMessage(array $data): int
     {
-        $id = (int)(new Database('whatsapp_messages'))->insert([
+        $values = [
             'conversation_id' => (int)$data['conversation_id'],
             'account_id' => (int)$data['account_id'],
             'wamid' => $data['wamid'] ?? null,
@@ -176,7 +197,23 @@ class WhatsAppConversation
             'payload' => isset($data['payload']) ? json_encode($data['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+
+        foreach ([
+            'preview_body' => $data['preview_body'] ?? $data['body'] ?? null,
+            'template_variables' => isset($data['template_variables'])
+                ? json_encode($data['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null,
+            'pricing_snapshot' => isset($data['pricing_snapshot'])
+                ? json_encode($data['pricing_snapshot'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null,
+        ] as $column => $value) {
+            if (self::messageHasColumn($column)) {
+                $values[$column] = $value;
+            }
+        }
+
+        $id = (int)(new Database('whatsapp_messages'))->insert($values);
 
         self::touchFromMessage(
             (int)$data['conversation_id'],
@@ -235,23 +272,28 @@ class WhatsAppConversation
             return true;
         }
 
-        $row = (new Database('whatsapp_messages wm INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id'))
+        $rows = (new Database('whatsapp_messages wm INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id'))
             ->select(
                 "wc.account_id = :account_id
                  AND wc.contact_phone = :phone
-                 AND wm.direction = 'inbound'
-                 AND UPPER(TRIM(wm.body)) IN ('SAIR', 'PARAR', 'STOP', 'CANCELAR', 'DESCADASTRAR')",
+                 AND wm.direction = 'inbound'",
                 [
                     ':account_id' => $accountId,
                     ':phone' => $phone,
                 ],
                 'wm.created_at DESC',
-                '1',
-                ['wm.id']
+                '20',
+                ['wm.body']
             )
-            ->fetch(PDO::FETCH_ASSOC);
+            ->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        return (bool)$row;
+        foreach ($rows as $row) {
+            if (\App\Service\WhatsAppCostPolicy::looksLikeOptOut((string)($row['body'] ?? ''))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function registerMarketingOptOut(int $accountId, string $phone, ?string $wamid = null): void
@@ -338,11 +380,17 @@ class WhatsAppConversation
             $values['payload'] = json_encode(array_merge($existingPayload, $payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
-        return (new Database('whatsapp_messages'))->update(
+        $ok = (new Database('whatsapp_messages'))->update(
             'wamid = :wamid',
             $values,
             [':wamid' => $wamid]
         );
+
+        if ($ok && in_array($status, ['delivered', 'read'], true)) {
+            self::markCdrDelivered($wamid);
+        }
+
+        return $ok;
     }
 
     public static function markMessageBilled(int $id): bool
@@ -364,6 +412,40 @@ class WhatsAppConversation
             $values,
             [':id' => $id]
         );
+    }
+
+    private static function messageHasColumn(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_messages')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
+    }
+
+    private static function markCdrDelivered(string $wamid): void
+    {
+        try {
+            $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_message_cdr')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            if (!isset($columns['delivered_at'])) {
+                return;
+            }
+
+            (new Database('whatsapp_message_cdr'))->update(
+                'wamid = :wamid AND delivered_at IS NULL',
+                ['delivered_at' => date('Y-m-d H:i:s')],
+                [':wamid' => $wamid]
+            );
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_cdr_delivered_at] ' . $e->getMessage());
+        }
     }
 
     private static function markInboundMessagesRead(int $conversationId): bool

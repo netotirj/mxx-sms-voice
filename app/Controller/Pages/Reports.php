@@ -12,10 +12,13 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\Rates;
 use App\Model\Entity\RefillsResellers;
 use App\Model\Entity\UserSearch;
+use App\Service\WhatsAppBilling;
+use App\Service\WhatsAppCostPolicy;
 use App\Session\User as SessionUser;
 use App\Utils\View;
 use DateTime;
 use Exception;
+use WilliamCosta\DatabaseManager\Database;
 
 class Reports extends ViewComponents
 {
@@ -50,6 +53,12 @@ class Reports extends ViewComponents
     {
         $content = View::render('/reports/sms', []);
         return parent::getComponentsReports('Maxx Solutions - SMS | Reports', $content);
+    }
+
+    public static function getWhatsAppReportView($request): array|bool|string
+    {
+        $content = View::render('/reports/whatsapp', []);
+        return parent::getComponentsReports('Maxx Solutions - WhatsApp | Reports', $content);
     }
 
     public static function getCdrComponents($request): array|bool|string
@@ -309,6 +318,191 @@ class Reports extends ViewComponents
         ], 'application/json');
     }
 
+    public static function getWhatsAppReportRealtime($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, ['message' => "Usuário não autenticado"], 'application/json');
+        }
+
+        $queryParams = $request->getQueryParams();
+        $role = strtolower(trim($obUser['user_function'] ?? $obUser['function'] ?? ''));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+        $status = strtolower(trim((string)($queryParams['status'] ?? 'charged')));
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($role !== 'super_admin') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        if (in_array($role, ['agent', 'support_l1'], true)) {
+            $where[] = 'c.client_id = :client_id';
+            $params[':client_id'] = (int)$obUser['id'];
+        } elseif ($role === 'reseller') {
+            $where[] = "(
+                c.client_id = :reseller_id
+                OR c.client_id IN (
+                    SELECT u.id
+                    FROM users u
+                    WHERE u.user_id = :reseller_id
+                      AND u.tenancy_id = :reseller_tenancy_id
+                )
+            )";
+            $params[':reseller_id'] = (int)$obUser['id'];
+            $params[':reseller_tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        $dateColumn = 'COALESCE(c.delivered_at, c.timestamp, c.created_at)';
+        if (!empty($queryParams['date_from'])) {
+            $where[] = "{$dateColumn} >= :date_from";
+            $params[':date_from'] = (string)$queryParams['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($queryParams['date_to'])) {
+            $where[] = "{$dateColumn} <= :date_to";
+            $params[':date_to'] = (string)$queryParams['date_to'] . ' 23:59:59';
+        }
+
+        if (empty($queryParams['date_from']) && empty($queryParams['date_to'])) {
+            if ($period === 'day') {
+                $where[] = "DATE({$dateColumn}) = CURDATE()";
+            } elseif ($period === 'week') {
+                $where[] = "{$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                    AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+            } elseif ($period === 'month') {
+                $where[] = "YEAR({$dateColumn}) = YEAR(CURDATE()) AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+            }
+        }
+
+        if ($status === 'charged') {
+            $where[] = 'c.billed = 1';
+        } elseif ($status === 'delivered') {
+            $where[] = "COALESCE(wm.status, IF(c.delivered_at IS NULL, c.status, 'delivered')) IN ('delivered', 'read')";
+        } elseif (in_array($status, ['sent', 'read', 'failed', 'blocked'], true)) {
+            $where[] = "COALESCE(wm.status, c.status) = :status";
+            $params[':status'] = $status;
+        }
+
+        $sql = "SELECT
+                c.id,
+                c.client_id,
+                u.name AS client_name,
+                u.last_name AS client_last_name,
+                u.account_code AS client_account_code,
+                c.phone_number,
+                c.message_category,
+                c.template_name,
+                c.price_brl,
+                c.final_price_brl,
+                c.cost_brl,
+                c.billed,
+                c.status AS cdr_status,
+                c.timestamp,
+                c.delivered_at,
+                c.wamid,
+                c.error_message,
+                wm.status AS message_status,
+                wm.updated_at AS message_updated_at,
+                COALESCE(wm.preview_body, wm.body, wo.preview_body, wo.body) AS message_preview,
+                wa.id AS whatsapp_account_id,
+                wa.label AS whatsapp_account_label,
+                wa.display_phone_number AS whatsapp_account_number,
+                wo.campaign_id,
+                camp.name AS campaign_name
+            FROM whatsapp_message_cdr c
+            LEFT JOIN whatsapp_messages wm ON wm.wamid = c.wamid
+            LEFT JOIN whatsapp_outbox wo ON wo.id = c.whatsapp_outbox_id
+            LEFT JOIN whatsapp_accounts wa ON wa.id = COALESCE(wo.account_id, wm.account_id) AND wa.tenancy_id = c.tenancy_id
+            LEFT JOIN whatsapp_campaigns camp ON camp.id = wo.campaign_id
+            LEFT JOIN users u ON u.id = c.client_id AND u.tenancy_id = c.tenancy_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY {$dateColumn} DESC, c.id DESC
+            LIMIT 5000";
+
+        try {
+            $rows = (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'message' => 'Erro ao consultar relatório de WhatsApp',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $formatted = array_map(static function (array $row): array {
+            $messageStatus = strtolower((string)($row['message_status'] ?: $row['cdr_status'] ?: 'sent'));
+            if (!empty($row['delivered_at']) && $messageStatus === 'sent') {
+                $messageStatus = 'delivered';
+            }
+
+            $price = (float)($row['price_brl'] ?? $row['final_price_brl'] ?? 0);
+            $billed = (int)($row['billed'] ?? 0) === 1;
+
+            return [
+                'id' => (int)$row['id'],
+                'client_id' => (int)$row['client_id'],
+                'client_name' => trim((string)($row['client_name'] ?? '')) ?: '-',
+                'client_account_code' => $row['client_account_code'] ?? '-',
+                'whatsapp_account_id' => $row['whatsapp_account_id'] ? (int)$row['whatsapp_account_id'] : null,
+                'whatsapp_account_label' => $row['whatsapp_account_label'] ?? '-',
+                'whatsapp_account_number' => $row['whatsapp_account_number'] ?? '-',
+                'destination' => $row['phone_number'] ?? '-',
+                'category' => strtolower((string)($row['message_category'] ?? '-')),
+                'template_name' => $row['template_name'] ?? '-',
+                'campaign_name' => $row['campaign_name'] ?? '-',
+                'message_preview' => $row['message_preview'] ?? '',
+                'status' => $messageStatus,
+                'billed' => $billed,
+                'price_brl' => $price,
+                'charged_value' => $billed ? $price : 0.0,
+                'cost_brl' => (float)($row['cost_brl'] ?? 0),
+                'wamid' => $row['wamid'] ?? null,
+                'error_message' => $row['error_message'] ?? null,
+                'sent_at' => !empty($row['timestamp']) ? (new DateTime($row['timestamp']))->format('d/m/Y H:i') : '-',
+                'delivered_at' => !empty($row['delivered_at']) ? (new DateTime($row['delivered_at']))->format('d/m/Y H:i') : '-',
+            ];
+        }, $rows);
+        $categorySummary = [];
+        foreach ($formatted as $row) {
+            $category = strtolower((string)($row['category'] ?? 'marketing'));
+            if (!isset($categorySummary[$category])) {
+                $categorySummary[$category] = [
+                    'category' => $category,
+                    'quantity' => 0,
+                    'charged_count' => 0,
+                    'charged_total' => 0.0,
+                    'cost_total' => 0.0,
+                ];
+            }
+
+            $categorySummary[$category]['quantity']++;
+            $categorySummary[$category]['cost_total'] += (float)($row['cost_brl'] ?? 0);
+            if (!empty($row['billed'])) {
+                $categorySummary[$category]['charged_count']++;
+                $categorySummary[$category]['charged_total'] += (float)($row['charged_value'] ?? 0);
+            }
+        }
+        foreach ($categorySummary as &$summary) {
+            $summary['charged_total'] = round((float)$summary['charged_total'], 4);
+            $summary['cost_total'] = round((float)$summary['cost_total'], 4);
+        }
+        unset($summary);
+
+        return new Response(200, [
+            'success' => true,
+            'user_type' => $role,
+            'period' => $period,
+            'total' => count($formatted),
+            'charged_total' => array_sum(array_column($formatted, 'charged_value')),
+            'charged_count' => count(array_filter($formatted, static fn ($row) => !empty($row['billed']))),
+            'category_summary' => array_values($categorySummary),
+            'data' => $formatted,
+        ], 'application/json');
+    }
+
     public static function getRechargeResellers($request): Response
     {
         // 1. Pega o usuário logado e sua Tenancy
@@ -371,14 +565,13 @@ class Reports extends ViewComponents
             $rVoice    = (float)($ratesAll['voice'] ?? 0);
             $rSms      = (float)($ratesAll['sms'] ?? 0);
             $rTorpedo  = (float)($ratesAll['torpedo'] ?? 0);
-            $rWhatsApp = (float)($ratesAll['whatsapp'] ?? 0);
         } else {
             $obBalanceTariffs = BalanceSms::getBalanceSms($recharge->user_id, $obUser['tenancy_id']);
             $rVoice    = (float)($obBalanceTariffs->value_voice ?? 0);
             $rSms      = (float)($obBalanceTariffs->value_sms ?? 0);
             $rTorpedo  = (float)($obBalanceTariffs->value_torpedo ?? 0);
-            $rWhatsApp = (float)($obBalanceTariffs->value_whatsapp ?? 0);
         }
+        $rWhatsApp = self::whatsAppCategoryTariffs((int)$recharge->user_id, (string)$obUser['tenancy_id']);
 
         // 4. Monta o Array de Dados para o Novo Template
         // Note: Usei os nomes que seu template de "Cards" pediu
@@ -398,7 +591,10 @@ class Reports extends ViewComponents
             'rate_voice'     => number_format($rVoice, 4, ',', '.'),
             'rate_sms'       => number_format($rSms, 4, ',', '.'),
             'rate_torpedo'   => number_format($rTorpedo, 4, ',', '.'),
-            'rate_whatsapp'  => number_format($rWhatsApp, 4, ',', '.'),
+            'rate_whatsapp_marketing' => number_format($rWhatsApp['marketing'], 4, ',', '.'),
+            'rate_whatsapp_utility' => number_format($rWhatsApp['utility'], 4, ',', '.'),
+            'rate_whatsapp_authentication' => number_format($rWhatsApp['authentication'], 4, ',', '.'),
+            'rate_whatsapp_service' => number_format($rWhatsApp['service'], 4, ',', '.'),
 
             // SALDO REAL DO REVENDEDOR (Vem do banco agora)
             'new_balance'    => number_format((float)($reseller['reseller_balance'] ?? 0), 2, ',', '.')
@@ -406,6 +602,20 @@ class Reports extends ViewComponents
 
         // 5. Chama o visual novo
         self::renderInvoiceTemplate($data);
+    }
+
+    private static function whatsAppCategoryTariffs(int $userId, string $tenancyId): array
+    {
+        try {
+            return WhatsAppBilling::categoryPricesForUser($userId, $tenancyId);
+        } catch (\Throwable $e) {
+            return [
+                'marketing' => WhatsAppCostPolicy::defaultPriceBrl(WhatsAppCostPolicy::CATEGORY_MARKETING),
+                'utility' => WhatsAppCostPolicy::defaultPriceBrl(WhatsAppCostPolicy::CATEGORY_UTILITY),
+                'authentication' => WhatsAppCostPolicy::defaultPriceBrl(WhatsAppCostPolicy::CATEGORY_AUTHENTICATION),
+                'service' => 0.0,
+            ];
+        }
     }
 
     private static function renderInvoiceTemplate($d): void
@@ -563,8 +773,20 @@ class Reports extends ViewComponents
                                     <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_sms']}</p>
                                 </div>
                                 <div style="background: #fff; border: 1px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center;">
-                                    <h4 style="font-size: 7px; color: #94a3b8;">WHATSAPP</h4>
-                                    <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_whatsapp']}</p>
+                                    <h4 style="font-size: 7px; color: #94a3b8;">WHATSAPP MARKETING</h4>
+                                    <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_whatsapp_marketing']}</p>
+                                </div>
+                                <div style="background: #fff; border: 1px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center;">
+                                    <h4 style="font-size: 7px; color: #94a3b8;">WHATSAPP UTILITARIO</h4>
+                                    <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_whatsapp_utility']}</p>
+                                </div>
+                                <div style="background: #fff; border: 1px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center;">
+                                    <h4 style="font-size: 7px; color: #94a3b8;">WHATSAPP AUTENTICACAO</h4>
+                                    <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_whatsapp_authentication']}</p>
+                                </div>
+                                <div style="background: #fff; border: 1px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center;">
+                                    <h4 style="font-size: 7px; color: #94a3b8;">WHATSAPP ATENDIMENTO</h4>
+                                    <p style="font-size: 11px; color: #2563eb;">R$ {$d['rate_whatsapp_service']}</p>
                                 </div>
                                 <div style="background: #fff; border: 1px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center;">
                                     <h4 style="font-size: 7px; color: #94a3b8;">VOZ</h4>

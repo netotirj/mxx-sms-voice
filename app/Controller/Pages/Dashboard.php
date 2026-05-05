@@ -211,6 +211,7 @@ class Dashboard extends ViewComponents
     private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser): array
     {
         $whatsappSummary = self::buildDashboardWhatsAppSummary($obUser);
+        $whatsappDayCost = self::costMapWhatsAppForPeriod($obUser, 'day');
         $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
         $smsDelivered = max(0, (int)($data['smsEntregues'] ?? 0));
         $smsResponses = max(0, (int)($data['smsRespostas'] ?? 0));
@@ -221,8 +222,9 @@ class Dashboard extends ViewComponents
         $data['whatsappNaoLidas'] = $whatsappSummary['unread'];
         $data['whatsappCampanhas'] = $whatsappSummary['campaigns'];
         $data['whatsappContas'] = $whatsappSummary['accounts'];
+        $data['whatsappConsumoCategorias'] = $whatsappDayCost['categories'] ?? [];
         $data['smsTaxaEntrega'] = $smsDeliveryRate;
-        $data['consumoWhats'] = $data['consumoWhats'] ?? '0,00';
+        $data['consumoWhats'] = number_format((float)($whatsappDayCost['total'] ?? 0), 2, ',', '.');
 
         $totalVoice = max(0, (int)($cdr->total ?? 0));
         $answeredVoice = max(0, (int)($cdr->answer ?? 0));
@@ -310,6 +312,36 @@ class Dashboard extends ViewComponents
         return [$where, $params];
     }
 
+    private static function buildWhatsAppCdrScopeWhere(array $obUser, string $alias = 'c'): array
+    {
+        $role = strtolower((string)($obUser['function'] ?? ''));
+        $params = [];
+
+        if ($role === 'super_admin') {
+            return ['1=1', $params];
+        }
+
+        $where = "{$alias}.tenancy_id = :wa_cdr_tenancy_id";
+        $params[':wa_cdr_tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+
+        if ($role !== 'admin') {
+            $where .= " AND {$alias}.client_id = :wa_cdr_user_id";
+            $params[':wa_cdr_user_id'] = (int)($obUser['id'] ?? 0);
+        }
+
+        return [$where, $params];
+    }
+
+    private static function whatsCategoryLabel(string $category): string
+    {
+        return match (strtolower(trim($category))) {
+            'utility' => 'Utilitario',
+            'authentication' => 'Autenticacao',
+            'service' => 'Atendimento',
+            default => 'Marketing',
+        };
+    }
+
     private static function dashboardScalar(string $sql, array $params = []): int
     {
         $row = (new Database())->execute($sql, $params)->fetch(\PDO::FETCH_ASSOC);
@@ -334,7 +366,7 @@ class Dashboard extends ViewComponents
 
     private static function whatsappTablesReady(): bool
     {
-        foreach (['whatsapp_accounts', 'whatsapp_campaigns', 'whatsapp_conversations', 'whatsapp_messages'] as $table) {
+        foreach (['whatsapp_accounts', 'whatsapp_campaigns', 'whatsapp_conversations', 'whatsapp_messages', 'whatsapp_message_cdr'] as $table) {
             $row = (new Database())->execute(
                 'SELECT COUNT(*) AS total
                  FROM information_schema.TABLES
@@ -487,17 +519,20 @@ class Dashboard extends ViewComponents
 
     private static function costMapWhatsAppForPeriod(array $obUser, string $period, string $mode = 'current'): array
     {
-        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wc');
-        $periodWhere = self::whatsPeriodCondition($period, $mode);
+        [$where, $params] = self::buildWhatsAppCdrScopeWhere($obUser, 'c');
+        $periodWhere = self::whatsPeriodCondition($period, $mode, 'COALESCE(c.delivered_at, c.timestamp, c.created_at)');
 
         try {
             $rows = (new Database())->execute(
-                "SELECT wm.direction, wm.status, COALESCE(SUM(wm.price_brl), 0) AS total_cost
-                 FROM whatsapp_messages wm
-                 INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+                "SELECT c.message_category,
+                        COUNT(*) AS quantity,
+                        COALESCE(SUM(c.price_brl), 0) AS total_cost
+                 FROM whatsapp_message_cdr c
                  WHERE {$where}
                    AND {$periodWhere}
-                 GROUP BY wm.direction, wm.status
+                   AND c.direction = 'outbound'
+                   AND c.billed = 1
+                 GROUP BY c.message_category
                  ORDER BY total_cost DESC",
                 $params
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -510,41 +545,47 @@ class Dashboard extends ViewComponents
 
         $map = [];
         $total = 0.0;
+        $categories = [];
         foreach ($rows as $row) {
-            $direction = (string)($row['direction'] ?? '');
-            $status = (string)($row['status'] ?? '');
-            $label = self::whatsStatusLabel($direction, $status);
+            $category = strtolower((string)($row['message_category'] ?? 'marketing'));
+            $label = self::whatsCategoryLabel($category);
             $cost = (float)($row['total_cost'] ?? 0);
+            $quantity = (int)($row['quantity'] ?? 0);
 
             $map[$label] = (float)($map[$label] ?? 0) + $cost;
+            $categories[$category] = [
+                'label' => $label,
+                'quantity' => $quantity,
+                'cost' => round($cost, 4),
+            ];
             $total += $cost;
         }
 
         return [
             'map' => $map,
+            'categories' => $categories,
             'total' => round($total, 4),
         ];
     }
 
     private static function companyCostMapWhatsAppForPeriod(array $obUser, string $period): array
     {
-        [$where, $params] = self::buildWhatsAppScopeWhere($obUser, 'wa');
-        $periodWhere = self::whatsPeriodCondition($period, 'current');
+        [$where, $params] = self::buildWhatsAppCdrScopeWhere($obUser, 'c');
+        $periodWhere = self::whatsPeriodCondition($period, 'current', 'COALESCE(c.delivered_at, c.timestamp, c.created_at)');
 
         try {
             $rows = (new Database())->execute(
                 "SELECT
-                    COALESCE(NULLIF(t.name, ''), NULLIF(wa.label, ''), wa.display_phone_number) AS company_name,
-                    COUNT(wm.id) AS quantity,
-                    COALESCE(SUM(wm.price_brl), 0) AS cost
-                 FROM whatsapp_accounts wa
-                 LEFT JOIN tenancies t ON t.id = wa.tenancy_id
-                 LEFT JOIN whatsapp_conversations wc ON wc.account_id = wa.id
-                 LEFT JOIN whatsapp_messages wm ON wm.conversation_id = wc.id
-                    AND {$periodWhere}
+                    COALESCE(NULLIF(u.name, ''), CONCAT('Cliente ', c.client_id)) AS company_name,
+                    COUNT(*) AS quantity,
+                    COALESCE(SUM(c.price_brl), 0) AS cost
+                 FROM whatsapp_message_cdr c
+                 LEFT JOIN users u ON u.id = c.client_id
                  WHERE {$where}
-                   AND wa.status = 'active'
-                 GROUP BY wa.tenancy_id, company_name
+                   AND {$periodWhere}
+                   AND c.direction = 'outbound'
+                   AND c.billed = 1
+                 GROUP BY c.client_id, company_name
                  ORDER BY quantity DESC, cost DESC",
                 $params
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -600,6 +641,9 @@ class Dashboard extends ViewComponents
                 'costMapDiaWhats' => $costDiaAtual['map'],
                 'costMapSemanaWhats' => $costSemanaAtual['map'],
                 'costMapMesWhats' => $costMesAtual['map'],
+                'categoryCostDiaWhats' => $costDiaAtual['categories'],
+                'categoryCostSemanaWhats' => $costSemanaAtual['categories'],
+                'categoryCostMesWhats' => $costMesAtual['categories'],
                 'companyCostMapDiaWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'day'),
                 'companyCostMapSemanaWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'week'),
                 'companyCostMapMesWhats' => self::companyCostMapWhatsAppForPeriod($obUser, 'month'),
@@ -624,6 +668,9 @@ class Dashboard extends ViewComponents
                 'costMapDiaWhats' => [],
                 'costMapSemanaWhats' => [],
                 'costMapMesWhats' => [],
+                'categoryCostDiaWhats' => [],
+                'categoryCostSemanaWhats' => [],
+                'categoryCostMesWhats' => [],
                 'companyCostMapDiaWhats' => [],
                 'companyCostMapSemanaWhats' => [],
                 'companyCostMapMesWhats' => [],
@@ -787,13 +834,40 @@ class Dashboard extends ViewComponents
         return $cache[$column];
     }
 
-    private static function countSipCodes(array $filters, string $period = 'month'): array
+    private static function cdrPeriodDateExpression(string $alias = 'cdr'): string
+    {
+        $parts = [];
+
+        if (self::hasCdrColumn('started')) {
+            $parts[] = "NULLIF({$alias}.started, '0000-00-00 00:00:00')";
+        }
+
+        if (self::hasCdrColumn('cdr_timestamp')) {
+            $parts[] = "NULLIF({$alias}.cdr_timestamp, '0000-00-00 00:00:00')";
+        }
+
+        if (self::hasCdrColumn('created_at')) {
+            $parts[] = "{$alias}.created_at";
+        }
+
+        if (!$parts) {
+            return 'NOW()';
+        }
+
+        return count($parts) === 1 ? $parts[0] : 'COALESCE(' . implode(', ', $parts) . ')';
+    }
+
+    private static function countSipCodes(array $filters, string $period = 'month', string $mode = 'current'): array
     {
         $where = self::dashboardSecurityFilter($filters, 'cdr');
-        $dateCondition = match ($period) {
-            'day' => 'DATE(cdr.started) = CURDATE()',
-            'week' => 'YEARWEEK(cdr.started, 1) = YEARWEEK(CURDATE(), 1)',
-            default => 'MONTH(cdr.started) = MONTH(CURDATE()) AND YEAR(cdr.started) = YEAR(CURDATE())',
+        $periodDate = self::cdrPeriodDateExpression('cdr');
+        $dateCondition = match ($period . ':' . $mode) {
+            'day:previous' => "DATE({$periodDate}) = CURDATE() - INTERVAL 1 DAY",
+            'week:previous' => "YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)",
+            'month:previous' => "MONTH({$periodDate}) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR({$periodDate}) = YEAR(CURDATE() - INTERVAL 1 MONTH)",
+            'day:current' => "DATE({$periodDate}) = CURDATE()",
+            'week:current' => "YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE(), 1)",
+            default => "MONTH({$periodDate}) = MONTH(CURDATE()) AND YEAR({$periodDate}) = YEAR(CURDATE())",
         };
 
         $sipCodeExpression = self::hasCdrColumn('sip_code')
@@ -831,13 +905,17 @@ class Dashboard extends ViewComponents
         return $result;
     }
 
-    private static function countGroupedByTrunk(array $filters, string $period = 'month'): array
+    private static function countGroupedByTrunk(array $filters, string $period = 'month', string $mode = 'current'): array
     {
         $where = self::dashboardSecurityFilter($filters, 'cdr');
-        $dateCondition = match ($period) {
-            'day' => 'DATE(cdr.started) = CURDATE()',
-            'week' => 'YEARWEEK(cdr.started, 1) = YEARWEEK(CURDATE(), 1)',
-            default => 'MONTH(cdr.started) = MONTH(CURDATE()) AND YEAR(cdr.started) = YEAR(CURDATE())',
+        $periodDate = self::cdrPeriodDateExpression('cdr');
+        $dateCondition = match ($period . ':' . $mode) {
+            'day:previous' => "DATE({$periodDate}) = CURDATE() - INTERVAL 1 DAY",
+            'week:previous' => "YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)",
+            'month:previous' => "MONTH({$periodDate}) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR({$periodDate}) = YEAR(CURDATE() - INTERVAL 1 MONTH)",
+            'day:current' => "DATE({$periodDate}) = CURDATE()",
+            'week:current' => "YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE(), 1)",
+            default => "MONTH({$periodDate}) = MONTH(CURDATE()) AND YEAR({$periodDate}) = YEAR(CURDATE())",
         };
 
         $query = "
@@ -1197,8 +1275,11 @@ class Dashboard extends ViewComponents
             if ($isSuperAdmin) {
                 $data = CallbackSms::fetchStatusCountsWithDay(null, null, null);
                 $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'month');
+                $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'month_previous');
                 $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'day');
+                $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'day_previous');
                 $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'week');
+                $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'week_previous');
                 $dataValuesPix = PixSearch::getValuesPixCurrentMonth(null, null);
                 $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, null);
                 $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay(null, null, null);
@@ -1213,8 +1294,11 @@ class Dashboard extends ViewComponents
             elseif ($isAdmin) {
                 $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, null);
                 $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'month');
+                $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'month_previous');
                 $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'day');
+                $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'day_previous');
                 $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'week');
+                $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'week_previous');
                 $dataValuesPix = PixSearch::getValuesPixCurrentMonth($userId, $tenancyId);
                 $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, $tenancyId);
 
@@ -1232,8 +1316,11 @@ class Dashboard extends ViewComponents
                 if ($isReseller) {
                     $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, $userId);
                     $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'month');
+                    $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'month_previous');
                     $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'day');
+                    $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'day_previous');
                     $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'week');
+                    $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'week_previous');
                     $dataValuesPix = RefillsResellers::getValuesRefillCurrentMonth($userId, $tenancyId);
 
                     // 🔥 Filtro RESELLER: Trava no ID dele para ver ele + clientes dele
@@ -1242,8 +1329,11 @@ class Dashboard extends ViewComponents
                     // Aqui entra a LÍVIA (usuário comum)
                     $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, $userId, null);
                     $dataOperatorDay = [];
+                    $dataOperatorDayPrevious = [];
                     $dataOperatorWeek = [];
+                    $dataOperatorWeekPrevious = [];
                     $dataOperatorMonth = [];
+                    $dataOperatorMonthPrevious = [];
                     $dataValuesPix = [];
 
                     // 🔥 Filtro LÍVIA: Trava no ID dela para ela não ver os outros agentes
@@ -1262,32 +1352,56 @@ class Dashboard extends ViewComponents
             $sipCodesDay = self::countSipCodes($cdrFilters, 'day');
             $sipCodesWeek = self::countSipCodes($cdrFilters, 'week');
             $sipCodesMonth = self::countSipCodes($cdrFilters, 'month');
+            $sipCodesDayPrevious = self::countSipCodes($cdrFilters, 'day', 'previous');
+            $sipCodesWeekPrevious = self::countSipCodes($cdrFilters, 'week', 'previous');
+            $sipCodesMonthPrevious = self::countSipCodes($cdrFilters, 'month', 'previous');
             $trunkNameMap = self::buildTrunkNameMap($obUser);
             $trunkCountsDay = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'day'), $trunkNameMap);
             $trunkCountsWeek = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'week'), $trunkNameMap);
             $trunkCountsMonth = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'month'), $trunkNameMap);
+            $trunkCountsDayPrevious = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'day', 'previous'), $trunkNameMap);
+            $trunkCountsWeekPrevious = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'week', 'previous'), $trunkNameMap);
+            $trunkCountsMonthPrevious = self::labelTrunkCounts(self::countGroupedByTrunk($cdrFilters, 'month', 'previous'), $trunkNameMap);
             $whatsappCharts = self::buildDashboardWhatsAppCharts($obUser);
 
             $response = [
                 'statusMapMes'           => $data['statusMes'],
                 'statusMapDia'           => $data['statusDia'],
                 'statusMapSemana'        => $data['statusSemana'] ?? $data['statusDia'],
+                'statusMapMesAnterior'   => $data['statusMesAnterior'] ?? [],
+                'statusMapDiaAnterior'   => $data['statusDiaAnterior'] ?? [],
+                'statusMapSemanaAnterior'=> $data['statusSemanaAnterior'] ?? [],
                 'totalMesAtual'          => $data['totalMesAtual'],
                 'totalMesAnterior'       => $data['totalMesAnterior'],
                 'totalDiaAtual'          => $data['totalDiaAtual'],
                 'totalDiaAnterior'       => $data['totalDiaAnterior'],
                 'totalSemanaAtual'       => $data['totalSemanaAtual'] ?? $data['totalDiaAtual'],
                 'totalSemanaAnterior'    => $data['totalSemanaAnterior'] ?? $data['totalDiaAnterior'],
+                'totalCustoMesAtualSms'  => $data['totalCustoMesAtual'] ?? 0,
+                'totalCustoMesAnteriorSms' => $data['totalCustoMesAnterior'] ?? 0,
+                'totalCustoDiaAtualSms'  => $data['totalCustoDiaAtual'] ?? 0,
+                'totalCustoDiaAnteriorSms' => $data['totalCustoDiaAnterior'] ?? 0,
+                'totalCustoSemanaAtualSms' => $data['totalCustoSemanaAtual'] ?? 0,
+                'totalCustoSemanaAnteriorSms' => $data['totalCustoSemanaAnterior'] ?? 0,
 
                 'statusMapMesVoice'      => $dataVoice['statusMes'],
                 'statusMapDiaVoice'      => $dataVoice['statusDia'],
                 'statusMapSemanaVoice'   => $dataVoice['statusSemana'] ?? $dataVoice['statusDia'],
+                'statusMapMesAnteriorVoice' => $dataVoice['statusMesAnterior'] ?? [],
+                'statusMapDiaAnteriorVoice' => $dataVoice['statusDiaAnterior'] ?? [],
+                'statusMapSemanaAnteriorVoice' => $dataVoice['statusSemanaAnterior'] ?? [],
                 'totalMesAtualVoice'     => $dataVoice['totalMesAtual'],
                 'totalMesAnteriorVoice'  => $dataVoice['totalMesAnterior'],
                 'totalDiaAtualVoice'     => $dataVoice['totalDiaAtual'],
                 'totalDiaAnteriorVoice'  => $dataVoice['totalDiaAnterior'],
                 'totalSemanaAtualVoice'  => $dataVoice['totalSemanaAtual'] ?? $dataVoice['totalDiaAtual'],
                 'totalSemanaAnteriorVoice'=> $dataVoice['totalSemanaAnterior'] ?? $dataVoice['totalDiaAnterior'],
+                'totalCustoMesAtualVoice' => $dataVoice['totalCustoMesAtual'] ?? 0,
+                'totalCustoMesAnteriorVoice' => $dataVoice['totalCustoMesAnterior'] ?? 0,
+                'totalCustoDiaAtualVoice' => $dataVoice['totalCustoDiaAtual'] ?? 0,
+                'totalCustoDiaAnteriorVoice' => $dataVoice['totalCustoDiaAnterior'] ?? 0,
+                'totalCustoSemanaAtualVoice' => $dataVoice['totalCustoSemanaAtual'] ?? 0,
+                'totalCustoSemanaAnteriorVoice' => $dataVoice['totalCustoSemanaAnterior'] ?? 0,
 
                 'statusMapMesWhats'       => $whatsappCharts['statusMapMesWhats'],
                 'statusMapDiaWhats'       => $whatsappCharts['statusMapDiaWhats'],
@@ -1295,6 +1409,9 @@ class Dashboard extends ViewComponents
                 'costMapMesWhats'         => $whatsappCharts['costMapMesWhats'],
                 'costMapDiaWhats'         => $whatsappCharts['costMapDiaWhats'],
                 'costMapSemanaWhats'      => $whatsappCharts['costMapSemanaWhats'],
+                'categoryCostMesWhats'     => $whatsappCharts['categoryCostMesWhats'],
+                'categoryCostDiaWhats'     => $whatsappCharts['categoryCostDiaWhats'],
+                'categoryCostSemanaWhats'  => $whatsappCharts['categoryCostSemanaWhats'],
                 'companyCostMapMesWhats'  => $whatsappCharts['companyCostMapMesWhats'],
                 'companyCostMapDiaWhats'  => $whatsappCharts['companyCostMapDiaWhats'],
                 'companyCostMapSemanaWhats' => $whatsappCharts['companyCostMapSemanaWhats'],
@@ -1314,14 +1431,23 @@ class Dashboard extends ViewComponents
                 'sipCodeCountsDay'        => $sipCodesDay,
                 'sipCodeCountsWeek'       => $sipCodesWeek,
                 'sipCodeCountsMonth'      => $sipCodesMonth,
+                'sipCodeCountsDayPrevious' => $sipCodesDayPrevious,
+                'sipCodeCountsWeekPrevious' => $sipCodesWeekPrevious,
+                'sipCodeCountsMonthPrevious' => $sipCodesMonthPrevious,
                 'trunkCountsDay'          => $trunkCountsDay,
                 'trunkCountsWeek'         => $trunkCountsWeek,
                 'trunkCountsMonth'        => $trunkCountsMonth,
+                'trunkCountsDayPrevious'  => $trunkCountsDayPrevious,
+                'trunkCountsWeekPrevious' => $trunkCountsWeekPrevious,
+                'trunkCountsMonthPrevious'=> $trunkCountsMonthPrevious,
 
                 'totalOperator'          => $dataOperatorMonth ?? [],
                 'totalOperatorDay'       => $dataOperatorDay ?? [],
                 'totalOperatorWeek'      => $dataOperatorWeek ?? [],
                 'totalOperatorMonth'     => $dataOperatorMonth ?? [],
+                'totalOperatorDayPrevious' => $dataOperatorDayPrevious ?? [],
+                'totalOperatorWeekPrevious' => $dataOperatorWeekPrevious ?? [],
+                'totalOperatorMonthPrevious' => $dataOperatorMonthPrevious ?? [],
                 'totalPixValueMonth'     => $dataValuesPix,
                 'pixValues'              => $dataValuesPix,
                 'refillValues'           => $dataValuesPixRefill

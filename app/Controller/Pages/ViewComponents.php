@@ -271,7 +271,12 @@ class ViewComponents
         // Verificação pela rota pai ou rotas específicas
         if (self::hasPerm($userPerms, ['/reports'])) {
             $items .= self::buildMenuItem('/reports/sms-view', 'Sms', 'ni ni-archive-2', 'text-pink-600');
+            $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
             $items .= self::buildMenuItem('/reports/recharge-transactions', 'Recargas', 'ni ni-credit-card', 'text-violet-600');
+        }
+
+        if (!self::hasPerm($userPerms, ['/reports']) && self::hasPerm($userPerms, ['/reports/whatsapp'])) {
+            $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
         }
 
         // --- AQUI ESTAVA FALTANDO ---

@@ -16,16 +16,22 @@ class RatesResellers extends ViewComponents
     private static function canManageRate(array $obUser, array $rate): bool
     {
         $role = $obUser['function'] ?? '';
+        $tenancyId = (string)($obUser['tenancy_id'] ?? '');
+
+        if ($tenancyId === '' || (string)($rate['tenancy_id'] ?? '') !== $tenancyId) {
+            return false;
+        }
 
         if (in_array($role, ['admin', 'super_admin'])) {
             return true;
         }
 
-        if ($role === 'reseller') {
-            return (int)$rate['user_id'] === (int)$obUser['id'];
-        }
-
         return false;
+    }
+
+    private static function isAdminUser(array $obUser): bool
+    {
+        return in_array($obUser['function'] ?? '', ['admin', 'super_admin'], true);
     }
 
     public static function getRates(): Response|string
@@ -65,9 +71,19 @@ class RatesResellers extends ViewComponents
             $ratesByUser[$rate['user_id']][] = $rate;
         }
 
+        $whatsAppRatesByReseller = [];
+        foreach (Rates::getWhatsAppCategoryRates($tenancyId, $filterId) as $rate) {
+            $resellerId = (int)$rate['reseller_id'];
+            $whatsAppRatesByReseller[$resellerId][$rate['category']] = $rate;
+        }
+
         $result = [];
         foreach ($usersResellers as $reseller) {
             $userId = $reseller['id'];
+            if (!empty($whatsAppRatesByReseller[$userId])) {
+                $ratesByUser[$userId][] = self::buildWhatsAppCategoryRateRow($userId, $tenancyId, $whatsAppRatesByReseller[$userId]);
+            }
+
             $result[] = [
                 'reseller_id'    => $userId,
                 'reseller_name'  => $reseller['name'],
@@ -86,6 +102,43 @@ class RatesResellers extends ViewComponents
         ], 'application/json');
     }
 
+    private static function buildWhatsAppCategoryRateRow(int $resellerId, string $tenancyId, array $rows): array
+    {
+        $prices = [
+            'marketing' => 0,
+            'utility' => 0,
+            'authentication' => 0,
+        ];
+        $status = 'active';
+        $updatedAt = null;
+
+        foreach ($prices as $category => $_) {
+            if (!isset($rows[$category])) {
+                continue;
+            }
+
+            $prices[$category] = round((float)$rows[$category]['price_brl'], 4);
+            if (($rows[$category]['status'] ?? 'active') === 'inactive') {
+                $status = 'inactive';
+            }
+            $updatedAt = max((string)($updatedAt ?? ''), (string)($rows[$category]['updated_at'] ?? ''));
+        }
+
+        return [
+            'id' => 'wa_' . $resellerId,
+            'user_id' => $resellerId,
+            'tenancy_id' => $tenancyId,
+            'type' => 'whatsapp',
+            'name' => 'WhatsApp por template',
+            'rate' => $prices['marketing'],
+            'status' => $status,
+            'created_at' => $updatedAt ?: date('Y-m-d H:i:s'),
+            'updated_at' => $updatedAt ?: date('Y-m-d H:i:s'),
+            'managed_kind' => 'whatsapp_categories',
+            'whatsapp_category_rates' => $prices,
+        ];
+    }
+
     // ==========================================================
     // CREATE
     // ==========================================================
@@ -102,20 +155,40 @@ class RatesResellers extends ViewComponents
 
             $role = $obUser['function'] ?? '';
 
-            // 🔒 TRAVA: reseller só cria para ele mesmo
-            if ($role === 'reseller') {
-                $userId = (int)$obUser['id'];
-            } else {
-                $userId = (int) ($ratesData['usuario_id'] ?? 0);
+            if (!self::isAdminUser($obUser)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Sem permissão para criar tarifa.'
+                ], 'application/json');
             }
+
+            $userId = (int) ($ratesData['usuario_id'] ?? 0);
 
             $rateType  = (string) ($ratesData['type'] ?? '');
             $rateName  = (string) ($ratesData['nome_tarifa'] ?? '');
-            $rateValue = (float) ($ratesData['valor_tarifa'] ?? 0);
+            $rateValue = self::parseRateValue($ratesData['valor_tarifa'] ?? 0);
 
             if ($userId <= 0) throw new \Exception("Usuário inválido.");
+            if (!self::isResellerInTenancy($obUser['tenancy_id'], $userId)) {
+                throw new \Exception("Revendedor inválido para esta empresa.");
+            }
             if ($rateType === '') throw new \Exception("Tipo da tarifa é obrigatório.");
+            if (!self::isAllowedRateType($rateType)) throw new \Exception("Tipo da tarifa inválido.");
             if (trim($rateName) === '') throw new \Exception("Nome da tarifa é obrigatório.");
+
+            if ($rateType === 'whatsapp') {
+                Rates::upsertWhatsAppCategoryRates(
+                    $obUser['tenancy_id'],
+                    $userId,
+                    self::extractWhatsAppCategoryPrices($ratesData)
+                );
+
+                return new Response(200, [
+                    'status'  => 200,
+                    'message' => 'Tarifas WhatsApp por template criadas com sucesso.',
+                    'rate-id' => 'wa_' . $userId
+                ], 'application/json');
+            }
 
             $serviceEvent = $ratesData['service_event'] ?? null;
             $serviceScope = $ratesData['service_scope'] ?? null;
@@ -171,7 +244,45 @@ class RatesResellers extends ViewComponents
 
         $dataRates = $request->getPostVars();
 
-        $rateId = (int)$dataRates['id'] ?? 0;
+        $rawRateId = (string)($dataRates['id'] ?? '');
+        $rateId = (int)$rawRateId;
+
+        if (($dataRates['type'] ?? '') === 'whatsapp') {
+            if (!self::isAdminUser($obUser)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Sem permissão para editar tarifa.'
+                ], 'application/json');
+            }
+
+            $resellerId = self::resolveWhatsAppRateResellerId($obUser, $dataRates, $rawRateId);
+
+            if ($resellerId <= 0) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Revendedor inválido para tarifa WhatsApp.'
+                ], 'application/json');
+            }
+
+            if (!self::isResellerInTenancy($obUser['tenancy_id'], $resellerId)) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Revendedor inválido para esta empresa.'
+                ], 'application/json');
+            }
+
+            Rates::upsertWhatsAppCategoryRates(
+                $obUser['tenancy_id'],
+                $resellerId,
+                self::extractWhatsAppCategoryPrices($dataRates)
+            );
+
+            return new Response(200, [
+                'status' => 200,
+                'message' => 'Tarifas WhatsApp por template atualizadas.'
+            ], 'application/json');
+        }
+
         $current = Rates::getRateById($rateId);
 
         if (!$current || !self::canManageRate($obUser, (array)$current)) {
@@ -185,15 +296,78 @@ class RatesResellers extends ViewComponents
 
         $fields = [];
         if (isset($dataRates['nome_tarifa'])) $fields['name'] = $dataRates['nome_tarifa'];
-        if (isset($dataRates['type'])) $fields['type'] = $dataRates['type'];
-        if (isset($dataRates['valor_tarifa'])) $fields['rate'] = $dataRates['valor_tarifa'];
+        if (isset($dataRates['type'])) {
+            if (!self::isAllowedRateType((string)$dataRates['type'])) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Tipo da tarifa inválido.'
+                ], 'application/json');
+            }
+            $fields['type'] = $dataRates['type'];
+        }
+        if (isset($dataRates['valor_tarifa'])) $fields['rate'] = self::parseRateValue($dataRates['valor_tarifa']);
 
-        $success = Rates::updateRate($rateId, $fields);
+        $success = Rates::updateRate($rateId, $fields, $obUser['tenancy_id']);
 
         return new Response(200, [
             'status' => 200,
             'message' => 'Atualizado com sucesso.'
         ], 'application/json');
+    }
+
+    private static function extractWhatsAppCategoryPrices(array $data): array
+    {
+        $fallback = (float)($data['valor_tarifa'] ?? 0);
+
+        return [
+            'marketing' => self::parseRateValue($data['whatsapp_marketing'] ?? $fallback),
+            'utility' => self::parseRateValue($data['whatsapp_utility'] ?? $fallback),
+            'authentication' => self::parseRateValue($data['whatsapp_authentication'] ?? $fallback),
+        ];
+    }
+
+    private static function parseRateValue(mixed $value): float
+    {
+        if (is_numeric($value)) {
+            return round(max(0, (float)$value), 4);
+        }
+
+        $normalized = str_replace(['.', ','], ['', '.'], trim((string)$value));
+        return round(max(0, (float)$normalized), 4);
+    }
+
+    private static function isAllowedRateType(string $type): bool
+    {
+        return in_array($type, ['sms', 'whatsapp', 'voice', 'torpedo', 'service_fee'], true);
+    }
+
+    private static function isAllowedStatus(string $status): bool
+    {
+        return in_array($status, ['active', 'inactive'], true);
+    }
+
+    private static function resolveWhatsAppRateResellerId(array $obUser, array $data, string $rawRateId): int
+    {
+        if (($obUser['function'] ?? '') === 'reseller') {
+            return (int)$obUser['id'];
+        }
+
+        if (preg_match('/^wa_(\d+)$/', $rawRateId, $matches)) {
+            return (int)$matches[1];
+        }
+
+        return (int)($data['usuario_id'] ?? 0);
+    }
+
+    private static function isResellerInTenancy(string $tenancyId, int $userId): bool
+    {
+        foreach (UserSearch::getResellers($tenancyId, $userId) as $reseller) {
+            if ((int)($reseller['id'] ?? 0) === $userId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function getUsersForRateSelect(): Response|array
@@ -239,11 +413,36 @@ class RatesResellers extends ViewComponents
     // ==========================================================
     // DELETE
     // ==========================================================
-    public static function setDeleteRatesUsers($request, int $Id): Response|array
+    public static function setDeleteRatesUsers($request, mixed $Id): Response|array
     {
         $obUser = SessionUser::getLogged();
+        $rawId = (string)$Id;
 
-        $current = Rates::getRateById($Id);
+        if (preg_match('/^wa_(\d+)$/', $rawId, $matches)) {
+            if (!self::isAdminUser($obUser)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Sem permissão para deletar.'
+                ], 'application/json');
+            }
+
+            if (!self::isResellerInTenancy($obUser['tenancy_id'], (int)$matches[1])) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Revendedor inválido para esta empresa.'
+                ], 'application/json');
+            }
+
+            Rates::deleteWhatsAppCategoryRates($obUser['tenancy_id'], (int)$matches[1]);
+
+            return new Response(200, [
+                'status' => 200,
+                'message' => 'Tarifa WhatsApp deletada com sucesso.'
+            ], 'application/json');
+        }
+
+        $rateId = (int)$rawId;
+        $current = Rates::getRateById($rateId);
 
         if (!$current || !self::canManageRate($obUser, (array)$current)) {
             return new Response(403, [
@@ -252,7 +451,7 @@ class RatesResellers extends ViewComponents
             ], 'application/json');
         }
 
-        Rates::deleteRate($Id, $obUser['tenancy_id']);
+        Rates::deleteRate($rateId, $obUser['tenancy_id']);
 
         return new Response(200, [
             'status' => 200,
@@ -268,8 +467,40 @@ class RatesResellers extends ViewComponents
         $obUser = SessionUser::getLogged();
         $data = $request->getPostVars();
 
-        $rateId = (int)$data['id'];
-        $status = $data['status'];
+        $rawRateId = (string)($data['id'] ?? '');
+        $rateId = (int)$rawRateId;
+        $status = (string)($data['status'] ?? '');
+
+        if (!self::isAllowedStatus($status)) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Status inválido.'
+            ], 'application/json');
+        }
+
+        if (preg_match('/^wa_(\d+)$/', $rawRateId, $matches)) {
+            $resellerId = (int)$matches[1];
+            if (!self::isAdminUser($obUser)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Sem permissão.'
+                ], 'application/json');
+            }
+
+            if (!self::isResellerInTenancy($obUser['tenancy_id'], $resellerId)) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Revendedor inválido para esta empresa.'
+                ], 'application/json');
+            }
+
+            Rates::updateWhatsAppCategoryRatesStatus($obUser['tenancy_id'], $resellerId, $status);
+
+            return new Response(200, [
+                'status' => 200,
+                'message' => 'Status WhatsApp atualizado.'
+            ], 'application/json');
+        }
 
         $current = Rates::getRateById($rateId);
 

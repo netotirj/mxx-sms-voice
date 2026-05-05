@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_number_quality_events (
 
 CREATE TABLE IF NOT EXISTS plan_whatsapp_pricing (
     plan_id INT UNSIGNED NOT NULL,
-    category ENUM('marketing', 'utility') NOT NULL,
+    category ENUM('marketing', 'utility', 'authentication') NOT NULL,
     price_brl DECIMAL(10, 4) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -133,14 +133,20 @@ FROM tenancy_balance
 WHERE plan_id IS NOT NULL
 ON DUPLICATE KEY UPDATE price_brl = price_brl;
 
+INSERT INTO plan_whatsapp_pricing (plan_id, category, price_brl, created_at, updated_at)
+SELECT DISTINCT plan_id, 'authentication', 0.0400, NOW(), NOW()
+FROM tenancy_balance
+WHERE plan_id IS NOT NULL
+ON DUPLICATE KEY UPDATE price_brl = price_brl;
+
 ALTER TABLE whatsapp_messages
-    ADD COLUMN IF NOT EXISTS message_category ENUM('marketing', 'utility', 'service') NULL AFTER service_window_open,
+    ADD COLUMN IF NOT EXISTS message_category ENUM('marketing', 'utility', 'authentication', 'service') NULL AFTER service_window_open,
     ADD COLUMN IF NOT EXISTS price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0 AFTER message_category,
     ADD COLUMN IF NOT EXISTS billed TINYINT(1) NOT NULL DEFAULT 0 AFTER price_brl,
     ADD INDEX IF NOT EXISTS idx_whatsapp_messages_billing (message_category, billed, created_at);
 
 ALTER TABLE whatsapp_outbox
-    ADD COLUMN IF NOT EXISTS message_category ENUM('marketing', 'utility', 'service') NOT NULL DEFAULT 'service' AFTER service_window_open,
+    ADD COLUMN IF NOT EXISTS message_category ENUM('marketing', 'utility', 'authentication', 'service') NOT NULL DEFAULT 'service' AFTER service_window_open,
     ADD COLUMN IF NOT EXISTS price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0 AFTER message_category,
     ADD COLUMN IF NOT EXISTS billed TINYINT(1) NOT NULL DEFAULT 0 AFTER price_brl,
     ADD INDEX IF NOT EXISTS idx_whatsapp_outbox_billing (message_category, billed, status);
@@ -151,7 +157,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_message_cdr (
     tenancy_id VARCHAR(64) NOT NULL,
     type VARCHAR(32) NOT NULL DEFAULT 'whatsapp',
     phone_number VARCHAR(32) NOT NULL,
-    message_category ENUM('marketing', 'utility', 'service') NOT NULL,
+    message_category ENUM('marketing', 'utility', 'authentication', 'service') NOT NULL,
     template_name VARCHAR(160) NULL,
     direction ENUM('outbound', 'inbound') NOT NULL,
     price_brl DECIMAL(10, 4) NOT NULL DEFAULT 0,

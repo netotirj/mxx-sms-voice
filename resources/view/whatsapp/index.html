@@ -190,8 +190,8 @@
                                 <input id="wa-new-chat-template-language" type="text" value="en_US" placeholder="Ex: en_US">
                             </label>
                             <label class="wa-field md:col-span-2">
-                                <span>Componentes</span>
-                                <textarea id="wa-new-chat-template-components" rows="2" placeholder='Opcional: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                                <span>Valores das variáveis (JSON)</span>
+                                <textarea id="wa-new-chat-template-components" rows="2" placeholder='Ex: {"valor_plano":"R$ 99,90","link_ativacao":"https://..."}'></textarea>
                             </label>
                         </div>
                         <label id="wa-new-chat-message-field" class="wa-field hidden">
@@ -242,12 +242,12 @@
                             </label>
                                 <p class="text-[11px] text-slate-500 mb-0 md:col-span-1">O status será retornado pela Meta após a análise.</p>
                             <label class="wa-field md:col-span-5">
-                                <span>Texto de referência</span>
+                                <span>Texto que será aprovado pela Meta</span>
                                 <textarea id="wa-template-body" rows="3" placeholder="Ex: Olá {{1}}, sua oferta está disponível até {{2}}."></textarea>
                             </label>
                             <label class="wa-field md:col-span-5">
-                                <span>Componentes JSON opcional</span>
-                                <textarea id="wa-template-components" rows="3" placeholder='Opcional para criação na Meta: [{"type":"BODY","text":"Olá {{1}}"}]'></textarea>
+                                <span>Estrutura Meta avançada (JSON)</span>
+                                <textarea id="wa-template-components" rows="3" placeholder='Não é HTML. Ex: [{"type":"BODY","text":"Olá {{1}}"},{"type":"BUTTONS","buttons":[{"type":"URL","text":"Abrir","url":"https://exemplo.com.br/{{2}}"}]}]'></textarea>
                             </label>
                         </div>
 
@@ -276,6 +276,70 @@
                         </div>
                         <div id="wa-campaign-list" class="max-h-96 overflow-y-auto border border-slate-100 rounded-2xl p-2">
                             <div class="text-center text-slate-400 text-xs italic p-4">Carregando campanhas...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wa-campaign-contact-modal" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden">
+                        <div class="flex items-start justify-between gap-4 p-5 border-b border-slate-100">
+                            <div class="flex items-center gap-3">
+                                <span class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                    <i class="fa fa-cloud-arrow-up"></i>
+                                </span>
+                                <div>
+                                    <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Destinatários</p>
+                                    <h6 class="text-slate-700 text-base font-black mb-0 uppercase">Importar planilha</h6>
+                                    <p class="text-xs text-slate-400 mb-0">CSV, XLS ou XLSX com prévia e mapeamento antes de confirmar.</p>
+                                </div>
+                            </div>
+                            <button id="wa-campaign-contact-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <div class="p-5 overflow-y-auto flex-1">
+                            <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px_220px] gap-3 mb-4">
+                                <div class="wa-field">
+                                    <span>Arquivo</span>
+                                    <label for="wa-campaign-contact-file" class="flex items-center justify-center h-[46px] border-2 border-dashed border-slate-200 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all">
+                                        <span id="wa-campaign-contact-file-name" class="text-xs font-bold text-slate-500"><i class="fa fa-file-excel mr-1"></i> Selecionar arquivo...</span>
+                                    </label>
+                                    <input id="wa-campaign-contact-file" type="file" accept=".csv,.xls,.xlsx" class="hidden">
+                                </div>
+                                <label class="wa-field">
+                                    <span>Coluna do telefone</span>
+                                    <select id="wa-campaign-contact-phone-map"></select>
+                                </label>
+                                <label class="wa-field">
+                                    <span>Coluna do nome</span>
+                                    <select id="wa-campaign-contact-name-map"></select>
+                                </label>
+                            </div>
+
+                            <div id="wa-campaign-contact-summary" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 hidden"></div>
+                            <p id="wa-campaign-contact-feedback" class="text-xs font-bold mb-3 min-h-4"></p>
+
+                            <div id="wa-campaign-contact-preview" class="hidden border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                <div class="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between gap-3">
+                                    <span class="text-[10px] font-black text-slate-500 uppercase">Prévia dos contatos</span>
+                                    <span id="wa-campaign-contact-preview-count" class="text-[10px] font-bold text-slate-400"></span>
+                                </div>
+                                <div class="overflow-auto max-h-[330px]">
+                                    <table class="w-full text-xs text-left text-slate-600">
+                                        <thead class="sticky top-0 bg-slate-100 font-black uppercase text-[9px] text-slate-500">
+                                            <tr id="wa-campaign-contact-preview-head"></tr>
+                                        </thead>
+                                        <tbody id="wa-campaign-contact-preview-body" class="divide-y divide-slate-100"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <p class="text-[11px] text-slate-500 font-bold mb-0">As colunas extras viram variáveis do template, como valor_plano e link_ativacao.</p>
+                            <div class="flex gap-2 w-full sm:w-auto">
+                                <button id="wa-campaign-contact-cancel" type="button" class="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-white text-slate-500 text-xs font-black uppercase border border-slate-200">Cancelar</button>
+                                <button id="wa-campaign-contact-confirm" type="button" class="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase shadow disabled:opacity-40" disabled>Confirmar contatos</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -378,6 +442,18 @@
                                     </svg>
                                 </button>
                             </div>
+                            <div id="wa-template-composer" class="hidden mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+                                    <div>
+                                        <p class="text-[10px] font-black uppercase text-amber-700 mb-1">Janela de 24h encerrada</p>
+                                        <p class="text-xs text-amber-700 mb-0">Selecione um template aprovado para reabrir a conversa.</p>
+                                    </div>
+                                    <select id="wa-current-template-select" class="min-w-[220px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Selecionar template...</option>
+                                    </select>
+                                </div>
+                                <div id="wa-current-template-fields" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+                            </div>
                             <p id="wa-send-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
                         </div>
                     </div>
@@ -426,10 +502,18 @@
                                     </select>
                                 </label>
                                 <label class="wa-field">
-                                    <span>Agendar para</span>
-                                    <input id="wa-campaign-scheduled-at" type="datetime-local">
+                                    <span>Envio</span>
+                                    <select id="wa-campaign-send-mode">
+                                        <option value="now" selected>Disparar agora</option>
+                                        <option value="schedule">Agendar / salvar para depois</option>
+                                    </select>
                                 </label>
                             </div>
+                            <label id="wa-campaign-scheduled-field" class="wa-field hidden">
+                                <span>Agendar para</span>
+                                <input id="wa-campaign-scheduled-at" type="datetime-local">
+                                <small class="text-[11px] text-slate-500">A campanha fica salva na lista para envio agendado ou manual.</small>
+                            </label>
                             <div id="wa-campaign-template-fields">
                                 <label class="wa-field">
                                     <span>Usar template salvo</span>
@@ -447,22 +531,37 @@
                                         <input id="wa-campaign-template-language" type="text" value="pt_BR">
                                     </label>
                                 </div>
-                                <label class="wa-field">
-                                    <span>Componentes JSON</span>
-                                    <textarea id="wa-campaign-template-components" rows="3" placeholder='Opcional: [{"type":"body","parameters":[{"type":"text","text":"Neto"}]}]'></textarea>
+                                <label id="wa-campaign-template-components-field" class="wa-field">
+                                    <span>Valores das variáveis (JSON)</span>
+                                    <textarea id="wa-campaign-template-components" rows="3" placeholder='Ex: {"plan_id":1,"link_ativacao":"https://..."}'></textarea>
+                                    <small class="text-[11px] text-slate-500">Preencha aqui valores fixos da campanha. Se a variável vier na planilha, use uma coluna com o mesmo nome.</small>
                                 </label>
+                                <div id="wa-campaign-variable-fields" class="hidden rounded-xl border border-slate-100 bg-slate-50 p-3 mb-3"></div>
                             </div>
                             <label id="wa-campaign-message-body-field" class="wa-field hidden">
                                 <span>Mensagem</span>
                                 <textarea id="wa-campaign-message-body" rows="4" placeholder="Mensagem livre dentro da janela de 24h"></textarea>
                             </label>
-                            <label class="wa-field">
-                                <span>Destinatários</span>
-                                <textarea id="wa-campaign-recipients" rows="6" placeholder="Um telefone por linha, com DDI e DDD. Ex: 5511999999999"></textarea>
-                            </label>
+                            <div class="wa-field">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span>Destinatários</span>
+                                    <button id="wa-campaign-import-contacts" type="button" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">
+                                        <i class="fa fa-file-arrow-up mr-1"></i> Importar planilha
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_44px] gap-2 mb-2">
+                                    <input id="wa-campaign-manual-name" type="text" placeholder="Nome (opcional)">
+                                    <input id="wa-campaign-manual-phone" type="text" inputmode="numeric" placeholder="Telefone">
+                                    <button id="wa-campaign-add-manual-contact" type="button" class="h-[44px] rounded-xl bg-slate-900 text-white text-xs font-black" title="Adicionar contato">
+                                        <i class="fa fa-plus"></i>
+                                    </button>
+                                </div>
+                                <textarea id="wa-campaign-recipients" rows="6" placeholder="telefone;nome;valor_plano;link_ativacao"></textarea>
+                                <p id="wa-campaign-recipient-summary" class="text-[11px] text-slate-400 font-bold mt-1 mb-0">Digite manualmente ou importe uma planilha com telefone, nome e variáveis.</p>
+                            </div>
                             <p id="wa-campaign-form-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
                             <div class="flex justify-end gap-2 mt-4">
-                                <button id="wa-campaign-create" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Criar campanha</button>
+                                <button id="wa-campaign-create" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Disparar campanha</button>
                             </div>
                         </div>
 
@@ -502,7 +601,50 @@
                     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 p-4">
                         <div class="xl:col-span-5 border border-slate-100 rounded-2xl p-4">
                             <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">Novo template</p>
-                            <h6 class="text-sm font-black text-slate-700 mb-4 uppercase">Template aprovado na Meta</h6>
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                                <h6 class="text-sm font-black text-slate-700 mb-0 uppercase">Criar template</h6>
+                                <div class="flex flex-nowrap items-center gap-1.5 min-w-0">
+                                    <button id="wa-page-template-new" type="button" class="wa-template-action-btn shrink-0 px-2.5 py-2 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase whitespace-nowrap" data-wa-tooltip="Criar do zero">
+                                        <i class="fa fa-plus mr-1"></i>Criar
+                                    </button>
+                                    <button id="wa-page-template-use-model" type="button" class="wa-template-action-btn shrink-0 px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase whitespace-nowrap" data-wa-tooltip="Usar template pronto">
+                                        <i class="fa fa-layer-group mr-1"></i>Modelo
+                                    </button>
+                                    <button id="wa-page-template-paste-ai" type="button" class="wa-template-action-btn wa-template-action-btn--ai shrink-0 px-2.5 py-2 rounded-lg text-[10px] font-black uppercase whitespace-nowrap" data-wa-tooltip="Colar modelo da IA">
+                                        <i class="fa fa-wand-magic-sparkles mr-1"></i>Colar IA
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="wa-template-model-panel" class="hidden mb-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <label class="wa-field">
+                                        <span>Categoria dos modelos</span>
+                                        <select id="wa-template-model-category">
+                                            <option value="">Todas</option>
+                                            <option value="UTILITY">Utilidade</option>
+                                            <option value="MARKETING">Marketing</option>
+                                            <option value="AUTHENTICATION">Autenticação</option>
+                                        </select>
+                                    </label>
+                                    <label class="wa-field">
+                                        <span>Modelo disponível</span>
+                                        <select id="wa-template-model-select">
+                                            <option value="">Carregando modelos...</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <p id="wa-template-model-feedback" class="text-[11px] font-bold text-blue-700 mt-2 mb-0"></p>
+                            </div>
+                            <div id="wa-template-ai-panel" class="hidden mb-3 rounded-xl border border-violet-100 bg-violet-50 p-3">
+                                <label class="wa-field">
+                                    <span>Colar texto do template</span>
+                                    <textarea id="wa-template-ai-text" rows="5" placeholder="Cole aqui o texto gerado por IA ou um template pronto. Ex: Olá {{nome}}, planos a partir de {{valor}}. Ative: {{link}}"></textarea>
+                                </label>
+                                <div class="flex flex-wrap justify-between gap-2">
+                                    <p class="text-[11px] text-violet-700 font-bold mb-0">O sistema converte variáveis como {{nome}}, {{valor}} e {{link}} para o formato da Meta: {{1}}, {{2}}, {{3}}.</p>
+                                    <button id="wa-template-ai-apply" type="button" class="px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold uppercase">Aplicar texto</button>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label class="wa-field">
                                     <span>Nome na Meta</span>
@@ -525,16 +667,26 @@
                                 <p class="text-[11px] text-slate-500 mb-0">O status será sincronizado da Meta.</p>
                             </div>
                             <label class="wa-field">
-                                <span>Texto de referência</span>
-                                <textarea id="wa-page-template-body" rows="4" placeholder="Ex: Sua fatura vence em {{1}}."></textarea>
+                                <span>Texto que será aprovado pela Meta</span>
+                                <textarea id="wa-page-template-body" rows="4" placeholder="Ex: Olá {{1}}, planos a partir de {{2}}. Ative agora: {{3}}"></textarea>
+                                <small class="text-[11px] text-slate-500">Use {{1}}, {{2}}, {{3}} como espaços. Os valores reais entram no envio ou na campanha.</small>
                             </label>
                             <label class="wa-field">
-                                <span>Componentes JSON opcional</span>
-                                <textarea id="wa-page-template-components" rows="3" placeholder='Opcional para criação na Meta: [{"type":"BODY","text":"Olá {{1}}"}]'></textarea>
+                                <span>Estrutura Meta avançada (JSON)</span>
+                                <textarea id="wa-page-template-components" rows="3" placeholder='Ex com botão: [{"type":"BODY","text":"Olá {{1}}, veja o plano {{2}}."},{"type":"BUTTONS","buttons":[{"type":"URL","text":"Ativar agora","url":"https://exemplo.com.br/{{3}}"}]}]'></textarea>
+                                <small class="text-[11px] text-slate-500">Não é HTML. Use apenas para estrutura oficial da Meta: HEADER, BODY, FOOTER, botões ou mídia. Se deixar vazio, o sistema monta o BODY a partir do texto acima.</small>
                             </label>
+                            <div class="wa-field">
+                                <span>Preenchimento das variáveis</span>
+                                <div id="wa-page-template-variable-editor" class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                    <p class="text-[11px] text-slate-500 mb-0">Digite variáveis no texto, como {{1}}, {{2}}, para configurar o preenchimento.</p>
+                                </div>
+                                <textarea id="wa-page-template-variable-map" class="hidden" rows="3"></textarea>
+                                <small class="text-[11px] text-slate-500">Cada linha vira uma coluna esperada na planilha/JSON ou uma regra automática do sistema.</small>
+                            </div>
                             <p id="wa-page-template-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
                             <div class="flex justify-end gap-2 mt-4">
-                                <button id="wa-template-sync" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Sincronizar</button>
+                                <button id="wa-template-sync" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Sincronizar templates da Meta</button>
                                 <button id="wa-page-template-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Enviar à Meta</button>
                             </div>
                         </div>
@@ -657,6 +809,7 @@
         const newChatModal = document.getElementById('wa-new-chat-modal');
         const templateModal = document.getElementById('wa-template-modal');
         const campaignModal = document.getElementById('wa-campaign-modal');
+        const campaignContactModal = document.getElementById('wa-campaign-contact-modal');
         const accountSelect = document.getElementById('wa-account-select');
         const accountLabel = document.getElementById('wa-current-account-label');
         const chatList = document.getElementById('wa-chat-list');
@@ -669,6 +822,9 @@
         const audioInput = document.getElementById('wa-audio-input');
         const audioBtn = document.getElementById('wa-btn-audio');
         const sendFeedback = document.getElementById('wa-send-feedback');
+        const templateComposer = document.getElementById('wa-template-composer');
+        const currentTemplateSelect = document.getElementById('wa-current-template-select');
+        const currentTemplateFields = document.getElementById('wa-current-template-fields');
         const searchInput = document.getElementById('wa-chat-search');
         const refreshConversationsBtn = document.getElementById('wa-refresh-conversations');
         const deleteConversationBtn = document.getElementById('wa-delete-conversation');
@@ -688,12 +844,25 @@
         const campaignSectionList = document.getElementById('wa-campaign-section-list');
         const campaignTemplateSelect = document.getElementById('wa-campaign-template-select');
         const campaignMessageType = document.getElementById('wa-campaign-message-type');
+        const campaignSendMode = document.getElementById('wa-campaign-send-mode');
         const campaignTemplateFields = document.getElementById('wa-campaign-template-fields');
         const campaignMessageBodyField = document.getElementById('wa-campaign-message-body-field');
+        const campaignRecipientsField = document.getElementById('wa-campaign-recipients');
+        const campaignRecipientSummary = document.getElementById('wa-campaign-recipient-summary');
+        const campaignContactFile = document.getElementById('wa-campaign-contact-file');
+        const campaignContactPhoneMap = document.getElementById('wa-campaign-contact-phone-map');
+        const campaignContactNameMap = document.getElementById('wa-campaign-contact-name-map');
+        const campaignContactFeedback = document.getElementById('wa-campaign-contact-feedback');
+        const campaignContactSummary = document.getElementById('wa-campaign-contact-summary');
+        const campaignContactConfirm = document.getElementById('wa-campaign-contact-confirm');
         const templateSection = document.getElementById('wa-template-section');
         const accountSection = document.getElementById('wa-account-section');
         const safetySection = document.getElementById('wa-safety-section');
         const pageTemplateList = document.getElementById('wa-page-template-list');
+        const templateModelPanel = document.getElementById('wa-template-model-panel');
+        const templateModelCategory = document.getElementById('wa-template-model-category');
+        const templateModelSelect = document.getElementById('wa-template-model-select');
+        const templateModelFeedback = document.getElementById('wa-template-model-feedback');
         const pageAccountList = document.getElementById('wa-page-account-list');
         const numberList = document.getElementById('wa-number-list');
         const numberRequestList = document.getElementById('wa-number-request-list');
@@ -720,6 +889,7 @@
         let accounts = [];
         let conversations = [];
         let templates = [];
+        let templateModels = [];
         let campaigns = [];
         let numberHealth = [];
         let numbers = [];
@@ -737,6 +907,10 @@
         let activeBusinessProfileAccountId = null;
         let activeBusinessProfilePhotoFile = null;
         let activeBusinessProfilePhotoUrl = '';
+        const pendingCampaignSends = new Set();
+        let newChatSendBusy = false;
+        let campaignUploadRows = [];
+        let campaignUploadHeaders = [];
 
         const notify = (type, message) => {
             if (typeof notyf !== 'undefined' && notyf && typeof notyf[type] === 'function') {
@@ -934,9 +1108,9 @@
         function sendErrorFeedback(message = '') {
             const text = String(message || '').toLowerCase();
             if (text.includes('24') || text.includes('janela') || text.includes('template aprovado')) {
-                return 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.';
+                return 'Janela de 24h encerrada. Use um template aprovado para enviar nova mensagem.';
             }
-            return 'Mensagem não enviada.';
+            return message || 'Mensagem não enviada.';
         }
 
         function displayNameStatusLabel(status = '') {
@@ -956,7 +1130,9 @@
                 draft: 'Rascunho',
                 rejected: 'Rejeitado',
                 paused: 'Pausado',
-                disabled: 'Desativado'
+                disabled: 'Desativado',
+                ready_to_submit: 'Pronto para enviar',
+                review_manual: 'Revisão manual'
             }[value] || status || 'Pendente';
         }
 
@@ -968,7 +1144,9 @@
                 draft: 'bg-slate-100 text-slate-500',
                 rejected: 'bg-red-50 text-red-700',
                 paused: 'bg-orange-50 text-orange-700',
-                disabled: 'bg-slate-200 text-slate-600'
+                disabled: 'bg-slate-200 text-slate-600',
+                ready_to_submit: 'bg-blue-50 text-blue-700',
+                review_manual: 'bg-red-50 text-red-700'
             }[value] || 'bg-slate-100 text-slate-500';
         }
 
@@ -1691,6 +1869,301 @@
             }
         }
 
+        async function loadTemplateModels(category = '') {
+            if (!templateModelSelect) return;
+            templateModelSelect.innerHTML = '<option value="">Carregando modelos...</option>';
+            setTextFeedback(templateModelFeedback, '', null);
+
+            try {
+                const query = category ? `?category=${encodeURIComponent(category)}` : '';
+                const sourceQuery = query ? `${query}&source=blueprints` : '?source=blueprints';
+                const result = await api(`/campaign/whatsapp/templates/library${sourceQuery}`);
+                templateModels = Array.isArray(result.data) ? result.data : [];
+                templateModelSelect.innerHTML = '<option value="">Selecionar modelo...</option>';
+                templateModels.forEach((model) => {
+                    const option = document.createElement('option');
+                    option.value = String(model.id || model.name);
+                    const source = model.source_label || (model.source === 'system_approved' ? 'Sistema aprovado' : 'Modelo pronto');
+                    option.textContent = `${source}: ${model.name} (${whatsappCategoryLabel(model.category)})`;
+                    templateModelSelect.appendChild(option);
+                });
+                setTextFeedback(templateModelFeedback, result.message || 'Modelos carregados.', true);
+            } catch (error) {
+                templateModels = [];
+                templateModelSelect.innerHTML = '<option value="">Falha ao carregar modelos</option>';
+                setTextFeedback(templateModelFeedback, error.message, false);
+            }
+        }
+
+        function clearPageTemplateForm() {
+            ['name', 'body', 'components', 'variable-map'].forEach((suffix) => {
+                const input = document.getElementById(`wa-page-template-${suffix}`);
+                if (input) input.value = '';
+            });
+            const language = document.getElementById('wa-page-template-language');
+            if (language) language.value = 'pt_BR';
+            const category = document.getElementById('wa-page-template-category');
+            if (category) category.value = 'UTILITY';
+            setTextFeedback(document.getElementById('wa-page-template-feedback'), '', null);
+            renderTemplateVariableEditor();
+        }
+
+        function applyTemplateModel(modelId) {
+            const model = templateModels.find((item) => String(item.id || item.name) === String(modelId));
+            if (!model) return;
+
+            document.getElementById('wa-page-template-name').value = normalizeTemplateName(model.suggested_name || model.name || '');
+            document.getElementById('wa-page-template-language').value = model.language || 'pt_BR';
+            document.getElementById('wa-page-template-category').value = String(model.category || 'UTILITY').toUpperCase();
+            document.getElementById('wa-page-template-body').value = model.body || '';
+            document.getElementById('wa-page-template-variable-map').value = JSON.stringify(model.variable_map || {}, null, 2);
+            document.getElementById('wa-page-template-components').value = modelNeedsAdvancedComponents(model)
+                ? JSON.stringify(templateModelComponents(model), null, 2)
+                : '';
+            renderTemplateVariableEditor();
+        }
+
+        function templateModelComponents(model) {
+            if (Array.isArray(model.components) && model.components.length) {
+                return model.components;
+            }
+
+            const components = [];
+            if (model.header) {
+                components.push({ type: 'HEADER', format: 'TEXT', text: model.header });
+            }
+            const body = { type: 'BODY', text: model.body || '' };
+            const variables = (model.body || '').match(/\{\{\s*\d+\s*\}\}/g) || [];
+            if (variables.length) {
+                body.example = {
+                    body_text: [
+                        variables.map((item, index) => {
+                            const position = String(item).replace(/\D+/g, '') || String(index + 1);
+                            const key = model.variable_map?.[position]?.key || `variavel_${position}`;
+                            return key === 'nome_cliente' ? 'Cliente Exemplo' : `exemplo_${position}`;
+                        })
+                    ]
+                };
+            }
+            components.push(body);
+            if (model.footer) {
+                components.push({ type: 'FOOTER', text: model.footer });
+            }
+            if (Array.isArray(model.buttons) && model.buttons.length) {
+                components.push({ type: 'BUTTONS', buttons: model.buttons });
+            }
+            return components;
+        }
+
+        function modelNeedsAdvancedComponents(model) {
+            if (model.header || model.footer || (Array.isArray(model.buttons) && model.buttons.length)) {
+                return true;
+            }
+
+            const components = Array.isArray(model.components) ? model.components : [];
+            if (components.length !== 1) {
+                return components.length > 0;
+            }
+
+            const only = components[0] || {};
+            return String(only.type || '').toUpperCase() !== 'BODY'
+                || String(only.text || '') !== String(model.body || '');
+        }
+
+        function renderTemplateVariableEditor() {
+            const editor = document.getElementById('wa-page-template-variable-editor');
+            const mapField = document.getElementById('wa-page-template-variable-map');
+            if (!editor || !mapField) return;
+
+            let currentMap = {};
+            try {
+                currentMap = mapField.value ? JSON.parse(mapField.value) : {};
+            } catch (error) {
+                currentMap = {};
+            }
+
+            const text = templateBodyForPreview(
+                document.getElementById('wa-page-template-body')?.value || '',
+                parseJsonField(document.getElementById('wa-page-template-components')?.value || '', 'Estrutura Meta avançada') || []
+            );
+            const positions = templatePositionsFromText(text);
+
+            if (!positions.length) {
+                editor.innerHTML = '<p class="text-[11px] text-slate-500 mb-0">Digite variáveis no texto, como {{1}}, {{2}}, para configurar o preenchimento.</p>';
+                mapField.value = '';
+                return;
+            }
+
+            const rows = positions.map((position) => {
+                const meta = currentMap[position] || {};
+                const key = meta.key || suggestedVariableKey(position);
+                const label = meta.label || suggestedVariableLabel(key, position);
+                const type = meta.type || suggestedVariableType(key);
+                const source = meta.source || suggestedVariableSource(key);
+                const description = meta.description || suggestedVariableDescription(key, source);
+
+                return `
+                    <div class="wa-template-variable-row grid grid-cols-1 md:grid-cols-[70px_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl bg-white border border-slate-100 p-3 mb-2" data-template-variable-position="${escapeHtml(position)}">
+                        <div>
+                            <span class="text-[10px] font-black text-emerald-600 uppercase">{{${escapeHtml(position)}}}</span>
+                        </div>
+                        <label class="wa-field mb-0">
+                            <span>Campo</span>
+                            <input data-template-variable-key type="text" value="${escapeHtml(key)}" placeholder="nome_cliente">
+                        </label>
+                        <label class="wa-field mb-0">
+                            <span>Nome visível</span>
+                            <input data-template-variable-label type="text" value="${escapeHtml(label)}" placeholder="Nome do cliente">
+                        </label>
+                        <label class="wa-field mb-0 md:col-start-2">
+                            <span>Origem</span>
+                            <select data-template-variable-source>
+                                ${templateVariableSourceOptions(source)}
+                            </select>
+                        </label>
+                        <label class="wa-field mb-0">
+                            <span>Tipo</span>
+                            <select data-template-variable-type>
+                                ${templateVariableTypeOptions(type)}
+                            </select>
+                        </label>
+                        <label class="wa-field mb-0 md:col-span-2 md:col-start-2">
+                            <span>Descrição</span>
+                            <input data-template-variable-description type="text" value="${escapeHtml(description)}" placeholder="Explique de onde esse valor vem">
+                        </label>
+                    </div>
+                `;
+            }).join('');
+
+            editor.innerHTML = rows
+                + '<p class="text-[11px] text-slate-500 mb-0">Exemplo de planilha: telefone;nome_cliente;valor_plano;link_ativacao. Se a origem for banco pelo plan_id, inclua a coluna plan_id na campanha.</p>';
+            syncTemplateVariableMapFromEditor();
+        }
+
+        function syncTemplateVariableMapFromEditor() {
+            const mapField = document.getElementById('wa-page-template-variable-map');
+            if (!mapField) return;
+
+            const map = {};
+            document.querySelectorAll('[data-template-variable-position]').forEach((row) => {
+                const position = row.dataset.templateVariablePosition;
+                const key = row.querySelector('[data-template-variable-key]')?.value?.trim() || suggestedVariableKey(position);
+                const label = row.querySelector('[data-template-variable-label]')?.value?.trim() || suggestedVariableLabel(key, position);
+                const source = row.querySelector('[data-template-variable-source]')?.value || suggestedVariableSource(key);
+                const type = row.querySelector('[data-template-variable-type]')?.value || suggestedVariableType(key);
+                const description = row.querySelector('[data-template-variable-description]')?.value?.trim() || suggestedVariableDescription(key, source);
+                map[position] = { key, label, description, type, source };
+            });
+
+            mapField.value = Object.keys(map).length ? JSON.stringify(map, null, 2) : '';
+        }
+
+        function templateVariableSourceOptions(selected) {
+            return [
+                ['contact_or_sheet', 'Planilha ou contato'],
+                ['campaign_json', 'Valor fixo na campanha'],
+                ['system', 'Automático do sistema']
+            ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+        }
+
+        function templateVariableTypeOptions(selected) {
+            return [
+                ['text', 'Texto'],
+                ['currency', 'Moeda'],
+                ['url', 'Link'],
+                ['date', 'Data'],
+                ['number', 'Número']
+            ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+        }
+
+        function suggestedVariableKey(position) {
+            if (Number(position) === 1) return 'nome_cliente';
+            if (Number(position) === 2) return 'valor_plano';
+            if (Number(position) === 3) return 'link_ativacao';
+            return `variavel_${position}`;
+        }
+
+        function suggestedVariableLabel(key, position) {
+            const labels = {
+                nome_cliente: 'Nome do cliente',
+                valor_plano: 'Valor do plano',
+                link_ativacao: 'Link de ativação'
+            };
+            return labels[key] || `Variável ${position}`;
+        }
+
+        function suggestedVariableType(key) {
+            if (String(key).includes('valor')) return 'currency';
+            if (String(key).includes('link') || String(key).includes('url')) return 'url';
+            if (String(key).includes('data')) return 'date';
+            return 'text';
+        }
+
+        function suggestedVariableSource(key) {
+            if (key === 'nome_cliente') return 'contact_or_sheet';
+            if (key === 'valor_plano') return 'contact_or_sheet';
+            if (key === 'link_ativacao') return 'campaign_json';
+            return 'contact_or_sheet';
+        }
+
+        function suggestedVariableDescription(key, source) {
+            if (key === 'nome_cliente') return 'Nome vindo do contato ou coluna da planilha.';
+            if (key === 'valor_plano') return 'Valor vindo da coluna valor_plano da planilha ou informado na campanha.';
+            if (key === 'link_ativacao') return 'Link informado na campanha ou coluna da planilha.';
+            return 'Valor informado na campanha, planilha ou integração.';
+        }
+
+        function applyAiTemplateText() {
+            const source = document.getElementById('wa-template-ai-text')?.value || '';
+            const result = normalizePastedTemplateText(source);
+            if (!result.body.trim()) {
+                setTextFeedback(document.getElementById('wa-page-template-feedback'), 'Cole um texto de template primeiro.', false);
+                return;
+            }
+
+            document.getElementById('wa-page-template-body').value = result.body;
+            document.getElementById('wa-page-template-components').value = '';
+            document.getElementById('wa-page-template-variable-map').value = JSON.stringify(result.variableMap, null, 2);
+            renderTemplateVariableEditor();
+            setTextFeedback(document.getElementById('wa-page-template-feedback'), 'Modelo colado e variáveis detectadas. Revise antes de enviar à Meta.', true);
+        }
+
+        function normalizePastedTemplateText(text) {
+            const aliases = {};
+            let nextPosition = 1;
+            const body = String(text || '').replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, rawName) => {
+                const normalized = normalizePastedVariableKey(rawName);
+                if (!aliases[normalized]) {
+                    aliases[normalized] = String(nextPosition++);
+                }
+                return `{{${aliases[normalized]}}}`;
+            });
+
+            const variableMap = {};
+            Object.entries(aliases).forEach(([key, position]) => {
+                variableMap[position] = {
+                    key,
+                    label: suggestedVariableLabel(key, position),
+                    description: suggestedVariableDescription(key, suggestedVariableSource(key)),
+                    type: suggestedVariableType(key),
+                    source: suggestedVariableSource(key)
+                };
+            });
+
+            return { body, variableMap };
+        }
+
+        function normalizePastedVariableKey(value) {
+            let key = String(value || '').trim().toLowerCase();
+            key = key.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            key = key.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+            if (['nome', 'cliente', 'nome_do_cliente'].includes(key)) return 'nome_cliente';
+            if (['valor', 'preco', 'preco_plano', 'plano_valor'].includes(key)) return 'valor_plano';
+            if (['link', 'url', 'ativar', 'link_ativar'].includes(key)) return 'link_ativacao';
+            return key || 'variavel';
+        }
+
         async function loadCampaigns() {
             const targets = [campaignList, campaignSectionList].filter(Boolean);
             if (!targets.length) return;
@@ -1797,23 +2270,36 @@
             const html = campaigns.map((campaign) => {
                 const status = String(campaign.status || '').toLowerCase();
                 const category = campaign.template_category || (campaign.message_type === 'text' ? 'UTILITY' : 'MARKETING');
-                const canSend = ['draft', 'queued', 'failed'].includes(status);
+                const inFlight = pendingCampaignSends.has(String(campaign.id));
+                const canSend = ['draft', 'failed'].includes(status) && !inFlight;
                 const canCancelMarketing = ['queued', 'sending'].includes(status);
+                const statusLabel = {
+                    draft: 'Pronta',
+                    queued: 'Enviando',
+                    sending: 'Enviando',
+                    sent: 'Enviado',
+                    finished: 'Finalizado',
+                    failed: 'Erro',
+                    cancelled: 'Cancelado'
+                }[status] || campaign.status || 'Pronta';
 
                 return `
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 mb-2">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h6 class="text-xs font-black text-slate-700 mb-0 truncate">${escapeHtml(campaign.name)}</h6>
-                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(campaign.status)}</span>
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${escapeHtml(statusLabel)}</span>
                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">${escapeHtml(category)}</span>
                             </div>
                             <p class="text-[11px] text-slate-500 mt-1 mb-0">
                                 ${escapeHtml(campaign.account_label || 'Conta')} - ${Number(campaign.total_recipients || 0)} destinatários - enviados ${Number(campaign.sent_count || 0)} - falhas ${Number(campaign.failed_count || 0)}
                             </p>
+                            <p class="text-[11px] text-slate-500 mt-1 mb-0">
+                                Faturado: R$ ${Number(campaign.billed_cost_brl || 0).toFixed(2).replace('.', ',')} em ${Number(campaign.billed_message_count || 0)} mensagem(ns)
+                            </p>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                            <button type="button" data-campaign-send="${campaign.id}" ${canSend ? '' : 'disabled'} class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase disabled:opacity-40">Enviar</button>
+                            <button type="button" data-campaign-send="${campaign.id}" ${canSend ? '' : 'disabled'} class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase disabled:opacity-40">${inFlight ? 'Enviando' : 'Enviar'}</button>
                             <button type="button" data-campaign-cancel-marketing="${campaign.id}" ${canCancelMarketing ? '' : 'disabled'} class="px-3 py-2 rounded-lg bg-orange-50 text-orange-600 text-[10px] font-black uppercase disabled:opacity-40">Cancelar marketing</button>
                         </div>
                     </div>
@@ -1826,6 +2312,12 @@
         }
 
         async function sendCampaignFromList(id) {
+            if (pendingCampaignSends.has(String(id))) return;
+            pendingCampaignSends.add(String(id));
+            document.querySelectorAll('[data-campaign-send]').forEach((button) => {
+                if (String(button.dataset.campaignSend) !== String(id)) return;
+                button.disabled = true;
+            });
             try {
                 const result = await api(`/campaign/whatsapp/campaigns/${id}/send`, { method: 'POST' });
                 notify('success', result.message || 'Campanha enviada.');
@@ -1833,6 +2325,9 @@
                 await loadConversations(false, true);
             } catch (error) {
                 notify('error', error.message);
+            } finally {
+                pendingCampaignSends.delete(String(id));
+                await loadCampaigns();
             }
         }
 
@@ -1855,36 +2350,463 @@
             campaignMessageBodyField?.classList.toggle('hidden', isTemplate);
         }
 
+        function toggleCampaignSendMode() {
+            const isScheduled = (campaignSendMode?.value || 'now') === 'schedule';
+            document.getElementById('wa-campaign-scheduled-field')?.classList.toggle('hidden', !isScheduled);
+            const createButton = document.getElementById('wa-campaign-create');
+            if (createButton) {
+                createButton.textContent = isScheduled ? 'Agendar campanha' : 'Disparar campanha';
+            }
+        }
+
+        function resetCampaignForm() {
+            const ids = [
+                'wa-campaign-name',
+                'wa-campaign-scheduled-at',
+                'wa-campaign-template-components',
+                'wa-campaign-message-body',
+                'wa-campaign-recipients',
+                'wa-campaign-manual-name',
+                'wa-campaign-manual-phone'
+            ];
+            ids.forEach((id) => {
+                const field = document.getElementById(id);
+                if (field) field.value = '';
+            });
+            if (campaignSendMode) campaignSendMode.value = 'now';
+            toggleCampaignSendMode();
+            renderCampaignVariableFields(campaignTemplate());
+            updateCampaignRecipientSummary();
+        }
+
+        function normalizeCampaignPhone(value) {
+            return String(value || '').replace(/\D+/g, '');
+        }
+
+        function csvCell(value) {
+            const text = String(value ?? '');
+            return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        }
+
+        function parseCampaignRecipientLines() {
+            const raw = campaignRecipientsField?.value || '';
+            const lines = raw.split(/\r\n|\n|\r/).map((line) => line.trim()).filter(Boolean);
+            const hasHeader = lines[0] && /phone|telefone|celular|whatsapp|numero|nome|name/i.test(lines[0]);
+            const dataLines = hasHeader ? lines.slice(1) : lines;
+            const seen = new Set();
+            let valid = 0;
+            let invalid = 0;
+            let duplicates = 0;
+
+            dataLines.forEach((line) => {
+                const parts = line.includes(';') ? line.split(';') : line.split(',');
+                const phone = normalizeCampaignPhone(parts[0] || line);
+                if (phone.length < 8 || phone.length > 15) {
+                    invalid++;
+                    return;
+                }
+                if (seen.has(phone)) {
+                    duplicates++;
+                    return;
+                }
+                seen.add(phone);
+                valid++;
+            });
+
+            return { valid, invalid, duplicates, total: dataLines.length };
+        }
+
+        function updateCampaignRecipientSummary() {
+            if (!campaignRecipientSummary) return;
+            const stats = parseCampaignRecipientLines();
+            if (!stats.total) {
+                campaignRecipientSummary.textContent = 'Digite manualmente ou importe uma planilha com telefone, nome e variáveis.';
+                campaignRecipientSummary.className = 'text-[11px] text-slate-400 font-bold mt-1 mb-0';
+                return;
+            }
+            campaignRecipientSummary.textContent = `${stats.valid} contato(s) válido(s). ${stats.invalid} erro(s). ${stats.duplicates} duplicado(s) ignorado(s).`;
+            campaignRecipientSummary.className = `text-[11px] font-bold mt-1 mb-0 ${stats.invalid ? 'text-amber-600' : 'text-emerald-600'}`;
+        }
+
+        function appendCampaignRecipient(phone, name = '', extras = {}) {
+            if (!campaignRecipientsField) return;
+            phone = normalizeCampaignPhone(phone);
+            if (phone.length < 8 || phone.length > 15) {
+                notify('error', 'Informe um telefone válido.');
+                return;
+            }
+
+            const current = campaignRecipientsField.value.trim();
+            const existing = parseCampaignRecipientLines();
+            const lines = current ? current.split(/\r\n|\n|\r/).filter(Boolean) : [];
+            const hasHeader = lines[0] && /phone|telefone|celular|whatsapp|numero|nome|name/i.test(lines[0]);
+            const phones = new Set((hasHeader ? lines.slice(1) : lines).map((line) => normalizeCampaignPhone((line.split(/[;,]/)[0] || line))));
+            if (phones.has(phone)) {
+                notify('error', 'Contato duplicado ignorado.');
+                updateCampaignRecipientSummary();
+                return;
+            }
+
+            const extraKeys = Object.keys(extras).filter((key) => String(extras[key] || '').trim() !== '');
+            if (!current) {
+                campaignRecipientsField.value = ['telefone;nome' + (extraKeys.length ? `;${extraKeys.join(';')}` : '')]
+                    .concat([phone, name, ...extraKeys.map((key) => extras[key])].map(csvCell).join(';'))
+                    .join('\n');
+            } else if (hasHeader) {
+                campaignRecipientsField.value = `${current}\n${[phone, name].map(csvCell).join(';')}`;
+            } else {
+                campaignRecipientsField.value = `${current}\n${phone}${name ? `;${csvCell(name)}` : ''}`;
+            }
+
+            updateCampaignRecipientSummary();
+            notify('success', `Contato adicionado. ${existing.valid + 1} válido(s) até agora.`);
+        }
+
+        function campaignHeaderKey(label, fallback) {
+            const normalized = String(label || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            if (['telefone', 'celular', 'whatsapp', 'numero', 'number'].includes(normalized)) return 'telefone';
+            if (['nome', 'cliente', 'nome_cliente', 'name'].includes(normalized)) return 'nome';
+            return normalized || fallback;
+        }
+
+        function fillCampaignMapSelect(select, allowEmpty = false, selected = null) {
+            if (!select) return;
+            select.innerHTML = allowEmpty ? '<option value="">Não importar</option>' : '';
+            campaignUploadHeaders.forEach((header, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = header.label || `Coluna ${index + 1}`;
+                select.appendChild(option);
+            });
+            if (selected !== null && selected !== undefined && selected !== '') {
+                select.value = String(selected);
+            }
+        }
+
+        function validateCampaignUploadRows() {
+            const phoneIndex = Number(campaignContactPhoneMap?.value);
+            const nameIndex = campaignContactNameMap?.value === '' ? null : Number(campaignContactNameMap?.value);
+            const seen = new Set();
+            const accepted = [];
+            const errors = [];
+            let duplicates = 0;
+
+            campaignUploadRows.forEach((row, rowIndex) => {
+                const phone = normalizeCampaignPhone(row[phoneIndex] || '');
+                const name = nameIndex === null ? '' : String(row[nameIndex] || '').trim();
+                if (phone.length < 8 || phone.length > 15) {
+                    errors.push({ row: rowIndex + 2, reason: 'Telefone inválido' });
+                    return;
+                }
+                if (seen.has(phone)) {
+                    duplicates++;
+                    return;
+                }
+                seen.add(phone);
+                accepted.push({ phone, name, row });
+            });
+
+            return { accepted, errors, duplicates };
+        }
+
+        function renderCampaignUploadSummary() {
+            const stats = validateCampaignUploadRows();
+            if (campaignContactConfirm) campaignContactConfirm.disabled = stats.accepted.length === 0;
+            if (campaignContactSummary) {
+                campaignContactSummary.classList.remove('hidden');
+                campaignContactSummary.innerHTML = [
+                    ['Válidos', stats.accepted.length, 'text-emerald-700 bg-emerald-50'],
+                    ['Erros', stats.errors.length, stats.errors.length ? 'text-red-700 bg-red-50' : 'text-slate-600 bg-slate-100'],
+                    ['Duplicados', stats.duplicates, stats.duplicates ? 'text-amber-700 bg-amber-50' : 'text-slate-600 bg-slate-100'],
+                    ['Linhas lidas', campaignUploadRows.length, 'text-blue-700 bg-blue-50'],
+                ].map(([label, value, cls]) => `
+                    <div class="rounded-xl p-3 ${cls}">
+                        <p class="text-[10px] font-black uppercase mb-1">${label}</p>
+                        <p class="text-lg font-black mb-0">${value}</p>
+                    </div>
+                `).join('');
+            }
+
+            const body = document.getElementById('wa-campaign-contact-preview-body');
+            if (body) {
+                const phoneIndex = Number(campaignContactPhoneMap?.value);
+                body.querySelectorAll('tr').forEach((tr, index) => {
+                    const phone = normalizeCampaignPhone(campaignUploadRows[index]?.[phoneIndex] || '');
+                    const invalid = phone.length < 8 || phone.length > 15;
+                    tr.classList.toggle('bg-red-50', invalid);
+                });
+            }
+
+            setTextFeedback(
+                campaignContactFeedback,
+                stats.errors.length
+                    ? `${stats.errors.length} linha(s) com telefone inválido serão ignoradas.`
+                    : 'Confira a prévia e confirme para levar os contatos para a campanha.',
+                stats.errors.length ? null : true
+            );
+        }
+
+        function renderCampaignUploadPreview(data) {
+            campaignUploadHeaders = Array.isArray(data.headers) ? data.headers : [];
+            campaignUploadRows = Array.isArray(data.rows) ? data.rows : [];
+            fillCampaignMapSelect(campaignContactPhoneMap, false, data.suggested?.phone ?? 0);
+            fillCampaignMapSelect(campaignContactNameMap, true, data.suggested?.name ?? '');
+
+            const preview = document.getElementById('wa-campaign-contact-preview');
+            const head = document.getElementById('wa-campaign-contact-preview-head');
+            const body = document.getElementById('wa-campaign-contact-preview-body');
+            const count = document.getElementById('wa-campaign-contact-preview-count');
+            preview?.classList.remove('hidden');
+            if (count) count.textContent = `${campaignUploadRows.length} linha(s) carregada(s)`;
+            if (head) {
+                head.innerHTML = campaignUploadHeaders.map((header) => `<th class="px-3 py-2">${escapeHtml(header.label || '')}</th>`).join('');
+            }
+            if (body) {
+                body.innerHTML = campaignUploadRows.slice(0, 80).map((row) => `
+                    <tr>
+                        ${campaignUploadHeaders.map((_, index) => `<td class="px-3 py-2 whitespace-nowrap">${escapeHtml(row[index] || '')}</td>`).join('')}
+                    </tr>
+                `).join('');
+            }
+            renderCampaignUploadSummary();
+        }
+
+        function parseCampaignCsvText(text) {
+            text = String(text || '').replace(/^\uFEFF/, '');
+            const firstLine = (text.split(/\r\n|\n|\r/).find((line) => line.trim() !== '') || '');
+            const delimiter = firstLine.includes(';') ? ';' : (firstLine.includes('\t') ? '\t' : ',');
+            const rows = [];
+            let row = [];
+            let cell = '';
+            let quoted = false;
+
+            for (let index = 0; index < text.length; index++) {
+                const char = text[index];
+                const next = text[index + 1];
+                if (char === '"') {
+                    if (quoted && next === '"') {
+                        cell += '"';
+                        index++;
+                    } else {
+                        quoted = !quoted;
+                    }
+                    continue;
+                }
+                if (!quoted && char === delimiter) {
+                    row.push(cell.trim());
+                    cell = '';
+                    continue;
+                }
+                if (!quoted && (char === '\n' || char === '\r')) {
+                    if (char === '\r' && next === '\n') index++;
+                    row.push(cell.trim());
+                    if (row.some((value) => value !== '')) rows.push(row);
+                    row = [];
+                    cell = '';
+                    continue;
+                }
+                cell += char;
+            }
+
+            row.push(cell.trim());
+            if (row.some((value) => value !== '')) rows.push(row);
+            if (rows.length < 2) {
+                throw new Error('A planilha precisa ter cabeçalho e ao menos um contato.');
+            }
+
+            const headerRow = rows.shift();
+            const headers = headerRow.map((label, index) => ({
+                index,
+                label: label || `Coluna ${index + 1}`,
+                normalized: campaignHeaderKey(label, `coluna_${index + 1}`)
+            }));
+
+            const findColumn = (keys) => {
+                const found = headers.find((header) => keys.includes(header.normalized));
+                return found ? found.index : null;
+            };
+
+            return {
+                headers,
+                rows: rows.slice(0, 5000),
+                suggested: {
+                    phone: findColumn(['telefone', 'phone', 'celular', 'whatsapp', 'numero']),
+                    name: findColumn(['nome', 'name', 'cliente', 'nome_cliente'])
+                }
+            };
+        }
+
+        function previewCampaignCsvLocally(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        resolve(parseCampaignCsvText(String(reader.result || '')));
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error('Não foi possível ler o CSV no navegador.'));
+                reader.readAsText(file, 'UTF-8');
+            });
+        }
+
+        async function previewCampaignContactFile() {
+            const file = campaignContactFile?.files?.[0];
+            if (!file) return;
+            document.getElementById('wa-campaign-contact-file-name').innerHTML = `<i class="fa fa-file-excel mr-1"></i> ${escapeHtml(file.name)}`;
+            setTextFeedback(campaignContactFeedback, 'Lendo planilha...', null);
+            if (campaignContactConfirm) campaignContactConfirm.disabled = true;
+
+            if (/\.csv$/i.test(file.name || '')) {
+                try {
+                    const localPreview = await previewCampaignCsvLocally(file);
+                    renderCampaignUploadPreview(localPreview);
+                    setTextFeedback(campaignContactFeedback, 'Prévia carregada. Confira e confirme os contatos.', true);
+                    return;
+                } catch (localError) {
+                    setTextFeedback(campaignContactFeedback, 'Tentando ler CSV pelo servidor...', null);
+                }
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const result = await api('/campaign/whatsapp/campaigns/recipients/preview', {
+                    method: 'POST',
+                    body: formData
+                });
+                renderCampaignUploadPreview(result.data || result || {});
+            } catch (error) {
+                if (/\.csv$/i.test(file.name || '')) {
+                    try {
+                        const fallback = await previewCampaignCsvLocally(file);
+                        renderCampaignUploadPreview(fallback);
+                        setTextFeedback(campaignContactFeedback, 'Prévia carregada no navegador. Confira e confirme os contatos.', true);
+                        return;
+                    } catch (fallbackError) {
+                        error = fallbackError;
+                    }
+                }
+                campaignUploadRows = [];
+                campaignUploadHeaders = [];
+                setTextFeedback(campaignContactFeedback, error.message, false);
+            }
+        }
+
+        function resetCampaignContactModal() {
+            campaignUploadRows = [];
+            campaignUploadHeaders = [];
+            if (campaignContactFile) campaignContactFile.value = '';
+            const fileName = document.getElementById('wa-campaign-contact-file-name');
+            if (fileName) fileName.innerHTML = '<i class="fa fa-file-excel mr-1"></i> Selecionar arquivo...';
+            if (campaignContactPhoneMap) campaignContactPhoneMap.innerHTML = '';
+            if (campaignContactNameMap) campaignContactNameMap.innerHTML = '';
+            document.getElementById('wa-campaign-contact-preview')?.classList.add('hidden');
+            if (campaignContactSummary) {
+                campaignContactSummary.classList.add('hidden');
+                campaignContactSummary.innerHTML = '';
+            }
+            if (campaignContactConfirm) campaignContactConfirm.disabled = true;
+        }
+
+        function confirmCampaignUploadContacts() {
+            const stats = validateCampaignUploadRows();
+            if (!stats.accepted.length) {
+                setTextFeedback(campaignContactFeedback, 'Nenhum contato válido para confirmar.', false);
+                return;
+            }
+
+            const phoneIndex = Number(campaignContactPhoneMap?.value);
+            const nameIndex = campaignContactNameMap?.value === '' ? null : Number(campaignContactNameMap?.value);
+            const extraIndexes = campaignUploadHeaders
+                .map((header, index) => ({ index, key: campaignHeaderKey(header.label, `coluna_${index + 1}`) }))
+                .filter((item) => item.index !== phoneIndex && item.index !== nameIndex);
+            const header = ['telefone', 'nome', ...extraIndexes.map((item) => item.key)];
+            const lines = stats.accepted.map((item) => [
+                item.phone,
+                item.name,
+                ...extraIndexes.map((extra) => item.row[extra.index] || '')
+            ].map(csvCell).join(';'));
+
+            campaignRecipientsField.value = [header.join(';'), ...lines].join('\n');
+            updateCampaignRecipientSummary();
+            modal(campaignContactModal, false);
+            setTextFeedback(document.getElementById('wa-campaign-form-feedback'), `${stats.accepted.length} contato(s) importado(s). ${stats.errors.length} erro(s). ${stats.duplicates} duplicado(s) ignorado(s).`, true);
+        }
+
         async function createCampaign() {
             const feedback = document.getElementById('wa-campaign-form-feedback');
             const messageType = campaignMessageType?.value || 'template';
+            const sendMode = campaignSendMode?.value || 'now';
             const payload = {
                 account_id: selectedAccountId,
                 name: document.getElementById('wa-campaign-name')?.value || '',
                 message_type: messageType,
-                scheduled_at: (document.getElementById('wa-campaign-scheduled-at')?.value || '').replace('T', ' '),
-                recipients: document.getElementById('wa-campaign-recipients')?.value || ''
+                scheduled_at: sendMode === 'schedule'
+                    ? (document.getElementById('wa-campaign-scheduled-at')?.value || '').replace('T', ' ')
+                    : '',
+                recipients: campaignRecipientsField?.value || ''
             };
 
             if (messageType === 'template') {
                 payload.template_name = document.getElementById('wa-campaign-template-name')?.value || '';
                 payload.template_language = document.getElementById('wa-campaign-template-language')?.value || 'pt_BR';
+                syncCampaignVariableJsonFromFields();
                 payload.template_components = document.getElementById('wa-campaign-template-components')?.value || '';
             } else {
                 payload.message_body = document.getElementById('wa-campaign-message-body')?.value || '';
             }
 
-            setTextFeedback(feedback, 'Criando campanha...', null);
+            if (sendMode === 'schedule' && !payload.scheduled_at) {
+                setTextFeedback(feedback, 'Informe a data e hora do agendamento.', false);
+                return;
+            }
+
+            if (messageType === 'template') {
+                const missingVariables = campaignMissingVariables();
+                if (missingVariables.length) {
+                    setTextFeedback(
+                        feedback,
+                        `Preencha ou importe as variáveis obrigatórias do template: ${missingVariables.join(', ')}`,
+                        false
+                    );
+                    return;
+                }
+            }
+
+            setTextFeedback(feedback, sendMode === 'now' ? 'Criando e disparando campanha...' : 'Agendando campanha...', null);
 
             try {
                 const result = await api('/campaign/whatsapp/campaigns', {
                     method: 'POST',
                     body: JSON.stringify(payload)
                 });
-                setTextFeedback(feedback, result.message || 'Campanha criada.', true);
-                document.getElementById('wa-campaign-name').value = '';
-                document.getElementById('wa-campaign-recipients').value = '';
+
+                if (sendMode === 'now') {
+                    try {
+                        const sendResult = await api(`/campaign/whatsapp/campaigns/${result.id}/send`, { method: 'POST' });
+                        setTextFeedback(feedback, sendResult.message || 'Campanha disparada.', true);
+                        notify('success', sendResult.message || 'Campanha disparada.');
+                    } catch (sendError) {
+                        setTextFeedback(feedback, `Campanha criada, mas não disparou: ${sendError.message}`, false);
+                        await loadCampaigns();
+                        return;
+                    }
+                } else {
+                    setTextFeedback(feedback, result.message || 'Campanha agendada.', true);
+                    notify('success', 'Campanha agendada.');
+                }
+
+                resetCampaignForm();
                 await loadCampaigns();
+                await loadConversations(false, true);
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
             }
@@ -1976,28 +2898,35 @@
                 campaignTemplateSelect.appendChild(option);
             });
             }
+
+            if (currentTemplateSelect) {
+                currentTemplateSelect.innerHTML = '<option value="">Selecionar template...</option>';
+                templates.filter((template) => String(template.status || '') === 'approved').forEach((template) => {
+                    const option = document.createElement('option');
+                    option.value = String(template.id);
+                    option.textContent = `${template.name} (${template.language})`;
+                    currentTemplateSelect.appendChild(option);
+                });
+                if (selectedConversation) {
+                    restoreSupportDraft();
+                }
+            }
         }
 
         async function saveTemplate() {
             const feedback = document.getElementById('wa-template-feedback');
-            setTextFeedback(feedback, 'Salvando...', null);
-            const nameInput = document.getElementById('wa-template-name');
-            const templateName = normalizeTemplateName(nameInput?.value || '') || defaultTemplateName();
-            if (nameInput) {
-                nameInput.value = templateName;
-            }
-
             try {
+                const payload = templatePayloadFromForm('wa-template', 'MARKETING');
+                const confirmed = await confirmTemplateMetaPreview(payload);
+                if (!confirmed) {
+                    setTextFeedback(feedback, 'Revise o template antes de enviar à Meta.', null);
+                    return;
+                }
+
+                setTextFeedback(feedback, 'Enviando à Meta...', null);
                 const result = await api('/campaign/whatsapp/templates', {
                     method: 'POST',
-                    body: JSON.stringify({
-                        name: templateName,
-                        account_id: selectedAccountId || Number(accountSelect?.value || 0),
-                        language: document.getElementById('wa-template-language')?.value || 'pt_BR',
-                        category: document.getElementById('wa-template-category')?.value || 'MARKETING',
-                        body: document.getElementById('wa-template-body')?.value || '',
-                        components: document.getElementById('wa-template-components')?.value || ''
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 setTextFeedback(feedback, result.message || 'Template salvo.', true);
@@ -2012,34 +2941,193 @@
 
         async function savePageTemplate() {
             const feedback = document.getElementById('wa-page-template-feedback');
-            setTextFeedback(feedback, 'Salvando...', null);
-            const nameInput = document.getElementById('wa-page-template-name');
-            const templateName = normalizeTemplateName(nameInput?.value || '') || defaultTemplateName();
-            if (nameInput) {
-                nameInput.value = templateName;
-            }
-
             try {
+                const payload = templatePayloadFromForm('wa-page-template', 'UTILITY');
+                const confirmed = await confirmTemplateMetaPreview(payload);
+                if (!confirmed) {
+                    setTextFeedback(feedback, 'Revise o template antes de enviar à Meta.', null);
+                    return;
+                }
+
+                setTextFeedback(feedback, 'Enviando à Meta...', null);
                 const result = await api('/campaign/whatsapp/templates', {
                     method: 'POST',
-                    body: JSON.stringify({
-                        name: templateName,
-                        account_id: selectedAccountId || Number(accountSelect?.value || 0),
-                        language: document.getElementById('wa-page-template-language')?.value || 'pt_BR',
-                        category: document.getElementById('wa-page-template-category')?.value || 'UTILITY',
-                        body: document.getElementById('wa-page-template-body')?.value || '',
-                        components: document.getElementById('wa-page-template-components')?.value || ''
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 setTextFeedback(feedback, result.message || 'Template salvo.', true);
                 document.getElementById('wa-page-template-name').value = '';
                 document.getElementById('wa-page-template-body').value = '';
                 document.getElementById('wa-page-template-components').value = '';
+                document.getElementById('wa-page-template-variable-map').value = '';
+                renderTemplateVariableEditor();
                 await loadTemplates();
             } catch (error) {
                 setTextFeedback(feedback, error.message, false);
             }
+        }
+
+        function templatePayloadFromForm(prefix, defaultCategory) {
+            if (prefix === 'wa-page-template') {
+                syncTemplateVariableMapFromEditor();
+            }
+
+            const nameInput = document.getElementById(`${prefix}-name`);
+            const templateName = normalizeTemplateName(nameInput?.value || '') || defaultTemplateName();
+            if (nameInput) {
+                nameInput.value = templateName;
+            }
+
+            const variableMapField = document.getElementById(`${prefix}-variable-map`);
+            return {
+                name: templateName,
+                account_id: selectedAccountId || Number(accountSelect?.value || 0),
+                language: document.getElementById(`${prefix}-language`)?.value || 'pt_BR',
+                category: document.getElementById(`${prefix}-category`)?.value || defaultCategory,
+                body: document.getElementById(`${prefix}-body`)?.value || '',
+                components: document.getElementById(`${prefix}-components`)?.value || '',
+                variable_map: variableMapField
+                    ? parseJsonField(variableMapField.value || '', 'Mapa de variáveis')
+                    : null
+            };
+        }
+
+        async function confirmTemplateMetaPreview(payload) {
+            const preview = buildTemplateMetaPreview(payload);
+            if (typeof Swal === 'undefined') {
+                return window.confirm(`Enviar este template à Meta?\n\n${preview.renderedText}`);
+            }
+
+            const result = await Swal.fire({
+                title: 'Pré-visualizar template',
+                html: templatePreviewHtml(preview),
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar e enviar',
+                cancelButtonText: 'Voltar à edição',
+                width: 760,
+                buttonsStyling: false,
+                customClass: {
+                    ...swalButtonClasses,
+                    confirmButton: 'px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase shadow mx-1'
+                },
+                focusCancel: true
+            });
+
+            return result.isConfirmed;
+        }
+
+        function buildTemplateMetaPreview(payload) {
+            const rawComponents = parseJsonField(payload.components || '', 'Estrutura Meta avançada') || [];
+            const components = Array.isArray(rawComponents) ? rawComponents : [];
+            const bodyText = templateBodyForPreview(payload.body || '', components);
+            const variableMap = payload.variable_map || {};
+            const positions = templatePositionsFromText(bodyText);
+            const examples = {};
+
+            positions.forEach((position) => {
+                const key = variableMap?.[position]?.key || defaultVariableKey(position);
+                examples[position] = {
+                    key,
+                    value: templateExampleValue(key, position)
+                };
+            });
+
+            const renderedText = positions.reduce((text, position) => (
+                text.replace(
+                    new RegExp(`\\{\\{\\s*${position}\\s*\\}\\}`, 'g'),
+                    examples[position]?.value || ''
+                )
+            ), bodyText || '[Sem BODY]');
+
+            const metaComponents = components.length
+                ? components
+                : [{
+                    type: 'BODY',
+                    text: bodyText,
+                    ...(positions.length ? { example: { body_text: [positions.map((position) => examples[position].value)] } } : {})
+                }];
+
+            return {
+                name: payload.name,
+                language: payload.language || 'pt_BR',
+                category: String(payload.category || 'UTILITY').toUpperCase(),
+                bodyText,
+                renderedText,
+                examples,
+                metaPayload: {
+                    name: payload.name,
+                    language: payload.language || 'pt_BR',
+                    category: String(payload.category || 'UTILITY').toUpperCase(),
+                    components: metaComponents
+                }
+            };
+        }
+
+        function templatePreviewHtml(preview) {
+            const variables = Object.entries(preview.examples).map(([position, data]) => `
+                <div class="flex items-center justify-between gap-3 border-b border-slate-100 py-1">
+                    <span class="text-[11px] font-black text-slate-500">{{${escapeHtml(position)}}} · ${escapeHtml(data.key)}</span>
+                    <span class="text-[11px] font-bold text-slate-700">${escapeHtml(data.value)}</span>
+                </div>
+            `).join('') || '<p class="text-[11px] text-slate-400 mb-0">Sem variáveis.</p>';
+
+            return `
+                <div class="text-left">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                        <div class="rounded-xl bg-slate-50 p-3">
+                            <p class="text-[10px] font-black uppercase text-slate-400 mb-1">Nome Meta</p>
+                            <p class="text-xs font-bold text-slate-700 mb-0">${escapeHtml(preview.name)}</p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50 p-3">
+                            <p class="text-[10px] font-black uppercase text-slate-400 mb-1">Idioma</p>
+                            <p class="text-xs font-bold text-slate-700 mb-0">${escapeHtml(preview.language)}</p>
+                        </div>
+                        <div class="rounded-xl bg-slate-50 p-3">
+                            <p class="text-[10px] font-black uppercase text-slate-400 mb-1">Categoria</p>
+                            <p class="text-xs font-bold text-slate-700 mb-0">${escapeHtml(whatsappCategoryLabel(preview.category))}</p>
+                        </div>
+                    </div>
+                    <p class="text-[10px] font-black uppercase text-emerald-600 mb-2">Como a mensagem fica com exemplos</p>
+                    <pre class="whitespace-pre-wrap rounded-xl bg-slate-900 text-white text-xs leading-5 p-3 mb-3">${escapeHtml(preview.renderedText)}</pre>
+                    <p class="text-[10px] font-black uppercase text-slate-500 mb-1">Variáveis de exemplo para aprovação</p>
+                    <div class="rounded-xl border border-slate-100 p-3 mb-3">${variables}</div>
+                    <details>
+                        <summary class="text-[11px] font-black uppercase text-blue-600 cursor-pointer">Ver payload que será enviado à Meta</summary>
+                        <pre class="whitespace-pre-wrap rounded-xl bg-slate-50 text-slate-700 text-[11px] leading-5 p-3 mt-2 mb-0">${escapeHtml(JSON.stringify(preview.metaPayload, null, 2))}</pre>
+                    </details>
+                </div>
+            `;
+        }
+
+        function templateBodyForPreview(body, components) {
+            for (const component of components) {
+                if (component && String(component.type || '').toUpperCase() === 'BODY') {
+                    return String(component.text || body || '');
+                }
+            }
+            return String(body || '');
+        }
+
+        function templatePositionsFromText(text) {
+            const matches = String(text || '').match(/\{\{\s*\d+\s*\}\}/g) || [];
+            return [...new Set(matches.map((item) => String(item).replace(/\D+/g, '')).filter(Boolean))]
+                .sort((a, b) => Number(a) - Number(b));
+        }
+
+        function defaultVariableKey(position) {
+            return Number(position) === 1 ? 'nome_cliente' : `variavel_${position}`;
+        }
+
+        function templateExampleValue(key, position) {
+            const normalized = String(key || '').toLowerCase();
+            if (['nome_cliente', 'cliente_nome', 'contact_name', 'customer_name'].includes(normalized)) return 'Ana';
+            if (['valor', 'valor_plano', 'plano_valor', 'plan_value', 'plan_amount'].includes(normalized)) return 'R$ 99,90';
+            if (normalized.includes('link') || normalized.includes('url')) return 'https://exemplo.com.br';
+            if (normalized.includes('data') || normalized.includes('vencimento')) return '31/12/2026';
+            if (normalized.includes('hora')) return '14:30';
+            if (normalized.includes('codigo') || normalized.includes('código')) return '123456';
+            return `exemplo_${position}`;
         }
 
         function normalizeTemplateName(name) {
@@ -2083,7 +3171,8 @@
 
             document.getElementById('wa-new-chat-template-name').value = template.name || '';
             document.getElementById('wa-new-chat-template-language').value = template.language || 'pt_BR';
-            document.getElementById('wa-new-chat-template-components').value = template.components || '';
+            document.getElementById('wa-new-chat-template-components').value = '';
+            document.getElementById('wa-new-chat-template-components').placeholder = templateVariablePlaceholder(template);
         }
 
         function applyCampaignTemplate(templateId) {
@@ -2092,7 +3181,277 @@
 
             document.getElementById('wa-campaign-template-name').value = template.name || '';
             document.getElementById('wa-campaign-template-language').value = template.language || 'pt_BR';
-            document.getElementById('wa-campaign-template-components').value = template.components || '';
+            document.getElementById('wa-campaign-template-components').value = '';
+            document.getElementById('wa-campaign-template-components').placeholder = templateVariablePlaceholder(template);
+            renderCampaignVariableFields(template);
+        }
+
+        function campaignTemplate() {
+            return templates.find((item) => Number(item.id) === Number(campaignTemplateSelect?.value));
+        }
+
+        function templateRequiredVariableKeys(template) {
+            const ignored = ['nome_cliente', 'contact_name', 'cliente_nome', 'customer_name'];
+            return Object.values(parseTemplateVariableMap(template))
+                .map((item) => String(item?.key || '').trim())
+                .filter(Boolean)
+                .filter((key, index, source) => source.indexOf(key) === index)
+                .filter((key) => !ignored.includes(key.toLowerCase()));
+        }
+
+        function renderCampaignVariableFields(template = campaignTemplate()) {
+            const box = document.getElementById('wa-campaign-variable-fields');
+            const jsonField = document.getElementById('wa-campaign-template-components-field');
+            if (!box) return;
+            const keys = templateRequiredVariableKeys(template);
+            if (!keys.length) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                jsonField?.classList.remove('hidden');
+                return;
+            }
+
+            jsonField?.classList.add('hidden');
+            box.classList.remove('hidden');
+            box.innerHTML = `
+                <div class="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                        <p class="text-[10px] font-black uppercase text-slate-500 mb-1">Variáveis exigidas</p>
+                        <p class="text-[11px] text-slate-500 mb-0">Preencha valor fixo ou importe uma planilha com coluna igual ao nome da variável.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    ${keys.map((key) => `
+                        <label class="wa-field">
+                            <span>${escapeHtml(key)}</span>
+                            <input data-campaign-variable-key="${escapeHtml(key)}" type="text" placeholder="Valor fixo ou coluna ${escapeHtml(key)} na planilha">
+                        </label>
+                    `).join('')}
+                </div>
+            `;
+            syncCampaignVariableJsonFromFields();
+        }
+
+        function campaignRecipientColumns() {
+            const firstLine = String(campaignRecipientsField?.value || '').split(/\r\n|\n|\r/).find((line) => line.trim() !== '') || '';
+            if (!firstLine) return [];
+            if (!/phone|telefone|celular|whatsapp|numero|nome|name|;|,/i.test(firstLine)) return [];
+            const delimiter = firstLine.includes(';') ? ';' : (firstLine.includes('\t') ? '\t' : ',');
+            return firstLine.split(delimiter).map((column) => campaignHeaderKey(column, column)).filter(Boolean);
+        }
+
+        function campaignVariableJson() {
+            try {
+                const raw = document.getElementById('wa-campaign-template-components')?.value || '';
+                const parsed = raw.trim() ? JSON.parse(raw) : {};
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function syncCampaignVariableJsonFromFields() {
+            const field = document.getElementById('wa-campaign-template-components');
+            if (!field) return;
+            const current = campaignVariableJson();
+            document.querySelectorAll('[data-campaign-variable-key]').forEach((input) => {
+                const key = input.dataset.campaignVariableKey;
+                const value = String(input.value || '').trim();
+                if (value) {
+                    current[key] = value;
+                } else {
+                    delete current[key];
+                }
+            });
+            field.value = Object.keys(current).length ? JSON.stringify(current) : '';
+        }
+
+        function campaignMissingVariables(template = campaignTemplate()) {
+            const keys = templateRequiredVariableKeys(template);
+            if (!keys.length) return [];
+            syncCampaignVariableJsonFromFields();
+            const fixed = campaignVariableJson();
+            const columns = campaignRecipientColumns();
+            return keys.filter((key) => {
+                const normalized = campaignHeaderKey(key, key);
+                return !String(fixed[key] || '').trim() && !columns.includes(normalized);
+            });
+        }
+
+        function templateVariablePlaceholder(template) {
+            let map = {};
+            try {
+                map = template.variable_map ? JSON.parse(template.variable_map) : {};
+            } catch (error) {
+                map = {};
+            }
+
+            const keys = Object.values(map)
+                .map((item) => item?.key)
+                .filter(Boolean)
+                .filter((key) => !['nome_cliente', 'contact_name', 'cliente_nome'].includes(String(key).toLowerCase()));
+
+            if (!keys.length) {
+                return 'Variáveis extras em JSON, se houver. Nunca use example.body_text.';
+            }
+
+            const sample = {};
+            keys.forEach((key) => {
+                sample[key] = '';
+            });
+            return JSON.stringify(sample);
+        }
+
+        function parseTemplateVariableMap(template) {
+            try {
+                const map = template?.variable_map ? JSON.parse(template.variable_map) : {};
+                return map && typeof map === 'object' ? map : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function currentConversationWindowOpen() {
+            if (!selectedConversation) return false;
+            if (String(selectedConversation.service_window_open || '0') === '1') return true;
+            const lastInbound = selectedConversation.last_inbound_at;
+            if (!lastInbound) return false;
+            const date = new Date(String(lastInbound).replace(' ', 'T'));
+            return !Number.isNaN(date.getTime()) && ((Date.now() - date.getTime()) < 24 * 60 * 60 * 1000);
+        }
+
+        function supportDraftKey(conversationId = selectedConversation?.id) {
+            if (!selectedAccountId || !conversationId) return '';
+            return `wa_support_draft_v1_${selectedAccountId}_${conversationId}`;
+        }
+
+        function selectedConversationKey() {
+            return selectedAccountId ? `wa_selected_conversation_id_${selectedAccountId}` : '';
+        }
+
+        function readSupportDraft(conversationId = selectedConversation?.id) {
+            const key = supportDraftKey(conversationId);
+            if (!key) return {};
+            try {
+                return JSON.parse(localStorage.getItem(key) || '{}') || {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function saveSupportDraft() {
+            if (!selectedConversation) return;
+            const key = supportDraftKey();
+            if (!key) return;
+
+            const draft = {
+                message: msgInput?.value || '',
+                template_id: currentTemplateSelect?.value || '',
+                variables: currentTemplateVariables(),
+                updated_at: Date.now()
+            };
+
+            if (!draft.message && !draft.template_id && Object.keys(draft.variables).length === 0) {
+                localStorage.removeItem(key);
+                return;
+            }
+
+            localStorage.setItem(key, JSON.stringify(draft));
+        }
+
+        function clearSupportDraft(conversationId = selectedConversation?.id) {
+            const key = supportDraftKey(conversationId);
+            if (key) localStorage.removeItem(key);
+        }
+
+        function restoreSupportDraft() {
+            if (!selectedConversation) return;
+            const draft = readSupportDraft();
+            if (msgInput && !currentConversationWindowOpen()) {
+                msgInput.value = '';
+            } else if (msgInput && draft.message) {
+                msgInput.value = draft.message;
+            }
+
+            if (currentTemplateSelect && draft.template_id) {
+                currentTemplateSelect.value = String(draft.template_id);
+                renderCurrentTemplateFields(false);
+            }
+
+            if (draft.variables && typeof draft.variables === 'object') {
+                currentTemplateFields?.querySelectorAll('[data-current-template-variable]').forEach((input) => {
+                    const key = input.dataset.currentTemplateVariable;
+                    if (Object.prototype.hasOwnProperty.call(draft.variables, key)) {
+                        input.value = draft.variables[key] || '';
+                    }
+                });
+            }
+        }
+
+        function updateConversationComposer() {
+            const hasConversation = Boolean(selectedConversation);
+            const windowOpen = currentConversationWindowOpen();
+            const templateMode = hasConversation && !windowOpen;
+
+            templateComposer?.classList.toggle('hidden', !templateMode);
+            msgInput.disabled = !hasConversation || templateMode;
+            audioBtn.disabled = !hasConversation || templateMode;
+            sendBtn.disabled = !hasConversation;
+            msgInput.placeholder = templateMode ? 'Envie um template para reabrir a conversa' : 'Escreva uma mensagem...';
+
+            if (templateMode) {
+                msgInput.value = '';
+                renderCurrentTemplateFields();
+            }
+        }
+
+        function renderCurrentTemplateFields(shouldSave = true) {
+            if (!currentTemplateFields || !currentTemplateSelect) return;
+            const template = templates.find((item) => Number(item.id) === Number(currentTemplateSelect.value));
+            if (!template) {
+                currentTemplateFields.innerHTML = '';
+                if (shouldSave) saveSupportDraft();
+                return;
+            }
+
+            const map = parseTemplateVariableMap(template);
+            const entries = Object.entries(map);
+            if (!entries.length) {
+                currentTemplateFields.innerHTML = '<p class="text-xs text-amber-700 mb-0 md:col-span-2">Este template não exige parâmetros.</p>';
+                if (shouldSave) saveSupportDraft();
+                return;
+            }
+
+            currentTemplateFields.innerHTML = entries.map(([position, meta]) => {
+                const key = String(meta?.key || `variavel_${position}`);
+                const knownValue = knownTemplateValue(key);
+                return `
+                    <label class="wa-field">
+                        <span>{{${escapeHtml(position)}}} ${escapeHtml(meta?.description || key)}</span>
+                        <input data-current-template-variable="${escapeHtml(key)}" type="text" value="${escapeHtml(knownValue)}" placeholder="${escapeHtml(key)}">
+                    </label>
+                `;
+            }).join('');
+            if (shouldSave) saveSupportDraft();
+        }
+
+        function knownTemplateValue(key) {
+            const normalized = String(key || '').toLowerCase();
+            if (['nome_cliente', 'cliente_nome', 'contact_name', 'customer_name'].includes(normalized)) {
+                return selectedConversation?.contact_name || 'cliente';
+            }
+            if (['nome_empresa', 'empresa', 'tenant_name', 'company_name'].includes(normalized)) {
+                return selectedAccount()?.internal_label || selectedAccount()?.label || '';
+            }
+            return '';
+        }
+
+        function currentTemplateVariables() {
+            const values = {};
+            currentTemplateFields?.querySelectorAll('[data-current-template-variable]').forEach((input) => {
+                values[input.dataset.currentTemplateVariable] = input.value.trim();
+            });
+            return values;
         }
 
         async function saveAccount() {
@@ -2484,7 +3843,12 @@
                     selectedConversation = conversations.find((item) => Number(item.id) === Number(selectedConversation.id)) || selectedConversation;
                 }
                 renderConversations();
+                updateConversationComposer();
                 updateReadActions();
+                const rememberedConversation = selectedConversationKey() ? localStorage.getItem(selectedConversationKey()) : '';
+                if (!selectedConversation && rememberedConversation && conversations.some((item) => Number(item.id) === Number(rememberedConversation))) {
+                    await openConversation(rememberedConversation);
+                }
             } catch (error) {
                 renderConversations([]);
                 notify('error', error.message);
@@ -2533,6 +3897,7 @@
                 const active = selectedConversation && Number(selectedConversation.id) === Number(chat.id);
                 const label = chat.contact_name || chat.contact_phone;
                 const unread = Number(chat.unread_count || 0);
+                const optOut = Number(chat.marketing_opt_out || 0) > 0;
                 const direction = chat.last_direction === 'outbound' ? 'Você: ' : '';
                 const listStatus = chat.last_direction === 'outbound'
                     ? renderWhatsAppStatus(chat.last_message_status || chat.last_outbound_status, 'list')
@@ -2551,6 +3916,7 @@
                                 ${listStatus}
                                 <span class="truncate">${escapeHtml(direction + (chat.last_message || 'Sem mensagens'))}</span>
                             </p>
+                            ${optOut ? '<p class="text-[10px] font-black text-red-600 mb-0 mt-1">Não contatar marketing</p>' : ''}
                         </div>
                         ${unread ? `<span class="min-w-[1.25rem] h-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center">${unread}</span>` : ''}
                     </button>
@@ -2580,19 +3946,24 @@
         async function openConversation(id) {
             selectedConversation = conversations.find((item) => Number(item.id) === Number(id)) || null;
             if (!selectedConversation) return;
+            if (selectedConversationKey()) {
+                localStorage.setItem(selectedConversationKey(), String(selectedConversation.id));
+            }
 
             const label = selectedConversation.contact_name || selectedConversation.contact_phone;
             chatName.textContent = label;
-            chatStatus.textContent = selectedConversation.contact_phone;
+            const optOut = Number(selectedConversation.marketing_opt_out || 0) > 0;
+            const windowLabel = currentConversationWindowOpen() ? 'janela 24h aberta' : 'janela 24h encerrada';
+            chatStatus.textContent = `${selectedConversation.contact_phone} - ${windowLabel}${optOut ? ' - não contatar marketing' : ''}`;
             chatAvatar.className = 'w-10 h-10 rounded-full bg-emerald-500 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase';
             chatAvatar.textContent = initials(label, selectedConversation.contact_phone);
-            msgInput.disabled = false;
-            sendBtn.disabled = false;
             deleteConversationBtn.disabled = false;
             markReadBtn.disabled = false;
             markUnreadBtn.disabled = false;
             sendBtn.className = 'w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-full shadow-md transition-all outline-none border-none';
             messagesArea.innerHTML = '<div class="text-center text-slate-400 text-xs italic mt-10">Carregando mensagens...</div>';
+            updateConversationComposer();
+            restoreSupportDraft();
             updateReadActions();
             renderConversations();
 
@@ -2602,6 +3973,8 @@
                 messagesSignature = signature(nextMessages);
                 renderMessages(nextMessages);
                 await loadConversations(false, true);
+                updateConversationComposer();
+                restoreSupportDraft();
                 updateReadActions();
             } catch (error) {
                 messagesArea.innerHTML = `<div class="text-center text-red-500 text-xs italic mt-10">${escapeHtml(error.message)}</div>`;
@@ -2626,6 +3999,7 @@
                 const meta = renderWhatsAppStatus(message.status, outbound ? 'bubble-outbound' : 'bubble-inbound');
                 const media = message.media || message.payload?.media || null;
                 const isAudio = String(message.message_type || '') === 'audio';
+                const isOptOut = !outbound && Boolean(message.payload?.opt_out?.detected);
                 const bodyHtml = isAudio && media?.url
                     ? `<audio controls preload="metadata" class="wa-audio-player" src="${escapeHtml(media.url)}"></audio>`
                     : `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">${escapeHtml(message.body || '')}</p>`;
@@ -2634,6 +4008,7 @@
                         ${outbound ? '' : inboundAvatar}
                         <div class="${outbound ? 'bg-gradient-to-tl from-emerald-600 to-teal-400 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'} p-3 rounded-2xl shadow-sm max-w-[80%]">
                             ${bodyHtml}
+                            ${isOptOut ? '<p class="mt-2 mb-0 text-[10px] font-black text-red-600 bg-red-50 rounded-lg px-2 py-1">Cliente pediu para parar de receber mensagens.</p>' : ''}
                             ${isAudio && !media?.url ? `<p class="text-sm mb-0 ${outbound ? 'text-white' : 'text-slate-700'}">Áudio indisponível</p>` : ''}
                             <span class="flex items-center justify-end gap-1 text-[9px] ${outbound ? 'text-emerald-100' : 'text-slate-400'} text-right mt-1 font-bold uppercase">
                                 <span>${formatTime(message.created_at)}</span>
@@ -2712,6 +4087,11 @@
         }
 
         async function sendCurrentMessage() {
+            if (selectedConversation && !currentConversationWindowOpen()) {
+                await sendCurrentTemplate();
+                return;
+            }
+
             const message = msgInput.value.trim();
             if (!selectedConversation || !message) return;
 
@@ -2730,7 +4110,56 @@
                 });
 
                 msgInput.value = '';
+                clearSupportDraft();
                 setTextFeedback(sendFeedback, 'Mensagem enviada.', true);
+                await loadConversations(false, true);
+                await openConversation(result.conversation_id || selectedConversation.id);
+            } catch (error) {
+                setTextFeedback(sendFeedback, sendErrorFeedback(error.message), false);
+                await openConversation(selectedConversation.id);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function sendCurrentTemplate() {
+            if (!selectedConversation) return;
+            const template = templates.find((item) => Number(item.id) === Number(currentTemplateSelect?.value));
+            if (!template) {
+                setTextFeedback(sendFeedback, 'Selecione um template aprovado.', false);
+                return;
+            }
+
+            const variables = currentTemplateVariables();
+            const missing = Object.entries(parseTemplateVariableMap(template))
+                .map(([, meta]) => String(meta?.key || ''))
+                .filter(Boolean)
+                .filter((key) => !String(variables[key] || '').trim());
+
+            if (missing.length) {
+                setTextFeedback(sendFeedback, `Preencha: ${missing.join(', ')}`, false);
+                return;
+            }
+
+            setTextFeedback(sendFeedback, 'Enviando template...', null);
+            sendBtn.disabled = true;
+
+            try {
+                const result = await api('/campaign/whatsapp/messages/send', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        account_id: selectedAccountId,
+                        to: selectedConversation.contact_phone,
+                        name: selectedConversation.contact_name || variables.nome_cliente || variables.contact_name || '',
+                        message_type: 'template',
+                        template_name: template.name,
+                        template_language: template.language || 'pt_BR',
+                        template_variables: variables
+                    })
+                });
+
+                setTextFeedback(sendFeedback, 'Template enviado.', true);
+                clearSupportDraft();
                 await loadConversations(false, true);
                 await openConversation(result.conversation_id || selectedConversation.id);
             } catch (error) {
@@ -2773,7 +4202,9 @@
         }
 
         async function startNewConversation() {
+            if (newChatSendBusy) return;
             const feedback = document.getElementById('wa-new-chat-feedback');
+            const submitButton = document.getElementById('wa-new-chat-send');
             const phone = digits(document.getElementById('wa-new-chat-phone')?.value || '');
             const name = document.getElementById('wa-new-chat-name')?.value || '';
             const message = document.getElementById('wa-new-chat-message')?.value || '';
@@ -2784,6 +4215,8 @@
             const audioFile = document.getElementById('wa-new-chat-audio')?.files?.[0] || null;
 
             setTextFeedback(feedback, 'Enviando...', null);
+            newChatSendBusy = true;
+            if (submitButton) submitButton.disabled = true;
 
             try {
                 let requestOptions;
@@ -2819,6 +4252,9 @@
                 await openConversation(result.conversation_id);
             } catch (error) {
                 setTextFeedback(feedback, sendErrorFeedback(error.message), false);
+            } finally {
+                newChatSendBusy = false;
+                if (submitButton) submitButton.disabled = false;
             }
         }
 
@@ -2837,6 +4273,16 @@
                 '"': '&quot;',
                 "'": '&#039;'
             }[char]));
+        }
+
+        function parseJsonField(value, label) {
+            const text = String(value || '').trim();
+            if (!text) return null;
+            try {
+                return JSON.parse(text);
+            } catch (error) {
+                throw new Error(`${label} precisa ser um JSON válido.`);
+            }
         }
 
         function toggleNewChatType() {
@@ -2865,6 +4311,7 @@
                 msgInput.disabled = true;
                 sendBtn.disabled = true;
                 deleteConversationBtn.disabled = true;
+                updateConversationComposer();
                 chatName.textContent = 'Selecione um chat';
                 chatStatus.textContent = 'Aguardando interação';
                 chatAvatar.className = 'w-10 h-10 rounded-full bg-slate-200 shadow-sm flex items-center justify-center text-white text-xs font-bold uppercase';
@@ -2884,6 +4331,7 @@
             selectedConversation = null;
             updateAccountLabel();
             renderAccountsList();
+            updateConversationComposer();
             updateReadActions();
             await loadConversations();
             messagesArea.innerHTML = '<div id="no-chat-selected" class="text-center text-slate-400 text-xs italic mt-10">Clique em uma conversa ao lado para carregar o histórico.</div>';
@@ -3000,6 +4448,52 @@
         document.getElementById('wa-template-close')?.addEventListener('click', () => modal(templateModal, false));
         document.getElementById('wa-template-save')?.addEventListener('click', saveTemplate);
         document.getElementById('wa-page-template-save')?.addEventListener('click', savePageTemplate);
+        document.getElementById('wa-page-template-new')?.addEventListener('click', () => {
+            clearPageTemplateForm();
+            templateModelPanel?.classList.add('hidden');
+            document.getElementById('wa-template-ai-panel')?.classList.add('hidden');
+        });
+        document.getElementById('wa-page-template-use-model')?.addEventListener('click', async () => {
+            const willOpen = templateModelPanel?.classList.contains('hidden');
+            clearPageTemplateForm();
+            templateModelSelect && (templateModelSelect.value = '');
+            templateModelPanel?.classList.toggle('hidden', !willOpen);
+            document.getElementById('wa-template-ai-panel')?.classList.add('hidden');
+            if (willOpen && templateModels.length === 0) {
+                await loadTemplateModels(templateModelCategory?.value || '');
+            }
+        });
+        document.getElementById('wa-page-template-paste-ai')?.addEventListener('click', () => {
+            const aiPanel = document.getElementById('wa-template-ai-panel');
+            const willOpen = aiPanel?.classList.contains('hidden');
+            clearPageTemplateForm();
+            document.getElementById('wa-template-ai-text').value = '';
+            aiPanel?.classList.toggle('hidden', !willOpen);
+            templateModelPanel?.classList.add('hidden');
+        });
+        document.getElementById('wa-template-ai-apply')?.addEventListener('click', applyAiTemplateText);
+        templateModelCategory?.addEventListener('change', () => {
+            clearPageTemplateForm();
+            templateModelSelect && (templateModelSelect.value = '');
+            loadTemplateModels(templateModelCategory.value || '');
+        });
+        templateModelSelect?.addEventListener('change', () => applyTemplateModel(templateModelSelect.value));
+        document.getElementById('wa-page-template-body')?.addEventListener('input', () => {
+            try {
+                renderTemplateVariableEditor();
+            } catch (error) {
+                setTextFeedback(document.getElementById('wa-page-template-feedback'), error.message, false);
+            }
+        });
+        document.getElementById('wa-page-template-components')?.addEventListener('input', () => {
+            try {
+                renderTemplateVariableEditor();
+            } catch (error) {
+                setTextFeedback(document.getElementById('wa-page-template-feedback'), error.message, false);
+            }
+        });
+        document.getElementById('wa-page-template-variable-editor')?.addEventListener('input', syncTemplateVariableMapFromEditor);
+        document.getElementById('wa-page-template-variable-editor')?.addEventListener('change', syncTemplateVariableMapFromEditor);
         document.getElementById('wa-template-sync')?.addEventListener('click', () => syncTemplates());
         const handleTemplateListClick = (event) => {
             const syncBtn = event.target.closest('[data-template-sync]');
@@ -3017,7 +4511,37 @@
         document.getElementById('wa-campaign-section-refresh')?.addEventListener('click', loadCampaigns);
         document.getElementById('wa-campaign-create')?.addEventListener('click', createCampaign);
         campaignMessageType?.addEventListener('change', toggleCampaignMessageType);
+        campaignSendMode?.addEventListener('change', toggleCampaignSendMode);
         campaignTemplateSelect?.addEventListener('change', () => applyCampaignTemplate(campaignTemplateSelect.value));
+        document.getElementById('wa-campaign-variable-fields')?.addEventListener('input', syncCampaignVariableJsonFromFields);
+        document.getElementById('wa-campaign-template-components')?.addEventListener('input', () => {
+            const values = campaignVariableJson();
+            document.querySelectorAll('[data-campaign-variable-key]').forEach((input) => {
+                const key = input.dataset.campaignVariableKey;
+                input.value = values[key] || '';
+            });
+        });
+        currentTemplateSelect?.addEventListener('change', renderCurrentTemplateFields);
+        currentTemplateFields?.addEventListener('input', saveSupportDraft);
+        campaignRecipientsField?.addEventListener('input', updateCampaignRecipientSummary);
+        document.getElementById('wa-campaign-add-manual-contact')?.addEventListener('click', () => {
+            const nameInput = document.getElementById('wa-campaign-manual-name');
+            const phoneInput = document.getElementById('wa-campaign-manual-phone');
+            appendCampaignRecipient(phoneInput?.value || '', nameInput?.value || '');
+            if (nameInput) nameInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+        });
+        document.getElementById('wa-campaign-import-contacts')?.addEventListener('click', () => {
+            resetCampaignContactModal();
+            setTextFeedback(campaignContactFeedback, 'Selecione uma planilha para começar.', null);
+            modal(campaignContactModal, true);
+        });
+        document.getElementById('wa-campaign-contact-close')?.addEventListener('click', () => modal(campaignContactModal, false));
+        document.getElementById('wa-campaign-contact-cancel')?.addEventListener('click', () => modal(campaignContactModal, false));
+        campaignContactFile?.addEventListener('change', previewCampaignContactFile);
+        campaignContactPhoneMap?.addEventListener('change', renderCampaignUploadSummary);
+        campaignContactNameMap?.addEventListener('change', renderCampaignUploadSummary);
+        campaignContactConfirm?.addEventListener('click', confirmCampaignUploadContacts);
         const handleCampaignListClick = (event) => {
             const sendButton = event.target.closest('[data-campaign-send]');
             if (sendButton && !sendButton.disabled) {
@@ -3070,6 +4594,7 @@
             notify('success', 'Qualidade dos números sincronizada.');
         });
         sendBtn.addEventListener('click', sendCurrentMessage);
+        msgInput.addEventListener('input', saveSupportDraft);
         audioBtn?.addEventListener('click', () => audioInput?.click());
         audioInput?.addEventListener('change', () => {
             const file = audioInput.files?.[0] || null;
@@ -3083,6 +4608,9 @@
         });
 
         toggleCampaignMessageType();
+        toggleCampaignSendMode();
+        updateCampaignRecipientSummary();
+        renderTemplateVariableEditor();
         showWhatsAppArea('conversations');
         loadAccounts().then(async () => {
             processSupportPrefill();
@@ -3138,6 +4666,57 @@
         background: #ffffff;
         border-color: #bbf7d0;
         box-shadow: 0 -1px 0 #bbf7d0 inset;
+    }
+    .wa-template-action-btn {
+        position: relative;
+    }
+    .wa-template-action-btn::after {
+        content: attr(data-wa-tooltip);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%) translateY(4px);
+        opacity: 0;
+        pointer-events: none;
+        white-space: nowrap;
+        border-radius: 0.5rem;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.65rem;
+        line-height: 1;
+        text-transform: none;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 20;
+    }
+    .wa-template-action-btn::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 3px);
+        transform: translateX(-50%) translateY(4px);
+        opacity: 0;
+        pointer-events: none;
+        border: 5px solid transparent;
+        border-top-color: #0f172a;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 20;
+    }
+    .wa-template-action-btn:hover::after,
+    .wa-template-action-btn:hover::before,
+    .wa-template-action-btn:focus-visible::after,
+    .wa-template-action-btn:focus-visible::before {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    .wa-template-action-btn--ai {
+        color: #ffffff;
+        background: #7c3aed;
+        box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+    }
+    .wa-template-action-btn--ai:hover {
+        background: #6d28d9;
     }
     .wa-central-header {
         display: flex;

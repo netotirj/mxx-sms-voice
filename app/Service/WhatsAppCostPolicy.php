@@ -12,19 +12,17 @@ class WhatsAppCostPolicy
     public const DEFAULT_PRICES_BRL = [
         self::CATEGORY_MARKETING => 0.35,
         self::CATEGORY_UTILITY => 0.04,
+        self::CATEGORY_AUTHENTICATION => 0.04,
         self::CATEGORY_SERVICE => 0.00,
     ];
 
     public static function normalizeCategory(?string $category): string
     {
         $category = strtoupper(trim((string)$category));
-        if ($category === self::CATEGORY_AUTHENTICATION) {
-            return self::CATEGORY_UTILITY;
-        }
-
         return in_array($category, [
             self::CATEGORY_MARKETING,
             self::CATEGORY_UTILITY,
+            self::CATEGORY_AUTHENTICATION,
             self::CATEGORY_SERVICE,
         ], true) ? $category : self::CATEGORY_MARKETING;
     }
@@ -36,6 +34,19 @@ class WhatsAppCostPolicy
         }
 
         return self::normalizeCategory($category);
+    }
+
+    public static function isFreeByMetaPolicy(string $messageType, ?string $category, bool $serviceWindowOpen): bool
+    {
+        if (!$serviceWindowOpen) {
+            return false;
+        }
+
+        if ($messageType !== 'template') {
+            return true;
+        }
+
+        return self::normalizeCategory($category) === self::CATEGORY_UTILITY;
     }
 
     public static function isServiceWindowOpen(?string $lastInboundAt): bool
@@ -60,9 +71,18 @@ class WhatsAppCostPolicy
 
     public static function looksLikeOptOut(string $body): bool
     {
-        $body = strtoupper(trim($body));
+        $body = mb_strtolower(trim($body), 'UTF-8');
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $body);
+        if (is_string($ascii) && $ascii !== '') {
+            $body = $ascii;
+        }
         $body = preg_replace('/\s+/', ' ', $body) ?: $body;
+        $body = trim(preg_replace('/[^a-z0-9 ]+/', ' ', $body) ?: $body);
 
-        return in_array($body, ['SAIR', 'PARAR', 'STOP', 'CANCELAR', 'DESCADASTRAR'], true);
+        if (in_array($body, ['sair', 'parar', 'stop', 'cancelar', 'descadastrar', 'remover'], true)) {
+            return true;
+        }
+
+        return (bool)preg_match('/\b(nao quero|nao receber|nao me envie|remover|remova|cancelar|pare|parar|sair|stop|descadastrar|descadastro)\b/i', $body);
     }
 }

@@ -216,6 +216,30 @@
                     </div>
                 </div>
 
+                <div id="whatsAppCategoryFields" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-green-50 dark:bg-slate-800 rounded-2xl border border-dashed border-green-200 dark:border-slate-700">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1 ml-1">Marketing em centavos</label>
+                        <input type="text" inputmode="decimal" autocomplete="off" name="whatsapp_marketing" id="whatsapp_marketing"
+                               placeholder="30"
+                               class="w-full border border-green-200 rounded-lg px-3 py-2 text-sm dark:bg-slate-700 dark:text-white outline-none font-bold text-emerald-600">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1 ml-1">Utilitário em centavos</label>
+                        <input type="text" inputmode="decimal" autocomplete="off" name="whatsapp_utility" id="whatsapp_utility"
+                               placeholder="15"
+                               class="w-full border border-green-200 rounded-lg px-3 py-2 text-sm dark:bg-slate-700 dark:text-white outline-none font-bold text-emerald-600">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1 ml-1">Autenticação em centavos</label>
+                        <input type="text" inputmode="decimal" autocomplete="off" name="whatsapp_authentication" id="whatsapp_authentication"
+                               placeholder="15"
+                               class="w-full border border-green-200 rounded-lg px-3 py-2 text-sm dark:bg-slate-700 dark:text-white outline-none font-bold text-emerald-600">
+                    </div>
+                    <p class="sm:col-span-3 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        Digite em centavos: 30 salva como R$ 0,30.
+                    </p>
+                </div>
+
                 <div>
                     <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Revendedor Vinculado</label>
                     <select id="usuario_id" name="usuario_id" required
@@ -280,15 +304,11 @@
     };
 
     window.canCreateRate = () => {
-        return window.isAdmin() || window.isReseller();
+        return window.isAdmin();
     };
 
     window.canEditRate = (rate) => {
         if (window.isAdmin()) return true;
-
-        if (window.isReseller()) {
-            return window.isOwnedByLoggedReseller(rate) && !window.isOwnRate(rate);
-        }
 
         return false;
     };
@@ -296,19 +316,11 @@
     window.canDeleteRate = (rate) => {
         if (window.isAdmin()) return true;
 
-        if (window.isReseller()) {
-            return window.isOwnedByLoggedReseller(rate) && !window.isOwnRate(rate);
-        }
-
         return false;
     };
 
     window.canChangeRateStatus = (rate) => {
         if (window.isAdmin()) return true;
-
-        if (window.isReseller()) {
-            return window.isOwnedByLoggedReseller(rate) && !window.isOwnRate(rate);
-        }
 
         return false;
     };
@@ -436,6 +448,9 @@
         const tipoTarifa = document.getElementById("tipo_tarifa");
         const serviceEvent = document.getElementById("service_event");
         const serviceScope = document.getElementById("service_scope");
+        const whatsappMarketing = document.getElementById("whatsapp_marketing");
+        const whatsappUtility = document.getElementById("whatsapp_utility");
+        const whatsappAuthentication = document.getElementById("whatsapp_authentication");
         const usuarioId = document.getElementById("usuario_id");
 
         if (editingField) editingField.value = id;
@@ -443,6 +458,13 @@
         if (nomeTarifa) nomeTarifa.value = rate.name || '';
         if (valorTarifa) valorTarifa.value = rate.rate || '';
         if (tipoTarifa) tipoTarifa.value = rate.type || '';
+
+        if (rate.type === "whatsapp") {
+            const categoryRates = rate.whatsapp_category_rates || {};
+            if (whatsappMarketing) whatsappMarketing.value = reaisToCentavosInput(categoryRates.marketing ?? rate.rate ?? 0);
+            if (whatsappUtility) whatsappUtility.value = reaisToCentavosInput(categoryRates.utility ?? rate.rate ?? 0);
+            if (whatsappAuthentication) whatsappAuthentication.value = reaisToCentavosInput(categoryRates.authentication ?? rate.rate ?? 0);
+        }
 
         if (rate.type === "service_fee") {
             if (serviceEvent) serviceEvent.value = rate.service_event || "answered";
@@ -558,6 +580,38 @@
         });
     }
 
+    function parseCentavosInput(value) {
+        const raw = String(value || '').trim();
+        const normalized = raw
+            .replace(/[^\d,.-]/g, '')
+            .replace(/\./g, '')
+            .replace(',', '.');
+        const cents = parseFloat(normalized);
+        if (!Number.isFinite(cents)) return 0;
+
+        if (/^0[,.]\d+/.test(raw)) {
+            return cents;
+        }
+
+        return cents / 100;
+    }
+
+    function reaisToCentavosInput(value) {
+        const reais = parseFloat(value) || 0;
+        return (reais * 100).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function normalizeWhatsAppCategoryFormData(formData) {
+        if (formData.get('type') !== 'whatsapp') return;
+
+        ['whatsapp_marketing', 'whatsapp_utility', 'whatsapp_authentication'].forEach((field) => {
+            formData.set(field, parseCentavosInput(formData.get(field)).toFixed(4));
+        });
+    }
+
     function getTypeBadge(type) {
         const types = {
             sms: { text: "SMS", icon: "fa-comment", color: "bg-blue-500 text-white" },
@@ -608,6 +662,12 @@
                 const rateClass = rateValue < 0.10
                     ? "bg-emerald-500"
                     : (rateValue < 0.15 ? "bg-yellow-500 text-black" : "bg-red-500");
+                const isWhatsAppCategoryRate = item.managed_kind === 'whatsapp_categories';
+                const rateCell = isWhatsAppCategoryRate
+                    ? renderWhatsAppCategoryRates(item.whatsapp_category_rates || {})
+                    : `<span class="px-3 py-1 text-xs font-bold text-white rounded-lg ${rateClass} shadow-sm">
+                            R$ ${formatarValorTarifa(item.rate)}
+                        </span>`;
 
                 const dataObj = item.created_at ? new Date(item.created_at.replace(/-/g, "/")) : null;
                 const dataBR = dataObj ? dataObj.toLocaleDateString('pt-BR') : '---';
@@ -625,9 +685,7 @@
                     </td>
 
                     <td class="px-6 py-4 text-center">
-                        <span class="px-3 py-1 text-xs font-bold text-white rounded-lg ${rateClass} shadow-sm">
-                            R$ ${formatarValorTarifa(item.rate)}
-                        </span>
+                        ${rateCell}
                     </td>
 
                     <td class="px-6 py-4 text-center">${getTypeBadge(item.type)}</td>
@@ -694,6 +752,24 @@
         if (typeof updateTarifaKpis === 'function') updateTarifaKpis();
     }
 
+    function renderWhatsAppCategoryRates(rates) {
+        const items = [
+            ['Marketing', rates.marketing],
+            ['Utilitário', rates.utility],
+            ['Autenticação', rates.authentication],
+        ];
+
+        return `
+            <div class="flex flex-col gap-1 items-center">
+                ${items.map(([label, value]) => `
+                    <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                        ${label}: R$ ${formatarValorTarifa(value)}
+                    </span>
+                `).join('')}
+            </div>
+        `;
+    }
+
     async function loadData() {
         const r = await fetch(`${window.baseUrl}/rates/search`);
         const res = await r.json();
@@ -743,7 +819,30 @@
     function syncServiceFeeUI() {
         const tipo = document.getElementById("tipo_tarifa")?.value;
         const box = document.getElementById("serviceFeeFields");
+        const whatsAppBox = document.getElementById("whatsAppCategoryFields");
+        const valorTarifa = document.getElementById("valor_tarifa");
+        const nomeTarifa = document.getElementById("nome_tarifa");
+        const categoryInputs = [
+            document.getElementById("whatsapp_marketing"),
+            document.getElementById("whatsapp_utility"),
+            document.getElementById("whatsapp_authentication"),
+        ];
+
         if (box) box.classList.toggle("hidden", tipo !== "service_fee");
+        if (whatsAppBox) whatsAppBox.classList.toggle("hidden", tipo !== "whatsapp");
+
+        if (valorTarifa) {
+            valorTarifa.required = tipo !== "whatsapp";
+            valorTarifa.closest('div')?.classList.toggle("hidden", tipo === "whatsapp");
+        }
+
+        categoryInputs.forEach(input => {
+            if (input) input.required = tipo === "whatsapp";
+        });
+
+        if (nomeTarifa && tipo === "whatsapp" && !nomeTarifa.value.trim()) {
+            nomeTarifa.value = "WhatsApp por template";
+        }
     }
 
     function updateTarifaKpis() {
@@ -780,6 +879,7 @@
 
                 const btn = document.getElementById("saveBtn");
                 const formData = new FormData(e.target);
+                normalizeWhatsAppCategoryFormData(formData);
                 const endpoint = window.editingId ? `${window.baseUrl}/rates/update` : `${window.baseUrl}/rates/new`;
 
                 if (window.editingId) {

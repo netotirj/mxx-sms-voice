@@ -12,7 +12,10 @@ class WhatsAppTemplate
 
     public static function create(array $data): int
     {
-        return (int)(new Database('whatsapp_templates'))->insert([
+        $componentsJson = isset($data['components'])
+            ? json_encode($data['components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        $values = [
             'tenancy_id' => $data['tenancy_id'],
             'user_id' => (int)$data['user_id'],
             'account_id' => $data['account_id'] ?? null,
@@ -22,9 +25,7 @@ class WhatsAppTemplate
             'language' => $data['language'] ?? 'pt_BR',
             'category' => $data['category'] ?? 'MARKETING',
             'body' => $data['body'] ?? null,
-            'components' => isset($data['components'])
-                ? json_encode($data['components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                : null,
+            'components' => $componentsJson,
             'variable_map' => isset($data['variable_map'])
                 ? json_encode($data['variable_map'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : null,
@@ -41,7 +42,22 @@ class WhatsAppTemplate
                 : null,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+
+        if (self::hasColumn('components_json')) {
+            $values['components_json'] = $componentsJson;
+        }
+        if (self::hasColumn('rejected_reason')) {
+            $values['rejected_reason'] = $data['rejected_reason'] ?? null;
+        }
+        if (self::hasColumn('created_by')) {
+            $values['created_by'] = (int)($data['created_by'] ?? $data['user_id']);
+        }
+        if (self::hasColumn('updated_by')) {
+            $values['updated_by'] = (int)($data['updated_by'] ?? $data['user_id']);
+        }
+
+        return (int)(new Database('whatsapp_templates'))->insert($values);
     }
 
     public static function listForUser(array $user): array
@@ -181,6 +197,19 @@ class WhatsAppTemplate
         if (!empty($meta['category'])) {
             $values['category'] = strtoupper((string)$meta['category']);
         }
+        if (isset($meta['components']) && self::hasColumn('components_json')) {
+            $values['components_json'] = json_encode($meta['components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+        if (isset($meta['components'])) {
+            $values['components'] = json_encode($meta['components'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $values['body'] = self::extractBodyFromMeta($meta);
+        }
+        if (self::hasColumn('rejected_reason')) {
+            $values['rejected_reason'] = self::metaRejectedReason($meta);
+        }
+        if ($user !== null && self::hasColumn('updated_by')) {
+            $values['updated_by'] = (int)($user['id'] ?? 0);
+        }
         if (!empty($meta)) {
             $values['meta_payload'] = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
@@ -231,10 +260,13 @@ class WhatsAppTemplate
             'components' => $template['components'] ?? null,
             'variable_map' => self::extractVariableMapFromMeta($template),
             'status' => self::normalizeMetaStatus((string)($template['status'] ?? 'pending')),
+            'rejected_reason' => self::metaRejectedReason($template),
             'is_system_template' => false,
             'template_type' => self::TENANT_TEMPLATE,
             'template_last_sync_at' => date('Y-m-d H:i:s'),
             'meta_payload' => $template,
+            'created_by' => (int)($actor['id'] ?? $account['user_id']),
+            'updated_by' => (int)($actor['id'] ?? $account['user_id']),
         ]);
         if ($actor !== null) {
             self::audit($id, $actor, 'create', [
@@ -312,9 +344,34 @@ class WhatsAppTemplate
     public static function normalizeMetaStatus(string $status): string
     {
         $status = strtolower(trim($status));
+        if ($status === 'ready_to_submit') {
+            return 'READY_TO_SUBMIT';
+        }
+        if ($status === 'review_manual') {
+            return 'REVIEW_MANUAL';
+        }
+
         return in_array($status, ['draft', 'pending', 'approved', 'rejected', 'paused', 'disabled'], true)
             ? $status
             : 'pending';
+    }
+
+    public static function approvedForUser(array $user, ?int $accountId = null, ?string $wabaId = null): array
+    {
+        $where = "status = 'approved' AND (" . self::scopeForUser($user) . ')';
+        $params = [];
+        if ($accountId !== null && $accountId > 0) {
+            $where .= ' AND (account_id = :account_id OR account_id IS NULL)';
+            $params[':account_id'] = $accountId;
+        }
+        if ($wabaId !== null && $wabaId !== '') {
+            $where .= ' AND (waba_id = :waba_id OR waba_id IS NULL)';
+            $params[':waba_id'] = $wabaId;
+        }
+
+        return (new Database('whatsapp_templates'))
+            ->select($where, $params, 'name ASC, language ASC')
+            ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function deleteForUser(int $id, array $user): bool
@@ -488,5 +545,32 @@ class WhatsAppTemplate
         }
 
         return $map;
+    }
+
+    private static function metaRejectedReason(array $meta): ?string
+    {
+        foreach (['rejected_reason', 'rejection_reason', 'reason'] as $key) {
+            $value = trim((string)($meta[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private static function hasColumn(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_templates')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
     }
 }

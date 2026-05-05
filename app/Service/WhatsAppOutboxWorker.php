@@ -78,6 +78,13 @@ class WhatsAppOutboxWorker
                     return false;
                 }
 
+                if (!$this->templateMatchesAccount($template, $account)) {
+                    WhatsAppOutbox::markFailed($id, 'Template pertence a outra WABA.', (int)$row['max_attempts'], (int)$row['max_attempts']);
+                    $this->markCampaignRecipient($row, 'failed', null, 'Template pertence a outra WABA.');
+                    WhatsAppBilling::recordBlocked($row, 'Template pertence a outra WABA.');
+                    return false;
+                }
+
                 if ((string)$template['status'] !== 'approved') {
                     WhatsAppOutbox::markFailed($id, 'Template ainda não aprovado pela Meta.', (int)$row['max_attempts'], (int)$row['max_attempts']);
                     $this->markCampaignRecipient($row, 'failed', null, 'Template ainda não aprovado pela Meta.');
@@ -86,6 +93,7 @@ class WhatsAppOutboxWorker
                 }
 
                 $components = json_decode((string)($row['template_components'] ?? '[]'), true);
+                $this->logTemplateSendAttempt($row, is_array($components) ? $components : []);
                 $result = $api->sendTemplate(
                     (string)$account['access_token'],
                     (string)$account['phone_number_id'],
@@ -94,6 +102,7 @@ class WhatsAppOutboxWorker
                     (string)($row['template_language'] ?: 'pt_BR'),
                     is_array($components) ? $components : []
                 );
+                $this->logMetaSendResult($row, $result);
             } else {
                 $result = $api->sendText(
                     (string)$account['access_token'],
@@ -101,6 +110,7 @@ class WhatsAppOutboxWorker
                     (string)$row['contact_phone'],
                     (string)$row['body']
                 );
+                $this->logMetaSendResult($row, $result);
             }
 
             $wamid = $result['data']['messages'][0]['id'] ?? null;
@@ -137,6 +147,12 @@ class WhatsAppOutboxWorker
                     'message_category' => strtolower((string)$billing['message_category']),
                     'billed' => false,
                     'outbox_id' => $id,
+                    'pricing_snapshot' => $billing['pricing_snapshot'] ?? null,
+                ],
+                'audit' => [
+                    'preview_body' => (string)($row['preview_body'] ?? $row['body'] ?? ''),
+                    'template_variables' => $this->jsonColumnToArray($row['template_variables'] ?? null),
+                    'pricing_snapshot' => $billing['pricing_snapshot'] ?? null,
                 ],
             ]);
 
@@ -152,6 +168,9 @@ class WhatsAppOutboxWorker
                 'message_category' => $billing['message_category'],
                 'price_brl' => (float)$billing['price_brl'],
                 'body' => (string)($row['body'] ?? ''),
+                'preview_body' => (string)($row['preview_body'] ?? $row['body'] ?? ''),
+                'template_variables' => $this->jsonColumnToArray($row['template_variables'] ?? null),
+                'pricing_snapshot' => $billing['pricing_snapshot'] ?? null,
                 'status' => 'sent',
                 'payload' => $payload,
             ]);
@@ -213,5 +232,107 @@ class WhatsAppOutboxWorker
         if (!empty($row['campaign_id'])) {
             WhatsAppCampaign::updateCounters((int)$row['campaign_id']);
         }
+    }
+
+    private function logTemplateSendAttempt(array $row, array $components): void
+    {
+        error_log(json_encode([
+            'event' => 'whatsapp_template_send_attempt',
+            'outbox_id' => (int)$row['id'],
+            'tenancy_id' => (string)($row['tenancy_id'] ?? ''),
+            'account_id' => (int)($row['account_id'] ?? 0),
+            'template_name' => (string)($row['template_name'] ?? ''),
+            'template_language' => (string)($row['template_language'] ?? 'pt_BR'),
+            'contact' => [
+                'name' => $row['contact_name'] ?? null,
+                'phone' => $this->maskPhoneForLog((string)($row['contact_phone'] ?? '')),
+            ],
+            'parameters' => $this->templateParametersForLog($components),
+            'payload_template_components' => $components,
+            'preview_body' => $row['preview_body'] ?? $row['body'] ?? null,
+            'template_variables' => $this->jsonColumnToArray($row['template_variables'] ?? null),
+            'pricing_snapshot' => $this->jsonColumnToArray($row['pricing_snapshot'] ?? null),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function logMetaSendResult(array $row, array $result): void
+    {
+        error_log(json_encode([
+            'event' => 'whatsapp_meta_send_result',
+            'outbox_id' => (int)$row['id'],
+            'conversation_id' => $row['conversation_id'] ?? null,
+            'client_id' => $row['user_id'] ?? null,
+            'contact_phone' => $this->maskPhoneForLog((string)($row['contact_phone'] ?? '')),
+            'template_name' => $row['template_name'] ?? null,
+            'attempted_at' => date('Y-m-d H:i:s'),
+            'status' => $result['status'] ?? null,
+            'ok' => $result['ok'] ?? false,
+            'message_id' => $result['data']['messages'][0]['id'] ?? null,
+            'error' => $result['error'] ?? null,
+            'meta_response' => $result['data'] ?? [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function templateParametersForLog(array $components): array
+    {
+        $parameters = [];
+        foreach ($components as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+            foreach (($component['parameters'] ?? []) as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+                $parameters[] = [
+                    'component' => $component['type'] ?? null,
+                    'type' => $parameter['type'] ?? null,
+                    'text' => $parameter['text'] ?? null,
+                    'payload' => $parameter['payload'] ?? null,
+                ];
+            }
+        }
+
+        return $parameters;
+    }
+
+    private function jsonColumnToArray(mixed $value): ?array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function templateMatchesAccount(array $template, array $account): bool
+    {
+        if ((string)($template['tenancy_id'] ?? '') !== (string)($account['tenancy_id'] ?? '')) {
+            return false;
+        }
+
+        $templateWaba = trim((string)($template['waba_id'] ?? ''));
+        $accountWaba = trim((string)($account['waba_id'] ?? ''));
+        if ($templateWaba !== '' && $accountWaba !== '' && $templateWaba !== $accountWaba) {
+            return false;
+        }
+
+        $templateAccountId = (int)($template['account_id'] ?? 0);
+        return $templateAccountId <= 0 || $templateAccountId === (int)($account['id'] ?? 0);
+    }
+
+    private function maskPhoneForLog(string $phone): string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if (strlen($phone) <= 6) {
+            return '***';
+        }
+
+        return substr($phone, 0, 4) . '***' . substr($phone, -2);
     }
 }

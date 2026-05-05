@@ -9,6 +9,7 @@ use App\Session\User as SessionUser;
 use App\Utils\View;
 use \App\Model\Entity\UserSearch;
 use \App\Model\Entity\PermissionsRules;
+use App\Service\PlanAccessPolicy;
 use DateTime;
 use Exception;
 use Random\RandomException;
@@ -89,6 +90,13 @@ class Users extends ViewComponents
             return new Response(401, [
                 'status' => 401,
                 'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        if (!self::canManageUsersByPlan($obUser)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Seu plano atual não permite criar usuários adicionais.'
             ], 'application/json');
         }
 
@@ -213,6 +221,13 @@ class Users extends ViewComponents
         $postVars = $request->getPostVars();
         $tenancyId = $obUser['tenancy_id'];
 
+        if (!self::canManageUsersByPlan($obUser)) {
+            return new Response(403, json_encode([
+                'status' => 'ERROR',
+                'message' => 'Seu plano atual não permite criar usuários adicionais.'
+            ]), 'application/json');
+        }
+
         // 1. Captura os dados (usando 'user_function' ou 'role' conforme seu HTML atual)
         $firstName   = htmlspecialchars(trim($postVars['first_name'] ?? ''));
         $lastName    = htmlspecialchars(trim($postVars['last_name'] ?? ''));
@@ -296,6 +311,16 @@ class Users extends ViewComponents
         }
 
         return new Response(500, json_encode(['status' => 'ERROR', 'message' => 'Erro ao criar usuário.']), 'application/json');
+    }
+
+    private static function canManageUsersByPlan(array $user): bool
+    {
+        $role = (string)($user['user_function'] ?? $user['function'] ?? '');
+        if ($role === 'super_admin') {
+            return true;
+        }
+
+        return PlanAccessPolicy::canCreateUsers((string)($user['tenancy_id'] ?? ''));
     }
 
     /**

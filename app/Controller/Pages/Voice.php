@@ -13,6 +13,7 @@ use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
+use App\Service\WhatsAppBilling;
 use App\RedisConn;
 use Exception;
 use GuzzleHttp\Client;
@@ -1075,7 +1076,6 @@ class Voice extends ViewComponents
             $rateVoice    = (float)($ratesAll['voice'] ?? 0);
             $rateSms      = (float)($ratesAll['sms'] ?? 0);
             $rateTorpedo  = (float)($ratesAll['torpedo'] ?? 0);
-            $rateWhatsApp = (float)($ratesAll['whatsapp'] ?? 0);
 
         } else {
             $obBalanceTariffs = BalanceSms::getBalanceSms($userId, $tenantId, $currentPlan);
@@ -1086,8 +1086,9 @@ class Voice extends ViewComponents
             $rateVoice    = (float)($obBalanceTariffs->value_voice ?? 0);
             $rateSms      = (float)($obBalanceTariffs->value_sms ?? 0);
             $rateTorpedo  = (float)($obBalanceTariffs->value_torpedo ?? 0);
-            $rateWhatsApp = (float)($obBalanceTariffs->value_whatsapp ?? 0);
         }
+        $rateWhatsAppCategories = WhatsAppBilling::categoryPricesForUser((int)$userId, (string)$tenantId);
+        $rateWhatsApp = (float)($rateWhatsAppCategories['marketing'] ?? 0);
 
         // =======================
         // Verificação de plano ativo (PRECISA VIR ANTES do trunk p/ ter $adminId)
@@ -1875,6 +1876,7 @@ class Voice extends ViewComponents
         if ($isReseller) {
 
             $rateData = Rates::getActiveRatesByUser($tenantId, $userId);
+            $whatsappCategories = WhatsAppBilling::categoryPricesForUser((int)$userId, (string)$tenantId);
 
             if (empty($rateData)) {
                 return new Response(404, [
@@ -1890,7 +1892,8 @@ class Voice extends ViewComponents
                     'voice' => (float)$rateData['voice'],
                     'sms' => (float)$rateData['sms'],
                     'torpedo' => (float)$rateData['torpedo'],
-                    'whatsapp' => (float)$rateData['whatsapp']
+                    'whatsapp' => (float)($whatsappCategories['marketing'] ?? 0),
+                    'whatsapp_categories' => $whatsappCategories
                 ]
             ], 'application/json');
         }
@@ -1899,6 +1902,7 @@ class Voice extends ViewComponents
         // 👉 2. USUÁRIO NORMAL / ADMIN → BUSCA NO BALANCE
         // =========================================
         $obBalance = BalanceSms::getBalanceSms($userId, $tenantId, $planId);
+        $whatsappCategories = WhatsAppBilling::categoryPricesForUser((int)$userId, (string)$tenantId);
 
         return new Response(200, [
             'success' => true,
@@ -1907,7 +1911,8 @@ class Voice extends ViewComponents
                 'voice' => (float)($obBalance->value_voice ?? 0),
                 'sms' => (float)($obBalance->value_sms ?? 0),
                 'torpedo' => (float)($obBalance->value_torpedo ?? 0),
-                'whatsapp' => (float)($obBalance->value_whatsapp ?? 0)
+                'whatsapp' => (float)($whatsappCategories['marketing'] ?? 0),
+                'whatsapp_categories' => $whatsappCategories
             ]
         ], 'application/json');
     }
@@ -4598,7 +4603,7 @@ final class VoiceBillingProcessor
         $voiceCost = (float)($rates->value_voice ?? 0);
         $smsCost = (float)($rates->value_sms ?? 0);
         $torpedoCost = (float)($rates->value_torpedo ?? 0);
-        $whatsCost = (float)($rates->value_whatsapp ?? 0);
+        $whatsCost = (float)(WhatsAppBilling::categoryPricesForUser($tenantOwnerId, (string)$cdr->tenancy_id)['marketing'] ?? 0);
 
         return round(match ($cdr->type) {
             'normal',

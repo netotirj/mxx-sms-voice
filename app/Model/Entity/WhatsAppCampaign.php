@@ -42,6 +42,16 @@ class WhatsAppCampaign
                 'wc.*',
                 'wa.label AS account_label',
                 'wa.display_phone_number AS account_phone',
+                "(SELECT COALESCE(SUM(cdr.price_brl), 0)
+                    FROM whatsapp_message_cdr cdr
+                    INNER JOIN whatsapp_outbox wo ON wo.id = cdr.whatsapp_outbox_id
+                    WHERE wo.campaign_id = wc.id
+                      AND cdr.billed = 1) AS billed_cost_brl",
+                "(SELECT COUNT(*)
+                    FROM whatsapp_message_cdr cdr
+                    INNER JOIN whatsapp_outbox wo ON wo.id = cdr.whatsapp_outbox_id
+                    WHERE wo.campaign_id = wc.id
+                      AND cdr.status = 'sent') AS billed_message_count",
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -58,14 +68,22 @@ class WhatsAppCampaign
 
     public static function addRecipient(int $campaignId, array $recipient): int
     {
-        return (int) (new Database('whatsapp_campaign_recipients'))->insert([
+        $values = [
             'campaign_id' => $campaignId,
             'phone' => $recipient['phone'],
             'name' => $recipient['name'] ?? null,
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+
+        if (self::recipientColumnExists('template_variables')) {
+            $values['template_variables'] = isset($recipient['template_variables'])
+                ? json_encode($recipient['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null;
+        }
+
+        return (int) (new Database('whatsapp_campaign_recipients'))->insert($values);
     }
 
     public static function getPendingRecipients(int $campaignId): array
@@ -77,6 +95,10 @@ class WhatsAppCampaign
 
     public static function updateRecipientResult(int $id, string $status, ?string $wamid = null, ?string $error = null): bool
     {
+        if ($status === 'queued' && !self::recipientStatusSupportsQueued()) {
+            return true;
+        }
+
         return (new Database('whatsapp_campaign_recipients'))->update(
             'id = :id',
             [
@@ -88,6 +110,38 @@ class WhatsAppCampaign
             ],
             [':id' => $id]
         );
+    }
+
+    private static function recipientStatusSupportsQueued(): bool
+    {
+        static $supports = null;
+        if ($supports === null) {
+            try {
+                $row = (new Database())->execute('SHOW COLUMNS FROM whatsapp_campaign_recipients LIKE "status"')
+                    ->fetch(PDO::FETCH_ASSOC);
+                $supports = is_array($row) && str_contains((string)($row['Type'] ?? ''), "'queued'");
+            } catch (\Throwable $e) {
+                $supports = false;
+            }
+        }
+
+        return $supports;
+    }
+
+    private static function recipientColumnExists(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_campaign_recipients')
+                    ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
     }
 
     public static function updateCounters(int $campaignId): bool

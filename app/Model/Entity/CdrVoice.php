@@ -315,6 +315,7 @@ class CdrVoice
         $role = 'agent';
         if (!is_null($resellerId)) $role = 'reseller';
         if (is_null($userId) && is_null($resellerId)) $role = 'admin';
+        if (empty($tenancyId) && is_null($userId) && is_null($resellerId)) $role = 'super_admin';
 
         $userContext = [
             'tenancy_id'    => $tenancyId,
@@ -339,6 +340,7 @@ class CdrVoice
             'VOICEMAIL' => 'CAIXA_POSTAL'
         ];
         $statusList = array_keys($map);
+        $periodDate = self::periodDateExpression('cdr');
 
         // Função auxiliar ajustada
         $getStatusData = function(string $dateCond) use ($db, $extraCondition, $params, $statusList, $map) {
@@ -363,29 +365,89 @@ class CdrVoice
         };
 
         // Filtros de data (Garantindo que o campo started seja filtrado)
-        $statusMes = $getStatusData("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE())");
-        $statusSemana = $getStatusData("YEARWEEK(started, 1) = YEARWEEK(CURDATE(), 1)");
-        $statusDia = $getStatusData("DATE(started) = CURDATE()");
+        $statusMes = $getStatusData("MONTH({$periodDate}) = MONTH(CURDATE()) AND YEAR({$periodDate}) = YEAR(CURDATE())");
+        $statusMesAnterior = $getStatusData("MONTH({$periodDate}) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR({$periodDate}) = YEAR(CURDATE() - INTERVAL 1 MONTH)");
+        $statusSemana = $getStatusData("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE(), 1)");
+        $statusSemanaAnterior = $getStatusData("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)");
+        $statusDia = $getStatusData("DATE({$periodDate}) = CURDATE()");
+        $statusDiaAnterior = $getStatusData("DATE({$periodDate}) = CURDATE() - INTERVAL 1 DAY");
 
         // Totais agregados com o filtro de segurança
-        $totalMesAtual = (int)$db->select("MONTH(started) = MONTH(CURDATE()) AND YEAR(started) = YEAR(CURDATE()) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
-        $totalMesAnterior = (int)$db->select("MONTH(started) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(started) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
-        $totalSemanaAtual = (int)$db->select("YEARWEEK(started, 1) = YEARWEEK(CURDATE(), 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
-        $totalSemanaAnterior = (int)$db->select("YEARWEEK(started, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
-        $totalDiaAtual = (int)$db->select("DATE(started) = CURDATE() $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
-        $totalDiaAnterior = (int)$db->select("DATE(started) = CURDATE() - INTERVAL 1 DAY $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalMesAtual = (int)$db->select("MONTH({$periodDate}) = MONTH(CURDATE()) AND YEAR({$periodDate}) = YEAR(CURDATE()) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalMesAnterior = (int)$db->select("MONTH({$periodDate}) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR({$periodDate}) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalSemanaAtual = (int)$db->select("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE(), 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalSemanaAnterior = (int)$db->select("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalDiaAtual = (int)$db->select("DATE({$periodDate}) = CURDATE() $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalDiaAnterior = (int)$db->select("DATE({$periodDate}) = CURDATE() - INTERVAL 1 DAY $extraCondition", $params, null, null, "COUNT(*) AS total")->fetchColumn();
+        $totalCustoMesAtual = (float)$db->select("MONTH({$periodDate}) = MONTH(CURDATE()) AND YEAR({$periodDate}) = YEAR(CURDATE()) $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
+        $totalCustoMesAnterior = (float)$db->select("MONTH({$periodDate}) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR({$periodDate}) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
+        $totalCustoSemanaAtual = (float)$db->select("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE(), 1) $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
+        $totalCustoSemanaAnterior = (float)$db->select("YEARWEEK({$periodDate}, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
+        $totalCustoDiaAtual = (float)$db->select("DATE({$periodDate}) = CURDATE() $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
+        $totalCustoDiaAnterior = (float)$db->select("DATE({$periodDate}) = CURDATE() - INTERVAL 1 DAY $extraCondition", $params, null, null, "COALESCE(SUM(value), 0) AS total")->fetchColumn();
 
         return [
             'statusMes'        => $statusMes,
+            'statusMesAnterior' => $statusMesAnterior,
             'statusSemana'     => $statusSemana,
+            'statusSemanaAnterior' => $statusSemanaAnterior,
             'statusDia'        => $statusDia,
+            'statusDiaAnterior' => $statusDiaAnterior,
             'totalMesAtual'    => $totalMesAtual,
             'totalMesAnterior' => $totalMesAnterior,
             'totalSemanaAtual' => $totalSemanaAtual,
             'totalSemanaAnterior' => $totalSemanaAnterior,
             'totalDiaAtual'    => $totalDiaAtual,
             'totalDiaAnterior' => $totalDiaAnterior,
+            'totalCustoMesAtual' => $totalCustoMesAtual,
+            'totalCustoMesAnterior' => $totalCustoMesAnterior,
+            'totalCustoSemanaAtual' => $totalCustoSemanaAtual,
+            'totalCustoSemanaAnterior' => $totalCustoSemanaAnterior,
+            'totalCustoDiaAtual' => $totalCustoDiaAtual,
+            'totalCustoDiaAnterior' => $totalCustoDiaAnterior,
         ];
+    }
+
+    private static function periodDateExpression(string $table = 'cdr'): string
+    {
+        $parts = [];
+
+        if (self::hasColumn('started')) {
+            $parts[] = "NULLIF({$table}.started, '0000-00-00 00:00:00')";
+        }
+
+        if (self::hasColumn('cdr_timestamp')) {
+            $parts[] = "NULLIF({$table}.cdr_timestamp, '0000-00-00 00:00:00')";
+        }
+
+        if (self::hasColumn('created_at')) {
+            $parts[] = "{$table}.created_at";
+        }
+
+        if (!$parts) {
+            return 'NOW()';
+        }
+
+        return count($parts) === 1 ? $parts[0] : 'COALESCE(' . implode(', ', $parts) . ')';
+    }
+
+    private static function hasColumn(string $column): bool
+    {
+        static $cache = [];
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        try {
+            $row = (new Database())->execute('SHOW COLUMNS FROM cdr LIKE :column', [
+                ':column' => $column,
+            ])->fetch(PDO::FETCH_ASSOC);
+            $cache[$column] = !empty($row);
+        } catch (\Throwable) {
+            $cache[$column] = false;
+        }
+
+        return $cache[$column];
     }
 
 

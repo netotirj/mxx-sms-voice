@@ -15,8 +15,6 @@ $siteResponse = function () {
     $turnstileSiteKey = trim((string)(getenv('PUBLIC_DEMO_TURNSTILE_SITE_KEY') ?: getenv('TURNSTILE_SITE_KEY') ?: ''));
 
     if ($baseUrl !== '') {
-        $html = str_replace('href="/login"', 'href="' . $baseUrl . '/login"', $html);
-        $html = str_replace('href="/register"', 'href="' . $baseUrl . '/register"', $html);
         $html = str_replace('src="/logo.png"', 'src="' . $baseUrl . '/site/logo.png"', $html);
         $html = str_replace('data-demo-api-base="/sms"', 'data-demo-api-base="' . $baseUrl . '"', $html);
     } else {

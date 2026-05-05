@@ -9,7 +9,17 @@ class WhatsAppOutbox
 {
     public static function enqueue(array $data): int
     {
-        return (int)(new Database('whatsapp_outbox'))->insert([
+        $idempotencyKey = self::idempotencyKey($data);
+        $lock = self::acquireIdempotencyLock($idempotencyKey);
+
+        try {
+            $existing = self::findRecentDuplicate($data, $idempotencyKey);
+            if ($existing > 0) {
+                self::auditEnqueue($data, $existing, $idempotencyKey, true);
+                return $existing;
+            }
+
+            $values = [
             'tenancy_id' => $data['tenancy_id'],
             'user_id' => (int)$data['user_id'],
             'account_id' => (int)$data['account_id'],
@@ -37,7 +47,160 @@ class WhatsAppOutbox
             'available_at' => $data['available_at'] ?? date('Y-m-d H:i:s'),
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+            ];
+
+            foreach ([
+                'idempotency_key' => $idempotencyKey,
+                'preview_body' => $data['preview_body'] ?? $data['body'] ?? null,
+                'template_variables' => isset($data['template_variables'])
+                    ? json_encode($data['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+                'pricing_snapshot' => isset($data['pricing_snapshot'])
+                    ? json_encode($data['pricing_snapshot'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+            ] as $column => $value) {
+                if (self::hasColumn($column)) {
+                    $values[$column] = $value;
+                }
+            }
+
+            $id = (int)(new Database('whatsapp_outbox'))->insert($values);
+            self::auditEnqueue($data, $id, $idempotencyKey, false);
+            return $id;
+        } finally {
+            if ($lock['acquired']) {
+                self::releaseIdempotencyLock($lock['connection'], $idempotencyKey);
+            }
+        }
+    }
+
+    private static function findRecentDuplicate(array $data, string $idempotencyKey): int
+    {
+        if (self::hasColumn('idempotency_key')) {
+            $row = (new Database('whatsapp_outbox'))->select(
+                "idempotency_key = :idempotency_key
+                 AND status IN ('queued', 'sending', 'sent')",
+                [':idempotency_key' => $idempotencyKey],
+                'id DESC',
+                '1',
+                'id'
+            )->fetch(PDO::FETCH_ASSOC);
+
+            if ($row) {
+                return (int)$row['id'];
+            }
+        }
+
+        $row = (new Database('whatsapp_outbox'))->select(
+            "tenancy_id = :tenancy_id
+             AND user_id = :user_id
+             AND account_id = :account_id
+             AND contact_phone = :contact_phone
+             AND message_type = :message_type
+             AND COALESCE(template_name, '') = :template_name
+             AND COALESCE(body, '') = :body
+             AND status IN ('queued', 'sending', 'sent')
+             AND created_at >= DATE_SUB(NOW(), INTERVAL 90 SECOND)",
+            [
+                ':tenancy_id' => (string)$data['tenancy_id'],
+                ':user_id' => (int)$data['user_id'],
+                ':account_id' => (int)$data['account_id'],
+                ':contact_phone' => (string)$data['contact_phone'],
+                ':message_type' => (string)$data['message_type'],
+                ':template_name' => (string)($data['template_name'] ?? ''),
+                ':body' => (string)($data['body'] ?? ''),
+            ],
+            'id DESC',
+            '1',
+            'id'
+        )->fetch(PDO::FETCH_ASSOC);
+
+        return (int)($row['id'] ?? 0);
+    }
+
+    private static function idempotencyKey(array $data): string
+    {
+        $components = $data['template_components'] ?? null;
+        $variables = $data['template_variables'] ?? null;
+
+        return hash('sha256', json_encode([
+            'tenancy_id' => (string)($data['tenancy_id'] ?? ''),
+            'user_id' => (int)($data['user_id'] ?? 0),
+            'account_id' => (int)($data['account_id'] ?? 0),
+            'campaign_id' => (int)($data['campaign_id'] ?? 0),
+            'campaign_recipient_id' => (int)($data['campaign_recipient_id'] ?? 0),
+            'contact_phone' => preg_replace('/\D+/', '', (string)($data['contact_phone'] ?? '')),
+            'sequence' => (int)($data['sequence'] ?? 1),
+            'message_type' => (string)($data['message_type'] ?? ''),
+            'template_name' => (string)($data['template_name'] ?? ''),
+            'template_language' => (string)($data['template_language'] ?? 'pt_BR'),
+            'body' => (string)($data['body'] ?? ''),
+            'components' => $components,
+            'variables' => $variables,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function acquireIdempotencyLock(string $key): array
+    {
+        $connection = new Database();
+        $lockName = self::idempotencyLockName($key);
+        $acquired = (int)$connection
+            ->execute('SELECT GET_LOCK(:lock_name, 5) AS acquired', [':lock_name' => $lockName])
+            ->fetchColumn() === 1;
+
+        return ['connection' => $connection, 'acquired' => $acquired];
+    }
+
+    private static function releaseIdempotencyLock(Database $connection, string $key): void
+    {
+        $connection->execute('SELECT RELEASE_LOCK(:lock_name)', [':lock_name' => self::idempotencyLockName($key)]);
+    }
+
+    private static function idempotencyLockName(string $key): string
+    {
+        return 'maxx_whatsapp_outbox_' . substr($key, 0, 43);
+    }
+
+    private static function auditEnqueue(array $data, int $outboxId, string $idempotencyKey, bool $duplicate): void
+    {
+        error_log(json_encode([
+            'event' => $duplicate ? 'whatsapp_outbox_duplicate_suppressed' : 'whatsapp_outbox_enqueued',
+            'outbox_id' => $outboxId,
+            'idempotency_key' => $idempotencyKey,
+            'conversation_id' => $data['conversation_id'] ?? null,
+            'campaign_id' => $data['campaign_id'] ?? null,
+            'campaign_recipient_id' => $data['campaign_recipient_id'] ?? null,
+            'contact_phone' => self::maskPhoneForLog((string)($data['contact_phone'] ?? '')),
+            'template_name' => $data['template_name'] ?? null,
+            'message_type' => $data['message_type'] ?? null,
+            'preview_body' => $data['preview_body'] ?? $data['body'] ?? null,
+            'created_at' => date('Y-m-d H:i:s'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function hasColumn(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_outbox')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
+    }
+
+    private static function maskPhoneForLog(string $phone): string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?: '';
+        if (strlen($phone) <= 6) {
+            return '***';
+        }
+
+        return substr($phone, 0, 4) . '***' . substr($phone, -2);
     }
 
     public static function nextDue(int $limit = 50, ?string $cancelCategory = null): array

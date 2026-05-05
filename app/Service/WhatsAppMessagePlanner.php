@@ -44,24 +44,18 @@ class WhatsAppMessagePlanner
     public static function planTemplate(string $templateName, string $language, ?string $category, array $components = [], ?string $body = null): array
     {
         $category = WhatsAppCostPolicy::normalizeCategory($category);
-        $messages = [];
 
-        foreach (self::splitByIntent($body ?: $templateName) as $index => $part) {
-            $partCategory = $body ? self::classifyText($part) : $category;
-            $messages[] = [
-                'sequence' => $index + 1,
-                'message_type' => 'template',
-                'body' => $body && count(self::splitByIntent($body)) > 1 ? $part : "[Template] {$templateName} ({$language})",
-                'template_name' => $templateName,
-                'template_language' => $language,
-                'template_components' => $components,
-                'template_category' => $partCategory,
-                'intent' => strtolower($partCategory),
-                'requires_template' => true,
-            ];
-        }
-
-        return $messages;
+        return [[
+            'sequence' => 1,
+            'message_type' => 'template',
+            'body' => trim((string)$body) !== '' ? trim((string)$body) : "[Template] {$templateName} ({$language})",
+            'template_name' => $templateName,
+            'template_language' => $language,
+            'template_components' => $components,
+            'template_category' => $category,
+            'intent' => strtolower($category),
+            'requires_template' => true,
+        ]];
     }
 
     public static function summarize(array $plannedMessages): array

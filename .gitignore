@@ -2,3 +2,5 @@
 .idea/
 full-vscode-restore-from-*/
 database/backups/
+backup/
+public/uploads/

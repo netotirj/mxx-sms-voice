@@ -3,6 +3,7 @@
 namespace App\Model\Entity;
 use WilliamCosta\DatabaseManager\Database;
 
+#[\AllowDynamicProperties]
 class UserPlans
 {
     public int $id;
@@ -15,6 +16,8 @@ class UserPlans
     public string $description;
     public string $amount_plan;
     public string $value_sms;
+    public int $is_popular = 0;
+    public int $sales_count = 0;
 
     public static function getActivePlanByUser(int $planId, string $tenancyId, int $userId)
     {
@@ -159,9 +162,57 @@ class UserPlans
             $params[':type_plan'] = $typePlan;
         }
 
-        return (new Database('mxx_plans'))
+        $plans = (new Database('mxx_plans'))
             ->select($where, $params, 'id ASC')
             ->fetchAll(\PDO::FETCH_CLASS, self::class);
+
+        if (empty($plans)) {
+            return [];
+        }
+
+        $popularPlanId = self::getMostSoldPlanId($typePlan);
+
+        foreach ($plans as $plan) {
+            $plan->is_popular = ($popularPlanId > 0 && (int)$plan->id === $popularPlanId) ? 1 : 0;
+        }
+
+        return $plans;
+    }
+
+    private static function getMostSoldPlanId(?string $typePlan = null): int
+    {
+        $where = 'p.status = "active"';
+        $params = [];
+
+        if (!empty($typePlan)) {
+            $where .= ' AND p.type_plan = :type_plan';
+            $params[':type_plan'] = $typePlan;
+        }
+
+        $query = "
+            SELECT
+                p.id,
+                COUNT(w.webhook_id) AS sales_count
+            FROM mxx_plans p
+            LEFT JOIN mxx_user_plans up
+                ON up.plan_id = p.id
+            LEFT JOIN webhook_pix w
+                ON w.user_plain_id = up.id
+                AND w.payment_status = 'PAYMENT_RECEIVED'
+                AND w.confirmed_date IS NOT NULL
+            WHERE {$where}
+            GROUP BY p.id, p.amount_plan
+            ORDER BY sales_count DESC, CAST(p.amount_plan AS DECIMAL(10,2)) DESC, p.id ASC
+            LIMIT 1
+        ";
+
+        $row = (new Database())->execute($query, $params)->fetchObject();
+
+        if (!$row || (int)($row->sales_count ?? 0) <= 0) {
+            return 0;
+        }
+
+        return (int)$row->id;
     }
 
     public static function getPlanById(int $id): ?self

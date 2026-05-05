@@ -50,6 +50,9 @@ class Refills extends ViewComponents
                 'v_sms'       => number_format($p->value_sms, 4, ',', '.'),
                 'v_voice'     => number_format($p->value_voice, 4, ',', '.'),
                 'v_whatsapp'  => number_format($p->value_whatsapp, 4, ',', '.'),
+                'v_whatsapp_marketing' => number_format((float)($p->value_whatsapp_marketing ?? $p->value_whatsapp), 4, ',', '.'),
+                'v_whatsapp_utility' => number_format((float)($p->value_whatsapp_utility ?? $p->value_whatsapp), 4, ',', '.'),
+                'v_whatsapp_authentication' => number_format((float)($p->value_whatsapp_authentication ?? $p->value_whatsapp), 4, ',', '.'),
                 'v_torpedo'   => number_format($p->value_torpedo, 4, ',', '.'),
                 // Detalhes Técnicos
                 'users_y_n'   => ($p->users_create == 'y' ? 'Sim' : 'Não'),

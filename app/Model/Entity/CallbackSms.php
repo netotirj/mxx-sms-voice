@@ -415,8 +415,11 @@ class CallbackSms
 
         // 🔹 Consulta mensal, semanal e diária
         $statusMes = $getStatusData("MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())");
+        $statusMesAnterior = $getStatusData("MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)");
         $statusSemana = $getStatusData("YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)");
+        $statusSemanaAnterior = $getStatusData("YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)");
         $statusDia = $getStatusData("DATE(date_send) = CURDATE()");
+        $statusDiaAnterior = $getStatusData("DATE(date_send) = CURDATE() - INTERVAL 1 DAY");
 
         // 🔹 Totais agregados
         $totalMesAtual = (int)$db->select(
@@ -467,16 +470,73 @@ class CallbackSms
             'COUNT(*) as total'
         )->fetchColumn();
 
+        $totalCustoMesAtual = (float)$db->select(
+            "MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE()) $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
+        $totalCustoMesAnterior = (float)$db->select(
+            "MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH) $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
+        $totalCustoSemanaAtual = (float)$db->select(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1) $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
+        $totalCustoSemanaAnterior = (float)$db->select(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1) $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
+        $totalCustoDiaAtual = (float)$db->select(
+            "DATE(date_send) = CURDATE() $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
+        $totalCustoDiaAnterior = (float)$db->select(
+            "DATE(date_send) = CURDATE() - INTERVAL 1 DAY $extraCondition",
+            $params,
+            null,
+            null,
+            'COALESCE(SUM(value_sms), 0) as total'
+        )->fetchColumn();
+
         return [
             'statusMes' => $statusMes,
+            'statusMesAnterior' => $statusMesAnterior,
             'statusSemana' => $statusSemana,
+            'statusSemanaAnterior' => $statusSemanaAnterior,
             'statusDia' => $statusDia,
+            'statusDiaAnterior' => $statusDiaAnterior,
             'totalMesAtual' => $totalMesAtual,
             'totalMesAnterior' => $totalMesAnterior,
             'totalSemanaAtual' => $totalSemanaAtual,
             'totalSemanaAnterior' => $totalSemanaAnterior,
             'totalDiaAtual' => $totalDiaAtual,
             'totalDiaAnterior' => $totalDiaAnterior,
+            'totalCustoMesAtual' => $totalCustoMesAtual,
+            'totalCustoMesAnterior' => $totalCustoMesAnterior,
+            'totalCustoSemanaAtual' => $totalCustoSemanaAtual,
+            'totalCustoSemanaAnterior' => $totalCustoSemanaAnterior,
+            'totalCustoDiaAtual' => $totalCustoDiaAtual,
+            'totalCustoDiaAnterior' => $totalCustoDiaAnterior,
         ];
     }
 
@@ -507,10 +567,16 @@ class CallbackSms
         $period = strtolower((string)$period);
         if ($period === 'day') {
             $conditions[] = 'DATE(date_send) = CURDATE()';
+        } elseif ($period === 'day_previous') {
+            $conditions[] = 'DATE(date_send) = CURDATE() - INTERVAL 1 DAY';
         } elseif ($period === 'week') {
             $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)';
+        } elseif ($period === 'week_previous') {
+            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)';
         } elseif ($period === 'month') {
             $conditions[] = 'MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())';
+        } elseif ($period === 'month_previous') {
+            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)';
         }
 
         // 🔹 Monta o WHERE dinamicamente

@@ -103,6 +103,19 @@ class WhatsAppDefaultTemplateManager
     {
         return [
             [
+                'name' => 'site_test_notification',
+                'category' => self::CATEGORY_MARKETING,
+                'body' => 'Olá {{1}}, este é um teste da plataforma Maxx Solutions.',
+                'variables' => [
+                    1 => [
+                        'key' => 'nome_teste',
+                        'description' => 'Nome exibido na mensagem de teste solicitada pelo visitante',
+                        'example' => 'Maxx Solutions',
+                    ],
+                ],
+                'approval_note' => 'Template de teste solicitado pelo visitante no site publico.',
+            ],
+            [
                 'name' => 'util_confirmacao_atendimento_01',
                 'category' => self::CATEGORY_UTILITY,
                 'body' => 'Olá {{1}}, seu atendimento {{2}} foi registrado em nosso sistema. Esta é uma confirmação automática.',

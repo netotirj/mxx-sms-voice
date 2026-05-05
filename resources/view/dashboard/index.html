@@ -549,6 +549,8 @@
             DELIVERED: '#10b981',
             ENTREGUE: '#10b981',
             ENTREGUES: '#10b981',
+            ATENDIDA: '#10b981',
+            ATENDIDAS: '#10b981',
             SENT: '#0ea5e9',
             ENVIADA: '#0ea5e9',
             ENVIADAS: '#0ea5e9',
@@ -560,10 +562,14 @@
             RESPOSTAS: '#14b8a6',
             MO: '#14b8a6',
             BUSY: '#f59e0b',
+            OCUPADO: '#f59e0b',
             NOANSWER: '#f97316',
+            NAO_ATENDIDA: '#f97316',
             CANCEL: '#94a3b8',
             CANCELED: '#94a3b8',
+            CANCELADO: '#94a3b8',
             FAILED: '#ef4444',
+            FALHA: '#ef4444',
             CONGESTION: '#dc2626',
             ERROR: '#ef4444',
             PENDING: '#8b5cf6',
@@ -900,11 +906,16 @@
             const currentKey = `total${periodKey}Atual${suffix}`;
             const previousKey = `total${periodKey}Anterior${suffix}`;
             const statusKey = `statusMap${periodKey}${suffix}`;
+            const previousStatusKey = `statusMap${periodKey}Anterior${suffix}`;
+            const current = Number(chartsPayload?.[currentKey] || 0);
+            const previous = Number(chartsPayload?.[previousKey] || 0);
+            const usePreviousStatus = current <= 0 && previous > 0;
 
             return {
-                status: normalizeStatusMap(chartsPayload?.[statusKey] || {}),
-                current: Number(chartsPayload?.[currentKey] || 0),
-                previous: Number(chartsPayload?.[previousKey] || 0),
+                status: normalizeStatusMap(chartsPayload?.[usePreviousStatus ? previousStatusKey : statusKey] || {}),
+                statusPeriod: usePreviousStatus ? 'previous' : 'current',
+                current,
+                previous,
                 labels: getPeriodLabel()
             };
         }
@@ -927,6 +938,14 @@
             };
         }
 
+        function getCostForPeriod(suffix = '') {
+            const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
+            return {
+                current: Number(chartsPayload?.[`totalCusto${periodKey}Atual${suffix}`] || 0),
+                previous: Number(chartsPayload?.[`totalCusto${periodKey}Anterior${suffix}`] || 0)
+            };
+        }
+
         function getWhatsCompanyCostForPeriod() {
             const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
             return Object.entries(chartsPayload?.[`companyCostMap${periodKey}Whats`] || {});
@@ -940,23 +959,29 @@
         }
 
         function getTrunkCountsForPeriod() {
+            const voicePeriod = getPeriodPayload('', 'Voice');
+            const previousSuffix = voicePeriod.statusPeriod === 'previous' ? 'Previous' : '';
             const key = selectedPeriod === 'week'
-                ? 'trunkCountsWeek'
-                : (selectedPeriod === 'month' ? 'trunkCountsMonth' : 'trunkCountsDay');
+                ? `trunkCountsWeek${previousSuffix}`
+                : (selectedPeriod === 'month' ? `trunkCountsMonth${previousSuffix}` : `trunkCountsDay${previousSuffix}`);
             return Object.entries(chartsPayload?.[key] || {});
         }
 
         function getSipCodesForPeriod() {
+            const voicePeriod = getPeriodPayload('', 'Voice');
+            const previousSuffix = voicePeriod.statusPeriod === 'previous' ? 'Previous' : '';
             const key = selectedPeriod === 'week'
-                ? 'sipCodeCountsWeek'
-                : (selectedPeriod === 'month' ? 'sipCodeCountsMonth' : 'sipCodeCountsDay');
+                ? `sipCodeCountsWeek${previousSuffix}`
+                : (selectedPeriod === 'month' ? `sipCodeCountsMonth${previousSuffix}` : `sipCodeCountsDay${previousSuffix}`);
             return Object.entries(chartsPayload?.[key] || {});
         }
 
         function getOperatorCountsForPeriod() {
+            const smsPeriod = getPeriodPayload('', '');
+            const previousSuffix = smsPeriod.statusPeriod === 'previous' ? 'Previous' : '';
             const key = selectedPeriod === 'week'
-                ? 'totalOperatorWeek'
-                : (selectedPeriod === 'month' ? 'totalOperatorMonth' : 'totalOperatorDay');
+                ? `totalOperatorWeek${previousSuffix}`
+                : (selectedPeriod === 'month' ? `totalOperatorMonth${previousSuffix}` : `totalOperatorDay${previousSuffix}`);
             return Object.entries(chartsPayload?.[key] || chartsPayload?.totalOperator || {});
         }
 
@@ -1021,12 +1046,21 @@
                 count
             }));
             const smsPeriod = getPeriodPayload('', '');
+            const smsCost = getCostForPeriod('Sms');
+            const smsCostValue = smsPeriod.statusPeriod === 'previous' ? smsCost.previous : smsCost.current;
+            const smsCostLabel = smsPeriod.statusPeriod === 'previous' ? smsPeriod.labels.previous : smsPeriod.labels.current;
             const whatsPeriod = getPeriodPayload('', 'Whats');
             const whatsCost = getWhatsCostForPeriod();
             const voicePeriod = getPeriodPayload('', 'Voice');
+            const voiceCost = getCostForPeriod('Voice');
+            const voiceCostValue = voicePeriod.statusPeriod === 'previous' ? voiceCost.previous : voiceCost.current;
+            const voiceCostLabel = voicePeriod.statusPeriod === 'previous' ? voicePeriod.labels.previous : voicePeriod.labels.current;
             const operatorEntries = getOperatorCountsForPeriod();
             const operatorLabels = operatorEntries.map(([name]) => name);
-            const operatorValues = operatorEntries.map(([, item]) => Number(item?.qtd || 0));
+            const operatorValues = operatorEntries.map(([, item]) => {
+                if (typeof item === 'number') return Number(item || 0);
+                return Number(item?.qtd ?? item?.total ?? item?.value ?? 0);
+            });
             const smsDeliveryRate = Number(cardsPayload?.smsTaxaEntrega || 0);
             const smsDelivered = Number(cardsPayload?.smsEntregues || 0);
             const smsPending = Number(cardsPayload?.smsPendentes || 0);
@@ -1047,8 +1081,11 @@
                     todayLabel: `SMS - ${smsPeriod.labels.current}`,
                     month: smsPeriod.previous,
                     monthLabel: `SMS - ${smsPeriod.labels.previous}`,
-                    previous: smsResponses,
-                    previousLabel: 'Respostas recebidas',
+                    previous: smsCostValue,
+                    previousTitle: 'Custo total',
+                    previousPrefix: 'R$ ',
+                    previousDecimals: 'smart',
+                    previousLabel: smsCostLabel,
                     line: smsPeriod.status,
                     doughnut: smsPeriod.status,
                     secondary: {
@@ -1063,10 +1100,10 @@
                     },
                     details: [
                         ['Entrega', `${smsDeliveryRate.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`],
+                        ['Custo total', formatCurrencyBR(smsCostValue)],
                         ['Entregues', String(smsDelivered)],
                         ['Pendentes/Falhas', `${smsPending}/${smsFailures}`],
-                        ['Respostas MO', String(smsResponses)],
-                        ['Ultima atualizacao', health.last_check || '--:--:--']
+                        ['Respostas MO', String(smsResponses)]
                     ].slice(0, 4)
                 };
             }
@@ -1088,9 +1125,10 @@
                     month: whatsPeriod.previous,
                     monthLabel: `Quantidade - ${whatsPeriod.labels.previous}`,
                     previous: whatsCost.current,
+                    previousTitle: 'Custo total',
                     previousPrefix: 'R$ ',
                     previousDecimals: 'smart',
-                    previousLabel: `Custo total - ${whatsPeriod.labels.current}`,
+                    previousLabel: whatsPeriod.labels.current,
                     line: whatsPeriod.status,
                     doughnut: whatsPeriod.status,
                     secondary: {
@@ -1132,8 +1170,11 @@
                 todayLabel: `Chamadas - ${voicePeriod.labels.current}`,
                 month: voicePeriod.previous,
                 monthLabel: `Chamadas - ${voicePeriod.labels.previous}`,
-                previous: getPeriodContextValue('Voice'),
-                previousLabel: selectedPeriod === 'month' ? 'Chamadas hoje' : 'Chamadas no mes',
+                previous: voiceCostValue,
+                previousTitle: 'Custo total',
+                previousPrefix: 'R$ ',
+                previousDecimals: 'smart',
+                previousLabel: voiceCostLabel,
                 line: voicePeriod.status,
                 doughnut: voicePeriod.status,
                 secondary: {
@@ -1152,9 +1193,9 @@
                 },
                 details: [
                     ['ASR', `${document.getElementById('card-voip-primary')?.textContent || '0'}%`],
+                    ['Custo total', formatCurrencyBR(voiceCostValue)],
                     ['Chamadas online', String(callsOnline)],
-                    ['Asterisk / ARI', metrics.asterisk?.detail || '--'],
-                    ['Troncos', metrics.trunks?.detail || '--']
+                    ['Asterisk / ARI', metrics.asterisk?.detail || '--']
                 ]
             };
         }
@@ -1486,9 +1527,9 @@
             setValue('dynamic-subtitle', config.subtitle);
             setValue('service-tag', config.tag);
             const periodLabels = getPeriodLabel();
-            setValue('service-stat-current-title', periodLabels.current);
-            setValue('service-stat-month-title', periodLabels.previous);
-            setValue('service-stat-previous-title', periodLabels.context);
+            setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
+            setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
+            setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
             animateCountUp(document.getElementById('service-stat-today'), config.today);
             animateCountUp(document.getElementById('service-stat-month'), config.month);
             const previousStat = document.getElementById('service-stat-previous');
@@ -1622,9 +1663,14 @@
                 chartsPayloadSignature = event.data;
                 chartsPayload = JSON.parse(event.data);
                 renderSelectedService();
-            } catch {
+            } catch (error) {
+                console.error('Erro ao processar graficos do dashboard:', error, event.data);
                 return;
             }
+        };
+
+        chartsSource.onerror = function (event) {
+            console.error('Conexao dos graficos do dashboard falhou.', event);
         };
     });
 </script>

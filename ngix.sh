@@ -1,77 +1,183 @@
 #!/bin/bash
 
-# Configurações iniciais
-SITE_DIR="/var/www/meusite"
-SITE_DOMAIN="localhost" # Altere para seu domínio ou IP público
-PHP_VERSION="8.1" # Altere conforme a versão disponível no Ubuntu
+# =========================
+# CONFIGURAÇÕES
+# =========================
+SITE_DOMAIN="maxxsolutions.com.br"
 
-# Banco de dados
+SITE_DIR="/var/www/site"
+PAINEL_DIR="/var/www/painel"
+
 DB_NAME="meu_banco"
 DB_USER="meu_usuario"
 DB_PASS="minha_senha_segura"
 
-echo "Atualizando o sistema..."
-sudo apt update && sudo apt upgrade -y
+# =========================
+# ATUALIZAÇÃO
+# =========================
+echo "Atualizando sistema..."
+sudo dnf update -y
 
-echo "Instalando NGINX..."
-sudo apt install nginx -y
-sudo systemctl start nginx
+# =========================
+# NGINX
+# =========================
+echo "Instalando Nginx..."
+sudo dnf install nginx -y
 sudo systemctl enable nginx
+sudo systemctl start nginx
 
-echo "Instalando MySQL Server..."
-sudo apt install mysql-server -y
-sudo systemctl start mysql
-sudo systemctl enable mysql
+# =========================
+# MARIADB
+# =========================
+echo "Instalando MariaDB..."
+sudo dnf install mariadb-server -y
+sudo systemctl enable mariadb
+sudo systemctl start mariadb
 
-echo "Criando banco de dados e usuário MySQL..."
+echo "Criando banco..."
 sudo mysql -e "CREATE DATABASE ${DB_NAME};"
 sudo mysql -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
-echo "Instalando PHP e extensões..."
-sudo apt install php${PHP_VERSION}-fpm php${PHP_VERSION}-mysql -y
+# =========================
+# PHP
+# =========================
+echo "Instalando PHP..."
+sudo dnf install php php-fpm php-mysqlnd php-cli php-json php-opcache php-mbstring php-xml php-curl -y
 
-echo "Criando diretório do site..."
+sudo systemctl enable php-fpm
+sudo systemctl start php-fpm
+
+# =========================
+# DIRETÓRIOS
+# =========================
+echo "Criando diretórios..."
+
 sudo mkdir -p ${SITE_DIR}
-sudo chown -R www-data:www-data ${SITE_DIR}
-sudo chmod -R 755 ${SITE_DIR}
+sudo mkdir -p ${PAINEL_DIR}
 
-echo "Criando arquivo index.php de teste..."
-cat <<EOF | sudo tee ${SITE_DIR}/index.php
-<?php
-phpinfo();
-?>
-EOF
+sudo chown -R nginx:nginx /var/www
+sudo chmod -R 755 /var/www
 
-echo "Configurando NGINX para o site..."
-NGINX_CONF="/etc/nginx/sites-available/meusite"
-cat <<EOF | sudo tee $NGINX_CONF
+# =========================
+# TESTES
+# =========================
+echo "Criando arquivos de teste..."
+
+echo "<h1>Site Maxx Solutions</h1>" | sudo tee ${SITE_DIR}/index.html
+echo "<?php phpinfo(); ?>" | sudo tee ${PAINEL_DIR}/index.php
+
+# =========================
+# NGINX CONFIG
+# =========================
+echo "Configurando Nginx..."
+
+sudo tee /etc/nginx/conf.d/maxx.conf > /dev/null <<EOF
 server {
     listen 80;
     server_name ${SITE_DOMAIN};
 
+    # SITE
     root ${SITE_DIR};
-    index index.php index.html;
+    index index.html index.php;
 
     location / {
-        try_files \$uri \$uri/ =404;
+        try_files \$uri \$uri/ /index.html;
     }
 
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+    # PAINEL
+    location /painel {
+        root /var/www;
+        index index.php;
+        try_files \$uri \$uri/ /painel/index.php?\$query_string;
     }
 
-    location ~ /\.ht {
+    # PHP
+    location ~ ^/painel/.*\\.php$ {
+        root /var/www;
+        fastcgi_pass unix:/run/php-fpm/www.sock;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    }
+
+    # SEGURANÇA
+    location ~ /\\. {
         deny all;
     }
 }
 EOF
 
-echo "Ativando site no NGINX..."
-sudo ln -s /etc/nginx/sites-available/meusite /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+sudo nginx -t
+sudo systemctl restart nginx
+sudo systemctl restart php-fpm
 
-echo "Instalação e configuração concluída com sucesso!"
-echo "Acesse: http://${SITE_DOMAIN} para ver o site."
+# =========================
+# FIREWALL
+# =========================
+echo "Configurando firewall..."
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+
+# =========================
+# SYSTEMD WORKERS
+# =========================
+echo "Criando serviços dos workers..."
+
+WORKER_DIR="/var/www/painel"
+
+create_worker() {
+    NAME=$1
+    FILE=$2
+    DESC=$3
+
+    sudo tee /etc/systemd/system/${NAME}.service > /dev/null <<EOL
+[Unit]
+Description=${DESC}
+After=network.target mariadb.service
+
+[Service]
+Type=simple
+WorkingDirectory=${WORKER_DIR}
+ExecStart=/usr/bin/php ${WORKER_DIR}/${FILE}.php --limit=50 --sleep=10
+Restart=always
+RestartSec=5
+User=nginx
+Group=nginx
+
+[Install]
+WantedBy=multi-user.target
+EOL
+}
+
+create_worker "maxx-voice-worker" "run_voice_worker" "Maxx Voice Worker"
+create_worker "maxx-whatsapp-worker" "run_whatsapp_worker" "Maxx WhatsApp Worker"
+create_worker "maxx-cdr-worker" "run_cdr_worker" "Maxx CDR Worker"
+
+echo "Recarregando systemd..."
+sudo systemctl daemon-reload
+
+echo "Habilitando serviços..."
+sudo systemctl enable maxx-voice-worker
+sudo systemctl enable maxx-whatsapp-worker
+sudo systemctl enable maxx-cdr-worker
+
+echo "Iniciando serviços..."
+sudo systemctl restart maxx-voice-worker
+sudo systemctl restart maxx-whatsapp-worker
+sudo systemctl restart maxx-cdr-worker
+
+# =========================
+# FINAL
+# =========================
+echo "-----------------------------------"
+echo "SITE:   http://${SITE_DOMAIN}"
+echo "PAINEL: http://${SITE_DOMAIN}/painel"
+echo "-----------------------------------"
+
+echo "Ver logs com:"
+echo "journalctl -u maxx-voice-worker -f"
+echo "journalctl -u maxx-whatsapp-worker -f"
+echo "journalctl -u maxx-cdr-worker -f"

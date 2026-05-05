@@ -1,0 +1,466 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Relatorio WhatsApp</h2>
+                            <p class="text-xs text-slate-400">Custos por destino, template e entrega</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 justify-end">
+                        <button id="waReportExportCsv" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition shadow-sm">
+                            <span class="text-base">📄</span> CSV
+                        </button>
+                        <button id="waReportExportXls" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition shadow-sm">
+                            <span class="text-base">📊</span> Excel
+                        </button>
+                        <button id="waReportReloadBtn" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm">
+                            <span class="text-base">🔄</span> Recarregar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="waReportRowsPerPage" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Periodo</label>
+                            <select id="waReportPeriodFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="day" selected>Hoje</option>
+                                <option value="week">Semana</option>
+                                <option value="month">Mes</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="waReportStatusFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                <option value="charged" selected>Cobradas</option>
+                                <option value="">Todos</option>
+                                <option value="delivered">Entregue/Lida</option>
+                                <option value="sent">Enviada</option>
+                                <option value="read">Lida</option>
+                                <option value="failed">Falhou</option>
+                                <option value="blocked">Bloqueada</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">De</label>
+                            <input type="date" id="waReportDateFrom" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Ate</label>
+                            <input type="date" id="waReportDateTo" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <input id="waReportSearchInput" class="mt-1 w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="destino, template...">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="waReportStats" class="mx-6 my-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p class="text-slate-400 font-bold uppercase">Registros</p>
+                        <p id="waReportTotal" class="mt-1 text-lg font-black text-slate-700">0</p>
+                    </div>
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                        <p class="text-emerald-600 font-bold uppercase">Cobradas</p>
+                        <p id="waReportChargedCount" class="mt-1 text-lg font-black text-emerald-700">0</p>
+                    </div>
+                    <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                        <p class="text-indigo-600 font-bold uppercase">Total cobrado</p>
+                        <p id="waReportChargedTotal" class="mt-1 text-lg font-black text-indigo-700">R$ 0,00</p>
+                    </div>
+                </div>
+                <div id="waReportCategoryStats" class="mx-6 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs"></div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table id="wa-report-table" class="w-full text-sm text-slate-700 border-collapse text-center">
+                            <thead class="bg-slate-100 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th class="px-4 py-2 border border-slate-100">ID</th>
+                                <th class="px-4 py-2 border border-slate-100">Data</th>
+                                <th class="px-4 py-2 border border-slate-100">Conta</th>
+                                <th class="px-4 py-2 border border-slate-100">Destino</th>
+                                <th class="px-4 py-2 border border-slate-100">Template</th>
+                                <th class="px-4 py-2 border border-slate-100">Categoria</th>
+                                <th class="px-4 py-2 border border-slate-100">Valor</th>
+                                <th class="px-4 py-2 border border-slate-100">Cobrado</th>
+                                <th class="px-4 py-2 border border-slate-100">Status</th>
+                            </tr>
+                            </thead>
+                            <tbody id="waReportTableBody">
+                            <tr>
+                                <td colspan="9" class="px-4 py-6 text-center text-slate-400 italic">
+                                    Carregando registros...
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+                    <p id="waReportPageInfo" class="text-xxs font-bold text-slate-400 uppercase">Pagina 1 de 1</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="waReportPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Anterior</button>
+                        <div id="waReportPageNumbers" class="flex gap-1"></div>
+                        <button id="waReportNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg disabled:opacity-50 transition-all">Proximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tbody = document.getElementById('waReportTableBody');
+        const searchInput = document.getElementById('waReportSearchInput');
+        const statusFilter = document.getElementById('waReportStatusFilter');
+        const periodFilter = document.getElementById('waReportPeriodFilter');
+        const dateFromInput = document.getElementById('waReportDateFrom');
+        const dateToInput = document.getElementById('waReportDateTo');
+        const perPageSel = document.getElementById('waReportRowsPerPage');
+        const reloadBtn = document.getElementById('waReportReloadBtn');
+        const prevBtn = document.getElementById('waReportPrevPage');
+        const nextBtn = document.getElementById('waReportNextPage');
+        const pageInfo = document.getElementById('waReportPageInfo');
+        const pageNumbers = document.getElementById('waReportPageNumbers');
+
+        let allItems = [];
+        let filteredItems = [];
+        let currentPage = 1;
+        let perPage = parseInt(perPageSel.value, 10) || 10;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function normalizeText(value) {
+            return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+        }
+
+        function toInputDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function syncDateInputsFromPeriod() {
+            const period = String(periodFilter.value || 'day');
+            const now = new Date();
+            let start = null;
+            let end = null;
+
+            if (period === 'day') {
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(start);
+            } else if (period === 'week') {
+                const day = (now.getDay() + 6) % 7;
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+            } else if (period === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            }
+
+            dateFromInput.disabled = period !== 'custom';
+            dateToInput.disabled = period !== 'custom';
+            if (start) dateFromInput.value = toInputDate(start);
+            if (end) dateToInput.value = toInputDate(end);
+        }
+
+        function statusLabel(status) {
+            const s = String(status || '').toLowerCase();
+            if (s === 'read') return 'LIDA';
+            if (s === 'delivered') return 'ENTREGUE';
+            if (s === 'sent') return 'ENVIADA';
+            if (s === 'failed') return 'FALHOU';
+            if (s === 'blocked') return 'BLOQUEADA';
+            return s ? s.toUpperCase() : '-';
+        }
+
+        function statusBadge(status) {
+            const s = String(status || '').toLowerCase();
+            let cls = 'bg-slate-100 text-slate-700';
+            if (s === 'read' || s === 'delivered') cls = 'bg-emerald-100 text-emerald-700';
+            if (s === 'sent') cls = 'bg-blue-100 text-blue-700';
+            if (s === 'failed' || s === 'blocked') cls = 'bg-red-100 text-red-700';
+            return `<span class="px-2 py-1 rounded-lg text-[10px] font-black uppercase ${cls}">${statusLabel(s)}</span>`;
+        }
+
+        async function fetchData() {
+            try {
+                reloadBtn.disabled = true;
+                reloadBtn.innerHTML = '<span class="text-base animate-spin inline-block">↻</span> Carregando';
+
+                const params = new URLSearchParams();
+                const period = String(periodFilter.value || 'day');
+                params.set('period', period);
+                params.set('status', String(statusFilter.value || ''));
+                if (period === 'custom') {
+                    if (dateFromInput.value) params.set('date_from', dateFromInput.value);
+                    if (dateToInput.value) params.set('date_to', dateToInput.value);
+                }
+
+                const response = await fetch(`whatsapp-realtime?${params.toString()}`, { method: 'GET', cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const res = await response.json();
+                allItems = Array.isArray(res.data) ? res.data : [];
+                applyFilters(false);
+            } catch (error) {
+                console.error('Erro ao carregar relatorio WhatsApp:', error);
+                tbody.innerHTML = '<tr><td colspan="9" class="py-10 text-center text-red-500 italic">Erro ao carregar dados.</td></tr>';
+            } finally {
+                reloadBtn.disabled = false;
+                reloadBtn.innerHTML = '<span class="text-base">🔄</span> Recarregar';
+            }
+        }
+
+        function applyFilters(resetPage = true) {
+            const query = normalizeText(searchInput.value || '');
+            filteredItems = allItems.filter(item => {
+                const haystack = normalizeText([
+                    item.id,
+                    item.client_name,
+                    item.client_account_code,
+                    item.client_id,
+                    item.destination,
+                    item.template_name,
+                    item.category,
+                    item.campaign_name,
+                    item.status,
+                    item.message_preview,
+                    item.wamid
+                ].join(' '));
+                return !query || haystack.includes(query);
+            });
+
+            if (resetPage) currentPage = 1;
+            renderPage();
+        }
+
+        function renderStats() {
+            const chargedCount = filteredItems.filter(item => item.billed).length;
+            const chargedTotal = filteredItems.reduce((sum, item) => sum + Number(item.charged_value || 0), 0);
+            document.getElementById('waReportTotal').textContent = String(filteredItems.length);
+            document.getElementById('waReportChargedCount').textContent = String(chargedCount);
+            document.getElementById('waReportChargedTotal').textContent = formatCurrency(chargedTotal);
+
+            const categories = {};
+            filteredItems.forEach(item => {
+                const key = String(item.category || 'marketing').toLowerCase();
+                if (!categories[key]) categories[key] = { quantity: 0, charged: 0, total: 0 };
+                categories[key].quantity += 1;
+                if (item.billed) {
+                    categories[key].charged += 1;
+                    categories[key].total += Number(item.charged_value || 0);
+                }
+            });
+
+            const labels = {
+                marketing: 'Marketing',
+                utility: 'Utilitario',
+                authentication: 'Autenticacao',
+                service: 'Atendimento'
+            };
+            const statsEl = document.getElementById('waReportCategoryStats');
+            statsEl.innerHTML = ['marketing', 'utility', 'authentication', 'service'].map(key => {
+                const item = categories[key] || { quantity: 0, charged: 0, total: 0 };
+                return `
+                    <div class="rounded-xl border border-slate-200 bg-white p-3">
+                        <p class="text-slate-400 font-bold uppercase">${labels[key]}</p>
+                        <p class="mt-1 text-base font-black text-slate-700">${formatCurrency(item.total)}</p>
+                        <p class="mt-1 text-[10px] text-slate-400">${item.charged}/${item.quantity} cobradas</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPage() {
+            tbody.innerHTML = '';
+            renderStats();
+
+            const totalPages = Math.ceil(filteredItems.length / perPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * perPage;
+            const items = filteredItems.slice(start, start + perPage);
+
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="9" class="py-10 text-center text-slate-400 italic">Nenhum registro encontrado.</td></tr>';
+            } else {
+                items.forEach(item => {
+                    const template = item.template_name && item.template_name !== '-' ? item.template_name : 'Mensagem livre';
+                    const chargedBadge = item.billed
+                        ? '<span class="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700">SIM</span>'
+                        : '<span class="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-500">NAO</span>';
+
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr class="hover:bg-slate-50 transition border-b border-slate-50 text-center">
+                            <td class="px-4 py-3 text-[11px] text-slate-500 font-bold">#${escapeHtml(item.id)}</td>
+                            <td class="px-4 py-3 text-[11px] text-slate-500 font-medium">${escapeHtml(item.delivered_at !== '-' ? item.delivered_at : item.sent_at)}</td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="leading-tight">
+                                    <div class="font-semibold text-slate-700 text-xs">(${escapeHtml(item.client_name || '-')})</div>
+                                    <div class="text-[11px] text-slate-500">(${escapeHtml(item.client_account_code && item.client_account_code !== '-' ? item.client_account_code : item.client_id || '-')})</div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 font-bold text-slate-700">${escapeHtml(item.destination)}</td>
+                            <td class="px-4 py-3 text-left">
+                                <div class="text-xs font-bold text-slate-700">${escapeHtml(template)}</div>
+                                <div class="max-w-[260px] truncate text-[10px] text-slate-400" title="${escapeHtml(item.message_preview)}">${escapeHtml(item.campaign_name || '-')}</div>
+                            </td>
+                            <td class="px-4 py-3 text-[11px] font-semibold text-emerald-600 uppercase">${escapeHtml(item.category)}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-black text-xs">${formatCurrency(item.price_brl)}</span>
+                            </td>
+                            <td class="px-4 py-3">${chargedBadge}</td>
+                            <td class="px-4 py-3">${statusBadge(item.status)}</td>
+                        </tr>
+                    `);
+                });
+            }
+
+            pageInfo.textContent = `Pagina ${currentPage} de ${totalPages} (${filteredItems.length} registros)`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages;
+            pageNumbers.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = i;
+                btn.className = `px-3 py-1 text-xs font-bold border rounded-lg transition-all ${i === currentPage ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 hover:bg-slate-100'}`;
+                btn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderPage();
+                });
+                pageNumbers.appendChild(btn);
+            }
+        }
+
+        function exportRows() {
+            return filteredItems.map(item => ({
+                ID: item.id,
+                Data: item.delivered_at !== '-' ? item.delivered_at : item.sent_at,
+                Cliente: item.client_name,
+                Conta: item.client_account_code,
+                ClienteID: item.client_id,
+                Destino: item.destination,
+                Template: item.template_name,
+                Campanha: item.campaign_name,
+                Categoria: item.category,
+                Valor: Number(item.price_brl || 0),
+                Cobrado: item.billed ? 'Sim' : 'Nao',
+                Status: statusLabel(item.status),
+                WAMID: item.wamid || ''
+            }));
+        }
+
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCSV() {
+            const rows = exportRows();
+            if (!rows.length) {
+                alert('Nao ha dados para exportar.');
+                return;
+            }
+            const headers = Object.keys(rows[0]);
+            const csv = ['\uFEFF' + headers.join(';')].concat(rows.map(row => headers.map(header => {
+                const value = String(row[header] ?? '').replace(/"/g, '""');
+                return `"${value}"`;
+            }).join(';'))).join('\n');
+            downloadFile(csv, `whatsapp-relatorio-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+        }
+
+        function exportExcel() {
+            const rows = exportRows();
+            if (!rows.length) {
+                alert('Nao ha dados para exportar.');
+                return;
+            }
+            const headers = Object.keys(rows[0]);
+            const body = rows.map(row => `<tr>${headers.map(header => `<td>${escapeHtml(row[header])}</td>`).join('')}</tr>`).join('');
+            const table = `<table border="1"><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+            const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body>${table}</body></html>`;
+            downloadFile(html, `whatsapp-relatorio-${new Date().toISOString().slice(0, 10)}.xls`, 'application/vnd.ms-excel;charset=utf-8;');
+        }
+
+        searchInput.addEventListener('input', () => applyFilters(true));
+        statusFilter.addEventListener('change', fetchData);
+        periodFilter.addEventListener('change', () => {
+            syncDateInputsFromPeriod();
+            fetchData();
+        });
+        dateFromInput.addEventListener('change', () => periodFilter.value === 'custom' ? fetchData() : applyFilters(true));
+        dateToInput.addEventListener('change', () => periodFilter.value === 'custom' ? fetchData() : applyFilters(true));
+        perPageSel.addEventListener('change', () => {
+            perPage = parseInt(perPageSel.value, 10) || 10;
+            currentPage = 1;
+            renderPage();
+        });
+        reloadBtn.addEventListener('click', fetchData);
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+        nextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredItems.length / perPage) || 1;
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+        document.getElementById('waReportExportCsv').addEventListener('click', exportCSV);
+        document.getElementById('waReportExportXls').addEventListener('click', exportExcel);
+
+        syncDateInputsFromPeriod();
+        fetchData();
+    });
+</script>

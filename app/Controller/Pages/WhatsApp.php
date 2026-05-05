@@ -14,13 +14,17 @@ use App\Service\MetaWhatsAppCloudApi;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
 use App\Service\WhatsAppDefaultTemplateManager;
+use App\Service\WhatsAppDynamicPricing;
 use App\Service\WhatsAppMessagePlanner;
 use App\Service\WhatsAppNumberManager;
 use App\Service\WhatsAppNumberSafety;
 use App\Service\WhatsAppOutboxWorker;
 use App\Service\WhatsAppSupportDesk;
+use App\Service\WhatsAppTemplateBlueprintLibrary;
+use App\Service\WhatsAppTemplateVariableResolver;
 use App\Session\User as SessionUser;
 use App\Utils\View;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class WhatsApp extends ViewComponents
 {
@@ -690,6 +694,79 @@ class WhatsApp extends ViewComponents
         ]);
     }
 
+    public static function listTemplateModels(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $category = strtoupper(trim((string)($_GET['category'] ?? '')));
+        $source = strtolower(trim((string)($_GET['source'] ?? 'blueprints')));
+        $models = WhatsAppTemplateBlueprintLibrary::list($category);
+        if ($source === 'approved' || $source === 'all') {
+            $systemModels = self::systemTemplateModels($obUser);
+            if (in_array($category, ['UTILITY', 'MARKETING', 'AUTHENTICATION'], true)) {
+                $systemModels = array_values(array_filter(
+                    $systemModels,
+                    static fn (array $model): bool => strtoupper((string)$model['category']) === $category
+                ));
+            }
+            $models = $source === 'approved' ? $systemModels : array_merge($models, $systemModels);
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'source' => $source,
+            'message' => 'Modelos prontos carregados. Escolha um modelo, edite e envie para aprovação na Meta.',
+            'data' => $models,
+        ]);
+    }
+
+    public static function simulatePricing(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+        $messageType = (string)($input['message_type'] ?? $_GET['message_type'] ?? 'marketing');
+        $countryCode = (string)($input['country_code'] ?? $_GET['country_code'] ?? 'BR');
+        $customerId = isset($input['customer_id']) ? (int)$input['customer_id'] : (int)($obUser['id'] ?? 0);
+        $manualDollar = isset($input['dollar_rate']) && is_numeric($input['dollar_rate'])
+            ? (float)$input['dollar_rate']
+            : null;
+
+        try {
+            if ($manualDollar !== null && $manualDollar > 0) {
+                $current = WhatsAppDynamicPricing::calculatePrice($messageType, $countryCode, $customerId);
+                $effectiveRate = round($manualDollar * (1 + ((float)$current['safety_margin_percent'] / 100)), 6);
+                $costBrl = round((float)$current['cost_usd'] * $effectiveRate, 6);
+                $final = self::simulateCommercialRound($costBrl * (1 + ((float)$current['margin_percent'] / 100)));
+                $current['exchange_rate'] = $manualDollar;
+                $current['effective_rate'] = $effectiveRate;
+                $current['cost_brl'] = $costBrl;
+                $current['final_price_brl'] = $final;
+                $current['profit_brl'] = round($final - $costBrl, 6);
+                $current['simulation_only'] = true;
+                $pricing = $current;
+            } else {
+                $pricing = WhatsAppDynamicPricing::calculatePrice($messageType, $countryCode, $customerId);
+            }
+
+            return self::json(200, [
+                'success' => true,
+                'data' => $pricing,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public static function createTemplate(): Response
     {
         $obUser = self::requireUser();
@@ -720,6 +797,7 @@ class WhatsApp extends ViewComponents
         $category = strtoupper(trim((string)($input['category'] ?? 'UTILITY')));
         $body = self::nullableString($input['body'] ?? null);
         $components = $input['components'] ?? null;
+        $variableMap = is_array($input['variable_map'] ?? null) ? $input['variable_map'] : null;
 
         if ($name === '') {
             $name = 'template_' . date('YmdHis');
@@ -778,6 +856,15 @@ class WhatsApp extends ViewComponents
 
         try {
             $metaPayload = self::buildMetaTemplatePayload($name, $language, $category, $body, is_array($components) ? $components : null);
+            $validationErrors = self::validateTemplateDefinition($name, $language, $category, $metaPayload);
+            if ($validationErrors !== []) {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => implode(' ', $validationErrors),
+                    'errors' => $validationErrors,
+                ]);
+            }
+
             if (empty($metaPayload['components'])) {
                 return self::json(422, [
                     'success' => false,
@@ -785,12 +872,31 @@ class WhatsApp extends ViewComponents
                 ]);
             }
 
+            self::auditTemplateWindowEvent('whatsapp_template_create_request', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'waba_id' => (string)($account['waba_id'] ?? ''),
+                'template_name' => $name,
+                'payload' => $metaPayload,
+            ]);
+
             $meta = (new MetaWhatsAppCloudApi())->createMessageTemplate(
                 (string)$account['access_token'],
                 (string)$account['waba_id'],
                 $metaPayload
             );
             if (!$meta['ok']) {
+                self::auditTemplateWindowEvent('whatsapp_template_create_error', [
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => (int)$obUser['id'],
+                    'account_id' => $accountId,
+                    'waba_id' => (string)($account['waba_id'] ?? ''),
+                    'template_name' => $name,
+                    'payload' => $metaPayload,
+                    'response' => $meta,
+                ]);
+
                 return self::json(424, [
                     'success' => false,
                     'message' => $meta['error'] ?: 'Falha ao enviar template para aprovação na Meta.',
@@ -809,17 +915,30 @@ class WhatsApp extends ViewComponents
                 'category' => $category,
                 'body' => $body,
                 'components' => $metaPayload['components'] ?? null,
+                'variable_map' => $variableMap ?: self::variableMapFromComponents($metaPayload['components'] ?? []),
                 'is_system_template' => false,
                 'template_type' => 'tenant',
                 'status' => WhatsAppTemplate::normalizeMetaStatus((string)($meta['data']['status'] ?? 'pending')),
                 'template_submitted_at' => date('Y-m-d H:i:s'),
                 'template_last_sync_at' => date('Y-m-d H:i:s'),
                 'meta_payload' => $meta['data'],
+                'created_by' => (int)$obUser['id'],
+                'updated_by' => (int)$obUser['id'],
             ]);
             WhatsAppTemplate::audit($id, $obUser, 'create', [
                 'tenancy_id' => $obUser['tenancy_id'],
                 'is_system_template' => 0,
                 'template_type' => 'tenant',
+            ]);
+            self::auditTemplateWindowEvent('whatsapp_template_create_success', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'waba_id' => (string)($account['waba_id'] ?? ''),
+                'template_id' => $id,
+                'template_name' => $name,
+                'payload' => $metaPayload,
+                'response' => $meta['data'],
             ]);
 
             return self::json(201, [
@@ -978,6 +1097,7 @@ class WhatsApp extends ViewComponents
         $templateName = trim((string)($input['template_name'] ?? ''));
         $templateLanguage = trim((string)($input['template_language'] ?? 'pt_BR')) ?: 'pt_BR';
         $templateComponents = $input['template_components'] ?? [];
+        $templateVariables = WhatsAppTemplateVariableResolver::normalizeInputVariables($input['template_variables'] ?? []);
         $contactName = self::nullableString($input['name'] ?? null);
 
         if ($accountId <= 0) {
@@ -1036,6 +1156,9 @@ class WhatsApp extends ViewComponents
         if (!is_array($templateComponents)) {
             $templateComponents = [];
         }
+        if ($templateVariables === [] && $templateComponents !== [] && !array_is_list($templateComponents)) {
+            $templateVariables = $templateComponents;
+        }
 
         $account = WhatsAppAccount::getForUser($accountId, $obUser);
         if (!$account) {
@@ -1056,12 +1179,22 @@ class WhatsApp extends ViewComponents
 
         $templateCategory = null;
         $template = null;
+        $resolvedTemplate = null;
         if ($messageType === 'template') {
+            $contactContext = self::findContactContextByPhone((string)$obUser['tenancy_id'], $to);
+            $contactName = $contactName ?: self::nullableString($contactContext['name'] ?? null);
             $template = WhatsAppTemplate::getByNameForUser($templateName, $templateLanguage, $obUser);
             if (!$template) {
                 return self::json(404, [
                     'success' => false,
                     'message' => 'Template não encontrado.',
+                ]);
+            }
+
+            if (!self::templateMatchesAccount($template, $account)) {
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Template não pertence à WABA selecionada.',
                 ]);
             }
 
@@ -1073,12 +1206,49 @@ class WhatsApp extends ViewComponents
             }
 
             $templateCategory = WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'MARKETING');
+
+            try {
+                $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
+                    'tenancy_id' => $obUser['tenancy_id'],
+                    'tenant_name' => self::tenantName((string)$obUser['tenancy_id']),
+                    'contact_name' => $contactName,
+                    'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
+                    'contact_name_fallback' => self::templateContactFallback(),
+                    'contact_phone' => $to,
+                ], $templateVariables);
+                $templateComponents = $resolvedTemplate['components'];
+            } catch (\Throwable $e) {
+                error_log(json_encode([
+                    'event' => 'whatsapp_template_variable_error',
+                    'template_name' => $templateName,
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'contact' => [
+                        'name' => $contactName,
+                        'phone' => self::maskPhoneForLog($to),
+                    ],
+                    'error' => $e->getMessage(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return self::json(422, [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
 
         $lastInboundAt = WhatsAppConversation::getLastInboundAt($accountId, $to);
         $serviceWindowOpen = WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt);
 
         if ($messageType === 'text' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_free_text_blocked_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => null,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+
             return self::json(422, [
                 'success' => false,
                 'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
@@ -1087,6 +1257,15 @@ class WhatsApp extends ViewComponents
         }
 
         if ($messageType === 'audio' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_audio_blocked_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => null,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+
             return self::json(422, [
                 'success' => false,
                 'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
@@ -1119,6 +1298,20 @@ class WhatsApp extends ViewComponents
             'last_direction' => 'outbound',
             'unread_count' => 0,
         ]);
+
+        if ($messageType === 'template' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_template_reopen_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => $conversationId,
+                'template_name' => $templateName,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'contact_name' => $contactName,
+                'parameters' => $resolvedTemplate['resolved'] ?? [],
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
 
         if ($messageType === 'audio') {
             try {
@@ -1189,8 +1382,18 @@ class WhatsApp extends ViewComponents
         }
 
         $plannedMessages = $messageType === 'template'
-            ? WhatsAppMessagePlanner::planTemplate($templateName, $templateLanguage, $templateCategory, $templateComponents, $template['body'] ?? null)
+            ? WhatsAppMessagePlanner::planTemplate(
+                $templateName,
+                $templateLanguage,
+                $templateCategory,
+                $templateComponents,
+                $resolvedTemplate['preview_body'] ?? ($template['body'] ?? null)
+            )
             : WhatsAppMessagePlanner::planText($message, $serviceWindowOpen);
+        if ($messageType === 'template' && isset($plannedMessages[0])) {
+            $plannedMessages[0]['preview_body'] = $resolvedTemplate['preview_body'] ?? $plannedMessages[0]['body'];
+            $plannedMessages[0]['template_variables'] = $resolvedTemplate['resolved'] ?? [];
+        }
 
         $billableMessages = [];
         foreach ($plannedMessages as $planned) {
@@ -1323,6 +1526,11 @@ class WhatsApp extends ViewComponents
         $synced = 0;
         $submitted = 0;
         $errors = [];
+        self::auditTemplateWindowEvent('whatsapp_template_sync_start', [
+            'tenancy_id' => (string)$obUser['tenancy_id'],
+            'user_id' => (int)$obUser['id'],
+            'accounts' => count($accounts),
+        ]);
         foreach ($accounts as $listedAccount) {
             $account = WhatsAppAccount::getForUser((int)$listedAccount['id'], $obUser);
             if (!$account || trim((string)($account['waba_id'] ?? '')) === '') {
@@ -1335,6 +1543,13 @@ class WhatsApp extends ViewComponents
             );
             if (!$result['ok']) {
                 $errors[] = ['account_id' => (int)$account['id'], 'error' => $result['error']];
+                self::auditTemplateWindowEvent('whatsapp_template_sync_error', [
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => (int)$obUser['id'],
+                    'account_id' => (int)$account['id'],
+                    'waba_id' => (string)($account['waba_id'] ?? ''),
+                    'response' => $result,
+                ]);
                 continue;
             }
 
@@ -1359,7 +1574,7 @@ class WhatsApp extends ViewComponents
                     continue;
                 }
 
-                if (!in_array((string)($template['status'] ?? ''), ['draft', 'pending', 'rejected'], true)) {
+                if (!self::canSubmitTemplateStatus((string)($template['status'] ?? ''))) {
                     continue;
                 }
 
@@ -1396,6 +1611,14 @@ class WhatsApp extends ViewComponents
 
             WhatsAppTemplate::disableMissingFromMeta($account, $seenMetaTemplates, $obUser);
         }
+
+        self::auditTemplateWindowEvent('whatsapp_template_sync_finish', [
+            'tenancy_id' => (string)$obUser['tenancy_id'],
+            'user_id' => (int)$obUser['id'],
+            'synced' => $synced,
+            'submitted' => $submitted,
+            'errors' => $errors,
+        ]);
 
         return self::json(200, [
             'success' => $errors === [],
@@ -1447,7 +1670,7 @@ class WhatsApp extends ViewComponents
             }
         }
 
-        if (in_array((string)($template['status'] ?? ''), ['draft', 'pending', 'rejected'], true)) {
+        if (self::canSubmitTemplateStatus((string)($template['status'] ?? ''))) {
             $submit = self::submitLocalTemplateToMeta($account, $template);
             if ($submit['ok']) {
                 $metaData = is_array($submit['data'] ?? null) ? $submit['data'] : [];
@@ -1529,8 +1752,14 @@ class WhatsApp extends ViewComponents
             }
         }
 
-        if ($messageType === 'text' && WhatsAppCostPolicy::looksLikeOptOut($body)) {
+        $isOptOut = $messageType === 'text' && WhatsAppCostPolicy::looksLikeOptOut($body);
+        if ($isOptOut) {
             WhatsAppConversation::registerMarketingOptOut((int)$account['id'], $from, $message['id'] ?? null);
+            $payload['opt_out'] = [
+                'detected' => true,
+                'reason' => 'keyword',
+                'detected_at' => date('Y-m-d H:i:s'),
+            ];
         }
 
         $conversationId = WhatsAppConversation::findOrCreate([
@@ -1576,7 +1805,13 @@ class WhatsApp extends ViewComponents
             $errorMessage = (string)$status['errors'][0]['title'];
         }
 
-        return WhatsAppConversation::updateMessageStatusByWamid($wamid, $statusName, $errorMessage, $status);
+        $updated = WhatsAppConversation::updateMessageStatusByWamid($wamid, $statusName, $errorMessage, $status);
+
+        if ($updated && in_array(strtolower($statusName), ['delivered', 'read'], true)) {
+            WhatsAppBilling::billDeliveredByWamid($wamid);
+        }
+
+        return $updated;
     }
 
     private static function storeWebhookNumberQuality(array $value): bool
@@ -1668,6 +1903,7 @@ class WhatsApp extends ViewComponents
         }
 
         $templateComponents = $input['template_components'] ?? [];
+        $templateVariables = WhatsAppTemplateVariableResolver::normalizeInputVariables($input['template_variables'] ?? []);
         if ($messageType === 'template' && is_string($templateComponents) && trim($templateComponents) !== '') {
             $decodedComponents = json_decode($templateComponents, true);
             if (!is_array($decodedComponents)) {
@@ -1680,6 +1916,9 @@ class WhatsApp extends ViewComponents
         }
         if (!is_array($templateComponents)) {
             $templateComponents = [];
+        }
+        if ($templateVariables === [] && $templateComponents !== [] && !array_is_list($templateComponents)) {
+            $templateVariables = $templateComponents;
         }
 
         $templateCategory = null;
@@ -1727,7 +1966,7 @@ class WhatsApp extends ViewComponents
                 'template_name' => self::nullableString($input['template_name'] ?? null),
                 'template_language' => self::nullableString($input['template_language'] ?? 'pt_BR'),
                 'template_category' => $templateCategory,
-                'template_components' => $templateComponents,
+                'template_components' => $templateVariables,
                 'scheduled_at' => self::nullableString($input['scheduled_at'] ?? null),
                 'total_recipients' => count($recipients),
                 'status' => 'draft',
@@ -1764,6 +2003,15 @@ class WhatsApp extends ViewComponents
             return self::json(404, [
                 'success' => false,
                 'message' => 'Campanha WhatsApp não encontrada.',
+            ]);
+        }
+
+        $campaignStatus = strtolower((string)($campaign['status'] ?? 'draft'));
+        if (in_array($campaignStatus, ['queued', 'sending', 'finished', 'sent', 'cancelled'], true)) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'Esta campanha já foi enviada ou está em processamento.',
+                'status' => $campaignStatus,
             ]);
         }
 
@@ -1818,6 +2066,15 @@ class WhatsApp extends ViewComponents
                 ]);
             }
 
+            if (!self::templateMatchesAccount($template, $account)) {
+                WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
+
+                return self::json(403, [
+                    'success' => false,
+                    'message' => 'Template não pertence à WABA selecionada.',
+                ]);
+            }
+
             if ((string)$template['status'] !== 'approved') {
                 WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
 
@@ -1839,6 +2096,14 @@ class WhatsApp extends ViewComponents
                 if ($campaign['message_type'] === 'text' && !$serviceWindowOpen) {
                     $failed++;
                     $error = 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.';
+                    self::auditTemplateWindowEvent('whatsapp_campaign_free_text_blocked_window_closed', [
+                        'tenancy_id' => (string)$obUser['tenancy_id'],
+                        'user_id' => (int)$obUser['id'],
+                        'account_id' => (int)$account['id'],
+                        'campaign_id' => (int)$campaign['id'],
+                        'contact_phone' => self::maskPhoneForLog($recipientPhone),
+                        'last_inbound_at' => $lastInboundAt,
+                    ]);
                     $errors[] = ['phone' => $recipientPhone, 'error' => $error];
                     WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
                     continue;
@@ -1856,16 +2121,55 @@ class WhatsApp extends ViewComponents
                     continue;
                 }
 
-                $components = json_decode((string)($campaign['template_components'] ?? '[]'), true);
+                $variables = json_decode((string)($campaign['template_components'] ?? '[]'), true);
+                if (!is_array($variables)) {
+                    $variables = [];
+                }
+                $recipientVariables = json_decode((string)($recipient['template_variables'] ?? '[]'), true);
+                if (is_array($recipientVariables) && $recipientVariables !== []) {
+                    $variables = array_replace_recursive($variables, $recipientVariables);
+                }
+
+                $templateComponents = [];
+                if ($campaign['message_type'] === 'template') {
+                    $contactContext = self::findContactContextByPhone((string)$obUser['tenancy_id'], $recipientPhone);
+                    $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
+                        'tenancy_id' => $obUser['tenancy_id'],
+                        'tenant_name' => self::tenantName((string)$obUser['tenancy_id']),
+                        'contact_name' => self::nullableString($recipient['name'] ?? null)
+                            ?: self::nullableString($contactContext['name'] ?? null),
+                        'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
+                        'contact_name_fallback' => self::templateContactFallback(),
+                        'contact_phone' => $recipientPhone,
+                    ], $variables);
+                    $templateComponents = $resolvedTemplate['components'];
+                    if (!$serviceWindowOpen) {
+                        self::auditTemplateWindowEvent('whatsapp_campaign_template_reopen_window_closed', [
+                            'tenancy_id' => (string)$obUser['tenancy_id'],
+                            'user_id' => (int)$obUser['id'],
+                            'account_id' => (int)$account['id'],
+                            'campaign_id' => (int)$campaign['id'],
+                            'template_name' => (string)$campaign['template_name'],
+                            'contact_phone' => self::maskPhoneForLog($recipientPhone),
+                            'parameters' => $resolvedTemplate['resolved'] ?? [],
+                            'last_inbound_at' => $lastInboundAt,
+                        ]);
+                    }
+                }
+
                 $plannedMessages = $campaign['message_type'] === 'template'
                     ? WhatsAppMessagePlanner::planTemplate(
                         (string)$campaign['template_name'],
                         (string)($campaign['template_language'] ?: 'pt_BR'),
                         $templateCategory,
-                        is_array($components) ? $components : [],
-                        $template['body'] ?? null
+                        $templateComponents,
+                        $resolvedTemplate['preview_body'] ?? ($template['body'] ?? null)
                     )
                     : WhatsAppMessagePlanner::planText((string)$campaign['message_body'], $serviceWindowOpen);
+                if ($campaign['message_type'] === 'template' && isset($plannedMessages[0])) {
+                    $plannedMessages[0]['preview_body'] = $resolvedTemplate['preview_body'] ?? $plannedMessages[0]['body'];
+                    $plannedMessages[0]['template_variables'] = $resolvedTemplate['resolved'] ?? [];
+                }
 
                 foreach ($plannedMessages as $planned) {
                     if (
@@ -1896,6 +2200,7 @@ class WhatsApp extends ViewComponents
                         (float)$billableMessage['price_brl']
                     );
                     WhatsAppOutbox::enqueue($billableMessage);
+                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'queued', null, null);
                     $queued++;
                 }
             } catch (\Throwable $e) {
@@ -1907,9 +2212,23 @@ class WhatsApp extends ViewComponents
 
         WhatsAppCampaign::updateCounters((int)$campaign['id']);
 
+        $firstError = $errors[0]['error'] ?? null;
+        if ($queued === 0 && $failed > 0) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Nenhum contato foi enfileirado. ' . ($firstError ? 'Primeiro erro: ' . $firstError : 'Verifique os dados da campanha.'),
+                'queued' => $queued,
+                'failed' => $failed,
+                'template_category' => $templateCategory,
+                'errors' => array_slice($errors, 0, 20),
+            ]);
+        }
+
         return self::json(200, [
-            'success' => $failed === 0,
-            'message' => $failed === 0 ? 'Campanha enviada para a fila.' : 'Campanha enviada parcialmente para a fila.',
+            'success' => true,
+            'message' => $failed === 0
+                ? "{$queued} contato(s) enviado(s) para a fila."
+                : "{$queued} contato(s) enviado(s) para a fila. {$failed} contato(s) falharam. " . ($firstError ? 'Primeiro erro: ' . $firstError : ''),
             'queued' => $queued,
             'failed' => $failed,
             'template_category' => $templateCategory,
@@ -2215,6 +2534,37 @@ class WhatsApp extends ViewComponents
         return $role === 'super_admin';
     }
 
+    public static function previewCampaignRecipientsUpload(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $file = $_FILES['file'] ?? $_FILES['contacts'] ?? null;
+        if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Envie uma planilha CSV, XLS ou XLSX.',
+            ]);
+        }
+
+        try {
+            $parsed = self::parseCampaignRecipientsSpreadsheet($file);
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Planilha lida com sucesso.',
+                'data' => $parsed,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private static function json(int $status, array $payload): Response
     {
         return new Response($status, $payload, 'application/json');
@@ -2381,10 +2731,168 @@ class WhatsApp extends ViewComponents
         return preg_replace('/\D+/', '', $phone) ?: '';
     }
 
+    private static function maskPhoneForLog(string $phone): string
+    {
+        $phone = self::normalizePhone($phone);
+        if (strlen($phone) <= 6) {
+            return '***';
+        }
+
+        return substr($phone, 0, 4) . '***' . substr($phone, -2);
+    }
+
+    private static function findContactNameByPhone(string $tenancyId, string $phone): ?string
+    {
+        $context = self::findContactContextByPhone($tenancyId, $phone);
+        return self::nullableString($context['name'] ?? null);
+    }
+
+    private static function findContactContextByPhone(string $tenancyId, string $phone): array
+    {
+        $phone = self::normalizePhone($phone);
+        if ($tenancyId === '' || $phone === '') {
+            return [];
+        }
+
+        try {
+            $row = (new \WilliamCosta\DatabaseManager\Database('contacts'))
+                ->select(
+                    "tenancy_id = :tenancy_id
+                     AND REPLACE(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', ''), '(', '') LIKE :phone
+                     AND COALESCE(name, '') <> ''",
+                    [
+                        ':tenancy_id' => $tenancyId,
+                        ':phone' => '%' . substr($phone, -8),
+                    ],
+                    'updated_at DESC, id DESC',
+                    '1'
+                )
+                ->fetch(\PDO::FETCH_ASSOC);
+
+            return is_array($row) ? $row : [];
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_contact_lookup] ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    private static function tenantName(string $tenancyId): ?string
+    {
+        if ($tenancyId === '') {
+            return null;
+        }
+
+        try {
+            $row = (new \WilliamCosta\DatabaseManager\Database('tenancies'))
+                ->select('id = :id', [':id' => $tenancyId], '', '1', ['name'])
+                ->fetch(\PDO::FETCH_ASSOC);
+
+            return self::nullableString($row['name'] ?? null);
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_tenant_lookup] ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private static function templateContactFallback(): string
+    {
+        $value = trim((string)(getenv('WHATSAPP_TEMPLATE_CONTACT_FALLBACK') ?: 'cliente'));
+        return $value !== '' ? $value : 'cliente';
+    }
+
+    private static function auditTemplateWindowEvent(string $event, array $context): void
+    {
+        $maskedContext = self::maskSensitivePayload($context);
+        error_log(json_encode(array_merge([
+            'event' => $event,
+            'created_at' => date('c'),
+        ], $maskedContext), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        try {
+            self::ensureTemplateEventLogTable();
+            (new \WilliamCosta\DatabaseManager\Database('whatsapp_template_event_logs'))->insert([
+                'event' => $event,
+                'tenancy_id' => (string)($context['tenancy_id'] ?? ''),
+                'user_id' => isset($context['user_id']) ? (int)$context['user_id'] : null,
+                'account_id' => isset($context['account_id']) ? (int)$context['account_id'] : null,
+                'conversation_id' => isset($context['conversation_id']) ? (int)$context['conversation_id'] : null,
+                'contact_phone' => isset($context['contact_phone']) ? (string)$context['contact_phone'] : null,
+                'template_name' => isset($context['template_name']) ? (string)$context['template_name'] : null,
+                'payload_json' => isset($maskedContext['payload'])
+                    ? json_encode($maskedContext['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+                'response_json' => isset($maskedContext['response'])
+                    ? json_encode($maskedContext['response'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+                'error_message' => isset($context['error']) ? (string)$context['error'] : null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_template_event_log] ' . $e->getMessage());
+        }
+    }
+
+    private static function ensureTemplateEventLogTable(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+
+        (new \WilliamCosta\DatabaseManager\Database())->execute("
+            CREATE TABLE IF NOT EXISTS whatsapp_template_event_logs (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                event VARCHAR(80) NOT NULL,
+                tenancy_id VARCHAR(64) NOT NULL,
+                user_id INT UNSIGNED NULL,
+                account_id INT UNSIGNED NULL,
+                conversation_id INT UNSIGNED NULL,
+                contact_phone VARCHAR(32) NULL,
+                template_name VARCHAR(160) NULL,
+                payload_json JSON NULL,
+                response_json JSON NULL,
+                error_message TEXT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_whatsapp_template_event_tenancy (tenancy_id, created_at),
+                KEY idx_whatsapp_template_event_template (template_name, created_at),
+                KEY idx_whatsapp_template_event_account (account_id, created_at),
+                KEY idx_whatsapp_template_event_event (event, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $ensured = true;
+    }
+
+    private static function maskSensitivePayload(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $masked = [];
+        foreach ($value as $key => $item) {
+            $lowerKey = strtolower((string)$key);
+            if (str_contains($lowerKey, 'token') || str_contains($lowerKey, 'secret') || str_contains($lowerKey, 'authorization')) {
+                $masked[$key] = '***';
+                continue;
+            }
+            $masked[$key] = is_array($item) ? self::maskSensitivePayload($item) : $item;
+        }
+
+        return $masked;
+    }
+
     private static function normalizeRecipients(mixed $raw): array
     {
         if (is_string($raw)) {
-            $raw = preg_split('/[\r\n,;]+/', $raw) ?: [];
+            $trimmed = trim($raw);
+            if ($trimmed !== '' && in_array($trimmed[0], ['[', '{'], true)) {
+                $decoded = json_decode($trimmed, true);
+                $raw = is_array($decoded) ? $decoded : [];
+            } else {
+                $csvRows = self::parseRecipientCsv($trimmed);
+                $raw = $csvRows !== [] ? $csvRows : (preg_split('/[\r\n,;]+/', $raw) ?: []);
+            }
         }
 
         if (!is_array($raw)) {
@@ -2397,8 +2905,8 @@ class WhatsApp extends ViewComponents
             $phone = '';
 
             if (is_array($item)) {
-                $phone = self::normalizePhone((string)($item['phone'] ?? $item['number'] ?? ''));
-                $name = self::nullableString($item['name'] ?? null);
+                $phone = self::normalizePhone((string)($item['phone'] ?? $item['telefone'] ?? $item['number'] ?? ''));
+                $name = self::nullableString($item['name'] ?? $item['nome'] ?? null);
             } else {
                 $phone = self::normalizePhone((string)$item);
             }
@@ -2410,10 +2918,179 @@ class WhatsApp extends ViewComponents
             $recipients[$phone] = [
                 'phone' => $phone,
                 'name' => $name,
+                'template_variables' => is_array($item) ? self::recipientTemplateVariables($item) : [],
             ];
         }
 
         return array_values($recipients);
+    }
+
+    private static function parseRecipientCsv(string $raw): array
+    {
+        if ($raw === '') {
+            return [];
+        }
+
+        $lines = array_values(array_filter(
+            preg_split('/\r\n|\n|\r/', $raw) ?: [],
+            static fn (string $line): bool => trim($line) !== ''
+        ));
+        if (count($lines) < 2) {
+            return [];
+        }
+
+        $headerLine = $lines[0];
+        $delimiter = str_contains($headerLine, ';') ? ';' : (str_contains($headerLine, "\t") ? "\t" : ',');
+        $headers = array_map([self::class, 'normalizeRecipientColumn'], str_getcsv($headerLine, $delimiter));
+        if (!in_array('phone', $headers, true)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach (array_slice($lines, 1) as $line) {
+            $values = str_getcsv($line, $delimiter);
+            $row = [];
+            foreach ($headers as $index => $header) {
+                if ($header !== '') {
+                    $row[$header] = $values[$index] ?? '';
+                }
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    private static function normalizeRecipientColumn(string $column): string
+    {
+        $column = trim(mb_strtolower($column, 'UTF-8'));
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $column);
+        if (is_string($ascii) && $ascii !== '') {
+            $column = $ascii;
+        }
+        $column = trim(preg_replace('/[^a-z0-9]+/', '_', $column) ?? '', '_');
+
+        return match ($column) {
+            'telefone', 'celular', 'whatsapp', 'numero', 'number' => 'phone',
+            'nome', 'cliente', 'nome_cliente' => 'name',
+            default => $column,
+        };
+    }
+
+    private static function recipientTemplateVariables(array $item): array
+    {
+        $variables = is_array($item['template_variables'] ?? null) ? $item['template_variables'] : [];
+        foreach ($item as $key => $value) {
+            $normalized = self::normalizeRecipientColumn((string)$key);
+            if (in_array($normalized, ['phone', 'name', 'template_variables'], true)) {
+                continue;
+            }
+            if (is_scalar($value) && trim((string)$value) !== '') {
+                $variables[$normalized] = trim((string)$value);
+            }
+        }
+
+        return $variables;
+    }
+
+    private static function parseCampaignRecipientsSpreadsheet(array $file): array
+    {
+        $originalName = (string)($file['name'] ?? 'planilha');
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['csv', 'xls', 'xlsx'], true)) {
+            throw new \RuntimeException('Tipo de arquivo não suportado. Envie CSV, XLS ou XLSX.');
+        }
+
+        $tmp = (string)($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            throw new \RuntimeException('Arquivo inválido.');
+        }
+
+        $readerType = match ($extension) {
+            'csv' => 'Csv',
+            'xls' => 'Xls',
+            default => 'Xlsx',
+        };
+        $reader = IOFactory::createReader($readerType);
+        if (method_exists($reader, 'setReadDataOnly')) {
+            $reader->setReadDataOnly(true);
+        }
+        if ($extension === 'csv' && method_exists($reader, 'setDelimiter')) {
+            $firstLine = (string)(file($tmp, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)[0] ?? '');
+            $delimiter = str_contains($firstLine, ';') ? ';' : (str_contains($firstLine, "\t") ? "\t" : ',');
+            $reader->setDelimiter($delimiter);
+        }
+
+        $spreadsheet = $reader->load($tmp);
+        $sheet = $spreadsheet->getActiveSheet();
+        $matrix = $sheet->toArray(null, true, true, false);
+        $spreadsheet->disconnectWorksheets();
+
+        $matrix = array_values(array_filter($matrix, static function (array $row): bool {
+            return count(array_filter($row, static fn ($value): bool => trim((string)$value) !== '')) > 0;
+        }));
+
+        if (count($matrix) < 2) {
+            throw new \RuntimeException('A planilha precisa ter cabeçalho e ao menos um contato.');
+        }
+
+        $headerRow = array_shift($matrix);
+        $headers = [];
+        foreach ($headerRow as $index => $label) {
+            $label = trim((string)$label);
+            if ($label === '') {
+                $label = 'Coluna ' . ($index + 1);
+            }
+            $headers[] = [
+                'index' => $index,
+                'label' => $label,
+                'normalized' => self::normalizeRecipientColumn($label),
+            ];
+        }
+
+        $rows = [];
+        $maxRows = 5000;
+        foreach ($matrix as $rowIndex => $row) {
+            if ($rowIndex >= $maxRows) {
+                break;
+            }
+            $values = [];
+            foreach ($headers as $header) {
+                $value = $row[$header['index']] ?? '';
+                $values[] = trim((string)$value);
+            }
+            if (count(array_filter($values, static fn ($value): bool => $value !== '')) > 0) {
+                $rows[] = $values;
+            }
+        }
+
+        if ($rows === []) {
+            throw new \RuntimeException('Nenhum contato encontrado na planilha.');
+        }
+
+        return [
+            'filename' => basename($originalName),
+            'headers' => $headers,
+            'rows' => $rows,
+            'total_rows' => count($matrix),
+            'loaded_rows' => count($rows),
+            'truncated' => count($matrix) > $maxRows,
+            'suggested' => [
+                'phone' => self::suggestRecipientColumn($headers, ['phone', 'telefone', 'celular', 'whatsapp', 'numero', 'number']),
+                'name' => self::suggestRecipientColumn($headers, ['name', 'nome', 'cliente', 'nome_cliente']),
+            ],
+        ];
+    }
+
+    private static function suggestRecipientColumn(array $headers, array $candidates): ?int
+    {
+        foreach ($headers as $header) {
+            if (in_array((string)($header['normalized'] ?? ''), $candidates, true)) {
+                return (int)$header['index'];
+            }
+        }
+
+        return null;
     }
 
     private static function buildMetaTemplatePayload(
@@ -2577,6 +3254,29 @@ class WhatsApp extends ViewComponents
         return strtolower(trim($name)) . "\n" . strtolower(trim($language));
     }
 
+    private static function templateMatchesAccount(array $template, array $account): bool
+    {
+        $templateTenancy = (string)($template['tenancy_id'] ?? '');
+        $accountTenancy = (string)($account['tenancy_id'] ?? '');
+        if ($templateTenancy === '' || $templateTenancy !== $accountTenancy) {
+            return false;
+        }
+
+        $templateWaba = trim((string)($template['waba_id'] ?? ''));
+        $accountWaba = trim((string)($account['waba_id'] ?? ''));
+        if ($templateWaba !== '' && $accountWaba !== '' && $templateWaba !== $accountWaba) {
+            return false;
+        }
+
+        $templateAccountId = (int)($template['account_id'] ?? 0);
+        return $templateAccountId <= 0 || $templateAccountId === (int)($account['id'] ?? 0);
+    }
+
+    private static function canSubmitTemplateStatus(string $status): bool
+    {
+        return in_array($status, ['draft', 'pending', 'rejected', 'READY_TO_SUBMIT'], true);
+    }
+
     private static function jsonColumnToArray(mixed $value): ?array
     {
         if (is_array($value)) {
@@ -2613,6 +3313,202 @@ class WhatsApp extends ViewComponents
         $numbers = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
         sort($numbers);
         return $numbers;
+    }
+
+    private static function validateTemplateDefinition(string $name, string $language, string $category, array $payload): array
+    {
+        $errors = [];
+        if (!preg_match('/^[a-z0-9_]{1,512}$/', $name)) {
+            $errors[] = 'Nome inválido para a Meta. Use somente letras minúsculas, números e underscore.';
+        }
+        if (!preg_match('/^[a-z]{2}(?:_[A-Z]{2})?$/', $language)) {
+            $errors[] = 'Idioma inválido. Use códigos como pt_BR, en_US ou es.';
+        }
+        if (!in_array($category, ['MARKETING', 'UTILITY', 'AUTHENTICATION'], true)) {
+            $errors[] = 'Categoria inválida para template.';
+        }
+
+        $components = is_array($payload['components'] ?? null) ? $payload['components'] : [];
+        $hasBody = false;
+        foreach ($components as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+            $type = strtoupper((string)($component['type'] ?? ''));
+            if ($type === 'BODY' && trim((string)($component['text'] ?? '')) !== '') {
+                $hasBody = true;
+            }
+            if ($type === 'BODY') {
+                $variables = self::templateVariables((string)($component['text'] ?? ''));
+                if (!self::variablesAreSequential($variables)) {
+                    $errors[] = 'As variáveis do BODY devem ser sequenciais: {{1}}, {{2}}, {{3}}...';
+                }
+                if ($variables !== [] && empty($component['example']['body_text'][0])) {
+                    $errors[] = 'A Meta exige exemplos/sample values para templates com variáveis no BODY.';
+                }
+            }
+        }
+
+        if (!$hasBody) {
+            $errors[] = 'Template precisa ter componente BODY com texto.';
+        }
+
+        return array_values(array_unique($errors));
+    }
+
+    private static function variablesAreSequential(array $variables): bool
+    {
+        if ($variables === []) {
+            return true;
+        }
+
+        return $variables === range(1, count($variables));
+    }
+
+    private static function simulateCommercialRound(float $value): float
+    {
+        $step = max(0.0001, (float)(getenv('WHATSAPP_PRICE_ROUND_STEP_BRL') ?: 0.01));
+        $minimum = max(0.0, (float)(getenv('WHATSAPP_MIN_PRICE_BRL') ?: 0.05));
+        return round(ceil(max($value, $minimum) / $step) * $step, 4);
+    }
+
+    private static function variableMapFromComponents(array $components): array
+    {
+        $text = '';
+        foreach ($components as $component) {
+            if (is_array($component) && strtoupper((string)($component['type'] ?? '')) === 'BODY') {
+                $text .= "\n" . (string)($component['text'] ?? '');
+            }
+        }
+
+        $map = [];
+        foreach (self::templateVariables($text) as $position) {
+            $map[(string)$position] = [
+                'key' => $position === 1 ? 'nome_cliente' : 'variavel_' . $position,
+                'description' => $position === 1 ? 'Nome do cliente' : 'Valor do parâmetro ' . $position,
+            ];
+        }
+
+        return $map;
+    }
+
+    private static function localTemplateModels(): array
+    {
+        return [
+            [
+                'id' => 'utility_payment_due',
+                'name' => 'aviso_vencimento',
+                'language' => 'pt_BR',
+                'category' => 'UTILITY',
+                'header' => 'Aviso importante',
+                'body' => 'Olá {{1}}, sua fatura vence em {{2}}. Caso já tenha pago, desconsidere esta mensagem.',
+                'footer' => 'Atendimento {{3}}',
+                'buttons' => [],
+                'variable_map' => [
+                    '1' => ['key' => 'nome_cliente', 'description' => 'Nome do cliente'],
+                    '2' => ['key' => 'data_vencimento', 'description' => 'Data de vencimento'],
+                    '3' => ['key' => 'nome_empresa', 'description' => 'Nome da empresa'],
+                ],
+            ],
+            [
+                'id' => 'utility_ticket_update',
+                'name' => 'atualizacao_atendimento',
+                'language' => 'pt_BR',
+                'category' => 'UTILITY',
+                'header' => 'Atualização de atendimento',
+                'body' => 'Olá {{1}}, o protocolo {{2}} foi atualizado. Status atual: {{3}}.',
+                'footer' => '{{4}}',
+                'buttons' => [],
+                'variable_map' => [
+                    '1' => ['key' => 'nome_cliente', 'description' => 'Nome do cliente'],
+                    '2' => ['key' => 'protocolo_atendimento', 'description' => 'Protocolo'],
+                    '3' => ['key' => 'status_pedido', 'description' => 'Status'],
+                    '4' => ['key' => 'nome_empresa', 'description' => 'Nome da empresa'],
+                ],
+            ],
+            [
+                'id' => 'marketing_news',
+                'name' => 'novidade_cliente',
+                'language' => 'pt_BR',
+                'category' => 'MARKETING',
+                'header' => 'Novidade para você',
+                'body' => 'Olá {{1}}, temos uma novidade sobre {{2}}. Responda esta mensagem para falar com nossa equipe.',
+                'footer' => 'Você pode solicitar descadastro a qualquer momento.',
+                'buttons' => [],
+                'variable_map' => [
+                    '1' => ['key' => 'nome_cliente', 'description' => 'Nome do cliente'],
+                    '2' => ['key' => 'assunto_novidade', 'description' => 'Assunto'],
+                ],
+            ],
+            [
+                'id' => 'auth_code',
+                'name' => 'codigo_verificacao',
+                'language' => 'pt_BR',
+                'category' => 'AUTHENTICATION',
+                'header' => null,
+                'body' => '{{1}} é seu código de verificação. Não compartilhe este código.',
+                'footer' => null,
+                'buttons' => [],
+                'variable_map' => [
+                    '1' => ['key' => 'codigo_verificacao', 'description' => 'Código de verificação'],
+                ],
+            ],
+        ];
+    }
+
+    private static function systemTemplateModels(array $user): array
+    {
+        $models = [];
+        foreach (WhatsAppTemplate::listForUser($user) as $template) {
+            $isSystem = (int)($template['is_system_template'] ?? 0) === 1
+                || strtolower((string)($template['template_type'] ?? '')) === 'system';
+            if (!$isSystem || (string)($template['status'] ?? '') !== 'approved') {
+                continue;
+            }
+
+            $components = self::jsonColumnToArray($template['components'] ?? null) ?: [];
+            $variableMap = self::jsonColumnToArray($template['variable_map'] ?? null) ?: [];
+            $models[] = [
+                'id' => 'system_' . (int)$template['id'],
+                'source' => 'system_approved',
+                'source_label' => 'Modelo aprovado do sistema',
+                'template_id' => (int)$template['id'],
+                'name' => (string)$template['name'],
+                'suggested_name' => self::normalizeTemplateName((string)$template['name'] . '_cliente'),
+                'language' => (string)($template['language'] ?: 'pt_BR'),
+                'category' => strtoupper((string)($template['category'] ?: 'UTILITY')),
+                'header' => self::componentText($components, 'HEADER'),
+                'body' => (string)($template['body'] ?: self::componentText($components, 'BODY')),
+                'footer' => self::componentText($components, 'FOOTER'),
+                'buttons' => self::componentButtons($components),
+                'components' => $components,
+                'variable_map' => $variableMap,
+            ];
+        }
+
+        return $models;
+    }
+
+    private static function componentText(array $components, string $type): ?string
+    {
+        foreach ($components as $component) {
+            if (is_array($component) && strtoupper((string)($component['type'] ?? '')) === $type) {
+                return self::nullableString($component['text'] ?? null);
+            }
+        }
+
+        return null;
+    }
+
+    private static function componentButtons(array $components): array
+    {
+        foreach ($components as $component) {
+            if (is_array($component) && strtoupper((string)($component['type'] ?? '')) === 'BUTTONS') {
+                return is_array($component['buttons'] ?? null) ? $component['buttons'] : [];
+            }
+        }
+
+        return [];
     }
 
     private static function businessProfilePayload(array $input): array
@@ -2718,23 +3614,50 @@ class WhatsApp extends ViewComponents
             $category,
             $serviceWindowOpen
         );
-        $priceBrl = WhatsAppBilling::priceForUser(
-            (int)$base['user_id'],
-            (string)$base['tenancy_id'],
-            $messageCategory
+        $freeByMetaPolicy = WhatsAppCostPolicy::isFreeByMetaPolicy(
+            (string)$planned['message_type'],
+            $category,
+            $serviceWindowOpen
         );
+        if ($freeByMetaPolicy) {
+            $priceBrl = 0.0;
+            $pricingSnapshot = WhatsAppBilling::freeMetaPolicySnapshot(
+                $messageCategory,
+                (string)($base['contact_phone'] ?? ''),
+                $messageCategory === WhatsAppCostPolicy::CATEGORY_UTILITY
+                    ? 'utility_template_customer_service_window'
+                    : 'customer_service_window'
+            );
+        } else {
+            $priceBrl = WhatsAppBilling::priceForUser(
+                (int)$base['user_id'],
+                (string)$base['tenancy_id'],
+                $messageCategory,
+                WhatsAppDynamicPricing::countryCodeFromPhone((string)($base['contact_phone'] ?? ''))
+            );
+            $pricingSnapshot = WhatsAppBilling::pricingSnapshot(
+                (int)$base['user_id'],
+                (string)$base['tenancy_id'],
+                $messageCategory,
+                (string)($base['contact_phone'] ?? ''),
+                $priceBrl
+            );
+        }
 
         return array_merge($base, [
             'sequence' => $planned['sequence'],
             'message_type' => $planned['message_type'],
             'body' => $planned['body'],
+            'preview_body' => $planned['preview_body'] ?? $planned['body'],
             'template_name' => $planned['template_name'],
             'template_language' => $planned['template_language'] ?? 'pt_BR',
             'template_category' => $category,
             'template_components' => $planned['template_components'] ?? [],
+            'template_variables' => $planned['template_variables'] ?? [],
             'service_window_open' => $serviceWindowOpen ? 1 : 0,
             'message_category' => $messageCategory,
             'price_brl' => $priceBrl,
+            'pricing_snapshot' => $pricingSnapshot,
             'billed' => 0,
         ]);
     }

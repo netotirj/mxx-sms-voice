@@ -63,6 +63,28 @@ $obRouter->get('/reports/notifications-realtime',[
     }
 ]);
 
+$obRouter->get('/reports/notifications/users',[
+    'name' => '/reports/notifications/users',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return Pages\Reports::getNotificationTargetUsers($request);
+    }
+]);
+
+$obRouter->post('/reports/notifications/create',[
+    'name' => '/reports/notifications/create',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return Pages\Reports::createNotification($request);
+    }
+]);
+
 $obRouter->get('/reports/transactions',[
     'name' => '/reports/transactions', // nome da rota
     'middlewares' => [

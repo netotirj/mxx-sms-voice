@@ -1,0 +1,541 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="relative flex flex-col min-w-0 bg-white shadow-xl rounded-2xl border border-slate-100">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4">
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 text-lg">
+                    <i class="fa fa-bullhorn"></i>
+                </span>
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-800">Atualizações do Sistema</h2>
+                    <p class="text-xs text-slate-400">Planeje melhorias e publique o andamento no header</p>
+                </div>
+            </div>
+            <button onclick="openSystemUpdateModal()" class="inline-flex items-center gap-2 bg-cyan-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm uppercase hover:opacity-90" style="background:#0891b2;color:#fff;">
+                <i class="fa fa-plus text-sm"></i> Nova atualização
+            </button>
+        </div>
+
+        <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+            <div class="relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                <input id="systemUpdateSearch" oninput="renderSystemUpdates()" class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-white outline-none" placeholder="Buscar por módulo, título ou etapa...">
+            </div>
+        </div>
+
+        <div id="systemUpdatesList" class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+    </div>
+</div>
+
+<div id="systemUpdateModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="p-5 pb-3 flex items-start justify-between border-b border-slate-100 shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-slate-800" id="systemUpdateModalTitle">Nova atualização</h3>
+                <p class="text-xs text-slate-400">As etapas aparecem como checklist para acompanhar o progresso</p>
+            </div>
+            <button type="button" onclick="closeSystemUpdateModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
+        </div>
+        <form id="systemUpdateForm" class="flex min-h-0 flex-1 flex-col">
+            <div class="p-5 space-y-3 overflow-y-auto">
+                <input type="hidden" id="systemUpdateId">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Módulo</label>
+                        <input id="systemUpdateModule" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="WhatsApp">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Categoria</label>
+                        <select id="systemUpdateCategory" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="bug">Bug no sistema</option>
+                            <option value="update">Update do sistema</option>
+                            <option value="correction">Correção</option>
+                            <option value="improvement">Melhoria</option>
+                            <option value="incident">Incidente</option>
+                            <option value="maintenance">Manutenção</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Status</label>
+                        <select id="systemUpdateStatus" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="planned">Planejado</option>
+                            <option value="in_progress">Em andamento</option>
+                            <option value="done">Concluído</option>
+                            <option value="cancelled">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Título</label>
+                    <input id="systemUpdateTitle" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="Atualização do WhatsApp hoje">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Descrição</label>
+                    <textarea id="systemUpdateDescription" rows="2" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none resize-y" placeholder="Resumo do que será melhorado"></textarea>
+                </div>
+                <div id="systemUpdateCancelWrap" class="hidden rounded-xl border border-red-100 bg-red-50 p-3">
+                    <label class="block text-[10px] font-bold uppercase text-red-500 mb-1 ml-1">Motivo do cancelamento</label>
+                    <textarea id="systemUpdateCancelReason" rows="2" class="w-full border border-red-100 rounded-xl px-4 py-2 text-sm outline-none resize-y bg-white" placeholder="Explique por que o problema não procedeu ou por que a atualização foi cancelada"></textarea>
+                    <p class="mt-1 text-[11px] font-semibold text-red-500">Ao salvar como cancelado, o checklist será encerrado e removido.</p>
+                </div>
+                <div id="systemUpdateChecklistWrap">
+                    <div class="mb-1 ml-1 flex items-center justify-between gap-2">
+                        <label class="block text-[10px] font-bold uppercase text-slate-400">Checklist</label>
+                        <button type="button" onclick="applyProblemResolutionTemplate()" class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-cyan-700 hover:text-cyan-900">
+                            <i class="fa fa-list-check"></i> Modelo problema
+                        </button>
+                    </div>
+                    <textarea id="systemUpdateSteps" rows="3" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none resize-y" placeholder="Uma etapa por linha"></textarea>
+                    <div id="systemUpdateStepsPreview" class="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-3"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Alcance</label>
+                        <select id="systemUpdateScope" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="global">Todos os usuários do sistema</option>
+                            <option value="user">Usuário específico</option>
+                        </select>
+                    </div>
+                    <div id="systemUpdateTargetUserWrap" class="hidden">
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Usuário</label>
+                        <select id="systemUpdateTargetUser" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="">Selecione um usuário</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600">
+                    <input id="systemUpdatePublic" type="checkbox" class="rounded border-slate-300" checked>
+                    Mostrar no header para os clientes
+                </label>
+            </div>
+            <div class="p-4 flex justify-end gap-3 border-t bg-white shrink-0">
+                <button type="button" onclick="closeSystemUpdateModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="systemUpdateSubmit" class="bg-cyan-600 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-md uppercase" style="background:#0891b2;color:#fff;">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const systemUpdatesBaseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+    let systemUpdates = [];
+    let systemUpdateUsers = [];
+
+    const systemUpdateStatusLabels = {
+        planned: 'Planejado',
+        in_progress: 'Em andamento',
+        done: 'Concluído',
+        cancelled: 'Cancelado'
+    };
+
+    const systemUpdateCategoryLabels = {
+        bug: 'Bug no sistema',
+        update: 'Update do sistema',
+        correction: 'Correção',
+        improvement: 'Melhoria',
+        incident: 'Incidente',
+        maintenance: 'Manutenção'
+    };
+
+    const systemUpdateCategoryClasses = {
+        bug: 'bg-red-50 text-red-600',
+        update: 'bg-cyan-50 text-cyan-700',
+        correction: 'bg-amber-50 text-amber-700',
+        improvement: 'bg-emerald-50 text-emerald-700',
+        incident: 'bg-fuchsia-50 text-fuchsia-700',
+        maintenance: 'bg-slate-100 text-slate-600'
+    };
+
+    const problemResolutionChecklist = [
+        'Problema recebido e registrado no sistema interno',
+        'Triagem inicial realizada com módulo, cliente/tenant, evidências e impacto',
+        'Criticidade e prioridade revisadas',
+        'Responsável técnico e área correta definidos',
+        'Problema encaminhado para engenharia',
+        'Análise técnica realizada com logs, banco, código e integrações verificadas',
+        'Causa raiz documentada ou necessidade de informação registrada',
+        'Auditoria técnica/revisão de risco realizada antes da correção',
+        'Correção desenvolvida com validações, logs e migração quando necessário',
+        'Code review realizado e aprovado',
+        'Testes internos/QA executados com evidências',
+        'Homologação realizada quando necessário',
+        'Aprovação final para produção registrada',
+        'Deploy em produção realizado com monitoramento',
+        'Validação pós-produção concluída',
+        'Chamado encerrado com causa raiz, correção, evidências e aprendizados'
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSystemUpdates();
+        loadSystemUpdateUsers();
+        document.getElementById('systemUpdateForm')?.addEventListener('submit', saveSystemUpdate);
+        document.getElementById('systemUpdateScope')?.addEventListener('change', syncSystemUpdateScope);
+        document.getElementById('systemUpdateStatus')?.addEventListener('change', syncSystemUpdateCancellationState);
+        document.getElementById('systemUpdateSteps')?.addEventListener('input', renderSystemUpdateStepsPreview);
+    });
+
+    function escapeSystemUpdateHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
+    function parseSteps(value) {
+        if (Array.isArray(value)) return value;
+        try {
+            const parsed = JSON.parse(value || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function loadSystemUpdates() {
+        const target = document.getElementById('systemUpdatesList');
+        target.innerHTML = '<div class="text-center p-6 text-slate-400 xl:col-span-2">Carregando atualizações...</div>';
+
+        fetch(`${systemUpdatesBaseUrl}/system-updates/list`)
+            .then(res => res.json())
+            .then(result => {
+                systemUpdates = result.data || [];
+                renderSystemUpdates();
+            })
+            .catch(() => {
+                target.innerHTML = '<div class="text-center p-6 text-red-500 xl:col-span-2">Falha ao carregar atualizações.</div>';
+            });
+    }
+
+    function loadSystemUpdateUsers() {
+        fetch(`${systemUpdatesBaseUrl}/system-updates/users`)
+            .then(res => res.json())
+            .then(result => {
+                systemUpdateUsers = result.data || [];
+                renderSystemUpdateUserOptions();
+            })
+            .catch(() => {
+                systemUpdateUsers = [];
+                renderSystemUpdateUserOptions();
+            });
+    }
+
+    function renderSystemUpdateUserOptions() {
+        const select = document.getElementById('systemUpdateTargetUser');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Selecione um usuário</option>' + systemUpdateUsers.map(user => {
+            const name = [user.name, user.last_name].filter(Boolean).join(' ') || `Usuário #${user.id}`;
+            const tenancy = user.tenancy_name ? ` - ${user.tenancy_name}` : '';
+            return `<option value="${Number(user.id)}">${escapeSystemUpdateHtml(name)}${tenancy}</option>`;
+        }).join('');
+    }
+
+    function renderSystemUpdates() {
+        const target = document.getElementById('systemUpdatesList');
+        const search = (document.getElementById('systemUpdateSearch')?.value || '').toLowerCase().trim();
+        const rows = systemUpdates.filter(item => !search || JSON.stringify(item).toLowerCase().includes(search));
+
+        target.innerHTML = rows.length ? rows.map(item => {
+            const steps = parseSteps(item.steps_json);
+            const done = steps.filter(step => step.done).length;
+            const total = steps.length;
+            const progress = total ? Math.round((done / total) * 100) : 0;
+            const checklistLocked = item.status === 'done' || item.status === 'cancelled';
+            const category = item.category || 'update';
+            const detailsId = `systemUpdateStepsDetails-${Number(item.id)}`;
+            return `
+                <article class="border border-slate-100 rounded-xl p-4 shadow-sm bg-white hover:border-emerald-100 transition-colors">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="mb-2 flex flex-wrap items-center gap-2">
+                                <span class="text-[10px] font-black uppercase text-cyan-700">${escapeSystemUpdateHtml(item.module || 'Sistema')}</span>
+                                <span class="rounded-full px-2 py-1 text-[10px] font-black uppercase ${systemUpdateCategoryClasses[category] || systemUpdateCategoryClasses.update}">
+                                    ${systemUpdateCategoryLabels[category] || systemUpdateCategoryLabels.update}
+                                </span>
+                            </div>
+                            <h3 class="text-base font-bold text-slate-800">${escapeSystemUpdateHtml(item.title)}</h3>
+                            <p class="text-xs text-slate-500 mt-1">${escapeSystemUpdateHtml(item.description || '')}</p>
+                            ${item.status === 'cancelled' && item.cancellation_reason ? `<p class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">Cancelado: ${escapeSystemUpdateHtml(item.cancellation_reason)}</p>` : ''}
+                        </div>
+                        <button onclick="openSystemUpdateModal(${Number(item.id)})" class="p-2 text-blue-500" title="Editar"><i class="fa fa-edit"></i></button>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between gap-3 text-xs">
+                        <span class="font-bold text-slate-500">${systemUpdateStatusLabels[item.status] || item.status}</span>
+                        <span class="font-bold text-slate-400">${item.target_user_id ? `Usuário #${item.target_user_id}` : 'Global'}</span>
+                        <span class="font-bold text-emerald-700">${progress}%</span>
+                    </div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full bg-emerald-500 transition-all" style="width:${progress}%"></div>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-[11px] font-bold text-slate-400">
+                        <span>${done}/${total} etapas concluídas</span>
+                        <span>${total - done} pendentes</span>
+                    </div>
+                    ${steps.length ? `
+                        <button type="button"
+                                class="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-cyan-700 hover:text-cyan-900"
+                                data-system-update-toggle="${detailsId}">
+                            <i class="fa fa-chevron-down text-[9px] transition-transform"></i>
+                            <span>Ver processo</span>
+                        </button>
+                    ` : ''}
+                    <div id="${detailsId}" class="hidden mt-3 space-y-2">
+                        ${steps.length ? steps.map((step, index) => `
+                            <label class="flex items-start gap-2 rounded-lg border ${step.done ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-slate-100 bg-slate-50 text-slate-600'} ${checklistLocked ? 'opacity-70 cursor-not-allowed' : ''} px-3 py-2 text-sm">
+                                <input class="mt-0.5 accent-emerald-600 disabled:cursor-not-allowed" type="checkbox" ${step.done ? 'checked' : ''} ${checklistLocked ? 'disabled' : ''} onchange="toggleSystemUpdateStep(${Number(item.id)}, ${index}, this.checked)">
+                                <span class="${step.done ? 'line-through decoration-emerald-500' : ''}">${escapeSystemUpdateHtml(step.label)}</span>
+                            </label>
+                        `).join('') : '<p class="text-xs text-slate-400">Sem etapas cadastradas.</p>'}
+                    </div>
+                </article>
+            `;
+        }).join('') : '<div class="text-center p-8 text-slate-400 xl:col-span-2">Nenhuma atualização encontrada.</div>';
+        bindSystemUpdateStepToggles();
+    }
+
+    function bindSystemUpdateStepToggles() {
+        document.querySelectorAll('[data-system-update-toggle]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const target = document.getElementById(button.dataset.systemUpdateToggle);
+                if (!target) return;
+
+                const isHidden = target.classList.toggle('hidden');
+                const icon = button.querySelector('i');
+                const label = button.querySelector('span');
+
+                icon?.classList.toggle('rotate-180', !isHidden);
+                if (label) label.textContent = isHidden ? 'Ver processo' : 'Ocultar processo';
+            });
+        });
+    }
+
+    function openSystemUpdateModal(id = 0) {
+        const item = systemUpdates.find(row => Number(row.id) === Number(id));
+        document.getElementById('systemUpdateForm').reset();
+        document.getElementById('systemUpdateId').value = item?.id || '';
+        document.getElementById('systemUpdateModule').value = item?.module || '';
+        document.getElementById('systemUpdateCategory').value = item?.category || 'update';
+        document.getElementById('systemUpdateTitle').value = item?.title || '';
+        document.getElementById('systemUpdateDescription').value = item?.description || '';
+        document.getElementById('systemUpdateStatus').value = item?.status || 'planned';
+        document.getElementById('systemUpdateCancelReason').value = item?.cancellation_reason || '';
+        document.getElementById('systemUpdatePublic').checked = (item?.visibility || 'public') === 'public';
+        document.getElementById('systemUpdateScope').value = item?.target_user_id ? 'user' : 'global';
+        document.getElementById('systemUpdateTargetUser').value = item?.target_user_id || '';
+        syncSystemUpdateScope();
+        document.getElementById('systemUpdateSteps').value = parseSteps(item?.steps_json).map(step => step.label).join('\n');
+        syncSystemUpdateCancellationState();
+        renderSystemUpdateStepsPreview();
+        document.getElementById('systemUpdateModalTitle').textContent = item ? 'Editar atualização' : 'Nova atualização';
+        document.getElementById('systemUpdateModal').classList.replace('hidden', 'flex');
+    }
+
+    function closeSystemUpdateModal() {
+        document.getElementById('systemUpdateModal').classList.replace('flex', 'hidden');
+    }
+
+    function syncSystemUpdateScope() {
+        const isUserScoped = document.getElementById('systemUpdateScope')?.value === 'user';
+        document.getElementById('systemUpdateTargetUserWrap')?.classList.toggle('hidden', !isUserScoped);
+    }
+
+    function syncSystemUpdateCancellationState() {
+        const isCancelled = document.getElementById('systemUpdateStatus')?.value === 'cancelled';
+        document.getElementById('systemUpdateCancelWrap')?.classList.toggle('hidden', !isCancelled);
+        document.getElementById('systemUpdateChecklistWrap')?.classList.toggle('hidden', isCancelled);
+        document.getElementById('systemUpdateCancelReason')?.toggleAttribute('required', isCancelled);
+        renderSystemUpdateStepsPreview();
+    }
+
+    function applyProblemResolutionTemplate() {
+        const moduleInput = document.getElementById('systemUpdateModule');
+        const categoryInput = document.getElementById('systemUpdateCategory');
+        const titleInput = document.getElementById('systemUpdateTitle');
+        const descriptionInput = document.getElementById('systemUpdateDescription');
+        const statusInput = document.getElementById('systemUpdateStatus');
+        const stepsInput = document.getElementById('systemUpdateSteps');
+
+        if (moduleInput && !moduleInput.value.trim()) {
+            moduleInput.value = 'Sistema';
+        }
+
+        if (categoryInput) {
+            categoryInput.value = 'bug';
+        }
+
+        if (titleInput && !titleInput.value.trim()) {
+            titleInput.value = 'Resolução de problema em módulo';
+        }
+
+        if (descriptionInput && !descriptionInput.value.trim()) {
+            descriptionInput.value = 'Fluxo padronizado para receber, analisar, corrigir, auditar, testar e liberar uma correção em produção.';
+        }
+
+        if (statusInput && statusInput.value === 'planned') {
+            statusInput.value = 'in_progress';
+        }
+
+        if (stepsInput) {
+            const current = stepsInput.value.trim();
+            const template = problemResolutionChecklist.join('\n');
+            stepsInput.value = current ? `${current}\n${template}` : template;
+        }
+
+        renderSystemUpdateStepsPreview();
+    }
+
+    function buildSystemUpdatePayload() {
+        const current = systemUpdates.find(row => Number(row.id) === Number(document.getElementById('systemUpdateId').value));
+        const status = document.getElementById('systemUpdateStatus').value;
+        const cancellationReason = document.getElementById('systemUpdateCancelReason').value.trim();
+        const steps = status === 'cancelled' ? [] : buildSystemUpdateSteps(current);
+
+        if (status === 'cancelled' && !cancellationReason) {
+            throw new Error('Informe o motivo do cancelamento.');
+        }
+
+        if (status !== 'cancelled') {
+            syncSystemUpdateStatusFromSteps(steps);
+        }
+
+        return {
+            module: document.getElementById('systemUpdateModule').value,
+            category: document.getElementById('systemUpdateCategory').value,
+            title: document.getElementById('systemUpdateTitle').value,
+            description: document.getElementById('systemUpdateDescription').value,
+            status: document.getElementById('systemUpdateStatus').value,
+            cancellation_reason: status === 'cancelled' ? cancellationReason : '',
+            visibility: document.getElementById('systemUpdatePublic').checked ? 'public' : 'internal',
+            scope: document.getElementById('systemUpdateScope').value,
+            target_user_id: document.getElementById('systemUpdateTargetUser').value,
+            steps
+        };
+    }
+
+    function renderSystemUpdateStepsPreview() {
+        const preview = document.getElementById('systemUpdateStepsPreview');
+        if (!preview) return;
+        if (document.getElementById('systemUpdateStatus')?.value === 'cancelled') {
+            preview.innerHTML = '<p class="text-xs font-semibold text-red-500">Checklist será removido ao salvar o cancelamento.</p>';
+            return;
+        }
+
+        const current = systemUpdates.find(row => Number(row.id) === Number(document.getElementById('systemUpdateId').value));
+        const steps = buildSystemUpdateSteps(current);
+        syncSystemUpdateStatusFromSteps(steps);
+        const done = steps.filter(step => step.done).length;
+        const progress = steps.length ? Math.round((done / steps.length) * 100) : 0;
+
+        preview.innerHTML = `
+            <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                <span>Progresso</span>
+                <span class="text-emerald-700">${progress}%</span>
+            </div>
+            <div class="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                <div class="h-full rounded-full bg-emerald-500 transition-all" style="width:${progress}%"></div>
+            </div>
+            <div class="mt-2 space-y-1">
+                ${steps.length ? steps.map(step => `
+                    <div class="flex items-center gap-2 text-xs ${step.done ? 'text-emerald-700' : 'text-slate-500'}">
+                        <span class="inline-flex h-4 w-4 items-center justify-center rounded-full ${step.done ? 'bg-emerald-500 text-white' : 'bg-white text-slate-300 border border-slate-200'}">${step.done ? '<i class="fa fa-check text-[9px]"></i>' : ''}</span>
+                        <span class="${step.done ? 'line-through' : ''}">${escapeSystemUpdateHtml(step.label)}</span>
+                    </div>
+                `).join('') : '<p class="text-xs text-slate-400">Adicione uma etapa por linha para montar o checklist.</p>'}
+            </div>
+        `;
+    }
+
+    function buildSystemUpdateSteps(current) {
+        const oldSteps = parseSteps(current?.steps_json);
+        const oldLabels = new Set(oldSteps.map(step => step.label));
+        const statusInput = document.getElementById('systemUpdateStatus');
+        const isReopeningDoneUpdate = current?.status === 'done' && !['done', 'cancelled'].includes(statusInput?.value || '');
+        const shouldAutoCompletePrevious = oldSteps.length > 0 && !isReopeningDoneUpdate;
+
+        const steps = document.getElementById('systemUpdateSteps').value.split(/\r?\n/).map(label => {
+            const text = label.trim();
+            const old = oldSteps.find(step => step.label === text);
+            return text ? { label: text, done: isReopeningDoneUpdate ? false : !!old?.done, isNew: !oldLabels.has(text) } : null;
+        }).filter(Boolean);
+
+        steps.forEach((step, index) => {
+            if (shouldAutoCompletePrevious && step.isNew && index > 0) {
+                steps[index - 1].done = true;
+            }
+            delete step.isNew;
+        });
+
+        return steps;
+    }
+
+    function syncSystemUpdateStatusFromSteps(steps) {
+        const statusInput = document.getElementById('systemUpdateStatus');
+        if (!statusInput || !steps.length || statusInput.value === 'cancelled') return;
+
+        const allDone = steps.every(step => step.done);
+        const anyDone = steps.some(step => step.done);
+
+        if (allDone) {
+            statusInput.value = 'done';
+        } else if (statusInput.value === 'done' || anyDone) {
+            statusInput.value = 'in_progress';
+        }
+    }
+
+    function saveSystemUpdate(event) {
+        event.preventDefault();
+        const id = document.getElementById('systemUpdateId').value;
+        const submit = document.getElementById('systemUpdateSubmit');
+        submit.disabled = true;
+
+        let payload;
+        try {
+            payload = buildSystemUpdatePayload();
+        } catch (error) {
+            submit.disabled = false;
+            if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao montar atualização.');
+            return;
+        }
+
+        fetch(`${systemUpdatesBaseUrl}/system-updates${id ? `/${id}` : ''}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload)
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.message || 'Falha ao salvar.');
+                closeSystemUpdateModal();
+                loadSystemUpdates();
+                if (typeof notyf !== 'undefined') notyf.success('Atualização salva.');
+            })
+            .catch(error => {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao salvar.');
+            })
+            .finally(() => {
+                submit.disabled = false;
+            });
+    }
+
+    function toggleSystemUpdateStep(id, index, done) {
+        const item = systemUpdates.find(row => Number(row.id) === Number(id));
+        if (!item) return;
+        if (item.status === 'done' || item.status === 'cancelled') return;
+
+        const steps = parseSteps(item.steps_json);
+        if (!steps[index]) return;
+        steps[index].done = done;
+        const nextStatus = steps.length && steps.every(step => step.done) ? 'done' : 'in_progress';
+
+        fetch(`${systemUpdatesBaseUrl}/system-updates/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ ...item, status: nextStatus, steps })
+        }).then(() => loadSystemUpdates());
+    }
+</script>

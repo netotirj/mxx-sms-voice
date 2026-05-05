@@ -39,7 +39,7 @@ class ViewComponents
             'item_mensageria' => self::getMensageriaHtml($userPerms),
             'item_whatsapp'   => self::getWhatsAppHtml($userPerms),
             'item_voz'        => self::getVozHtml($userPerms),
-            'item_suporte'    => self::getSuporteHtml($userPerms),
+            'item_administrativo' => self::getAdministrativoHtml($userPerms),
             'item_recargas'   => self::getRecargasHtml($userPerms),
             'item_relatorios' => self::getRelatoriosHtml($userPerms),
             'item_usuarios'   => self::getUsuariosHtml($userPerms),
@@ -229,21 +229,38 @@ class ViewComponents
         return self::renderSubmenu('Voz & Call Center', 'ni ni-headphones', 'text-yellow-500', $content);
     }
 
-    private static function getSuporteHtml(array $userPerms): string
+    private static function getAdministrativoHtml(array $userPerms): string
     {
-        if (!self::hasPerm($userPerms, ['/support'])) {
-            return '';
+        $gestao = '';
+        $comunicacao = '';
+        $config = '';
+
+        if (self::hasPerm($userPerms, ['/users'])) {
+            $gestao .= self::buildMenuItem('/users', 'Lista de Usuários', 'ni ni-circle-08', 'text-blue-500');
         }
 
-        return '
-        <li class="w-full mt-0.5">
-            <a href="' . URL . '/support" class="nav-link relative flex items-center px-4 py-2.5 mx-2 text-sm dark:text-white dark:opacity-80">
-                <div class="mr-2 flex h-8 w-8 items-center justify-center text-emerald-500">
-                    <i class="ni ni-support-16"></i>
-                </div>
-                <span>Suporte</span>
-            </a>
-        </li>';
+        if (self::hasPerm($userPerms, ['/support'])) {
+            $gestao .= self::buildMenuItem('/support', 'Tickets de Suporte', 'ni ni-support-16', 'text-emerald-500');
+        }
+
+        if (in_array('SUPERADMIN', $userPerms, true) || self::hasPerm($userPerms, ['/system-updates'])) {
+            $comunicacao .= self::buildMenuItem('/system-updates', 'Atualizações', 'fa fa-bullhorn', 'text-cyan-500');
+        }
+
+        if (self::hasPerm($userPerms, ['/reports/notifications'])) {
+            $comunicacao .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
+        }
+
+        if (self::hasPerm($userPerms, ['/permissions'])) {
+            $config .= self::buildMenuItem('/permissions', 'Permissões', 'ni ni-key-25', 'text-cyan-500');
+        }
+
+        $content = '';
+        if ($gestao !== '') $content .= self::buildSectionTitle('Gestão', 'pt-2') . $gestao;
+        if ($comunicacao !== '') $content .= self::buildSectionTitle('Comunicação') . $comunicacao;
+        if ($config !== '') $content .= self::buildSectionTitle('Configuração') . $config;
+
+        return self::renderSubmenu('Administrativo', 'ni ni-settings-gear-65', 'text-slate-600', $content);
     }
 
     private static function getRecargasHtml(array $userPerms): string
@@ -295,11 +312,6 @@ class ViewComponents
             $items .= self::buildMenuItem('/reports/transactions', 'Pix', 'fa-brands fa-pix', 'text-emerald-500');
         }
 
-        // Notificações
-        if (self::hasPerm($userPerms, ['/reports/notifications'])) {
-            $items .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
-        }
-
         if (in_array('SUPERADMIN', $userPerms, true)) {
             $items .= self::buildMenuItem('/site-tests', 'Testes do Site', 'ni ni-world', 'text-blue-600');
         }
@@ -311,21 +323,11 @@ class ViewComponents
     {
         $items = '';
 
-        // 1. Lista de Usuários
-        if (self::hasPerm($userPerms, ['/users'])) {
-            $items .= self::buildMenuItem('/users', 'Lista de Usuários', 'ni ni-circle-08', 'text-blue-500');
-        }
-
-        // Outros itens que dependem de rotas de outros arquivos
         if (self::hasPerm($userPerms, ['/rates'])) {
             $items .= self::buildMenuItem('/rates', 'Tarifas', 'ni ni-money-coins', 'text-yellow-500');
         }
 
-        if (self::hasPerm($userPerms, ['/permissions'])) {
-            $items .= self::buildMenuItem('/permissions', 'Permissões', 'ni ni-key-25', 'text-cyan-500');
-        }
-
-        return self::renderSubmenu('Usuários & Tarifas', 'ni ni-single-02', 'text-indigo-500', $items);
+        return self::renderSubmenu('Tarifas', 'ni ni-money-coins', 'text-indigo-500', $items);
     }
 
 
@@ -371,32 +373,64 @@ class ViewComponents
         }
 
         return '
-                <a href="javascript:void(0);" id="supportTicketsButton" class="relative flex items-center justify-center cursor-pointer mr-6" title="Tickets de suporte">
-                    <i class="fa fa-question-circle text-xl text-white"></i>
-                    <span id="supportTicketsBadge" class="absolute -top-2 -right-2 hidden min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-xxs font-bold leading-4 text-center">0</span>
-                </a>
+                <div class="relative mr-6">
+                    <a href="javascript:void(0);" id="supportTicketsButton" class="relative flex items-center justify-center cursor-pointer" title="Tickets de suporte">
+                        <i class="fa fa-question-circle text-xl text-white"></i>
+                        <span id="supportTicketsBadge" class="absolute -top-2 -right-2 hidden min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-xxs font-bold leading-4 text-center">0</span>
+                    </a>
 
-                <div id="supportTicketsMenu"
-                     class="absolute right-14 mt-2 w-96 max-h-100 overflow-y-auto rounded-xl bg-white shadow-2xl opacity-0 pointer-events-none transition-all duration-200 border border-slate-100"
-                     style="z-index:9999; top: 100%;">
-                    <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <p class="text-sm text-slate-800 font-bold leading-tight">Suporte</p>
-                                <p id="supportTicketsSummary" class="text-xs text-slate-500 mt-0.5">Acompanhando seus tickets abertos</p>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <a href="' . URL . '/support" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-emerald-600 border border-slate-200 hover:bg-emerald-50" title="Abrir painel de suporte">
-                                    <i class="fa fa-arrow-up-right-from-square text-xs"></i>
-                                </a>
-                                <button id="supportTicketsRefresh" type="button" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-blue-600 border border-slate-200 hover:bg-blue-50" title="Atualizar tickets">
-                                    <i class="fa fa-rotate-right text-xs"></i>
-                                </button>
+                    <div id="supportTicketsMenu"
+                         class="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] max-h-100 overflow-y-auto rounded-xl bg-white shadow-2xl opacity-0 pointer-events-none transition-all duration-200 border border-slate-100"
+                         style="z-index:9999; top: 100%;">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm text-slate-800 font-bold leading-tight">Suporte</p>
+                                    <p id="supportTicketsSummary" class="text-xs text-slate-500 mt-0.5">Acompanhando seus tickets abertos</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <a href="' . URL . '/support" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-emerald-600 border border-slate-200 hover:bg-emerald-50" title="Abrir painel de suporte">
+                                        <i class="fa fa-arrow-up-right-from-square text-xs"></i>
+                                    </a>
+                                    <button id="supportTicketsRefresh" type="button" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white text-blue-600 border border-slate-200 hover:bg-blue-50" title="Atualizar tickets">
+                                        <i class="fa fa-rotate-right text-xs"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+                        <div id="supportTicketsList" class="p-3">
+                            <div class="text-center text-gray-500 p-4">Carregando tickets...</div>
+                        </div>
                     </div>
-                    <div id="supportTicketsList" class="p-3">
-                        <div class="text-center text-gray-500 p-4">Carregando tickets...</div>
+                </div>';
+    }
+
+    private static function getProductUpdatesHeaderHtml(): string
+    {
+        return '
+                <div class="relative mr-6">
+                    <a href="javascript:void(0);" id="productUpdatesButton" class="relative flex items-center justify-center cursor-pointer" title="Novidades e melhorias">
+                        <i class="fa fa-bullhorn text-xl text-white"></i>
+                        <span id="productUpdatesBadge" class="absolute -top-2 -right-2 hidden min-w-4 h-4 px-1 rounded-full bg-cyan-500 text-white text-xxs font-bold leading-4 text-center">0</span>
+                    </a>
+
+                    <div id="productUpdatesMenu"
+                         class="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] max-h-100 overflow-y-auto rounded-xl bg-white shadow-2xl opacity-0 pointer-events-none transition-all duration-200 border border-slate-100"
+                         style="z-index:9999; top: 100%;">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm text-slate-800 font-bold leading-tight">Novidades</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Melhorias em andamento e entregas recentes</p>
+                                </div>
+                                <span class="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xxs font-bold text-cyan-700">
+                                    <i class="fa fa-bullhorn"></i> Atualizações
+                                </span>
+                            </div>
+                        </div>
+                        <div id="productUpdatesList" class="p-3 space-y-2">
+                            <div class="text-center text-gray-500 p-4">Carregando novidades...</div>
+                        </div>
                     </div>
                 </div>';
     }
@@ -476,6 +510,7 @@ class ViewComponents
             'name'             => $obUser['name'] ?? 'User',
             'avatar'           => $userAvatar,
             'planSwitcherHtml' => $planSwitcherHtml,
+            'productUpdatesHeader' => self::getProductUpdatesHeaderHtml(),
             'supportTicketsHeader' => self::getSupportTicketsHeaderHtml($userBase)
         ]);
     }

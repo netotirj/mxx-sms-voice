@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Model\Entity\SupportTicket;
 use App\Model\Entity\WhatsAppAccount;
 use App\Utils\TenancyHelper;
 use PDO;
@@ -161,12 +162,16 @@ class WhatsAppSupportDesk
 
     public static function handleInboundConversation(int $conversationId, array $account, string $body = ''): ?array
     {
+        self::ensureSupportTicketLinkColumn();
+
         $existing = self::getOpenSessionByConversation($conversationId);
         if ($existing) {
             (new Database('whatsapp_support_sessions'))->update('id = :id', [
                 'last_customer_message_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ], [':id' => (int)$existing['id']]);
+
+            self::appendSessionTicketMessage($existing, self::supportActorFromAccount($account), 'customer', $body);
 
             self::emitEvent((string)$existing['tenancy_id'], 'conversation.message', [
                 'session_id' => (int)$existing['id'],
@@ -184,11 +189,15 @@ class WhatsAppSupportDesk
 
         $priority = (int)$queue['priority'];
         $isVip = self::looksVip($body) ? 1 : 0;
+        $conversation = self::getConversationById($conversationId);
+        $contactPhone = (string)($conversation['contact_phone'] ?? '');
+        $ticketId = self::createSessionSupportTicket($account, $conversationId, $contactPhone, $body);
         $sessionId = (int)(new Database('whatsapp_support_sessions'))->insert([
             'tenancy_id' => $account['tenancy_id'],
             'user_id' => (int)$account['user_id'],
             'account_id' => (int)$account['id'],
             'conversation_id' => $conversationId,
+            'support_ticket_id' => $ticketId,
             'queue_id' => (int)$queue['id'],
             'assigned_agent_user_id' => null,
             'state' => self::STATE_WAITING,
@@ -216,6 +225,8 @@ class WhatsAppSupportDesk
 
     public static function finishSession(array $user, int $sessionId): bool
     {
+        self::ensureSupportTicketLinkColumn();
+
         $session = self::getSessionForUser($sessionId, $user);
         if (!$session || $session['state'] === self::STATE_FINISHED) {
             return false;
@@ -232,6 +243,16 @@ class WhatsAppSupportDesk
             self::refreshAgentStatus((int)$session['queue_id'], (int)$session['assigned_agent_user_id']);
         }
 
+        if (!empty($session['support_ticket_id'])) {
+            SupportTicket::updateStatus((int)$session['support_ticket_id'], 'closed');
+            SupportTicket::addMessage(
+                (int)$session['support_ticket_id'],
+                $user,
+                'system',
+                'Atendimento WhatsApp finalizado. O ticket foi finalizado automaticamente.'
+            );
+        }
+
         self::emitEvent((string)$session['tenancy_id'], 'session.finished', [
             'session_id' => $sessionId,
             'queue_id' => (int)$session['queue_id'],
@@ -240,6 +261,18 @@ class WhatsAppSupportDesk
 
         self::attemptDispatchQueue((int)$session['queue_id']);
         return true;
+    }
+
+    public static function appendTicketMessageForConversation(array $user, int $conversationId, string $senderType, string $body): void
+    {
+        self::ensureSupportTicketLinkColumn();
+
+        $session = self::getOpenSessionByConversation($conversationId);
+        if (!$session) {
+            return;
+        }
+
+        self::appendSessionTicketMessage($session, $user, $senderType, $body);
     }
 
     public static function transferSession(array $user, int $sessionId, array $input): bool
@@ -612,6 +645,52 @@ class WhatsAppSupportDesk
         return $row ?: null;
     }
 
+    private static function getConversationById(int $conversationId): ?array
+    {
+        $row = (new Database('whatsapp_conversations'))
+            ->select('id = :id', [':id' => $conversationId], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    private static function createSessionSupportTicket(array $account, int $conversationId, string $contactPhone, string $body): int
+    {
+        $actor = self::supportActorFromAccount($account, $contactPhone);
+        $message = trim($body) !== ''
+            ? $body
+            : 'Atendimento WhatsApp iniciado pelo cliente.';
+
+        return SupportTicket::create($actor, [
+            'department' => 'support',
+            'requester_phone' => $contactPhone,
+            'subject' => 'Atendimento WhatsApp #' . $conversationId,
+            'message' => $message,
+        ]);
+    }
+
+    private static function appendSessionTicketMessage(array $session, array $actor, string $senderType, string $body): void
+    {
+        $ticketId = (int)($session['support_ticket_id'] ?? 0);
+        $body = trim($body);
+
+        if ($ticketId <= 0 || $body === '') {
+            return;
+        }
+
+        SupportTicket::addMessage($ticketId, $actor, $senderType, $body);
+    }
+
+    private static function supportActorFromAccount(array $account, string $contactPhone = ''): array
+    {
+        return [
+            'id' => (int)($account['user_id'] ?? 0),
+            'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+            'name' => $contactPhone !== '' ? 'WhatsApp +' . $contactPhone : 'Atendimento WhatsApp',
+            'user_function' => 'system',
+        ];
+    }
+
     private static function getSessionById(int $sessionId): ?array
     {
         $row = (new Database('whatsapp_support_sessions'))
@@ -642,6 +721,33 @@ class WhatsAppSupportDesk
             'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    private static function ensureSupportTicketLinkColumn(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        $exists = (new Database())->execute("
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'whatsapp_support_sessions'
+              AND COLUMN_NAME = 'support_ticket_id'
+            LIMIT 1
+        ")->fetch(PDO::FETCH_ASSOC);
+
+        if (!$exists) {
+            (new Database())->execute("
+                ALTER TABLE whatsapp_support_sessions
+                    ADD COLUMN support_ticket_id INT UNSIGNED NULL AFTER conversation_id,
+                    ADD KEY idx_wass_support_ticket (support_ticket_id)
+            ");
+        }
+
+        $checked = true;
     }
 
     private static function normalizeAgentStatus(string $status): string

@@ -26,6 +26,8 @@ class Notifications
      */
     public static function insertNotifications(string $tenancyId, int $userId, string $title, string $message ,string $type): false|int
     {
+        self::ensureTable();
+
         return (new Database('notifications'))->insert([
             'tenancy_id' => $tenancyId,
             'user_id'    => $userId,
@@ -36,5 +38,34 @@ class Notifications
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s')
         ]);
+    }
+
+    private static function ensureTable(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        (new Database())->execute("
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id INT UNSIGNED NOT NULL,
+                tenancy_id VARCHAR(64) NOT NULL,
+                title VARCHAR(160) NOT NULL,
+                message TEXT NOT NULL,
+                type VARCHAR(32) NOT NULL DEFAULT 'info',
+                read_at DATETIME NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                KEY fk_notifications_user (user_id),
+                KEY fk_notifications_tenancy (tenancy_id),
+                KEY idx_notifications_unread (tenancy_id, user_id, read_at),
+                KEY idx_notifications_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        $checked = true;
     }
 }

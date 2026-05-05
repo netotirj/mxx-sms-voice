@@ -18,6 +18,11 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2 justify-end">
+                        <button id="notifNewBtn"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg
+                                       bg-orange-500 text-white hover:bg-orange-600 transition shadow-sm uppercase">
+                            <i class="fa fa-plus"></i> Nova notificação
+                        </button>
 
                         <button id="notifExportCsv"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
@@ -79,7 +84,8 @@
                                            bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none">
                                 <option value="">Todos</option>
                                 <option value="info">Informativo</option>
-                                <option value="warning">Aviso</option>
+                                <option value="notice">Aviso</option>
+                                <option value="warning">Atenção</option>
                                 <option value="error">Crítico</option>
                                 <option value="success">Sucesso</option>
                             </select>
@@ -171,6 +177,66 @@
     </div>
 </div>
 
+<div id="notifCreateModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="flex justify-between items-start p-5 border-b border-slate-100 dark:border-slate-800">
+            <div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-white">Nova notificação</h3>
+                <p class="text-xs text-slate-400">Envie para todos os usuários ou para um usuário específico</p>
+            </div>
+            <button type="button" onclick="closeNotifCreateModal()" class="text-slate-400 hover:text-slate-600">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+
+        <form id="notifCreateForm" class="flex min-h-0 flex-1 flex-col">
+            <div class="p-5 space-y-3 overflow-y-auto">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Tipo</label>
+                        <select id="notifCreateType" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="info">Informativo</option>
+                            <option value="notice">Aviso</option>
+                            <option value="warning">Atenção</option>
+                            <option value="error">Crítico</option>
+                            <option value="success">Sucesso</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Alcance</label>
+                        <select id="notifCreateScope" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                            <option value="global">Todos os usuários</option>
+                            <option value="user">Usuário específico</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="notifCreateTargetWrap" class="hidden">
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Usuário</label>
+                    <select id="notifCreateTargetUser" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                        <option value="">Selecione um usuário</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Título</label>
+                    <input id="notifCreateTitle" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="Ex: Manutenção programada">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Mensagem</label>
+                    <textarea id="notifCreateMessage" required rows="5" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none resize-y" placeholder="Mensagem que aparecerá no sino de notificações"></textarea>
+                </div>
+            </div>
+
+            <div class="p-4 flex justify-end gap-3 border-t bg-white shrink-0">
+                <button type="button" onclick="closeNotifCreateModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="notifCreateSubmit" class="bg-orange-500 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-md uppercase">Enviar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="notifViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div class="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800">
@@ -209,9 +275,14 @@
         const reloadBtn   = document.getElementById("notifReloadBtn");
         const autoReload  = document.getElementById("notifAutoReload");
         const intervalSel = document.getElementById("notifReloadInterval");
+        const createBtn   = document.getElementById("notifNewBtn");
+        const createForm  = document.getElementById("notifCreateForm");
+        const createScope = document.getElementById("notifCreateScope");
+        const createSubmit = document.getElementById("notifCreateSubmit");
 
         let allNotifications = [];
         let filteredNotifications = [];
+        let notificationUsers = [];
         let currentPage = 1;
         let autoReloadTimer = null;
 
@@ -225,6 +296,96 @@
                 applyFilters();
             } catch (e) {
                 tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-red-500 font-bold">Erro ao carregar dados do servidor.</td></tr>';
+            }
+        }
+
+        async function fetchNotificationUsers() {
+            try {
+                const r = await fetch(`${baseUrl}/reports/notifications/users`);
+                const res = await r.json();
+                notificationUsers = res.data || [];
+                renderNotificationUserOptions();
+            } catch (e) {
+                notificationUsers = [];
+                renderNotificationUserOptions();
+            }
+        }
+
+        function renderNotificationUserOptions() {
+            const select = document.getElementById('notifCreateTargetUser');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Selecione um usuário</option>' + notificationUsers.map(user => {
+                const name = [user.name, user.last_name].filter(Boolean).join(' ') || `Usuário #${user.id}`;
+                const tenancy = user.tenancy_name ? ` - ${user.tenancy_name}` : '';
+                const email = user.email ? ` (${user.email})` : '';
+                return `<option value="${Number(user.id)}">${escapeNotifHtml(name)}${escapeNotifHtml(email)}${escapeNotifHtml(tenancy)}</option>`;
+            }).join('');
+        }
+
+        function escapeNotifHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function syncNotifCreateScope() {
+            const isUserScoped = createScope?.value === 'user';
+            document.getElementById('notifCreateTargetWrap')?.classList.toggle('hidden', !isUserScoped);
+        }
+
+        window.openNotifCreateModal = function() {
+            createForm?.reset();
+            syncNotifCreateScope();
+            const modal = document.getElementById('notifCreateModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeNotifCreateModal = function() {
+            const modal = document.getElementById('notifCreateModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        async function createNotification(event) {
+            event.preventDefault();
+            createSubmit.disabled = true;
+
+            const payload = {
+                type: document.getElementById('notifCreateType').value,
+                scope: document.getElementById('notifCreateScope').value,
+                target_user_id: document.getElementById('notifCreateTargetUser').value,
+                title: document.getElementById('notifCreateTitle').value,
+                message: document.getElementById('notifCreateMessage').value
+            };
+
+            if (payload.scope === 'user' && !payload.target_user_id) {
+                createSubmit.disabled = false;
+                if (typeof notyf !== 'undefined') notyf.error('Selecione o usuário que receberá a notificação.');
+                return;
+            }
+
+            try {
+                const r = await fetch(`${baseUrl}/reports/notifications/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await r.json();
+                if (!res.success) throw new Error(res.message || 'Falha ao enviar notificação.');
+
+                closeNotifCreateModal();
+                await fetchNotifications(false);
+                if (typeof notyf !== 'undefined') notyf.success(res.message || 'Notificação enviada.');
+            } catch (error) {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao enviar notificação.');
+            } finally {
+                createSubmit.disabled = false;
             }
         }
 
@@ -357,6 +518,9 @@
 
         // Listeners
         reloadBtn.onclick = () => fetchNotifications(true);
+        createBtn.onclick = openNotifCreateModal;
+        createForm.onsubmit = createNotification;
+        createScope.onchange = syncNotifCreateScope;
         [searchInput, typeFilter, statusFilter, dateFrom, dateTo].forEach(el => el.oninput = applyFilters);
         perPageSel.onchange = applyFilters;
 
@@ -412,6 +576,6 @@
         document.getElementById('notifExportCsv').onclick = exportNotifCsv;
 
         fetchNotifications();
+        fetchNotificationUsers();
     });
 </script>
-

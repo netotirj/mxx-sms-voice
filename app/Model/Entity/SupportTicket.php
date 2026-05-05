@@ -29,7 +29,7 @@ class SupportTicket
         $id = (int)(new Database('support_tickets'))->insert([
             'tenancy_id' => $user['tenancy_id'],
             'user_id' => (int)$user['id'],
-            'requester_name' => $user['name'] ?? null,
+            'requester_name' => self::normalizeRequesterName((string)($data['requester_name'] ?? ''), $user),
             'requester_phone' => $phone,
             'department' => $department,
             'subject' => self::normalizeSubject((string)($data['subject'] ?? ''), $department),
@@ -48,13 +48,18 @@ class SupportTicket
         return $id;
     }
 
-    public static function listForUser(array $user, ?string $status = null): array
+    public static function listForUser(array $user, ?string $status = null, ?string $department = null): array
     {
         [$where, $params] = self::scopeForUser($user, 'st');
 
         if ($status !== null && $status !== '') {
             $where = "({$where}) AND st.status = :status";
             $params[':status'] = self::normalizeStatus($status);
+        }
+
+        if ($department !== null && $department !== '') {
+            $where = "({$where}) AND st.department = :department";
+            $params[':department'] = self::normalizeDepartment($department);
         }
 
         return (new Database('support_tickets st'))
@@ -135,6 +140,11 @@ class SupportTicket
     public static function normalizeStatusValue(string $status): string
     {
         return self::normalizeStatus($status);
+    }
+
+    public static function normalizeDepartmentValue(string $department): string
+    {
+        return self::normalizeDepartment($department);
     }
 
     public static function can(array $user, string $permission, ?array $ticket = null): bool
@@ -315,5 +325,11 @@ class SupportTicket
         return $subject !== ''
             ? mb_substr($subject, 0, 160)
             : self::subjectFromDepartment($department);
+    }
+
+    private static function normalizeRequesterName(string $name, array $user): ?string
+    {
+        $name = trim($name);
+        return $name !== '' ? mb_substr($name, 0, 160) : ($user['name'] ?? null);
     }
 }

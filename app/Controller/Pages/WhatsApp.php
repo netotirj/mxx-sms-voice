@@ -1430,6 +1430,8 @@ class WhatsApp extends ViewComponents
             $outboxIds[] = WhatsAppOutbox::enqueue($billableMessage);
         }
 
+        WhatsAppSupportDesk::appendTicketMessageForConversation($obUser, $conversationId, 'agent', $message);
+
         return self::json(202, [
             'success' => true,
             'message' => 'Mensagem enviada.',

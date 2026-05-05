@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_support_sessions (
     user_id INT UNSIGNED NOT NULL,
     account_id INT UNSIGNED NOT NULL,
     conversation_id INT UNSIGNED NOT NULL,
+    support_ticket_id INT UNSIGNED NULL,
     queue_id INT UNSIGNED NOT NULL,
     assigned_agent_user_id INT UNSIGNED NULL,
     state ENUM('waiting', 'active', 'finished') NOT NULL DEFAULT 'waiting',
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_support_sessions (
     KEY idx_wass_queue_state_order (queue_id, state, priority, is_vip, queued_at),
     KEY idx_wass_agent_state (assigned_agent_user_id, state),
     KEY idx_wass_account (account_id),
+    KEY idx_wass_support_ticket (support_ticket_id),
     CONSTRAINT fk_wass_account
         FOREIGN KEY (account_id) REFERENCES whatsapp_accounts(id)
         ON DELETE CASCADE,

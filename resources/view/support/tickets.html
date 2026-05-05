@@ -14,6 +14,9 @@
                         </div>
                     </div>
                     <div class="flex gap-2">
+                        <button onclick="openCreateTicketModal()" class="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm uppercase transition-all hover:bg-emerald-700">
+                            <i class="fa fa-plus text-sm"></i> Novo ticket
+                        </button>
                         <button onclick="loadSupportTickets()" class="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm uppercase transition-all hover:bg-slate-50">
                             <i class="fa fa-rotate-right text-sm"></i> Atualizar
                         </button>
@@ -133,6 +136,54 @@
     </div>
 </div>
 
+<div id="createTicketModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+        <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="fa fa-plus text-xl"></i></div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 dark:text-white">Novo ticket</h3>
+                    <p class="text-xs text-slate-400">Abra um atendimento ou publique uma melhoria</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeCreateTicketModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
+        </div>
+        <form id="createTicketForm" class="p-6 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Tipo</label>
+                    <select name="department" id="newTicketDepartment" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none">
+                        <option value="support">Suporte</option>
+                        <option value="commercial">Comercial</option>
+                        <option value="sales">Vendas</option>
+                        <option value="finance">Financeiro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">WhatsApp</label>
+                    <input type="text" name="requester_phone" id="newTicketPhone" required inputmode="numeric" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" placeholder="5521999999999">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Cliente ou módulo</label>
+                <input type="text" name="requester_name" id="newTicketRequesterName" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" placeholder="Nome do cliente ou módulo do sistema">
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Assunto</label>
+                <input type="text" name="subject" id="newTicketSubject" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none" placeholder="Ex: Melhoria no WhatsApp">
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Mensagem</label>
+                <textarea name="message" id="newTicketMessage" rows="4" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none resize-y" placeholder="Descreva o atendimento, atualização ou melhoria..."></textarea>
+            </div>
+            <div class="pt-4 flex justify-end gap-3 border-t dark:border-slate-800">
+                <button type="button" onclick="closeCreateTicketModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                <button type="submit" id="createTicketSubmit" class="bg-emerald-600 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase">Criar ticket</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="ticketDetailsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-down">
         <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
@@ -197,6 +248,8 @@
             ticketCurrentPage++;
             renderSupportTicketsTable();
         });
+
+        document.getElementById('createTicketForm')?.addEventListener('submit', createSupportTicketFromModal);
     });
 
     function escapeTicketHtml(value) {
@@ -349,6 +402,54 @@
         document.getElementById('ticketSearchInput').value = '';
         ticketCurrentPage = 1;
         renderSupportTicketsTable();
+    }
+
+    function openCreateTicketModal(defaultDepartment = '') {
+        const form = document.getElementById('createTicketForm');
+        form?.reset();
+        if (defaultDepartment) {
+            document.getElementById('newTicketDepartment').value = defaultDepartment;
+        }
+        document.getElementById('createTicketModal').classList.replace('hidden', 'flex');
+        document.getElementById('newTicketDepartment')?.focus();
+    }
+
+    function closeCreateTicketModal() {
+        document.getElementById('createTicketModal').classList.replace('flex', 'hidden');
+    }
+
+    function createSupportTicketFromModal(event) {
+        event.preventDefault();
+        const submit = document.getElementById('createTicketSubmit');
+        const form = event.currentTarget;
+        const data = Object.fromEntries(new FormData(form).entries());
+
+        submit.disabled = true;
+        submit.textContent = 'Criando...';
+
+        fetch(`${supportBaseUrl}/support/tickets`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.message || 'Falha ao criar ticket.');
+                closeCreateTicketModal();
+                loadSupportTickets();
+                document.dispatchEvent(new CustomEvent('support:tickets-updated'));
+                if (typeof notyf !== 'undefined') notyf.success('Ticket criado.');
+            })
+            .catch(error => {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao criar ticket.');
+            })
+            .finally(() => {
+                submit.disabled = false;
+                submit.textContent = 'Criar ticket';
+            });
     }
 
     function openTicketDetails(ticketId) {

@@ -62,7 +62,9 @@ class SupportTickets extends ViewComponents
 
             $id = SupportTicket::create($user, [
                 'department' => $input['department'] ?? 'support',
+                'requester_name' => $input['requester_name'] ?? null,
                 'requester_phone' => $phone,
+                'subject' => $input['subject'] ?? null,
                 'message' => $message,
             ]);
 
@@ -89,10 +91,11 @@ class SupportTickets extends ViewComponents
 
         $query = $request->getQueryParams();
         $status = isset($query['status']) ? (string)$query['status'] : null;
+        $department = isset($query['department']) ? (string)$query['department'] : null;
 
         return self::json(200, [
             'success' => true,
-            'data' => SupportTicket::listForUser($user, $status),
+            'data' => SupportTicket::listForUser($user, $status, $department),
             'permissions' => SupportTicket::capabilities($user),
         ]);
     }

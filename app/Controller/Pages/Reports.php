@@ -7,6 +7,7 @@ use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\CdrVoice;
+use App\Model\Entity\Notifications;
 use App\Model\Entity\NotificationsUsers;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\Rates;
@@ -222,6 +223,133 @@ class Reports extends ViewComponents
             'total'     => count($formatted),
             'data'      => $formatted
         ], 'application/json');
+    }
+
+    public static function getNotificationTargetUsers($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado'], 'application/json');
+        }
+
+        $role = strtolower((string)($obUser['user_function'] ?? $obUser['function'] ?? ''));
+        $where = '1=1';
+        $params = [];
+
+        if ($role !== 'super_admin') {
+            $where = 'u.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        $users = (new Database('users u LEFT JOIN tenancies t ON t.id = u.tenancy_id'))
+            ->select($where, $params, 'u.name ASC, u.id ASC', '', [
+                'u.id',
+                'u.name',
+                'u.last_name',
+                'u.email',
+                'u.tenancy_id',
+                'u.user_function',
+                't.name AS tenancy_name',
+            ])
+            ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return new Response(200, [
+            'success' => true,
+            'data' => $users,
+        ], 'application/json');
+    }
+
+    public static function createNotification($request): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado'], 'application/json');
+        }
+
+        $data = json_decode(file_get_contents('php://input') ?: '', true);
+        $data = is_array($data) ? $data : ($_POST ?: []);
+
+        $title = trim((string)($data['title'] ?? ''));
+        $message = trim((string)($data['message'] ?? ''));
+        $type = self::normalizeNotificationType((string)($data['type'] ?? 'info'));
+        $scope = (string)($data['scope'] ?? 'global');
+        $targetUserId = (int)($data['target_user_id'] ?? 0);
+
+        if ($title === '' || $message === '') {
+            return new Response(422, ['success' => false, 'message' => 'Informe título e mensagem.'], 'application/json');
+        }
+
+        if ($scope === 'user' && $targetUserId <= 0) {
+            return new Response(422, ['success' => false, 'message' => 'Selecione o usuário que receberá a notificação.'], 'application/json');
+        }
+
+        try {
+            $targets = self::resolveNotificationTargets($obUser, $scope, $targetUserId);
+            if (!$targets) {
+                return new Response(422, ['success' => false, 'message' => 'Nenhum usuário encontrado para receber a notificação.'], 'application/json');
+            }
+
+            $created = 0;
+            foreach ($targets as $target) {
+                $id = Notifications::insertNotifications(
+                    (string)$target['tenancy_id'],
+                    (int)$target['id'],
+                    mb_substr($title, 0, 160),
+                    $message,
+                    $type
+                );
+                if ($id !== false) {
+                    $created++;
+                }
+            }
+
+            return new Response(201, [
+                'success' => true,
+                'created' => $created,
+                'message' => $created === 1 ? 'Notificação enviada.' : "{$created} notificações enviadas.",
+            ], 'application/json');
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Falha ao enviar notificação.',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+    }
+
+    private static function resolveNotificationTargets(array $obUser, string $scope, int $targetUserId): array
+    {
+        $role = strtolower((string)($obUser['user_function'] ?? $obUser['function'] ?? ''));
+        $params = [];
+
+        if ($scope === 'user') {
+            $where = 'u.id = :id';
+            $params[':id'] = $targetUserId;
+
+            if ($role !== 'super_admin') {
+                $where .= ' AND u.tenancy_id = :tenancy_id';
+                $params[':tenancy_id'] = (string)$obUser['tenancy_id'];
+            }
+
+            return (new Database('users u'))
+                ->select($where, $params, 'u.id ASC', '', ['u.id', 'u.tenancy_id'])
+                ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        }
+
+        $where = '1=1';
+        if ($role !== 'super_admin') {
+            $where = 'u.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        return (new Database('users u'))
+            ->select($where, $params, 'u.id ASC', '', ['u.id', 'u.tenancy_id'])
+            ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function normalizeNotificationType(string $type): string
+    {
+        return in_array($type, ['info', 'notice', 'warning', 'error', 'success'], true) ? $type : 'info';
     }
 
     public static function getStatusSmsViewRealtime($request): Response

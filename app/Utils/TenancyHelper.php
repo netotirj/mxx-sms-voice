@@ -8,6 +8,11 @@ namespace App\Utils;
  */
 class TenancyHelper
 {
+    public static function isSuperAdmin(array $user): bool
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? ''))) === 'super_admin';
+    }
+
     /**
      * Monta prefixo seguro para alias de tabela.
      * Ex:

@@ -162,7 +162,7 @@ class ViewComponents
         }
 
         $items = '';
-        $items .= self::buildMenuItem('/campaign/whatsapp', 'Central', 'ni ni-chat-round', 'text-emerald-500');
+        $items .= self::buildMenuItem('/campaign/whatsapp?wa=central', 'Central', 'ni ni-chat-round', 'text-emerald-500');
         $items .= self::buildMenuItem('/campaign/whatsapp?wa=conversations', 'Atendimento', 'ni ni-chat-round', 'text-cyan-500');
         $items .= self::buildMenuItem('/campaign/whatsapp?wa=campaigns', 'Campanhas', 'ni ni-send', 'text-orange-500');
         $items .= self::buildMenuItem('/campaign/whatsapp?wa=templates', 'Templates', 'ni ni-single-copy-04', 'text-violet-500');
@@ -289,11 +289,13 @@ class ViewComponents
         if (self::hasPerm($userPerms, ['/reports'])) {
             $items .= self::buildMenuItem('/reports/sms-view', 'Sms', 'ni ni-archive-2', 'text-pink-600');
             $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
+            $items .= self::buildMenuItem('/reports/whatsapp?tab=queues', 'WhatsApp Filas', 'ni ni-headphones', 'text-cyan-500');
             $items .= self::buildMenuItem('/reports/recharge-transactions', 'Recargas', 'ni ni-credit-card', 'text-violet-600');
         }
 
         if (!self::hasPerm($userPerms, ['/reports']) && self::hasPerm($userPerms, ['/reports/whatsapp'])) {
             $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
+            $items .= self::buildMenuItem('/reports/whatsapp?tab=queues', 'WhatsApp Filas', 'ni ni-headphones', 'text-cyan-500');
         }
 
         // --- AQUI ESTAVA FALTANDO ---
@@ -443,6 +445,120 @@ class ViewComponents
         return self::isAdmin($user) || self::isSuperAdmin($user);
     }
 
+    private static function formatPlanRate(mixed $value): string
+    {
+        return number_format((float)($value ?? 0), 4, ',', '.');
+    }
+
+    private static function escapeHeaderText(mixed $value): string
+    {
+        return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+    }
+
+    private static function getCurrentPlanServiceSummary(array $loggedUser, ?int $currentPlan): ?object
+    {
+        $userId = (int)($loggedUser['id'] ?? 0);
+        $tenancyId = (string)($loggedUser['tenancy_id'] ?? '');
+
+        if ($userId <= 0 || $tenancyId === '') {
+            return null;
+        }
+
+        if ($currentPlan && $currentPlan > 0) {
+            $summary = UserPlans::getPlanServiceSummary((int)$currentPlan, $userId, $tenancyId);
+            if ($summary) {
+                return $summary;
+            }
+        }
+
+        return UserPlans::getLatestBalancePlanServiceSummary($userId, $tenancyId);
+    }
+
+    private static function getPlanRatesCardHtml(?object $summary): string
+    {
+        if (!$summary) {
+            return '';
+        }
+
+        $planName = self::escapeHeaderText($summary->name_plan ?? 'Plano atual');
+        $planDescription = self::escapeHeaderText($summary->description ?? 'Tarifas do plano selecionado');
+
+        $sms = self::formatPlanRate($summary->value_sms ?? 0);
+        $voiceOpen = self::formatPlanRate($summary->voice_open_rate ?? $summary->value_voice ?? 0);
+        $voiceSmart = self::formatPlanRate($summary->voice_smart_rate ?? $summary->value_voice ?? 0);
+        $torpedo = self::formatPlanRate($summary->value_torpedo ?? 0);
+        $serviceFee = self::formatPlanRate($summary->service_fee ?? 0);
+        $waMarketing = self::formatPlanRate($summary->value_whatsapp_marketing ?? 0);
+        $waUtility = self::formatPlanRate($summary->value_whatsapp_utility ?? 0);
+        $waAuthentication = self::formatPlanRate($summary->value_whatsapp_authentication ?? 0);
+
+        return '
+                        <div class="relative group">
+                            <button type="button"
+                                    class="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-slate-800 transition-colors"
+                                    title="Ver tarifas do plano">
+                                <i class="fa fa-tags text-emerald-400"></i>
+                                <span>Tarifas</span>
+                                <i class="fa fa-chevron-down text-[9px] text-slate-300"></i>
+                            </button>
+
+                            <div class="hidden group-hover:block group-focus-within:block absolute right-0 top-full mt-2 rounded-2xl bg-white text-slate-700 shadow-2xl border border-slate-100 p-4"
+                                 style="z-index: 10060; width: 360px; max-width: calc(100vw - 2rem);">
+                                <div class="flex items-start gap-3 pb-3 border-b border-slate-100">
+                                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
+                                        <i class="fa fa-layer-group"></i>
+                                    </span>
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-black text-slate-800 uppercase italic leading-tight truncate">' . $planName . '</p>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase leading-snug mt-1">' . $planDescription . '</p>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2 text-center mt-3">
+                                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">SMS</p>
+                                        <p class="text-[10px] font-black text-indigo-600 italic">R$ ' . $sms . '</p>
+                                    </div>
+                                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">CLI Aberta</p>
+                                        <p class="text-[10px] font-black text-indigo-600 italic">R$ ' . $voiceOpen . '</p>
+                                    </div>
+                                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Bina Inteligente</p>
+                                        <p class="text-[10px] font-black text-indigo-600 italic">R$ ' . $voiceSmart . '</p>
+                                    </div>
+                                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Torpedo</p>
+                                        <p class="text-[10px] font-black text-indigo-600 italic">R$ ' . $torpedo . '</p>
+                                    </div>
+                                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Taxa Serviço</p>
+                                        <p class="text-[10px] font-black text-indigo-600 italic">R$ ' . $serviceFee . '</p>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-2 text-center mt-2">
+                                    <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                                        <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Marketing</p>
+                                        <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waMarketing . '</p>
+                                    </div>
+                                    <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                                        <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Utility</p>
+                                        <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waUtility . '</p>
+                                    </div>
+                                    <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                                        <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Auth</p>
+                                        <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waAuthentication . '</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-center">
+                                    <p class="text-[9px] text-slate-600 font-semibold italic leading-snug">Tarifas sujeitas à atualização automática conforme tabela do WhatsApp e câmbio vigente no envio.</p>
+                                </div>
+                            </div>
+                        </div>';
+    }
+
     /**
      * Renderiza o header/topbar.
      *
@@ -466,6 +582,7 @@ class ViewComponents
         if ($canSwitchPlan) {
             $userPlans   = UserPlans::getAllActivePlansByUser($obUser['id'], $obUser['tenancy_id']);
             $currentPlan = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
+            $planRatesCardHtml = self::getPlanRatesCardHtml(self::getCurrentPlanServiceSummary($obUser, $currentPlan));
 
             $optionsHTML = '';
 
@@ -494,14 +611,17 @@ class ViewComponents
 
             $planSwitcherHtml = '
                 <div id="planoSwitcher" class="flex justify-center flex-1">
-                    <div class="flex items-center space-x-2 bg-white text-slate-700 px-4 py-1.5 rounded-lg shadow-md">
-                        <i class="fa fa-layer-group text-blue-500"></i>
-                        <label for="planoSelect" class="text-sm font-medium">Plano Atual:</label>
-                        <select id="planoSelect"
-                                class="text-sm bg-white text-slate-800 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                onchange="swapPlan(this.value)">
-                            ' . $optionsHTML . '
-                        </select>
+                    <div class="flex items-center gap-2 bg-white text-slate-700 px-4 py-1.5 rounded-lg shadow-md">
+                        <div class="flex items-center gap-2">
+                            <i class="fa fa-layer-group text-blue-500"></i>
+                            <label for="planoSelect" class="text-sm font-medium whitespace-nowrap">Plano Atual:</label>
+                            <select id="planoSelect"
+                                    class="text-sm bg-white text-slate-800 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    onchange="swapPlan(this.value)">
+                                ' . $optionsHTML . '
+                            </select>
+                        </div>
+                        ' . $planRatesCardHtml . '
                     </div>
                 </div>';
         }

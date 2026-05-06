@@ -13,7 +13,7 @@ class WhatsAppNumberSafety
     {
         $where = TenancyHelper::applySecurityFilter('', $user, 'user_id', 'wa');
 
-        $rows = (new Database('whatsapp_accounts wa LEFT JOIN whatsapp_number_health h ON h.account_id = wa.id'))
+        $rows = (new Database('whatsapp_accounts wa LEFT JOIN whatsapp_number_health h ON h.account_id = wa.id LEFT JOIN whatsapp_numbers wn ON wn.whatsapp_account_id = wa.id AND wn.company_id = wa.tenancy_id'))
             ->select($where, [], 'wa.id DESC', '', [
                 'wa.id AS account_id',
                 'wa.label',
@@ -21,6 +21,8 @@ class WhatsAppNumberSafety
                 'wa.phone_number_id',
                 'wa.tenancy_id',
                 'wa.status AS account_status',
+                'wn.status AS number_status',
+                'wn.display_name_status',
                 'COALESCE(h.quality_status, "unknown") AS quality_status',
                 'h.meta_quality_rating',
                 'h.messaging_limit_tier',

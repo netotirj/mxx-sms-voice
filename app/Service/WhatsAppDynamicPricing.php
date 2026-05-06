@@ -158,12 +158,67 @@ class WhatsAppDynamicPricing
         }
 
         self::cacheDelete('whatsapp:exchange:' . strtolower($currency));
+        $planSync = self::syncPlanWhatsappPricing();
 
         return [
             'success' => true,
             'message' => $alert ? 'Cotação atualizada com alerta de variação.' : 'Cotação atualizada.',
             'data' => self::currentExchangeRate(false),
+            'plan_pricing_sync' => $planSync,
         ];
+    }
+
+    public static function syncPlanWhatsappPricing(string $countryCode = self::DEFAULT_COUNTRY): array
+    {
+        $countryCode = self::normalizeCountryCode($countryCode);
+        $categories = ['marketing', 'utility', 'authentication'];
+        $prices = [];
+
+        try {
+            foreach ($categories as $category) {
+                $prices[$category] = self::calculatePrice($category, $countryCode, 0);
+            }
+
+            foreach ($prices as $category => $pricing) {
+                $priceBrl = round((float)($pricing['final_price_brl'] ?? 0), 4);
+                if ($priceBrl <= 0) {
+                    continue;
+                }
+
+                (new Database())->execute(
+                    "INSERT INTO plan_whatsapp_pricing (plan_id, category, price_brl, created_at, updated_at)
+                     SELECT id, :category, :price_brl, NOW(), NOW()
+                     FROM mxx_plans
+                     WHERE status = 'active'
+                     ON DUPLICATE KEY UPDATE
+                        price_brl = VALUES(price_brl),
+                        updated_at = NOW()",
+                    [
+                        ':category' => $category,
+                        ':price_brl' => $priceBrl,
+                    ]
+                );
+            }
+
+            self::syncMxxPlanWhatsappColumns($prices);
+
+            return [
+                'success' => true,
+                'country_code' => $countryCode,
+                'prices' => [
+                    'marketing' => round((float)($prices['marketing']['final_price_brl'] ?? 0), 4),
+                    'utility' => round((float)($prices['utility']['final_price_brl'] ?? 0), 4),
+                    'authentication' => round((float)($prices['authentication']['final_price_brl'] ?? 0), 4),
+                ],
+                'synced_at' => date('Y-m-d H:i:s'),
+            ];
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_plan_pricing_sync_dynamic] ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     public static function refreshUsdRateIfStale(int $maxAgeSeconds = self::CACHE_TTL_SECONDS): array
@@ -763,6 +818,70 @@ class WhatsAppDynamicPricing
         }
 
         $seeded = true;
+    }
+
+    private static function syncMxxPlanWhatsappColumns(array $prices): void
+    {
+        $marketing = round((float)($prices['marketing']['final_price_brl'] ?? 0), 4);
+        $utility = round((float)($prices['utility']['final_price_brl'] ?? 0), 4);
+        $authentication = round((float)($prices['authentication']['final_price_brl'] ?? 0), 4);
+
+        if ($marketing <= 0 || $utility <= 0 || $authentication <= 0) {
+            return;
+        }
+
+        $columns = self::mxxPlanColumns();
+        $fields = [
+            'value_whatsapp' => $utility,
+        ];
+
+        if (isset($columns['value_whatsapp_marketing'])) {
+            $fields['value_whatsapp_marketing'] = $marketing;
+        }
+
+        if (isset($columns['value_whatsapp_utility'])) {
+            $fields['value_whatsapp_utility'] = $utility;
+        }
+
+        if (isset($columns['value_whatsapp_authentication'])) {
+            $fields['value_whatsapp_authentication'] = $authentication;
+        }
+
+        if (!$fields) {
+            return;
+        }
+
+        $set = [];
+        $params = [];
+        foreach ($fields as $field => $value) {
+            $placeholder = ':' . $field;
+            $set[] = "{$field} = {$placeholder}";
+            $params[$placeholder] = $value;
+        }
+
+        if (isset($columns['updated_at'])) {
+            $set[] = 'updated_at = NOW()';
+        }
+
+        (new Database())->execute(
+            'UPDATE mxx_plans SET ' . implode(', ', $set) . " WHERE status = 'active'",
+            $params
+        );
+    }
+
+    private static function mxxPlanColumns(): array
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM mxx_plans')->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn (array $row): string => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return $columns;
     }
 
     private static function exchangeSafetyMarginPercent(): float

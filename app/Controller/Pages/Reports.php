@@ -455,6 +455,10 @@ class Reports extends ViewComponents
         }
 
         $queryParams = $request->getQueryParams();
+        if (strtolower(trim((string)($queryParams['mode'] ?? ''))) === 'queues') {
+            return self::getWhatsAppQueueReportRealtime($obUser, $queryParams);
+        }
+
         $role = strtolower(trim($obUser['user_function'] ?? $obUser['function'] ?? ''));
         $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
         $status = strtolower(trim((string)($queryParams['status'] ?? 'charged')));
@@ -560,7 +564,9 @@ class Reports extends ViewComponents
             ], 'application/json');
         }
 
-        $formatted = array_map(static function (array $row): array {
+        $canSeeInternalPricing = $role === 'super_admin';
+
+        $formatted = array_map(static function (array $row) use ($canSeeInternalPricing): array {
             $messageStatus = strtolower((string)($row['message_status'] ?: $row['cdr_status'] ?: 'sent'));
             if (!empty($row['delivered_at']) && $messageStatus === 'sent') {
                 $messageStatus = 'delivered';
@@ -569,7 +575,7 @@ class Reports extends ViewComponents
             $price = (float)($row['price_brl'] ?? $row['final_price_brl'] ?? 0);
             $billed = (int)($row['billed'] ?? 0) === 1;
 
-            return [
+            $formattedRow = [
                 'id' => (int)$row['id'],
                 'client_id' => (int)$row['client_id'],
                 'client_name' => trim((string)($row['client_name'] ?? '')) ?: '-',
@@ -586,12 +592,17 @@ class Reports extends ViewComponents
                 'billed' => $billed,
                 'price_brl' => $price,
                 'charged_value' => $billed ? $price : 0.0,
-                'cost_brl' => (float)($row['cost_brl'] ?? 0),
                 'wamid' => $row['wamid'] ?? null,
                 'error_message' => $row['error_message'] ?? null,
                 'sent_at' => !empty($row['timestamp']) ? (new DateTime($row['timestamp']))->format('d/m/Y H:i') : '-',
                 'delivered_at' => !empty($row['delivered_at']) ? (new DateTime($row['delivered_at']))->format('d/m/Y H:i') : '-',
             ];
+
+            if ($canSeeInternalPricing) {
+                $formattedRow['cost_brl'] = (float)($row['cost_brl'] ?? 0);
+            }
+
+            return $formattedRow;
         }, $rows);
         $categorySummary = [];
         foreach ($formatted as $row) {
@@ -602,12 +613,17 @@ class Reports extends ViewComponents
                     'quantity' => 0,
                     'charged_count' => 0,
                     'charged_total' => 0.0,
-                    'cost_total' => 0.0,
                 ];
+
+                if ($canSeeInternalPricing) {
+                    $categorySummary[$category]['cost_total'] = 0.0;
+                }
             }
 
             $categorySummary[$category]['quantity']++;
-            $categorySummary[$category]['cost_total'] += (float)($row['cost_brl'] ?? 0);
+            if ($canSeeInternalPricing) {
+                $categorySummary[$category]['cost_total'] += (float)($row['cost_brl'] ?? 0);
+            }
             if (!empty($row['billed'])) {
                 $categorySummary[$category]['charged_count']++;
                 $categorySummary[$category]['charged_total'] += (float)($row['charged_value'] ?? 0);
@@ -615,7 +631,9 @@ class Reports extends ViewComponents
         }
         foreach ($categorySummary as &$summary) {
             $summary['charged_total'] = round((float)$summary['charged_total'], 4);
-            $summary['cost_total'] = round((float)$summary['cost_total'], 4);
+            if ($canSeeInternalPricing) {
+                $summary['cost_total'] = round((float)$summary['cost_total'], 4);
+            }
         }
         unset($summary);
 
@@ -627,6 +645,189 @@ class Reports extends ViewComponents
             'charged_total' => array_sum(array_column($formatted, 'charged_value')),
             'charged_count' => count(array_filter($formatted, static fn ($row) => !empty($row['billed']))),
             'category_summary' => array_values($categorySummary),
+            'data' => $formatted,
+        ], 'application/json');
+    }
+
+    private static function getWhatsAppQueueReportRealtime(array $obUser, array $queryParams): Response
+    {
+        $role = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+        $status = strtolower(trim((string)($queryParams['status'] ?? '')));
+        $queueId = (int)($queryParams['queue_id'] ?? 0);
+        $agentId = (int)($queryParams['agent_id'] ?? 0);
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($role !== 'super_admin') {
+            $where[] = 's.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        if (in_array($role, ['agent', 'support_l1'], true)) {
+            $where[] = "(
+                s.assigned_agent_user_id = :agent_user_id
+                OR EXISTS (
+                    SELECT 1
+                    FROM whatsapp_support_queue_agents qa
+                    WHERE qa.queue_id = s.queue_id
+                      AND qa.agent_user_id = :agent_user_id
+                      AND qa.tenancy_id = s.tenancy_id
+                )
+            )";
+            $params[':agent_user_id'] = (int)$obUser['id'];
+        } elseif ($role === 'reseller') {
+            $where[] = "(
+                s.user_id = :reseller_id
+                OR s.user_id IN (
+                    SELECT u.id
+                    FROM users u
+                    WHERE u.user_id = :reseller_id
+                      AND u.tenancy_id = :reseller_tenancy_id
+                )
+            )";
+            $params[':reseller_id'] = (int)$obUser['id'];
+            $params[':reseller_tenancy_id'] = (string)$obUser['tenancy_id'];
+        }
+
+        if ($queueId > 0) {
+            $where[] = 's.queue_id = :queue_id';
+            $params[':queue_id'] = $queueId;
+        }
+
+        if ($agentId > 0) {
+            $where[] = 's.assigned_agent_user_id = :filter_agent_id';
+            $params[':filter_agent_id'] = $agentId;
+        }
+
+        if (in_array($status, ['waiting', 'active', 'finished'], true)) {
+            $where[] = 's.state = :state';
+            $params[':state'] = $status;
+        }
+
+        $dateColumn = 'COALESCE(s.queued_at, s.created_at)';
+        if (!empty($queryParams['date_from'])) {
+            $where[] = "{$dateColumn} >= :date_from";
+            $params[':date_from'] = (string)$queryParams['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($queryParams['date_to'])) {
+            $where[] = "{$dateColumn} <= :date_to";
+            $params[':date_to'] = (string)$queryParams['date_to'] . ' 23:59:59';
+        }
+
+        if (empty($queryParams['date_from']) && empty($queryParams['date_to'])) {
+            if ($period === 'day') {
+                $where[] = "DATE({$dateColumn}) = CURDATE()";
+            } elseif ($period === 'week') {
+                $where[] = "{$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                    AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+            } elseif ($period === 'month') {
+                $where[] = "YEAR({$dateColumn}) = YEAR(CURDATE()) AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+            }
+        }
+
+        $sql = "SELECT
+                s.id,
+                s.tenancy_id,
+                s.user_id,
+                s.account_id,
+                s.conversation_id,
+                s.support_ticket_id,
+                s.queue_id,
+                s.assigned_agent_user_id,
+                s.state,
+                s.priority,
+                s.is_vip,
+                s.queued_at,
+                s.started_at,
+                s.finished_at,
+                s.last_customer_message_at,
+                s.created_at,
+                wc.contact_name,
+                wc.contact_phone,
+                wc.last_message,
+                wc.unread_count,
+                wa.label AS account_label,
+                wa.display_phone_number AS account_phone,
+                q.name AS queue_name,
+                u.name AS agent_name,
+                CASE
+                    WHEN s.queued_at IS NULL THEN 0
+                    WHEN s.started_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, s.queued_at, s.started_at)
+                    ELSE TIMESTAMPDIFF(SECOND, s.queued_at, NOW())
+                END AS wait_seconds,
+                CASE
+                    WHEN s.started_at IS NULL THEN 0
+                    WHEN s.finished_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, s.started_at, s.finished_at)
+                    ELSE TIMESTAMPDIFF(SECOND, s.started_at, NOW())
+                END AS service_seconds
+            FROM whatsapp_support_sessions s
+            INNER JOIN whatsapp_conversations wc ON wc.id = s.conversation_id AND wc.tenancy_id = s.tenancy_id
+            LEFT JOIN whatsapp_support_queues q ON q.id = s.queue_id AND q.tenancy_id = s.tenancy_id
+            LEFT JOIN users u ON u.id = s.assigned_agent_user_id AND u.tenancy_id = s.tenancy_id
+            LEFT JOIN whatsapp_accounts wa ON wa.id = s.account_id AND wa.tenancy_id = s.tenancy_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY {$dateColumn} DESC, s.id DESC
+            LIMIT 5000";
+
+        try {
+            $rows = (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'message' => 'Erro ao consultar relatório operacional do WhatsApp',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $formatted = array_map(static function (array $row): array {
+            $contactName = trim((string)($row['contact_name'] ?? ''));
+            $contactPhone = (string)($row['contact_phone'] ?? '-');
+
+            return [
+                'id' => (int)$row['id'],
+                'conversation_id' => (int)$row['conversation_id'],
+                'support_ticket_id' => !empty($row['support_ticket_id']) ? (int)$row['support_ticket_id'] : null,
+                'queue_id' => !empty($row['queue_id']) ? (int)$row['queue_id'] : null,
+                'queue_name' => $row['queue_name'] ?? 'Sem fila',
+                'account_id' => !empty($row['account_id']) ? (int)$row['account_id'] : null,
+                'account_label' => $row['account_label'] ?? '-',
+                'account_phone' => $row['account_phone'] ?? '-',
+                'assigned_agent_user_id' => !empty($row['assigned_agent_user_id']) ? (int)$row['assigned_agent_user_id'] : null,
+                'agent_name' => $row['agent_name'] ?? null,
+                'contact_name' => $contactName !== '' ? $contactName : $contactPhone,
+                'contact_phone' => $contactPhone,
+                'last_message' => $row['last_message'] ?? '',
+                'unread_count' => (int)($row['unread_count'] ?? 0),
+                'state' => strtolower((string)($row['state'] ?? 'waiting')),
+                'priority' => (int)($row['priority'] ?? 0),
+                'is_vip' => (int)($row['is_vip'] ?? 0) === 1,
+                'wait_seconds' => max(0, (int)($row['wait_seconds'] ?? 0)),
+                'service_seconds' => max(0, (int)($row['service_seconds'] ?? 0)),
+                'queued_at' => !empty($row['queued_at']) ? (new DateTime($row['queued_at']))->format('d/m/Y H:i') : '-',
+                'started_at' => !empty($row['started_at']) ? (new DateTime($row['started_at']))->format('d/m/Y H:i') : '-',
+                'finished_at' => !empty($row['finished_at']) ? (new DateTime($row['finished_at']))->format('d/m/Y H:i') : '-',
+                'last_customer_message_at' => !empty($row['last_customer_message_at']) ? (new DateTime($row['last_customer_message_at']))->format('d/m/Y H:i') : '-',
+            ];
+        }, $rows);
+
+        $waitSamples = array_values(array_filter(array_map(static fn(array $row) => (int)($row['wait_seconds'] ?? 0), $formatted), static fn(int $value) => $value > 0));
+        $serviceSamples = array_values(array_filter(array_map(static fn(array $row) => (int)($row['service_seconds'] ?? 0), $formatted), static fn(int $value) => $value > 0));
+
+        return new Response(200, [
+            'success' => true,
+            'mode' => 'queues',
+            'user_type' => $role,
+            'period' => $period,
+            'total' => count($formatted),
+            'stats' => [
+                'waiting' => count(array_filter($formatted, static fn(array $row) => ($row['state'] ?? '') === 'waiting')),
+                'active' => count(array_filter($formatted, static fn(array $row) => ($row['state'] ?? '') === 'active')),
+                'finished' => count(array_filter($formatted, static fn(array $row) => ($row['state'] ?? '') === 'finished')),
+                'avg_wait_seconds' => $waitSamples ? (int)round(array_sum($waitSamples) / count($waitSamples)) : 0,
+                'avg_service_seconds' => $serviceSamples ? (int)round(array_sum($serviceSamples) / count($serviceSamples)) : 0,
+            ],
             'data' => $formatted,
         ], 'application/json');
     }

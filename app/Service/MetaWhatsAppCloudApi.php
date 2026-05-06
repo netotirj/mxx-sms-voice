@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Config\WhatsAppConfig;
 use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Utils;
 use InvalidArgumentException;
 use Throwable;
 
@@ -90,6 +91,272 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    public function uploadMedia(
+        string $accessToken,
+        string $phoneNumberId,
+        string $filePath,
+        string $mimeType,
+        ?string $fileName = null
+    ): array {
+        if ($filePath === '' || !is_file($filePath)) {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [],
+                'error' => 'Arquivo de mídia não encontrado para envio à Meta.',
+            ];
+        }
+
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'id' => 'local_media_' . substr(hash_file('sha256', $filePath), 0, 20),
+                    'local_test' => true,
+                ],
+                'error' => null,
+            ];
+        }
+
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_media_upload_request',
+            'phone_number_id' => $phoneNumberId,
+            'file_name' => basename($fileName ?: $filePath),
+            'mime_type' => $mimeType,
+            'file_size' => filesize($filePath) ?: 0,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        try {
+            $response = $this->client->request('POST', ltrim($phoneNumberId . '/media', '/'), [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Accept' => 'application/json',
+                ],
+                'verify' => WhatsAppConfig::sslVerify(),
+                'multipart' => [
+                    [
+                        'name' => 'messaging_product',
+                        'contents' => 'whatsapp',
+                    ],
+                    [
+                        'name' => 'file',
+                        'contents' => Utils::tryFopen($filePath, 'rb'),
+                        'filename' => basename($fileName ?: $filePath),
+                        'headers' => [
+                            'Content-Type' => $mimeType,
+                        ],
+                    ],
+                ],
+            ]);
+
+            $result = $this->responseToArray($response);
+        } catch (Throwable $e) {
+            $result = $this->exceptionToArray($e);
+        }
+
+        $result['endpoint'] = ltrim($phoneNumberId . '/media', '/');
+        $result['method'] = 'POST';
+
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_media_upload_response',
+            'phone_number_id' => $phoneNumberId,
+            'status' => $result['status'] ?? 0,
+            'ok' => $result['ok'] ?? false,
+            'error' => $result['error'] ?? null,
+            'media_id' => $result['data']['id'] ?? null,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $result;
+    }
+
+    public function sendAudioMediaId(string $accessToken, string $phoneNumberId, string $to, string $mediaId): array
+    {
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'audio',
+            'audio' => [
+                'id' => $mediaId,
+            ],
+        ]);
+    }
+
+    public function sendImageLink(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $imageUrl,
+        ?string $caption = null
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return $this->fakeMessageResponse($to);
+        }
+
+        $image = [
+            'link' => $imageUrl,
+        ];
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $image['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'image',
+            'image' => $image,
+        ]);
+    }
+
+    public function sendImageMediaId(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $mediaId,
+        ?string $caption = null
+    ): array {
+        $image = [
+            'id' => $mediaId,
+        ];
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $image['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'image',
+            'image' => $image,
+        ]);
+    }
+
+    public function sendVideoLink(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $videoUrl,
+        ?string $caption = null
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return $this->fakeMessageResponse($to);
+        }
+
+        $video = [
+            'link' => $videoUrl,
+        ];
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $video['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'video',
+            'video' => $video,
+        ]);
+    }
+
+    public function sendVideoMediaId(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $mediaId,
+        ?string $caption = null
+    ): array {
+        $video = [
+            'id' => $mediaId,
+        ];
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $video['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'video',
+            'video' => $video,
+        ]);
+    }
+
+    public function sendDocumentLink(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $documentUrl,
+        ?string $filename = null,
+        ?string $caption = null
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return $this->fakeMessageResponse($to);
+        }
+
+        $document = [
+            'link' => $documentUrl,
+        ];
+
+        $filename = trim((string)$filename);
+        if ($filename !== '') {
+            $document['filename'] = $filename;
+        }
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $document['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'document',
+            'document' => $document,
+        ]);
+    }
+
+    public function sendDocumentMediaId(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        string $mediaId,
+        ?string $filename = null,
+        ?string $caption = null
+    ): array {
+        $document = [
+            'id' => $mediaId,
+        ];
+
+        $filename = trim((string)$filename);
+        if ($filename !== '') {
+            $document['filename'] = $filename;
+        }
+
+        $caption = trim((string)$caption);
+        if ($caption !== '') {
+            $document['caption'] = $caption;
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'document',
+            'document' => $document,
+        ]);
+    }
+
     public function getMedia(string $accessToken, string $mediaId): array
     {
         return $this->request('GET', $mediaId, $accessToken);
@@ -102,6 +369,7 @@ class MetaWhatsAppCloudApi
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Accept' => '*/*',
             ],
+            'verify' => WhatsAppConfig::sslVerify(),
         ]);
 
         $status = $response->getStatusCode();
@@ -503,19 +771,35 @@ class MetaWhatsAppCloudApi
 
     private function postMessage(string $accessToken, string $phoneNumberId, array $payload): array
     {
+        $verifyMode = WhatsAppConfig::sslVerify();
         error_log(json_encode([
             'event' => 'meta_whatsapp_message_request',
             'phone_number_id' => $phoneNumberId,
             'to' => $this->maskPhoneForLog((string)($payload['to'] ?? '')),
             'type' => $payload['type'] ?? null,
             'template_name' => $payload['template']['name'] ?? null,
+            'ssl_verify' => is_bool($verifyMode) ? $verifyMode : '[ca_bundle]',
             'parameters' => $this->extractLoggedTemplateParameters($payload),
             'payload' => $this->maskPayloadForLog($payload),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-        return $this->request('POST', $phoneNumberId . '/messages', $accessToken, [
+        $result = $this->request('POST', $phoneNumberId . '/messages', $accessToken, [
             'json' => $payload,
         ]);
+
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_message_response',
+            'phone_number_id' => $phoneNumberId,
+            'to' => $this->maskPhoneForLog((string)($payload['to'] ?? '')),
+            'type' => $payload['type'] ?? null,
+            'template_name' => $payload['template']['name'] ?? null,
+            'status' => $result['status'] ?? 0,
+            'ok' => $result['ok'] ?? false,
+            'message_id' => $result['data']['messages'][0]['id'] ?? null,
+            'error' => $result['error'] ?? null,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $result;
     }
 
     private function normalizeTemplateSendComponents(array $components): array
@@ -610,7 +894,15 @@ class MetaWhatsAppCloudApi
     {
         $options['headers']['Authorization'] = 'Bearer ' . $accessToken;
         $options['headers']['Accept'] = 'application/json';
-        $options['headers']['Content-Type'] = 'application/json';
+        $options['verify'] = $options['verify'] ?? WhatsAppConfig::sslVerify();
+        if (
+            !isset($options['multipart'])
+            && !isset($options['form_params'])
+            && !isset($options['body'])
+            && !isset($options['headers']['Content-Type'])
+        ) {
+            $options['headers']['Content-Type'] = 'application/json';
+        }
 
         try {
             $response = $this->client->request($method, ltrim($uri, '/'), $options);
@@ -764,6 +1056,10 @@ class MetaWhatsAppCloudApi
             || str_contains($lowerMessage, 'does not exist')
         ) {
             return 'Não foi possível acessar a WABA configurada. Verifique WHATSAPP_PLATFORM_WABA_ID, permissões do token e vínculo da conta WhatsApp Business ao app Meta.';
+        }
+
+        if ($subcode === '2388364') {
+            return 'A Meta bloqueou temporariamente novas tentativas de confirmação desse número porque houve tentativas demais de validar código. O envio de SMS/ligação e a validação do código têm limites separados. Aguarde um tempo antes de tentar confirmar novamente. (Meta subcode: 2388364)';
         }
 
         if ($userMessage !== '') {

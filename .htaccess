@@ -2,3 +2,9 @@ RewriteEngine on
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ ./index.php [QSA,NC]
+
+php_value upload_max_filesize 24M
+php_value post_max_size 32M
+php_value max_file_uploads 20
+php_value max_execution_time 120
+php_value max_input_time 120

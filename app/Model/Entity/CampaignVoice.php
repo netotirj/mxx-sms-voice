@@ -15,7 +15,7 @@ class CampaignVoice
     public string $type;
     public int $total_contacts;
     public string $job_id;
-    public string $queue_id;
+    public ?string $queue_id = null;
     public string $status;
     public string $total_calls;
     public string $answered_calls;
@@ -35,7 +35,7 @@ class CampaignVoice
             'name'           => $this->name,
             'type'           => $this->type, // 🔴 obrigatório
             'job_id'         => $this->job_id,
-            'queue_id'       => $this->queue_id,
+            'queue_id'       => $this->queue_id ?? '',
             'total_contacts' => $this->total_contacts,
             'status'         => $this->status
         ]);
@@ -264,6 +264,10 @@ class CampaignVoice
             total_calls    = total_calls + 1,
             answered_calls = answered_calls + :answered,
             failed_calls   = failed_calls + :failed,
+            status         = CASE
+                WHEN status NOT IN ('c', 'n') AND total_calls + 1 >= total_contacts THEN 'f'
+                ELSE status
+            END,
             updated_at     = NOW()
         WHERE id = :campaign_id
     ";

@@ -13,7 +13,11 @@
                             <p class="text-xs text-slate-400 dark:text-slate-500">Acompanhe os atendimentos abertos pela Lívia</p>
                         </div>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-2">
+                        <span id="supportLiveBadge" class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 border border-emerald-100">
+                            <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                            Tempo real ativo
+                        </span>
                         <button onclick="openCreateTicketModal()" class="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm uppercase transition-all hover:bg-emerald-700">
                             <i class="fa fa-plus text-sm"></i> Novo ticket
                         </button>
@@ -23,7 +27,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 p-4">
                     <div class="min-w-0">
                         <button type="button" onclick="setTicketStatusFilter('open')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-emerald-50 dark:bg-slate-800 border border-emerald-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
                             <div class="flex items-center justify-between">
@@ -37,13 +41,37 @@
                     </div>
 
                     <div class="min-w-0">
-                        <button type="button" onclick="setTicketStatusFilter('pending')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-amber-50 dark:bg-slate-800 border border-amber-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                        <button type="button" onclick="setTicketStatusFilter('in_progress')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-sky-50 dark:bg-slate-800 border border-sky-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="mb-0 text-xs font-semibold uppercase text-amber-700 dark:text-white dark:opacity-60">Aguardando</p>
-                                    <h5 id="pendingTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-sky-700 dark:text-white dark:opacity-60">Em atendimento</p>
+                                    <h5 id="inProgressTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-sky-500 to-cyan-400 flex items-center justify-center text-white"><i class="fa fa-headset"></i></div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <button type="button" onclick="setTicketStatusFilter('waiting_customer')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-amber-50 dark:bg-slate-800 border border-amber-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-amber-700 dark:text-white dark:opacity-60">Aguardando cliente</p>
+                                    <h5 id="waitingCustomerTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
                                 </div>
                                 <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-amber-500 to-orange-400 flex items-center justify-center text-white"><i class="fa fa-clock"></i></div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <button type="button" onclick="setTicketStatusFilter('closure_requested')" class="w-full text-left relative flex flex-col min-w-0 break-words bg-violet-50 dark:bg-slate-800 border border-violet-100 dark:border-slate-700 rounded-2xl p-4 transition-all hover:-translate-y-0.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="mb-0 text-xs font-semibold uppercase text-violet-700 dark:text-white dark:opacity-60">Solicitando encerramento</p>
+                                    <h5 id="closureRequestedTicketsCount" class="mb-0 font-bold text-slate-800 dark:text-white">0</h5>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-tl from-violet-500 to-fuchsia-400 flex items-center justify-center text-white"><i class="fa fa-hourglass-end"></i></div>
                             </div>
                         </button>
                     </div>
@@ -76,7 +104,9 @@
                             <select id="ticketStatusFilter" onchange="ticketCurrentPage=1; renderSupportTicketsTable();" class="mt-1 w-full px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white outline-none">
                                 <option value="">Todos</option>
                                 <option value="open">Abertos</option>
-                                <option value="pending">Aguardando</option>
+                                <option value="in_progress">Em atendimento</option>
+                                <option value="waiting_customer">Aguardando cliente</option>
+                                <option value="closure_requested">Solicitando encerramento</option>
                                 <option value="closed">Finalizados</option>
                             </select>
                         </div>
@@ -136,7 +166,7 @@
     </div>
 </div>
 
-<div id="createTicketModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
+<div id="createTicketModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[99991] p-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-4">
@@ -184,8 +214,8 @@
     </div>
 </div>
 
-<div id="ticketDetailsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-down">
+<div id="ticketDetailsModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[99991] p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down flex flex-col">
         <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg"><i class="fa fa-life-ring text-xl"></i></div>
@@ -196,10 +226,34 @@
             </div>
             <button onclick="closeTicketDetailsModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
         </div>
-        <div class="p-6">
-            <div id="ticketMessagesList" class="space-y-3 max-h-96 overflow-y-auto"></div>
+        <div class="p-6 max-h-[70vh] overflow-y-auto">
+            <div id="ticketRequestNotice" class="hidden mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+            <div id="ticketSummaryCard" class="hidden mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3"></div>
+            <div id="ticketAuditTimeline" class="hidden mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-4"></div>
+            <div id="ticketStatusPanel" class="hidden mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div class="flex flex-col gap-3 md:flex-row md:items-end">
+                    <div class="min-w-0 flex-1">
+                        <label for="ticketStatusSelect" class="block text-[10px] font-bold uppercase text-slate-400 mb-2">Status do ticket</label>
+                        <select id="ticketStatusSelect" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none">
+                            <option value="open">Aberto</option>
+                            <option value="in_progress">Em atendimento</option>
+                            <option value="waiting_customer">Aguardando cliente</option>
+                            <option value="closure_requested">Solicitando encerramento</option>
+                            <option value="closed">Encerrado</option>
+                        </select>
+                    </div>
+                    <button type="button" id="ticketStatusSaveButton" onclick="saveTicketStatus()" class="bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm uppercase">Atualizar status</button>
+                </div>
+            </div>
+            <div id="ticketMessagesList" class="space-y-3 max-h-64 md:max-h-80 overflow-y-auto pr-1"></div>
+            <div id="ticketReplyPanel" class="hidden mt-5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
+                <label for="ticketReplyMessage" class="block text-[10px] font-bold uppercase text-slate-400 mb-2">Adicionar comentario</label>
+                <textarea id="ticketReplyMessage" rows="3" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none resize-y" placeholder="Escreva um comentario para o suporte..."></textarea>
+            </div>
         </div>
-        <div class="px-6 py-4 flex justify-end gap-3 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30">
+        <div class="px-6 py-4 flex shrink-0 justify-end gap-3 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30">
+            <button type="button" id="ticketRequestCloseButton" onclick="requestTicketClosure()" class="hidden bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm uppercase">Solicitar encerramento</button>
+            <button type="button" id="ticketReplyButton" onclick="sendTicketReply()" class="hidden bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm uppercase">Comentar</button>
             <button type="button" onclick="closeTicketDetailsModal()" class="text-xs font-bold text-slate-400 uppercase">Fechar</button>
         </div>
     </div>
@@ -210,12 +264,17 @@
     let supportTicketsRaw = [];
     let supportTicketsFiltered = [];
     let ticketCurrentPage = 1;
+    let activeTicketDetails = null;
+    let supportTicketsSnapshot = new Map();
+    let supportTicketsPollTimer = null;
+    let supportTicketsPolling = false;
     let supportTicketPermissions = {
         view_all: false,
         create: true,
         reply: true,
         update: false,
         change_status: false,
+        request_close: false,
         assign: false,
         change_priority: false,
         delete: false
@@ -223,8 +282,10 @@
 
     const ticketStatusLabels = {
         open: 'Aberto',
-        pending: 'Aguardando',
-        closed: 'Finalizado'
+        in_progress: 'Em atendimento',
+        waiting_customer: 'Aguardando cliente',
+        closure_requested: 'Solicitando encerramento',
+        closed: 'Encerrado'
     };
 
     const ticketDepartmentLabels = {
@@ -235,7 +296,9 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
+        mountSupportModals();
         loadSupportTickets();
+        startSupportTicketsRealtime();
 
         document.getElementById('ticketPrevPage')?.addEventListener('click', () => {
             if (ticketCurrentPage > 1) {
@@ -252,6 +315,31 @@
         document.getElementById('createTicketForm')?.addEventListener('submit', createSupportTicketFromModal);
     });
 
+    function mountSupportModals() {
+        ['createTicketModal', 'ticketDetailsModal'].forEach((id) => {
+            const element = document.getElementById(id);
+            if (element && element.parentElement !== document.body) {
+                document.body.appendChild(element);
+            }
+        });
+    }
+
+    function setSupportModalChromeDisabled(disabled) {
+        const navMain = document.querySelector('nav[navbar-main]');
+        const sideNav = document.getElementById('sidenav-main');
+        const supportFloating = document.getElementById('support-whatsapp-floating');
+        const supportPanel = document.getElementById('support-whatsapp-panel');
+
+        [navMain, sideNav, supportFloating, supportPanel].filter(Boolean).forEach((element) => {
+            element.classList.toggle('pointer-events-none', disabled);
+        });
+
+        if (navMain) {
+            navMain.classList.toggle('opacity-0', disabled);
+            navMain.classList.toggle('invisible', disabled);
+        }
+    }
+
     function escapeTicketHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
             '&': '&amp;',
@@ -267,23 +355,216 @@
         return new Date(dateStr).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     }
 
-    function loadSupportTickets() {
+    function formatTicketSenderName(message) {
+        const firstName = String(message?.sender_name || '').trim();
+        const lastName = String(message?.sender_last_name || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+
+        if (fullName) {
+            return fullName;
+        }
+
+        const senderType = String(message?.sender_type || '').toLowerCase();
+        if (senderType === 'agent') return 'Equipe de suporte';
+        if (senderType === 'customer') return 'Cliente';
+        return 'Sistema';
+    }
+
+    function formatTicketSenderRole(message) {
+        const senderType = String(message?.sender_type || '').toLowerCase();
+        if (senderType === 'agent') return 'Suporte';
+        if (senderType === 'customer') return 'Solicitante';
+        return 'Sistema';
+    }
+
+    function formatClosedBy(ticket) {
+        const firstName = String(ticket?.closed_by_name || '').trim();
+        const lastName = String(ticket?.closed_by_last_name || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        return fullName || '-';
+    }
+
+    function formatAuditActor(entry) {
+        const firstName = String(entry?.user_name || '').trim();
+        const lastName = String(entry?.user_last_name || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        return fullName || entry?.user_email || 'Sistema';
+    }
+
+    function describeAuditEntry(entry) {
+        const action = String(entry?.action || '');
+        const oldValue = String(entry?.old_value || '');
+        const newValue = String(entry?.new_value || '');
+
+        switch (action) {
+            case 'ticket_opened':
+                return 'abriu o ticket';
+            case 'ticket_replied_by_support':
+                return 'respondeu o ticket pelo suporte';
+            case 'ticket_replied_by_customer':
+                return 'respondeu o ticket como solicitante';
+            case 'closure_requested':
+            case 'ticket_marked_closure_requested':
+                return 'solicitou o encerramento do ticket';
+            case 'ticket_closed':
+                return 'encerrou o ticket';
+            case 'ticket_reopened':
+                return 'reabriu o ticket';
+            case 'ticket_taken_in_charge':
+                return 'colocou o ticket em atendimento';
+            case 'ticket_waiting_customer':
+                return 'marcou o ticket como aguardando cliente';
+            case 'status_changed':
+                return `alterou o status de ${ticketStatusLabels[oldValue] || oldValue || '-'} para ${ticketStatusLabels[newValue] || newValue || '-'}`;
+            default:
+                return action || 'atualizou o ticket';
+        }
+    }
+
+    function renderAuditTimeline(audit) {
+        const container = document.getElementById('ticketAuditTimeline');
+        if (!container) return;
+
+        const entries = Array.isArray(audit) ? audit : [];
+        if (!entries.length) {
+            container.classList.add('hidden');
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `
+            <p class="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Historico do ticket</p>
+            <div class="space-y-3">
+                ${entries.map((entry) => `
+                    <div class="rounded-xl border border-white bg-white px-3 py-3 shadow-sm">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-700">${escapeTicketHtml(formatAuditActor(entry))}</p>
+                                <p class="text-xs text-slate-500">${escapeTicketHtml(describeAuditEntry(entry))}</p>
+                            </div>
+                            <span class="shrink-0 text-xs text-slate-400">${escapeTicketHtml(formatTicketDate(entry.created_at))}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        container.classList.remove('hidden');
+    }
+
+    function flashLiveBadge() {
+        const badge = document.getElementById('supportLiveBadge');
+        if (!badge) return;
+
+        badge.classList.remove('bg-emerald-50', 'text-emerald-700', 'border-emerald-100');
+        badge.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-100');
+        window.setTimeout(() => {
+            badge.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100');
+            badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-100');
+        }, 1800);
+    }
+
+    function handleRealtimeTicketChanges(nextTickets) {
+        const nextSnapshot = new Map();
+        const changes = [];
+
+        nextTickets.forEach((ticket) => {
+            const normalized = {
+                id: Number(ticket.id),
+                status: String(ticket.status || ''),
+                updated_at: String(ticket.updated_at || ''),
+                last_message_at: String(ticket.last_message_at || ''),
+                last_message: String(ticket.last_message || ''),
+            };
+            nextSnapshot.set(normalized.id, normalized);
+
+            if (!supportTicketsSnapshot.size) {
+                return;
+            }
+
+            const previous = supportTicketsSnapshot.get(normalized.id);
+            if (!previous) {
+                changes.push({
+                    type: 'created',
+                    ticket,
+                });
+                return;
+            }
+
+            if (previous.status !== normalized.status) {
+                changes.push({
+                    type: 'status_changed',
+                    ticket,
+                    oldStatus: previous.status,
+                    newStatus: normalized.status,
+                });
+            }
+        });
+
+        supportTicketsSnapshot = nextSnapshot;
+
+        if (!changes.length) {
+            return;
+        }
+
+        flashLiveBadge();
+
+        changes.forEach((change) => {
+            if (typeof notyf === 'undefined') {
+                return;
+            }
+
+            if (change.type === 'created') {
+                notyf.success(`Novo ticket #${change.ticket.id} recebido.`);
+                return;
+            }
+
+            const oldLabel = ticketStatusLabels[change.oldStatus] || change.oldStatus;
+            const newLabel = ticketStatusLabels[change.newStatus] || change.newStatus;
+            notyf.success(`Ticket #${change.ticket.id}: ${oldLabel} -> ${newLabel}`);
+        });
+
+        if (activeTicketDetails?.ticket?.id) {
+            const selectedId = Number(activeTicketDetails.ticket.id);
+            const affected = changes.some((change) => Number(change.ticket.id) === selectedId);
+            if (affected) {
+                openTicketDetails(selectedId);
+            }
+        }
+    }
+
+    function startSupportTicketsRealtime() {
+        if (supportTicketsPollTimer) return;
+
+        supportTicketsPollTimer = window.setInterval(() => {
+            if (supportTicketsPolling) return;
+            supportTicketsPolling = true;
+            loadSupportTickets(true)
+                .finally(() => {
+                    supportTicketsPolling = false;
+                });
+        }, 10000);
+    }
+
+    function loadSupportTickets(silent = false) {
         const tbody = document.getElementById('supportTicketsTableBody');
-        if (tbody) {
+        if (tbody && !silent) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center p-6 italic text-slate-400">Buscando tickets...</td></tr>';
         }
 
-        fetch(`${supportBaseUrl}/support/tickets`)
+        return fetch(`${supportBaseUrl}/support/tickets?_=${Date.now()}`)
             .then(res => res.json())
             .then(result => {
+                handleRealtimeTicketChanges(result.data || []);
                 supportTicketsRaw = result.data || [];
                 supportTicketPermissions = { ...supportTicketPermissions, ...(result.permissions || {}) };
-                ticketCurrentPage = 1;
+                if (!silent) {
+                    ticketCurrentPage = 1;
+                }
                 updateTicketCards();
                 renderSupportTicketsTable();
             })
             .catch(() => {
-                if (tbody) {
+                if (tbody && !silent) {
                     tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-red-500">Falha ao carregar tickets.</td></tr>';
                 }
             });
@@ -296,7 +577,9 @@
         }, {});
 
         document.getElementById('openTicketsCount').textContent = counts.open || 0;
-        document.getElementById('pendingTicketsCount').textContent = counts.pending || 0;
+        document.getElementById('inProgressTicketsCount').textContent = counts.in_progress || 0;
+        document.getElementById('waitingCustomerTicketsCount').textContent = counts.waiting_customer || 0;
+        document.getElementById('closureRequestedTicketsCount').textContent = counts.closure_requested || 0;
         document.getElementById('closedTicketsCount').textContent = counts.closed || 0;
     }
 
@@ -339,7 +622,7 @@
                         </div>
                     </td>
                     <td class="px-6 py-4 min-w-72">
-                        <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">${escapeTicketHtml(ticket.last_message || ticket.subject || '-')}</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">${escapeTicketHtml(ticket.opening_message || ticket.subject || '-')}</p>
                     </td>
                     <td class="px-6 py-4 text-center">
                         ${ticketStatusBadge(ticket.status)}
@@ -353,7 +636,7 @@
                             ? `<button onclick="changeTicketStatus(${ticket.id}, 'open')" class="p-2 text-emerald-500" title="Reabrir"><i class="fa fa-rotate-left"></i></button>`
                             : ''
                         }
-                        ${supportTicketPermissions.change_status && ticket.status !== 'closed'
+                        ${supportTicketPermissions.change_status && ticket.status === 'closure_requested'
                             ? `<button onclick="changeTicketStatus(${ticket.id}, 'closed')" class="p-2 text-slate-500" title="Finalizar"><i class="fa fa-check"></i></button>`
                             : ''
                         }
@@ -367,7 +650,9 @@
     function ticketStatusBadge(status) {
         const classes = {
             open: 'bg-emerald-100 text-emerald-700',
-            pending: 'bg-amber-100 text-amber-700',
+            in_progress: 'bg-sky-100 text-sky-700',
+            waiting_customer: 'bg-amber-100 text-amber-700',
+            closure_requested: 'bg-violet-100 text-violet-700',
             closed: 'bg-slate-100 text-slate-600'
         };
 
@@ -411,11 +696,13 @@
             document.getElementById('newTicketDepartment').value = defaultDepartment;
         }
         document.getElementById('createTicketModal').classList.replace('hidden', 'flex');
+        setSupportModalChromeDisabled(true);
         document.getElementById('newTicketDepartment')?.focus();
     }
 
     function closeCreateTicketModal() {
         document.getElementById('createTicketModal').classList.replace('flex', 'hidden');
+        setSupportModalChromeDisabled(false);
     }
 
     function createSupportTicketFromModal(event) {
@@ -454,36 +741,102 @@
 
     function openTicketDetails(ticketId) {
         const ticket = supportTicketsRaw.find(item => Number(item.id) === Number(ticketId));
+        activeTicketDetails = null;
         document.getElementById('ticketModalTitle').textContent = ticket ? `Ticket #${ticket.id}` : 'Ticket';
         document.getElementById('ticketModalSubtitle').textContent = ticket
             ? `${ticketDepartmentLabels[ticket.department] || 'Suporte'} - ${ticketStatusLabels[ticket.status] || ticket.status}`
             : 'Detalhes do atendimento';
         document.getElementById('ticketMessagesList').innerHTML = '<p class="text-center p-6 italic text-slate-400">Carregando mensagens...</p>';
+        document.getElementById('ticketRequestNotice').classList.add('hidden');
+        document.getElementById('ticketSummaryCard').classList.add('hidden');
+        document.getElementById('ticketAuditTimeline').classList.add('hidden');
+        document.getElementById('ticketStatusPanel').classList.add('hidden');
+        document.getElementById('ticketReplyPanel').classList.add('hidden');
+        document.getElementById('ticketReplyButton').classList.add('hidden');
+        document.getElementById('ticketRequestCloseButton').classList.add('hidden');
+        document.getElementById('ticketStatusSelect').value = 'open';
+        document.getElementById('ticketReplyMessage').value = '';
         document.getElementById('ticketDetailsModal').classList.replace('hidden', 'flex');
+        setSupportModalChromeDisabled(true);
 
         fetch(`${supportBaseUrl}/support/tickets/${ticketId}/messages`)
             .then(res => res.json())
             .then(result => {
+                activeTicketDetails = {
+                    ticket: result.ticket || ticket || null,
+                    permissions: result.permissions || {}
+                };
+                const detailTicket = activeTicketDetails.ticket || ticket || {};
+                renderAuditTimeline(result.audit || []);
+                const summaryCard = document.getElementById('ticketSummaryCard');
+                summaryCard.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Motivo do suporte</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-700">${escapeTicketHtml(detailTicket.subject || 'Atendimento de suporte')}</p>
+                            <p class="mt-1 text-sm text-slate-600">${escapeTicketHtml(detailTicket.requester_name || 'Cliente')}${detailTicket.requester_phone ? ` • ${escapeTicketHtml(detailTicket.requester_phone)}` : ''}</p>
+                            ${detailTicket.closed_at ? `<p class="mt-2 text-xs text-slate-500">Encerrado em ${escapeTicketHtml(formatTicketDate(detailTicket.closed_at))} por ${escapeTicketHtml(formatClosedBy(detailTicket))}</p>` : ''}
+                        </div>
+                        <span class="shrink-0 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-700">${escapeTicketHtml(ticketDepartmentLabels[detailTicket.department] || 'Suporte')}</span>
+                    </div>
+                `;
+                summaryCard.classList.remove('hidden');
                 const messages = result.data || [];
                 document.getElementById('ticketMessagesList').innerHTML = messages.length === 0
                     ? '<p class="text-center p-6 text-slate-400">Nenhuma mensagem registrada.</p>'
                     : messages.map(message => `
-                        <div class="rounded-xl border border-slate-100 dark:border-slate-800 p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs font-bold uppercase text-slate-500">${escapeTicketHtml(message.sender_type || 'customer')}</span>
-                                <span class="text-xs text-slate-400">${formatTicketDate(message.created_at)}</span>
+                        <div class="rounded-2xl border border-slate-100 bg-white dark:bg-slate-900 dark:border-slate-800 p-4 shadow-sm">
+                            <div class="flex items-start justify-between gap-3 mb-2">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-slate-700 dark:text-white">${escapeTicketHtml(formatTicketSenderName(message))}</p>
+                                    <p class="text-xs text-slate-400">${escapeTicketHtml(formatTicketSenderRole(message))} • Ticket #${escapeTicketHtml(detailTicket.id || '')}</p>
+                                </div>
+                                <span class="shrink-0 text-xs text-slate-400">${formatTicketDate(message.created_at)}</span>
                             </div>
-                            <p class="text-sm text-slate-700 dark:text-slate-200">${escapeTicketHtml(message.body)}</p>
+                            <p class="text-sm leading-7 text-slate-600 dark:text-slate-200 whitespace-pre-line">${escapeTicketHtml(message.body)}</p>
                         </div>
                     `).join('');
+                renderTicketDetailActions();
             });
     }
 
     function closeTicketDetailsModal() {
+        activeTicketDetails = null;
         document.getElementById('ticketDetailsModal').classList.replace('flex', 'hidden');
+        setSupportModalChromeDisabled(false);
     }
 
-    function changeTicketStatus(ticketId, status) {
+    function renderTicketDetailActions() {
+        const statusPanel = document.getElementById('ticketStatusPanel');
+        const statusSelect = document.getElementById('ticketStatusSelect');
+        const replyPanel = document.getElementById('ticketReplyPanel');
+        const replyButton = document.getElementById('ticketReplyButton');
+        const requestButton = document.getElementById('ticketRequestCloseButton');
+        const requestNotice = document.getElementById('ticketRequestNotice');
+        const ticket = activeTicketDetails?.ticket || null;
+        const permissions = activeTicketDetails?.permissions || {};
+
+        if (permissions.change_status && ticket) {
+            statusSelect.value = ticket.status || 'open';
+            statusPanel.classList.remove('hidden');
+        }
+
+        if (permissions.reply) {
+            replyPanel.classList.remove('hidden');
+            replyButton.classList.remove('hidden');
+        }
+
+        if (permissions.request_close && ticket?.status !== 'closure_requested' && ticket?.status !== 'closed') {
+            requestButton.classList.remove('hidden');
+        }
+
+        if (ticket?.status === 'closure_requested') {
+            requestNotice.textContent = 'Este ticket está em solicitacao de encerramento e aguarda a validacao final do suporte.';
+            requestNotice.classList.remove('hidden');
+        }
+    }
+
+    function changeTicketStatus(ticketId, status, closeModalAfterSuccess = false) {
         fetch(`${supportBaseUrl}/support/tickets/${ticketId}/status`, {
             method: 'POST',
             headers: {
@@ -495,11 +848,81 @@
             .then(res => res.json())
             .then(result => {
                 if (!result.success) throw new Error(result.message || 'Falha ao atualizar ticket.');
+                if (closeModalAfterSuccess) {
+                    closeTicketDetailsModal();
+                }
                 loadSupportTickets();
                 if (typeof notyf !== 'undefined') notyf.success('Ticket atualizado.');
             })
             .catch(error => {
                 if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao atualizar ticket.');
+            });
+    }
+
+    function sendTicketReply() {
+        const ticketId = Number(activeTicketDetails?.ticket?.id || 0);
+        const messageField = document.getElementById('ticketReplyMessage');
+        const message = messageField?.value.trim() || '';
+
+        if (!ticketId || !message) {
+            if (typeof notyf !== 'undefined') notyf.error('Digite um comentario antes de enviar.');
+            return;
+        }
+
+        fetch(`${supportBaseUrl}/support/tickets/${ticketId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ message })
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.message || 'Falha ao comentar no ticket.');
+                messageField.value = '';
+                closeTicketDetailsModal();
+                loadSupportTickets();
+                if (typeof notyf !== 'undefined') notyf.success('Comentario registrado.');
+            })
+            .catch(error => {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao comentar no ticket.');
+            });
+    }
+
+    function saveTicketStatus() {
+        const ticketId = Number(activeTicketDetails?.ticket?.id || 0);
+        const status = document.getElementById('ticketStatusSelect')?.value || 'open';
+
+        if (!ticketId) {
+            return;
+        }
+
+        changeTicketStatus(ticketId, status, true);
+    }
+
+    function requestTicketClosure() {
+        const ticketId = Number(activeTicketDetails?.ticket?.id || 0);
+        if (!ticketId) {
+            return;
+        }
+
+        fetch(`${supportBaseUrl}/support/tickets/${ticketId}/request-close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success) throw new Error(result.message || 'Falha ao solicitar encerramento.');
+                closeTicketDetailsModal();
+                loadSupportTickets();
+                if (typeof notyf !== 'undefined') notyf.success('Solicitacao de encerramento enviada.');
+            })
+            .catch(error => {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao solicitar encerramento.');
             });
     }
 </script>

@@ -13,6 +13,8 @@ class BalanceSms
     public float $balance = 0.0;
     public float $value_sms = 0.0;
     public float $value_voice  = 0.0;
+    public float $voice_open_rate = 0.0;
+    public float $voice_smart_rate = 0.0;
     public float $value_torpedo = 0.0;
     public float $value_whatsapp = 0.0;
     public float $service_fee = 0.0;
@@ -165,7 +167,10 @@ class BalanceSms
         float $valueSms,
         float $valueVoice,
         float $valueTorpedo,
-        ?string $paymentInvoice = null
+        ?string $paymentInvoice = null,
+        ?float $voiceOpenRate = null,
+        ?float $voiceSmartRate = null,
+        ?float $valueWhatsapp = null
     ): bool {
         // Se tiver invoice, verificar se já foi inserido
         if (!empty($paymentInvoice)) {
@@ -179,8 +184,7 @@ class BalanceSms
             }
         }
 
-        // Inserir novo saldo
-        return (new Database('tenancy_balance'))->insert([
+        $data = [
             'user_id'         => $userId,
             'plan_id'         => $planId,
             'tenancy_id'      => $tenancyId,
@@ -190,7 +194,36 @@ class BalanceSms
             'value_torpedo'   => $valueTorpedo,
             'payment_invoice' => $paymentInvoice,
             'updated_at'      => date('Y-m-d H:i:s')
-        ]);
+        ];
+
+        if (self::columnExists('tenancy_balance', 'value_whatsapp')) {
+            $data['value_whatsapp'] = $valueWhatsapp ?? 0.0;
+        }
+
+        if (self::columnExists('tenancy_balance', 'voice_open_rate')) {
+            $data['voice_open_rate'] = $voiceOpenRate ?? $valueVoice;
+        }
+
+        if (self::columnExists('tenancy_balance', 'voice_smart_rate')) {
+            $data['voice_smart_rate'] = $voiceSmartRate ?? $valueVoice;
+        }
+
+        return (new Database('tenancy_balance'))->insert($data);
+    }
+
+    private static function columnExists(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = "{$table}.{$column}";
+
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        return $cache[$key] = (bool)(new Database())->execute(
+            "SHOW COLUMNS FROM {$table} LIKE :column",
+            [':column' => $column]
+        )->fetch();
     }
 
     public static function insertBalanceLog(array $data): bool
@@ -252,13 +285,15 @@ class BalanceSms
             ]
         );
 
-        return ($updated > 0);
+        return $updated->rowCount() > 0;
     }
 
     public static function getByInvoice(string $invoiceNumber): ?self
     {
-        $db = new Database('tenancy_balance');
-        $data = $db->select("payment_invoice = '$invoiceNumber'")->fetchObject(self::class);
+        $data = (new Database('tenancy_balance'))
+            ->select('payment_invoice = :invoice', [':invoice' => $invoiceNumber])
+            ->fetchObject(self::class);
+
         return $data ?: null;
     }
 

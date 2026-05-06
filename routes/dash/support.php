@@ -80,3 +80,14 @@ $obRouter->post('/support/tickets/{id}/status', [
         return Pages\SupportTickets::updateStatus($request, $id);
     }
 ]);
+
+$obRouter->post('/support/tickets/{id}/request-close', [
+    'name' => '/support/tickets/{id}/messages/create',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\SupportTickets::requestClosure($request, $id);
+    }
+]);

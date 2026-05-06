@@ -10,6 +10,8 @@ use App\Model\Entity\WhatsAppCampaign;
 use App\Model\Entity\WhatsAppConversation;
 use App\Model\Entity\WhatsAppOutbox;
 use App\Model\Entity\WhatsAppTemplate;
+use App\Model\Entity\UserSearch;
+use App\Model\Entity\UserAuthentication;
 use App\Service\MetaWhatsAppCloudApi;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
@@ -28,6 +30,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class WhatsApp extends ViewComponents
 {
+    private const MAX_AUDIO_UPLOAD_BYTES = 16 * 1024 * 1024;
+    private const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+    private const MAX_VIDEO_UPLOAD_BYTES = 16 * 1024 * 1024;
+    private const MAX_DOCUMENT_UPLOAD_BYTES = 20 * 1024 * 1024;
+    private const DEFAULT_CONVERSATION_LIMIT = 120;
+    private const DEFAULT_MESSAGE_LIMIT = 200;
+
     public static function getComponentsWhatsApp(): Response|string
     {
         $obUser = SessionUser::getLogged();
@@ -56,9 +65,18 @@ class WhatsApp extends ViewComponents
             error_log('[whatsapp_accounts_sync] ' . $e->getMessage());
         }
 
+        $data = self::canViewWhatsAppSupportAccounts($obUser)
+            ? WhatsAppAccount::listSupportVisibleForUser($obUser)
+            : WhatsAppAccount::listForUser($obUser);
+
+        self::logSupportAccess('accounts.list', $obUser, [
+            'returned' => count($data),
+        ]);
+
         return self::json(200, [
             'success' => true,
-            'data' => WhatsAppAccount::listForUser($obUser),
+            'data' => $data,
+            'can_reveal_pins' => self::canRevealWhatsAppPins($obUser),
         ]);
     }
 
@@ -75,6 +93,7 @@ class WhatsApp extends ViewComponents
             'available_platform_numbers' => self::canManageWhatsAppNumbers($obUser)
                 ? WhatsAppNumberManager::listAvailablePlatformNumbers()
                 : [],
+            'can_reveal_pins' => self::canRevealWhatsAppPins($obUser),
         ]);
     }
 
@@ -142,6 +161,7 @@ class WhatsApp extends ViewComponents
             'success' => true,
             'data' => WhatsAppNumberManager::listNumberRequests($obUser),
             'can_manage_numbers' => self::canManageWhatsAppNumbers($obUser),
+            'can_reveal_pins' => self::canRevealWhatsAppPins($obUser),
         ]);
     }
 
@@ -177,7 +197,7 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
-        if (!self::canManageWhatsAppNumbers($obUser)) {
+        if (!self::canRevealWhatsAppPins($obUser)) {
             return self::json(403, [
                 'success' => false,
                 'message' => 'Ação permitida apenas para administrador.',
@@ -556,6 +576,47 @@ class WhatsApp extends ViewComponents
             'message' => $result['ok'] ? 'Perfil sincronizado.' : ($result['error'] ?: 'Falha ao consultar perfil na Meta.'),
             'data' => $result['data'],
         ]);
+    }
+
+    public static function revealNumberPin($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $password = (string)($input['current_password'] ?? $input['password'] ?? '');
+        if ($password === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Confirme sua senha para visualizar o PIN.',
+            ]);
+        }
+
+        $userAuth = UserAuthentication::getUserById((int)($obUser['id'] ?? 0));
+        if (!$userAuth || !password_verify($password, (string)($userAuth->password ?? ''))) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Senha do administrador inválida.',
+            ]);
+        }
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'data' => WhatsAppNumberManager::revealTwoStepPin($obUser, (int)$id),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(404, ['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 
     public static function updateBusinessProfile($request, int|string $id): Response
@@ -995,16 +1056,47 @@ class WhatsApp extends ViewComponents
         $query = $request->getQueryParams();
         $accountId = isset($query['account_id']) ? (int)$query['account_id'] : null;
 
-        if ($accountId !== null && $accountId > 0 && !WhatsAppAccount::getForUser($accountId, $obUser)) {
+        if ($accountId !== null && $accountId > 0 && !self::getConversationAccountForUser($accountId, $obUser)) {
             return self::json(404, [
                 'success' => false,
                 'message' => 'Conta WhatsApp não encontrada.',
             ]);
         }
 
+        $filters = [
+            'queue_id' => isset($query['queue_id']) ? (int)$query['queue_id'] : null,
+            'queue_status' => isset($query['queue_status']) ? (string)$query['queue_status'] : null,
+            'assigned_only' => !empty($query['assigned_only']),
+            'unassigned_only' => !empty($query['unassigned_only']),
+            'search' => trim((string)($query['search'] ?? '')),
+            'limit' => max(1, min(200, (int)($query['limit'] ?? self::DEFAULT_CONVERSATION_LIMIT))),
+        ];
+
+        $data = WhatsAppConversation::listForUser($obUser, $accountId, $filters);
+        foreach ($data as &$conversation) {
+            $conversation['assigned_user_avatar_url'] = self::userAvatarUrlFromPath($conversation['assigned_user_image'] ?? null);
+            $conversation['assigned_user_avatar_fallback'] = self::avatarInitials(
+                (string)($conversation['assigned_user_name'] ?? ''),
+                (string)($conversation['contact_name'] ?? $conversation['contact_phone'] ?? '')
+            );
+            $conversation['assigned_user_online'] = self::isUserLikelyOnline($conversation['assigned_user_last_activity'] ?? null);
+        }
+        unset($conversation);
+        self::logSupportAccess('conversations.list', $obUser, [
+            'account_id' => $accountId,
+            'queue_id' => $filters['queue_id'],
+            'queue_status' => $filters['queue_status'],
+            'returned' => count($data),
+        ]);
+
         return self::json(200, [
             'success' => true,
-            'data' => WhatsAppConversation::listForUser($obUser, $accountId),
+            'data' => $data,
+            'meta' => [
+                'limit' => $filters['limit'],
+                'returned' => count($data),
+                'truncated' => count($data) >= $filters['limit'],
+            ],
         ]);
     }
 
@@ -1017,16 +1109,37 @@ class WhatsApp extends ViewComponents
 
         $conversation = WhatsAppConversation::getForUser((int)$id, $obUser);
         if (!$conversation) {
+            self::logSupportAccess('messages.denied', $obUser, [
+                'conversation_id' => (int)$id,
+            ]);
             return self::json(404, [
                 'success' => false,
                 'message' => 'Conversa não encontrada.',
             ]);
         }
 
+        $query = $request->getQueryParams();
+        $limit = max(1, min(500, (int)($query['limit'] ?? self::DEFAULT_MESSAGE_LIMIT)));
+        $beforeId = isset($query['before_id']) ? (int)$query['before_id'] : null;
+        $data = WhatsAppConversation::listMessagesForUser((int)$id, $obUser, $limit, $beforeId);
+        self::logSupportAccess('messages.list', $obUser, [
+            'conversation_id' => (int)$id,
+            'returned' => count($data),
+            'before_id' => $beforeId,
+        ]);
+
         return self::json(200, [
             'success' => true,
             'conversation' => $conversation,
-            'data' => WhatsAppConversation::listMessagesForUser((int)$id, $obUser),
+            'data' => $data,
+            'meta' => [
+                'limit' => $limit,
+                'before_id' => $beforeId,
+                'returned' => count($data),
+                'has_more' => count($data) >= $limit,
+                'oldest_id' => $data !== [] ? (int)($data[0]['id'] ?? 0) : null,
+                'newest_id' => $data !== [] ? (int)($data[count($data) - 1]['id'] ?? 0) : null,
+            ],
         ]);
     }
 
@@ -1114,7 +1227,7 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
-        if (!in_array($messageType, ['text', 'template', 'audio'], true)) {
+        if (!in_array($messageType, ['text', 'template', 'audio', 'image', 'video', 'document'], true)) {
             return self::json(422, [
                 'success' => false,
                 'message' => 'Tipo de mensagem inválido.',
@@ -1135,10 +1248,31 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
-        if ($messageType === 'audio' && empty($_FILES['audio']) && trim((string)($input['audio_url'] ?? '')) === '') {
+        if ($messageType === 'audio' && empty($_FILES['audio']) && empty($_FILES['media'])) {
             return self::json(422, [
                 'success' => false,
-                'message' => 'Envie um arquivo de áudio ou informe uma URL pública.',
+                'message' => 'Envie um arquivo de áudio válido.',
+            ]);
+        }
+
+        if ($messageType === 'image' && empty($_FILES['media'])) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Envie uma imagem JPG, PNG ou WEBP.',
+            ]);
+        }
+
+        if ($messageType === 'video' && empty($_FILES['media'])) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Envie um vídeo MP4 ou 3GPP.',
+            ]);
+        }
+
+        if ($messageType === 'document' && empty($_FILES['media'])) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Envie um documento PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX ou TXT.',
             ]);
         }
 
@@ -1160,7 +1294,7 @@ class WhatsApp extends ViewComponents
             $templateVariables = $templateComponents;
         }
 
-        $account = WhatsAppAccount::getForUser($accountId, $obUser);
+        $account = self::getConversationAccountForUser($accountId, $obUser);
         if (!$account) {
             return self::json(404, [
                 'success' => false,
@@ -1251,6 +1385,7 @@ class WhatsApp extends ViewComponents
 
             return self::json(422, [
                 'success' => false,
+                'error_code' => 'service_window_closed',
                 'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
                 'last_inbound_at' => $lastInboundAt,
             ]);
@@ -1268,6 +1403,61 @@ class WhatsApp extends ViewComponents
 
             return self::json(422, [
                 'success' => false,
+                'error_code' => 'service_window_closed',
+                'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
+
+        if ($messageType === 'image' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_image_blocked_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => null,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+
+            return self::json(422, [
+                'success' => false,
+                'error_code' => 'service_window_closed',
+                'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
+
+        if ($messageType === 'video' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_video_blocked_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => null,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+
+            return self::json(422, [
+                'success' => false,
+                'error_code' => 'service_window_closed',
+                'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
+
+        if ($messageType === 'document' && !$serviceWindowOpen) {
+            self::auditTemplateWindowEvent('whatsapp_document_blocked_window_closed', [
+                'tenancy_id' => (string)$obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'account_id' => $accountId,
+                'conversation_id' => null,
+                'contact_phone' => self::maskPhoneForLog($to),
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+
+            return self::json(422, [
+                'success' => false,
+                'error_code' => 'service_window_closed',
                 'message' => 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.',
                 'last_inbound_at' => $lastInboundAt,
             ]);
@@ -1286,7 +1476,13 @@ class WhatsApp extends ViewComponents
 
         $messageBody = $messageType === 'template'
             ? "[Template] {$templateName} ({$templateLanguage})"
-            : ($messageType === 'audio' ? '[Áudio]' : $message);
+            : ($messageType === 'audio'
+                ? '[Áudio]'
+                : ($messageType === 'image'
+                    ? ($message !== '' ? $message : '[Imagem]')
+                    : ($messageType === 'video'
+                        ? ($message !== '' ? $message : '[Vídeo]')
+                        : ($messageType === 'document' ? ($message !== '' ? $message : '[Documento]') : $message))));
 
         $conversationId = WhatsAppConversation::findOrCreate([
             'tenancy_id' => $obUser['tenancy_id'],
@@ -1319,20 +1515,40 @@ class WhatsApp extends ViewComponents
                 $audioPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $audioCategory);
                 WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $audioCategory, $audioPriceBrl);
 
-                $media = !empty($_FILES['audio'])
-                    ? self::storeUploadedAudio($_FILES['audio'])
-                    : self::mediaFromPublicAudioUrl((string)$input['audio_url']);
+                $audioFile = !empty($_FILES['audio']) ? $_FILES['audio'] : ($_FILES['media'] ?? null);
+                if (!is_array($audioFile)) {
+                    throw new \RuntimeException('Envie um arquivo de áudio válido.');
+                }
 
-                $result = (new MetaWhatsAppCloudApi())->sendAudioLink(
+                $media = self::storeUploadedAudio(
+                    $audioFile,
+                    (string)$obUser['tenancy_id'],
+                    $accountId
+                );
+
+                $upload = self::uploadOutboundMediaToMeta($account, $media, 'audio', $to, $conversationId);
+                if (!$upload['ok'] || trim((string)($upload['data']['id'] ?? '')) === '') {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_upload_failed',
+                        'message' => $upload['error'] ?: 'Falha ao enviar áudio para a Meta.',
+                        'meta' => $upload,
+                    ]);
+                }
+
+                $media['media_id'] = (string)$upload['data']['id'];
+
+                $result = (new MetaWhatsAppCloudApi())->sendAudioMediaId(
                     (string)$account['access_token'],
                     (string)$account['phone_number_id'],
                     $to,
-                    (string)$media['url']
+                    (string)$media['media_id']
                 );
 
                 if (!$result['ok']) {
                     return self::json(424, [
                         'success' => false,
+                        'error_code' => 'meta_media_message_failed',
                         'message' => $result['error'] ?: 'Falha ao enviar áudio pela Meta.',
                         'meta' => $result,
                     ]);
@@ -1344,7 +1560,7 @@ class WhatsApp extends ViewComponents
                     'wamid' => $result['data']['messages'][0]['id'] ?? null,
                     'direction' => 'outbound',
                     'message_type' => 'audio',
-                    'service_window_open' => 1,
+                    'service_window_open' => (int)$serviceWindowOpen,
                     'message_category' => $audioCategory,
                     'price_brl' => $audioPriceBrl,
                     'billed' => 0,
@@ -1352,6 +1568,7 @@ class WhatsApp extends ViewComponents
                     'status' => 'sent',
                     'payload' => [
                         'media' => $media,
+                        'meta_media_upload' => $upload['data'],
                         'meta' => $result['data'],
                         'billing' => [
                             'message_category' => strtolower($audioCategory),
@@ -1374,8 +1591,272 @@ class WhatsApp extends ViewComponents
                     'message_id' => $messageId,
                 ]);
             } catch (\Throwable $e) {
+                $fileError = (int)(($audioFile['error'] ?? $_FILES['media']['error'] ?? UPLOAD_ERR_OK));
                 return self::json(422, [
                     'success' => false,
+                    'error_code' => $fileError !== UPLOAD_ERR_OK ? self::uploadErrorCode($fileError) : 'audio_send_failed',
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($messageType === 'image') {
+            try {
+                $imageCategory = WhatsAppBilling::resolveCategory('image', null, $serviceWindowOpen);
+                $imagePriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $imageCategory);
+                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $imageCategory, $imagePriceBrl);
+
+                $media = self::storeUploadedImage(
+                    $_FILES['media'],
+                    (string)$obUser['tenancy_id'],
+                    $accountId
+                );
+
+                $upload = self::uploadOutboundMediaToMeta($account, $media, 'image', $to, $conversationId);
+                if (!$upload['ok'] || trim((string)($upload['data']['id'] ?? '')) === '') {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_upload_failed',
+                        'message' => $upload['error'] ?: 'Falha ao enviar imagem para a Meta.',
+                        'meta' => $upload,
+                    ]);
+                }
+
+                $media['media_id'] = (string)$upload['data']['id'];
+
+                $result = (new MetaWhatsAppCloudApi())->sendImageMediaId(
+                    (string)$account['access_token'],
+                    (string)$account['phone_number_id'],
+                    $to,
+                    (string)$media['media_id'],
+                    $message !== '' ? $message : null
+                );
+
+                if (!$result['ok']) {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_message_failed',
+                        'message' => $result['error'] ?: 'Falha ao enviar imagem pela Meta.',
+                        'meta' => $result,
+                    ]);
+                }
+
+                $messageId = WhatsAppConversation::addMessage([
+                    'conversation_id' => $conversationId,
+                    'account_id' => $accountId,
+                    'wamid' => $result['data']['messages'][0]['id'] ?? null,
+                    'direction' => 'outbound',
+                    'message_type' => 'image',
+                    'service_window_open' => (int)$serviceWindowOpen,
+                    'message_category' => $imageCategory,
+                    'price_brl' => $imagePriceBrl,
+                    'billed' => 0,
+                    'body' => $message !== '' ? $message : '[Imagem]',
+                    'status' => 'sent',
+                    'payload' => [
+                        'media' => $media,
+                        'meta_media_upload' => $upload['data'],
+                        'meta' => $result['data'],
+                        'billing' => [
+                            'message_category' => strtolower($imageCategory),
+                            'billed' => false,
+                        ],
+                    ],
+                ]);
+
+                WhatsAppBilling::recordDirectSent([
+                    'user_id' => (int)$obUser['id'],
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'contact_phone' => $to,
+                    'template_name' => null,
+                ], $messageId, $result['data']['messages'][0]['id'] ?? null, $imageCategory, $imagePriceBrl);
+
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Imagem enviada.',
+                    'conversation_id' => $conversationId,
+                    'message_id' => $messageId,
+                ]);
+            } catch (\Throwable $e) {
+                $fileError = (int)(($_FILES['media']['error'] ?? UPLOAD_ERR_OK));
+                return self::json(422, [
+                    'success' => false,
+                    'error_code' => $fileError !== UPLOAD_ERR_OK ? self::uploadErrorCode($fileError) : 'image_send_failed',
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($messageType === 'video') {
+            try {
+                $videoCategory = WhatsAppBilling::resolveCategory('video', null, $serviceWindowOpen);
+                $videoPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $videoCategory);
+                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $videoCategory, $videoPriceBrl);
+
+                $media = self::storeUploadedVideo(
+                    $_FILES['media'],
+                    (string)$obUser['tenancy_id'],
+                    $accountId
+                );
+
+                $upload = self::uploadOutboundMediaToMeta($account, $media, 'video', $to, $conversationId);
+                if (!$upload['ok'] || trim((string)($upload['data']['id'] ?? '')) === '') {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_upload_failed',
+                        'message' => $upload['error'] ?: 'Falha ao enviar vídeo para a Meta.',
+                        'meta' => $upload,
+                    ]);
+                }
+
+                $media['media_id'] = (string)$upload['data']['id'];
+
+                $result = (new MetaWhatsAppCloudApi())->sendVideoMediaId(
+                    (string)$account['access_token'],
+                    (string)$account['phone_number_id'],
+                    $to,
+                    (string)$media['media_id'],
+                    $message !== '' ? $message : null
+                );
+
+                if (!$result['ok']) {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_message_failed',
+                        'message' => $result['error'] ?: 'Falha ao enviar vídeo pela Meta.',
+                        'meta' => $result,
+                    ]);
+                }
+
+                $messageId = WhatsAppConversation::addMessage([
+                    'conversation_id' => $conversationId,
+                    'account_id' => $accountId,
+                    'wamid' => $result['data']['messages'][0]['id'] ?? null,
+                    'direction' => 'outbound',
+                    'message_type' => 'video',
+                    'service_window_open' => (int)$serviceWindowOpen,
+                    'message_category' => $videoCategory,
+                    'price_brl' => $videoPriceBrl,
+                    'billed' => 0,
+                    'body' => $message !== '' ? $message : '[Vídeo]',
+                    'status' => 'sent',
+                    'payload' => [
+                        'media' => $media,
+                        'meta_media_upload' => $upload['data'],
+                        'meta' => $result['data'],
+                        'billing' => [
+                            'message_category' => strtolower($videoCategory),
+                            'billed' => false,
+                        ],
+                    ],
+                ]);
+
+                WhatsAppBilling::recordDirectSent([
+                    'user_id' => (int)$obUser['id'],
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'contact_phone' => $to,
+                    'template_name' => null,
+                ], $messageId, $result['data']['messages'][0]['id'] ?? null, $videoCategory, $videoPriceBrl);
+
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Vídeo enviado.',
+                    'conversation_id' => $conversationId,
+                    'message_id' => $messageId,
+                ]);
+            } catch (\Throwable $e) {
+                $fileError = (int)(($_FILES['media']['error'] ?? UPLOAD_ERR_OK));
+                return self::json(422, [
+                    'success' => false,
+                    'error_code' => $fileError !== UPLOAD_ERR_OK ? self::uploadErrorCode($fileError) : 'video_send_failed',
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($messageType === 'document') {
+            try {
+                $documentCategory = WhatsAppBilling::resolveCategory('document', null, $serviceWindowOpen);
+                $documentPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $documentCategory);
+                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $documentCategory, $documentPriceBrl);
+
+                $media = self::storeUploadedDocument(
+                    $_FILES['media'],
+                    (string)$obUser['tenancy_id'],
+                    $accountId
+                );
+
+                $upload = self::uploadOutboundMediaToMeta($account, $media, 'document', $to, $conversationId);
+                if (!$upload['ok'] || trim((string)($upload['data']['id'] ?? '')) === '') {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_upload_failed',
+                        'message' => $upload['error'] ?: 'Falha ao enviar documento para a Meta.',
+                        'meta' => $upload,
+                    ]);
+                }
+
+                $media['media_id'] = (string)$upload['data']['id'];
+
+                $result = (new MetaWhatsAppCloudApi())->sendDocumentMediaId(
+                    (string)$account['access_token'],
+                    (string)$account['phone_number_id'],
+                    $to,
+                    (string)$media['media_id'],
+                    (string)($media['original_name'] ?? 'documento'),
+                    $message !== '' ? $message : null
+                );
+
+                if (!$result['ok']) {
+                    return self::json(424, [
+                        'success' => false,
+                        'error_code' => 'meta_media_message_failed',
+                        'message' => $result['error'] ?: 'Falha ao enviar documento pela Meta.',
+                        'meta' => $result,
+                    ]);
+                }
+
+                $messageId = WhatsAppConversation::addMessage([
+                    'conversation_id' => $conversationId,
+                    'account_id' => $accountId,
+                    'wamid' => $result['data']['messages'][0]['id'] ?? null,
+                    'direction' => 'outbound',
+                    'message_type' => 'document',
+                    'service_window_open' => (int)$serviceWindowOpen,
+                    'message_category' => $documentCategory,
+                    'price_brl' => $documentPriceBrl,
+                    'billed' => 0,
+                    'body' => $message !== '' ? $message : '[Documento]',
+                    'status' => 'sent',
+                    'payload' => [
+                        'media' => $media,
+                        'meta_media_upload' => $upload['data'],
+                        'meta' => $result['data'],
+                        'billing' => [
+                            'message_category' => strtolower($documentCategory),
+                            'billed' => false,
+                        ],
+                    ],
+                ]);
+
+                WhatsAppBilling::recordDirectSent([
+                    'user_id' => (int)$obUser['id'],
+                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'contact_phone' => $to,
+                    'template_name' => null,
+                ], $messageId, $result['data']['messages'][0]['id'] ?? null, $documentCategory, $documentPriceBrl);
+
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Documento enviado.',
+                    'conversation_id' => $conversationId,
+                    'message_id' => $messageId,
+                ]);
+            } catch (\Throwable $e) {
+                $fileError = (int)(($_FILES['media']['error'] ?? UPLOAD_ERR_OK));
+                return self::json(422, [
+                    'success' => false,
+                    'error_code' => $fileError !== UPLOAD_ERR_OK ? self::uploadErrorCode($fileError) : 'document_send_failed',
                     'message' => $e->getMessage(),
                 ]);
             }
@@ -1430,13 +1911,19 @@ class WhatsApp extends ViewComponents
             $outboxIds[] = WhatsAppOutbox::enqueue($billableMessage);
         }
 
+        $flush = self::flushOutboxNow($outboxIds);
+        $sentNow = (int)($flush['sent'] ?? 0) > 0;
+
         WhatsAppSupportDesk::appendTicketMessageForConversation($obUser, $conversationId, 'agent', $message);
 
-        return self::json(202, [
+        return self::json($sentNow ? 200 : 202, [
             'success' => true,
-            'message' => 'Mensagem enviada.',
+            'message' => $sentNow
+                ? 'Mensagem enviada.'
+                : 'Mensagem recebida pelo sistema e colocada na fila de envio.',
             'conversation_id' => $conversationId,
             'outbox_ids' => $outboxIds,
+            'processed_now' => $flush,
             'parts' => $plannedMessages,
             'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
         ]);
@@ -1747,8 +2234,8 @@ class WhatsApp extends ViewComponents
         $messageType = (string)($message['type'] ?? 'unknown');
         $body = self::extractWebhookMessageBody($message);
         $payload = $message;
-        if ($messageType === 'audio') {
-            $media = self::storeInboundAudioMedia($account, $message);
+        if (in_array($messageType, ['audio', 'image', 'video', 'document'], true)) {
+            $media = self::storeInboundMedia($account, $messageType, $message);
             if ($media !== null) {
                 $payload['media'] = $media;
             }
@@ -1770,6 +2257,7 @@ class WhatsApp extends ViewComponents
             'account_id' => (int)$account['id'],
             'contact_phone' => $from,
             'contact_name' => $contactName,
+            'overwrite_contact_name' => true,
             'last_message' => $body,
             'last_direction' => 'inbound',
             'unread_count' => 1,
@@ -2049,6 +2537,7 @@ class WhatsApp extends ViewComponents
         $queued = 0;
         $failed = 0;
         $errors = [];
+        $outboxIds = [];
         $templateCategory = null;
         $template = null;
 
@@ -2201,7 +2690,7 @@ class WhatsApp extends ViewComponents
                         (string)$billableMessage['message_category'],
                         (float)$billableMessage['price_brl']
                     );
-                    WhatsAppOutbox::enqueue($billableMessage);
+                    $outboxIds[] = WhatsAppOutbox::enqueue($billableMessage);
                     WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'queued', null, null);
                     $queued++;
                 }
@@ -2213,6 +2702,7 @@ class WhatsApp extends ViewComponents
         }
 
         WhatsAppCampaign::updateCounters((int)$campaign['id']);
+        $flush = self::flushOutboxNow(array_slice($outboxIds ?? [], 0, 25), 25);
 
         $firstError = $errors[0]['error'] ?? null;
         if ($queued === 0 && $failed > 0) {
@@ -2233,6 +2723,7 @@ class WhatsApp extends ViewComponents
                 : "{$queued} contato(s) enviado(s) para a fila. {$failed} contato(s) falharam. " . ($firstError ? 'Primeiro erro: ' . $firstError : ''),
             'queued' => $queued,
             'failed' => $failed,
+            'processed_now' => $flush,
             'template_category' => $templateCategory,
             'errors' => array_slice($errors, 0, 20),
         ]);
@@ -2272,9 +2763,14 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        $data = WhatsAppSupportDesk::listQueuesForUser($obUser);
+        self::logSupportAccess('queues.list', $obUser, [
+            'returned' => count($data),
+        ]);
+
         return self::json(200, [
             'success' => true,
-            'data' => WhatsAppSupportDesk::listQueuesForUser($obUser),
+            'data' => $data,
         ]);
     }
 
@@ -2290,7 +2786,7 @@ class WhatsApp extends ViewComponents
 
             return self::json(201, [
                 'success' => true,
-                'message' => 'Fila de atendimento criada.',
+                'message' => 'Fila criada.',
                 'id' => $id,
             ]);
         } catch (\InvalidArgumentException $e) {
@@ -2301,10 +2797,86 @@ class WhatsApp extends ViewComponents
         } catch (\Throwable $e) {
             return self::json(500, [
                 'success' => false,
-                'message' => 'Falha ao criar fila de atendimento.',
+                'message' => 'Falha ao criar fila.',
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    public static function getSupportQueue($request, int|string $queueId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $queue = WhatsAppSupportDesk::getQueueDetails($obUser, (int)$queueId);
+        if (!$queue) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Fila não encontrada.',
+            ]);
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => $queue,
+        ]);
+    }
+
+    public static function updateSupportQueue($request, int|string $queueId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $ok = WhatsAppSupportDesk::updateQueue($obUser, (int)$queueId, self::jsonInput());
+
+            return self::json($ok ? 200 : 404, [
+                'success' => $ok,
+                'message' => $ok ? 'Fila atualizada.' : 'Fila não encontrada.',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return self::json(500, ['success' => false, 'message' => 'Falha ao atualizar fila.', 'error' => $e->getMessage()]);
+        }
+    }
+
+    public static function deleteSupportQueue($request, int|string $queueId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $ok = WhatsAppSupportDesk::deleteQueue($obUser, (int)$queueId);
+
+            return self::json($ok ? 200 : 404, [
+                'success' => $ok,
+                'message' => $ok ? 'Fila excluída.' : 'Fila não encontrada.',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            return self::json(500, ['success' => false, 'message' => 'Falha ao excluir fila.', 'error' => $e->getMessage()]);
+        }
+    }
+
+    public static function listSupportAssignableUsers(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppSupportDesk::listAssignableUsers($obUser),
+        ]);
     }
 
     public static function upsertSupportQueueAgent($request, int|string $queueId): Response
@@ -2314,12 +2886,38 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
-        $ok = WhatsAppSupportDesk::upsertQueueAgent($obUser, (int)$queueId, self::jsonInput());
+        try {
+            $ok = WhatsAppSupportDesk::upsertQueueAgent($obUser, (int)$queueId, self::jsonInput());
 
-        return self::json($ok ? 200 : 404, [
-            'success' => $ok,
-            'message' => $ok ? 'Atendente vinculado à fila.' : 'Fila de atendimento não encontrada.',
-        ]);
+            return self::json($ok ? 200 : 404, [
+                'success' => $ok,
+                'message' => $ok ? 'Atendente vinculado à fila.' : 'Fila não encontrada.',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function removeSupportQueueAgent($request, int|string $queueId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+        $agentUserId = (int)($input['agent_user_id'] ?? 0);
+
+        try {
+            $ok = WhatsAppSupportDesk::removeQueueAgent($obUser, (int)$queueId, $agentUserId);
+
+            return self::json($ok ? 200 : 404, [
+                'success' => $ok,
+                'message' => $ok ? 'Atendente removido da fila.' : 'Fila ou vínculo não encontrado.',
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 
     public static function updateSupportAgentStatus(): Response
@@ -2333,7 +2931,7 @@ class WhatsApp extends ViewComponents
 
         return self::json($ok ? 200 : 404, [
             'success' => $ok,
-            'message' => $ok ? 'Status do atendente atualizado.' : 'Fila de atendimento não encontrada.',
+            'message' => $ok ? 'Status do atendente atualizado.' : 'Fila não encontrada.',
         ]);
     }
 
@@ -2344,9 +2942,17 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        $data = WhatsAppSupportDesk::dashboard($obUser);
+        self::logSupportAccess('dashboard.view', $obUser, [
+            'queues' => count((array)($data['queues'] ?? [])),
+            'agents' => count((array)($data['agents'] ?? [])),
+            'waiting' => count((array)($data['waiting'] ?? [])),
+            'active' => count((array)($data['active'] ?? [])),
+        ]);
+
         return self::json(200, [
             'success' => true,
-            'data' => WhatsAppSupportDesk::dashboard($obUser),
+            'data' => $data,
         ]);
     }
 
@@ -2380,6 +2986,69 @@ class WhatsApp extends ViewComponents
         ]);
     }
 
+    public static function assignConversationQueue($request, int|string $conversationId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $data = WhatsAppSupportDesk::assignConversation($obUser, (int)$conversationId, self::jsonInput());
+            if (!$data) {
+                return self::json(404, ['success' => false, 'message' => 'Conversa não encontrada.']);
+            }
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Conversa encaminhada para a fila.',
+                'data' => $data,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function claimConversationQueue($request, int|string $conversationId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        try {
+            $data = WhatsAppSupportDesk::claimConversation($obUser, (int)$conversationId);
+            if (!$data) {
+                return self::json(404, ['success' => false, 'message' => 'Conversa não encontrada ou indisponível.']);
+            }
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Conversa assumida.',
+                'data' => $data,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return self::json(409, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function conversationQueueHistory($request, int|string $conversationId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppSupportDesk::queueHistoryForConversation($obUser, (int)$conversationId),
+        ]);
+    }
+
     public static function supportEvents($request): Response
     {
         $obUser = self::requireUser();
@@ -2391,6 +3060,10 @@ class WhatsApp extends ViewComponents
         $headers = $request->getHeaders();
         $afterId = (int)($query['after_id'] ?? $query['lastEventId'] ?? $headers['Last-Event-ID'] ?? $headers['Last-Event-Id'] ?? 0);
         $events = WhatsAppSupportDesk::events($obUser, $afterId);
+        self::logSupportAccess('events.stream', $obUser, [
+            'after_id' => $afterId,
+            'returned' => count($events),
+        ]);
         $content = "retry: 2000\n";
 
         foreach ($events as $event) {
@@ -2501,11 +3174,17 @@ class WhatsApp extends ViewComponents
             $outboxIds[] = WhatsAppOutbox::enqueue($billableMessage);
         }
 
-        return self::json(202, [
+        $flush = self::flushOutboxNow($outboxIds);
+        $sentNow = (int)($flush['sent'] ?? 0) > 0;
+
+        return self::json($sentNow ? 200 : 202, [
             'success' => true,
-            'message' => 'Mensagem enviada.',
+            'message' => $sentNow
+                ? 'Mensagem enviada.'
+                : 'Mensagem recebida pelo sistema e colocada na fila de envio.',
             'conversation_id' => $conversationId,
             'outbox_ids' => $outboxIds,
+            'processed_now' => $flush,
             'parts' => $plannedMessages,
             'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
         ]);
@@ -2521,19 +3200,61 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
+        if (empty($obUser['user_function']) || empty($obUser['role_id'])) {
+            $freshUser = UserSearch::getUserById((string)($obUser['tenancy_id'] ?? ''), (int)($obUser['id'] ?? 0));
+            if ($freshUser) {
+                $obUser['user_function'] = $freshUser['user_function'] ?? ($obUser['function'] ?? '');
+                $obUser['function'] = $obUser['user_function'];
+                $obUser['role_id'] = (int)($freshUser['role_id'] ?? ($obUser['role_id'] ?? 0));
+            }
+        }
+
         return $obUser;
     }
 
     private static function canUseSupportAccount(array $user): bool
     {
         $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
-        return in_array($role, ['super_admin', 'admin', 'support_l2'], true);
+        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'agent', 'operator', 'o', 'support_l1', 'support_l2'], true);
     }
 
     private static function canManageWhatsAppNumbers(array $user): bool
     {
         $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
         return $role === 'super_admin';
+    }
+
+    private static function canRevealWhatsAppPins(array $user): bool
+    {
+        $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
+        return in_array($role, ['super_admin', 'admin'], true);
+    }
+
+    private static function canViewWhatsAppSupportAccounts(array $user): bool
+    {
+        $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
+        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'monitor', 'support_l2', 'agent', 'support_l1', 'operator', 'o'], true);
+    }
+
+    private static function getConversationAccountForUser(int $accountId, array $user): ?array
+    {
+        if (self::canViewWhatsAppSupportAccounts($user)) {
+            return WhatsAppAccount::getSupportVisibleForUser($accountId, $user);
+        }
+
+        return WhatsAppAccount::getForUser($accountId, $user);
+    }
+
+    private static function logSupportAccess(string $event, array $user, array $context = []): void
+    {
+        $payload = array_merge([
+            'event' => $event,
+            'user_id' => (int)($user['id'] ?? 0),
+            'tenancy_id' => (string)($user['tenancy_id'] ?? ''),
+            'role' => (string)($user['user_function'] ?? $user['function'] ?? ''),
+        ], $context);
+
+        error_log('[whatsapp_access] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     public static function previewCampaignRecipientsUpload(): Response
@@ -2584,9 +3305,114 @@ class WhatsApp extends ViewComponents
         return $_POST ?: [];
     }
 
-    private static function storeInboundAudioMedia(array $account, array $message): ?array
+    private static function flushOutboxNow(array $outboxIds, int $limit = 10): array
     {
-        $mediaId = trim((string)($message['audio']['id'] ?? ''));
+        $ids = array_values(array_unique(array_filter(array_map('intval', $outboxIds), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => 0, 'locked' => false];
+        }
+
+        $ids = array_slice($ids, 0, max(1, $limit));
+
+        try {
+            $summary = (new WhatsAppOutboxWorker())->runOutboxIds($ids);
+            error_log(json_encode([
+                'event' => 'whatsapp_outbox_inline_flush',
+                'outbox_ids' => $ids,
+                'processed' => (int)($summary['processed'] ?? 0),
+                'sent' => (int)($summary['sent'] ?? 0),
+                'failed' => (int)($summary['failed'] ?? 0),
+                'locked' => (bool)($summary['locked'] ?? false),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            return $summary;
+        } catch (\Throwable $e) {
+            error_log(json_encode([
+                'event' => 'whatsapp_outbox_inline_flush_failed',
+                'outbox_ids' => $ids,
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            return [
+                'processed' => 0,
+                'sent' => 0,
+                'failed' => 0,
+                'requeued' => 0,
+                'locked' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function uploadOutboundMediaToMeta(
+        array $account,
+        array $media,
+        string $messageType,
+        string $contactPhone,
+        int $conversationId,
+        int $ticketId = 0
+    ): array {
+        $localPath = (string)($media['local_path'] ?? '');
+        $mimeType = (string)($media['mime_type'] ?? '');
+        $fileName = (string)($media['original_name'] ?? ($messageType . '.bin'));
+
+        self::logMediaDiagnostic('outbound.upload_start', [
+            'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+            'account_id' => (int)($account['id'] ?? 0),
+            'ticket_id' => $ticketId,
+            'conversation_id' => $conversationId,
+            'message_type' => $messageType,
+            'file_name' => $fileName,
+            'mime_type' => $mimeType,
+            'file_size' => (int)($media['file_size'] ?? 0),
+            'contact_phone' => self::maskPhoneForLog($contactPhone),
+        ]);
+
+        $upload = (new MetaWhatsAppCloudApi())->uploadMedia(
+            (string)$account['access_token'],
+            (string)$account['phone_number_id'],
+            $localPath,
+            $mimeType,
+            $fileName
+        );
+
+        self::logMediaDiagnostic('outbound.upload_finish', [
+            'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+            'account_id' => (int)($account['id'] ?? 0),
+            'ticket_id' => $ticketId,
+            'conversation_id' => $conversationId,
+            'message_type' => $messageType,
+            'media_id' => $upload['data']['id'] ?? null,
+            'meta_ok' => $upload['ok'] ?? false,
+            'meta_status' => $upload['status'] ?? 0,
+            'meta_error' => $upload['error'] ?? null,
+        ]);
+
+        return $upload;
+    }
+
+    private static function logMediaDiagnostic(string $event, array $context = []): void
+    {
+        $safe = $context;
+        if (isset($safe['contact_phone'])) {
+            $safe['contact_phone'] = self::maskPhoneForLog((string)$safe['contact_phone']);
+        }
+        if (isset($safe['url'])) {
+            unset($safe['url']);
+        }
+
+        error_log('[whatsapp_media] ' . json_encode(array_merge([
+            'event' => $event,
+            'at' => date('Y-m-d H:i:s'),
+        ], $safe), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function storeInboundMedia(array $account, string $messageType, array $message): ?array
+    {
+        $node = $message[$messageType] ?? null;
+        if (!is_array($node)) {
+            return null;
+        }
+
+        $mediaId = trim((string)($node['id'] ?? ''));
         if ($mediaId === '') {
             return null;
         }
@@ -2594,18 +3420,35 @@ class WhatsApp extends ViewComponents
         $api = new MetaWhatsAppCloudApi();
         $media = $api->getMedia((string)$account['access_token'], $mediaId);
         if (!$media['ok']) {
-            error_log('[whatsapp_audio_media] ' . ($media['error'] ?: 'Falha ao obter mídia.'));
+            self::logMediaDiagnostic('inbound.meta_lookup_failed', [
+                'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+                'account_id' => (int)($account['id'] ?? 0),
+                'message_type' => $messageType,
+                'media_id' => $mediaId,
+                'error' => $media['error'] ?: 'Falha ao obter mídia.',
+            ]);
             return null;
         }
 
-        $mimeType = (string)($media['data']['mime_type'] ?? $message['audio']['mime_type'] ?? 'audio/ogg');
+        $mimeType = (string)($media['data']['mime_type'] ?? $node['mime_type'] ?? self::defaultMimeTypeForMessageType($messageType));
         $mediaUrl = trim((string)($media['data']['url'] ?? ''));
         if ($mediaUrl === '') {
-            error_log('[whatsapp_audio_media] Meta não retornou URL para o áudio.');
+            self::logMediaDiagnostic('inbound.meta_url_missing', [
+                'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+                'account_id' => (int)($account['id'] ?? 0),
+                'message_type' => $messageType,
+                'media_id' => $mediaId,
+            ]);
             return null;
         }
 
-        $target = self::whatsappAudioTarget($mediaId, $mimeType);
+        $target = self::whatsappMediaTarget(
+            self::normalizeInboundMediaKind($messageType),
+            'meta_' . $mediaId,
+            $mimeType,
+            (string)($account['tenancy_id'] ?? ''),
+            (int)($account['id'] ?? 0)
+        );
         $download = $api->downloadMediaToFile(
             (string)$account['access_token'],
             $mediaUrl,
@@ -2613,22 +3456,72 @@ class WhatsApp extends ViewComponents
         );
 
         if (!$download['ok']) {
-            error_log('[whatsapp_audio_download] ' . ($download['error'] ?: 'Falha ao baixar áudio.'));
+            self::logMediaDiagnostic('inbound.download_failed', [
+                'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+                'account_id' => (int)($account['id'] ?? 0),
+                'message_type' => $messageType,
+                'media_id' => $mediaId,
+                'error' => $download['error'] ?: 'Falha ao baixar mídia.',
+            ]);
             return null;
         }
 
+        $originalName = (string)(
+            $node['filename']
+            ?? $media['data']['filename']
+            ?? ($messageType === 'document' ? ('documento.' . self::documentExtension($mimeType)) : ($messageType . '.' . self::extensionForMessageType($messageType, $mimeType)))
+        );
+
         return [
             'id' => $mediaId,
-            'type' => 'audio',
+            'type' => $messageType,
             'mime_type' => $mimeType,
-            'sha256' => $message['audio']['sha256'] ?? $media['data']['sha256'] ?? null,
+            'sha256' => $node['sha256'] ?? $media['data']['sha256'] ?? null,
             'file_size' => $media['data']['file_size'] ?? $download['data']['size'] ?? null,
+            'local_path' => $target['path'],
             'path' => $target['relative_path'],
             'url' => $target['url'],
+            'original_name' => $originalName,
+            'caption' => self::extractInboundMediaCaption($messageType, $message),
         ];
     }
 
-    private static function storeUploadedAudio(array $file): array
+    private static function extractInboundMediaCaption(string $messageType, array $message): ?string
+    {
+        return match ($messageType) {
+            'image' => self::nullableString($message['image']['caption'] ?? null),
+            'video' => self::nullableString($message['video']['caption'] ?? null),
+            'document' => self::nullableString($message['document']['caption'] ?? null),
+            default => null,
+        };
+    }
+
+    private static function normalizeInboundMediaKind(string $messageType): string
+    {
+        return in_array($messageType, ['audio', 'image', 'video', 'document'], true) ? $messageType : 'document';
+    }
+
+    private static function defaultMimeTypeForMessageType(string $messageType): string
+    {
+        return match ($messageType) {
+            'image' => 'image/jpeg',
+            'video' => 'video/mp4',
+            'document' => 'application/pdf',
+            default => 'audio/ogg',
+        };
+    }
+
+    private static function extensionForMessageType(string $messageType, string $mimeType): string
+    {
+        return match ($messageType) {
+            'image' => self::imageExtension($mimeType),
+            'video' => str_contains(strtolower($mimeType), 'webm') ? 'webm' : 'mp4',
+            'document' => self::documentExtension($mimeType),
+            default => self::audioExtension($mimeType),
+        };
+    }
+
+    private static function storeUploadedAudio(array $file, string $tenancyId, int $accountId = 0): array
     {
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             throw new \RuntimeException('Falha no upload do áudio.');
@@ -2639,12 +3532,25 @@ class WhatsApp extends ViewComponents
             throw new \RuntimeException('Arquivo de áudio inválido.');
         }
 
-        $mimeType = self::detectMimeType($tmp, (string)($file['type'] ?? 'audio/ogg'));
-        if (!str_starts_with($mimeType, 'audio/')) {
-            throw new \RuntimeException('Envie um arquivo de áudio válido.');
+        $size = (int)($file['size'] ?? 0);
+        if ($size <= 0) {
+            throw new \RuntimeException('Arquivo de áudio vazio.');
+        }
+        if ($size > self::MAX_AUDIO_UPLOAD_BYTES) {
+            throw new \RuntimeException('O áudio excede o limite de 16 MB.');
         }
 
-        $target = self::whatsappAudioTarget('upload_' . bin2hex(random_bytes(8)), $mimeType);
+        $mimeType = self::detectMimeType($tmp, (string)($file['type'] ?? 'audio/ogg'));
+        if (!self::isAllowedAudioMimeType($mimeType)) {
+            throw new \RuntimeException('Formato de áudio não suportado pela Meta. Use AAC, M4A, MP3, AMR, OGG ou OPUS.');
+        }
+
+        $target = self::whatsappAudioTarget(
+            'upload_' . bin2hex(random_bytes(8)),
+            $mimeType,
+            $tenancyId,
+            $accountId
+        );
         if (!move_uploaded_file($tmp, $target['path'])) {
             throw new \RuntimeException('Não foi possível salvar o áudio.');
         }
@@ -2653,10 +3559,207 @@ class WhatsApp extends ViewComponents
             'type' => 'audio',
             'mime_type' => $mimeType,
             'file_size' => filesize($target['path']) ?: null,
+            'local_path' => $target['path'],
             'path' => $target['relative_path'],
             'url' => $target['url'],
             'original_name' => basename((string)($file['name'] ?? 'audio')),
         ];
+    }
+
+    private static function storeUploadedImage(array $file, string $tenancyId, int $accountId = 0): array
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Falha no upload da imagem.');
+        }
+
+        $tmp = (string)($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            throw new \RuntimeException('Arquivo de imagem inválido.');
+        }
+
+        $size = (int)($file['size'] ?? 0);
+        if ($size <= 0) {
+            throw new \RuntimeException('Arquivo de imagem vazio.');
+        }
+        if ($size > self::MAX_IMAGE_UPLOAD_BYTES) {
+            throw new \RuntimeException('A imagem excede o limite de 5 MB.');
+        }
+
+        $mimeType = self::detectMimeType($tmp, (string)($file['type'] ?? 'image/jpeg'));
+        if (!self::isAllowedImageMimeType($mimeType)) {
+            throw new \RuntimeException('Envie uma imagem JPG, PNG ou WEBP.');
+        }
+
+        $target = self::whatsappMediaTarget(
+            'image',
+            'upload_' . bin2hex(random_bytes(8)),
+            $mimeType,
+            $tenancyId,
+            $accountId
+        );
+        if (!move_uploaded_file($tmp, $target['path'])) {
+            throw new \RuntimeException('Não foi possível salvar a imagem.');
+        }
+
+        return [
+            'type' => 'image',
+            'mime_type' => $mimeType,
+            'file_size' => filesize($target['path']) ?: null,
+            'local_path' => $target['path'],
+            'path' => $target['relative_path'],
+            'url' => $target['url'],
+            'original_name' => basename((string)($file['name'] ?? 'imagem')),
+        ];
+    }
+
+    private static function storeUploadedVideo(array $file, string $tenancyId, int $accountId = 0): array
+    {
+        return self::storeUploadedBinaryMedia(
+            $file,
+            'video',
+            self::MAX_VIDEO_UPLOAD_BYTES,
+            'Falha no upload do vídeo.',
+            'Arquivo de vídeo inválido.',
+            'Arquivo de vídeo vazio.',
+            'O vídeo excede o limite de 16 MB.',
+            'Formato de vídeo não suportado pela Meta. Use MP4 ou 3GPP.',
+            $tenancyId,
+            $accountId,
+            'video'
+        );
+    }
+
+    private static function storeUploadedDocument(array $file, string $tenancyId, int $accountId = 0): array
+    {
+        return self::storeUploadedBinaryMedia(
+            $file,
+            'document',
+            self::MAX_DOCUMENT_UPLOAD_BYTES,
+            'Falha no upload do documento.',
+            'Arquivo de documento inválido.',
+            'Arquivo de documento vazio.',
+            'O documento excede o limite de 20 MB.',
+            'Formato de documento não suportado pela Meta. Use PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX ou TXT.',
+            $tenancyId,
+            $accountId,
+            'documento'
+        );
+    }
+
+    private static function storeUploadedBinaryMedia(
+        array $file,
+        string $kind,
+        int $maxBytes,
+        string $uploadErrorMessage,
+        string $invalidErrorMessage,
+        string $emptyErrorMessage,
+        string $tooLargeErrorMessage,
+        string $invalidMimeErrorMessage,
+        string $tenancyId,
+        int $accountId,
+        string $defaultName
+    ): array {
+        $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            self::logMediaDiagnostic('outbound.upload_php_error', [
+                'message_type' => $kind,
+                'upload_error' => $uploadError,
+                'upload_max_filesize' => ini_get('upload_max_filesize') ?: null,
+                'post_max_size' => ini_get('post_max_size') ?: null,
+                'max_file_uploads' => ini_get('max_file_uploads') ?: null,
+                'file_name' => (string)($file['name'] ?? ''),
+                'reported_size' => (int)($file['size'] ?? 0),
+            ]);
+            throw new \RuntimeException(self::uploadErrorMessage($uploadError, $uploadErrorMessage, $maxBytes));
+        }
+
+        $tmp = (string)($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            throw new \RuntimeException($invalidErrorMessage);
+        }
+
+        $size = (int)($file['size'] ?? 0);
+        if ($size <= 0) {
+            throw new \RuntimeException($emptyErrorMessage);
+        }
+        if ($size > $maxBytes) {
+            throw new \RuntimeException($tooLargeErrorMessage);
+        }
+
+        $fallbackMime = $kind === 'video' ? 'video/mp4' : 'application/pdf';
+        $mimeType = self::detectMimeType($tmp, (string)($file['type'] ?? $fallbackMime));
+        $isAllowed = $kind === 'video'
+            ? self::isAllowedVideoMimeType($mimeType)
+            : self::isAllowedDocumentMimeType($mimeType);
+        if (!$isAllowed) {
+            throw new \RuntimeException($invalidMimeErrorMessage);
+        }
+
+        $target = self::whatsappMediaTarget(
+            $kind,
+            'upload_' . bin2hex(random_bytes(8)),
+            $mimeType,
+            $tenancyId,
+            $accountId
+        );
+        if (!move_uploaded_file($tmp, $target['path'])) {
+            throw new \RuntimeException('Não foi possível salvar a mídia.');
+        }
+
+        return [
+            'type' => $kind,
+            'mime_type' => $mimeType,
+            'file_size' => filesize($target['path']) ?: null,
+            'local_path' => $target['path'],
+            'path' => $target['relative_path'],
+            'url' => $target['url'],
+            'original_name' => basename((string)($file['name'] ?? $defaultName)),
+        ];
+    }
+
+    private static function uploadErrorMessage(int $code, string $fallback, int $businessLimitBytes = 0): string
+    {
+        $businessLimit = $businessLimitBytes > 0 ? self::formatBytes($businessLimitBytes) : null;
+        $uploadLimit = ini_get('upload_max_filesize') ?: '?';
+        $postLimit = ini_get('post_max_size') ?: '?';
+
+        return match ($code) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
+                'O arquivo excede o limite permitido pelo servidor.'
+                . " Limite atual do PHP: upload_max_filesize={$uploadLimit}, post_max_size={$postLimit}."
+                . ($businessLimit ? " Limite esperado pelo sistema: {$businessLimit}." : ''),
+            UPLOAD_ERR_PARTIAL => 'O upload foi recebido parcialmente. Tente novamente.',
+            UPLOAD_ERR_NO_FILE => 'Nenhum arquivo foi enviado.',
+            UPLOAD_ERR_NO_TMP_DIR => 'O servidor está sem diretório temporário para upload.',
+            UPLOAD_ERR_CANT_WRITE => 'O servidor não conseguiu gravar o arquivo enviado.',
+            UPLOAD_ERR_EXTENSION => 'Uma extensão do PHP interrompeu o upload do arquivo.',
+            default => $fallback,
+        };
+    }
+
+    private static function uploadErrorCode(int $code): string
+    {
+        return match ($code) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'php_upload_limit_exceeded',
+            UPLOAD_ERR_PARTIAL => 'php_upload_partial',
+            UPLOAD_ERR_NO_FILE => 'php_upload_missing',
+            UPLOAD_ERR_NO_TMP_DIR => 'php_upload_tmp_missing',
+            UPLOAD_ERR_CANT_WRITE => 'php_upload_write_failed',
+            UPLOAD_ERR_EXTENSION => 'php_upload_blocked_by_extension',
+            default => 'php_upload_failed',
+        };
+    }
+
+    private static function formatBytes(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return number_format($bytes / 1024, 1, ',', '.') . ' KB';
+        }
+
+        return number_format($bytes / (1024 * 1024), 1, ',', '.') . ' MB';
     }
 
     private static function mediaFromPublicAudioUrl(string $url): array
@@ -2674,24 +3777,9 @@ class WhatsApp extends ViewComponents
         ];
     }
 
-    private static function whatsappAudioTarget(string $seed, string $mimeType): array
+    private static function whatsappAudioTarget(string $seed, string $mimeType, string $tenancyId = '', int $accountId = 0): array
     {
-        $relativeDir = 'public/uploads/whatsapp/audio/' . date('Y/m');
-        $dir = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
-
-        $extension = self::audioExtension($mimeType);
-        $name = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $seed) ?: 'audio';
-        $filename = $name . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
-        $relativePath = $relativeDir . '/' . $filename;
-
-        return [
-            'path' => $dir . DIRECTORY_SEPARATOR . $filename,
-            'relative_path' => $relativePath,
-            'url' => rtrim((string)(defined('URL') ? URL : ''), '/') . '/' . $relativePath,
-        ];
+        return self::whatsappMediaTarget('audio', $seed, $mimeType, $tenancyId, $accountId);
     }
 
     private static function audioExtension(string $mimeType): string
@@ -2704,6 +3792,73 @@ class WhatsApp extends ViewComponents
             str_contains($mimeType, 'webm') => 'webm',
             default => 'ogg',
         };
+    }
+
+    private static function imageExtension(string $mimeType): string
+    {
+        $mimeType = strtolower($mimeType);
+        return match (true) {
+            str_contains($mimeType, 'png') => 'png',
+            str_contains($mimeType, 'webp') => 'webp',
+            default => 'jpg',
+        };
+    }
+
+    private static function documentExtension(string $mimeType, string $originalName = ''): string
+    {
+        $mimeType = strtolower($mimeType);
+        $fromMime = match (true) {
+            str_contains($mimeType, 'pdf') => 'pdf',
+            str_contains($mimeType, 'wordprocessingml') => 'docx',
+            str_contains($mimeType, 'msword') => 'doc',
+            str_contains($mimeType, 'presentationml') => 'pptx',
+            str_contains($mimeType, 'ms-powerpoint') => 'ppt',
+            str_contains($mimeType, 'spreadsheetml') => 'xlsx',
+            str_contains($mimeType, 'ms-excel') => 'xls',
+            str_contains($mimeType, 'text/plain') => 'txt',
+            default => '',
+        };
+
+        if ($fromMime !== '') {
+            return $fromMime;
+        }
+
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        return $extension !== '' ? $extension : 'bin';
+    }
+
+    private static function whatsappMediaTarget(string $kind, string $seed, string $mimeType, string $tenancyId = '', int $accountId = 0): array
+    {
+        $tenantSegment = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $tenancyId) ?: 'global';
+        $accountSegment = $accountId > 0 ? (string)$accountId : 'shared';
+        $relativeDir = 'public/uploads/whatsapp/' . $kind . '/' . $tenantSegment . '/' . $accountSegment . '/' . date('Y/m');
+        $dir = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $extension = $kind === 'image'
+            ? self::imageExtension($mimeType)
+            : ($kind === 'audio'
+                ? self::audioExtension($mimeType)
+                : ($kind === 'video'
+                    ? (str_contains(strtolower($mimeType), 'webm') ? 'webm' : 'mp4')
+                    : self::documentExtension($mimeType)));
+        $fallbackName = match ($kind) {
+            'image' => 'image',
+            'video' => 'video',
+            'document' => 'document',
+            default => 'audio',
+        };
+        $name = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $seed) ?: $fallbackName;
+        $filename = $name . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
+        $relativePath = $relativeDir . '/' . $filename;
+
+        return [
+            'path' => $dir . DIRECTORY_SEPARATOR . $filename,
+            'relative_path' => $relativePath,
+            'url' => rtrim((string)(defined('URL') ? URL : ''), '/') . '/' . $relativePath,
+        ];
     }
 
     private static function detectMimeType(string $path, string $fallback): string
@@ -2722,10 +3877,111 @@ class WhatsApp extends ViewComponents
         return $fallback ?: 'audio/ogg';
     }
 
+    private static function isAllowedAudioMimeType(string $mimeType): bool
+    {
+        $mimeType = strtolower(trim($mimeType));
+        return in_array($mimeType, [
+            'audio/ogg',
+            'audio/opus',
+            'audio/mpeg',
+            'audio/mp3',
+            'audio/mp4',
+            'audio/aac',
+            'audio/amr',
+            'audio/webm',
+        ], true);
+    }
+
+    private static function isAllowedImageMimeType(string $mimeType): bool
+    {
+        $mimeType = strtolower(trim($mimeType));
+        return in_array($mimeType, [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/webp',
+        ], true);
+    }
+
+    private static function isAllowedVideoMimeType(string $mimeType): bool
+    {
+        $mimeType = strtolower(trim($mimeType));
+        return in_array($mimeType, [
+            'video/mp4',
+            'video/3gpp',
+        ], true);
+    }
+
+    private static function isAllowedDocumentMimeType(string $mimeType): bool
+    {
+        $mimeType = strtolower(trim($mimeType));
+        return in_array($mimeType, [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+        ], true);
+    }
+
     private static function nullableString(mixed $value): ?string
     {
         $value = trim((string)($value ?? ''));
         return $value === '' ? null : $value;
+    }
+
+    private static function userAvatarUrlFromPath(mixed $path): ?string
+    {
+        $value = trim((string)($path ?? ''));
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('#^https?://#i', $value)) {
+            return $value;
+        }
+
+        return rtrim((string)(defined('URL') ? URL : ''), '/') . '/resources/assets/img/' . ltrim(str_replace('\\', '/', $value), '/');
+    }
+
+    private static function avatarInitials(string $primary, string $fallback = ''): string
+    {
+        $value = trim($primary) !== '' ? trim($primary) : trim($fallback);
+        if ($value === '') {
+            return 'AG';
+        }
+
+        $parts = preg_split('/\s+/', $value) ?: [];
+        $letters = '';
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $letters .= mb_strtoupper(mb_substr($part, 0, 1));
+            if (mb_strlen($letters) >= 2) {
+                break;
+            }
+        }
+
+        return $letters !== '' ? $letters : 'AG';
+    }
+
+    private static function isUserLikelyOnline(mixed $lastActivity): bool
+    {
+        $value = trim((string)($lastActivity ?? ''));
+        if ($value === '') {
+            return false;
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return false;
+        }
+
+        return (time() - $timestamp) <= 300;
     }
 
     private static function normalizePhone(string $phone): string
@@ -2756,16 +4012,25 @@ class WhatsApp extends ViewComponents
             return [];
         }
 
+        $variants = self::phoneLookupVariants($phone);
+        if ($variants === []) {
+            return [];
+        }
+
+        $where = [];
+        $phoneExpr = self::contactPhoneSqlExpression('phone');
+        foreach ($variants as $index => $variant) {
+            $where[] = "{$phoneExpr} = '" . addslashes($variant) . "'";
+        }
+
         try {
+            $tenancyIdSql = addslashes($tenancyId);
             $row = (new \WilliamCosta\DatabaseManager\Database('contacts'))
                 ->select(
-                    "tenancy_id = :tenancy_id
-                     AND REPLACE(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', ''), '(', '') LIKE :phone
+                    "tenancy_id = '{$tenancyIdSql}'
+                     AND (" . implode(' OR ', $where) . ")
                      AND COALESCE(name, '') <> ''",
-                    [
-                        ':tenancy_id' => $tenancyId,
-                        ':phone' => '%' . substr($phone, -8),
-                    ],
+                    [],
                     'updated_at DESC, id DESC',
                     '1'
                 )
@@ -2776,6 +4041,38 @@ class WhatsApp extends ViewComponents
             error_log('[whatsapp_contact_lookup] ' . $e->getMessage());
             return [];
         }
+    }
+
+    private static function phoneLookupVariants(string $phone): array
+    {
+        $normalized = self::normalizePhone($phone);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $variants = [$normalized];
+        $trimmed = ltrim($normalized, '0');
+        if ($trimmed !== '' && $trimmed !== $normalized) {
+            $variants[] = $trimmed;
+        }
+
+        if (str_starts_with($normalized, '55') && strlen($normalized) > 11) {
+            $variants[] = substr($normalized, 2);
+        } elseif (strlen($normalized) >= 10 && strlen($normalized) <= 11) {
+            $variants[] = '55' . $normalized;
+        }
+
+        return array_values(array_unique(array_filter($variants, static fn (string $value): bool => $value !== '')));
+    }
+
+    private static function contactPhoneSqlExpression(string $column): string
+    {
+        $expr = $column;
+        foreach (['+', ' ', '-', '(', ')', '.', '/'] as $char) {
+            $expr = "REPLACE({$expr}, '{$char}', '')";
+        }
+
+        return $expr;
     }
 
     private static function tenantName(string $tenancyId): ?string

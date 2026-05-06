@@ -56,14 +56,18 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-[1.2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+        <div class="grid grid-cols-3 gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-[1.2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
             <div class="text-center border-r border-slate-200 dark:border-slate-700 pr-1">
-                <p class="text-[7px] font-black text-slate-400 uppercase mb-0.5">Tarifa Unitária</p>
+                <p class="text-[7px] font-black text-slate-400 uppercase mb-0.5">SMS</p>
                 <p class="text-[10px] font-extrabold text-slate-700 dark:text-slate-200 italic">R$ <span id="smsVal">0,0000</span></p>
             </div>
-            <div class="text-center pl-1">
-                <p class="text-[7px] font-black text-slate-400 uppercase mb-0.5">Outros Serv.</p>
+            <div class="text-center border-r border-slate-200 dark:border-slate-700 px-1">
+                <p class="text-[7px] font-black text-slate-400 uppercase mb-0.5">Voz Bina</p>
                 <p class="text-[10px] font-extrabold text-slate-700 dark:text-slate-200 italic">R$ <span id="voiceVal">0,0000</span></p>
+            </div>
+            <div class="text-center pl-1">
+                <p class="text-[7px] font-black text-slate-400 uppercase mb-0.5">Voz CLI</p>
+                <p class="text-[10px] font-extrabold text-slate-700 dark:text-slate-200 italic">R$ <span id="voiceCliVal">0,0000</span></p>
             </div>
         </div>
 
@@ -118,6 +122,8 @@
     window.pixStatusInterval = null;
     window.pixCountdownInterval = null;
 
+    const formatRate = (value) => Number(value || 0).toFixed(4).replace('.', ',');
+
     // Única função necessária para carregar e mostrar os planos
     async function loadPlans(type = 'sms') {
         const container = document.getElementById('plansContainer');
@@ -126,14 +132,15 @@
         try {
             const response = await fetch(`${baseURL}/refills/${type}/plans`);
             const result = await response.json();
-            const plans = result.plans;
+            const plans = result.plans || result.data?.plans || [];
 
             container.innerHTML = "";
 
             plans.sort((a, b) => Number(b.price_raw || 0) - Number(a.price_raw || 0));
-
             plans.forEach((plan) => {
                 const isPopular = plan.is_popular === true || plan.is_popular === 1;
+                const cliRate = plan.v_voice_open || plan.v_voice_cli || plan.v_voice || '0,0000';
+                const binaRate = plan.v_voice_smart || plan.v_voice_bina || plan.v_voice || '0,0000';
 
                 const card = `
             <div class="w-full lg:w-4/12 px-3 flex">
@@ -150,7 +157,7 @@
                         <span class="text-4xl font-black text-slate-800 dark:text-white italic tracking-tighter">R$ ${plan.price}</span>
                     </div>
 
-                    <button onclick="generatePix(this, '${plan.id}', '${plan.name}', 'R$ ${plan.price}', '${plan.desc}', '${plan.v_sms}', '${plan.v_voice}')"
+                    <button onclick="generatePix(this, '${plan.id}', '${plan.name}', 'R$ ${plan.price}', '${plan.desc}', '${plan.v_sms}', '${binaRate}', '${cliRate}')"
                             id="buyButton_${plan.id}"
                             class="w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest ${isPopular ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-700 text-white'} transition-all active:scale-95 mb-4 hover:opacity-90">
                         Recarregar Agora
@@ -163,8 +170,14 @@
                     <div class="details-panel hidden mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 space-y-4 animate-fadeIn">
 
                         <div class="w-full p-3 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 text-center">
-                            <p class="text-[8px] font-black text-slate-500 uppercase mb-1 tracking-widest">Taxa de Sistema (Manutenção)</p>
-                            <p class="text-xs font-black text-slate-800 dark:text-white italic">R$ ${plan.service_fee || '0,00'}</p>
+                            <div class="relative inline-flex items-center justify-center gap-1 group">
+                                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Taxa de Serviço</p>
+                                <button type="button" onclick="toggleServiceFeeTip(this)" class="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 text-[9px] font-black text-slate-500 dark:text-slate-200 leading-none">?</button>
+                                <div data-service-fee-tip class="absolute left-1/2 top-6 z-20 hidden w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[9px] font-semibold leading-snug text-white shadow-xl group-hover:block">
+                                    Se voce usar uma rota, tronco proprio ou API, essa taxa cobre o uso da plataforma e do sistema.
+                                </div>
+                            </div>
+                            <p class="mt-1 text-xs font-black text-slate-800 dark:text-white italic">R$ ${plan.route_fee || '0,0000'}</p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 text-center">
@@ -173,8 +186,12 @@
                                 <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_sms}</p>
                             </div>
                             <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Voz</p>
-                                <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${plan.v_voice}</p>
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Voz Bina Inteligente</p>
+                                <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${binaRate}</p>
+                            </div>
+                            <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Voz CLI Aberta</p>
+                                <p class="text-[9px] font-bold text-indigo-500 italic">R$ ${cliRate}</p>
                             </div>
                             <div class="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
                                 <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Torpedo</p>
@@ -259,7 +276,13 @@
         }
     }
 
-    async function generatePix(btn, planId, name, price, desc, vSms, vVoice) {
+    function toggleServiceFeeTip(btn) {
+        const tip = btn.parentElement?.querySelector('[data-service-fee-tip]');
+        if (!tip) return;
+        tip.classList.toggle('hidden');
+    }
+
+    async function generatePix(btn, planId, name, price, desc, vSms, vVoice, vVoiceCli = '0,0000') {
         // Feedback de loading no botão do card
         const originalContent = btn.innerHTML;
         btn.disabled = true;
@@ -284,7 +307,8 @@
                     payload: result.data.payload,
                     encodedImage: result.data.encodedImage,
                     vSms: vSms,
-                    vVoice: vVoice
+                    vVoice: vVoice,
+                    vVoiceCli: vVoiceCli
                 });
 
                 // Inicia o Polling (Verificar se pagou)
@@ -297,7 +321,7 @@
                 }, 10000); // 10 segundos
 
             } else {
-                notyf.error(result.message || 'Erro ao gerar cobrança.');
+                notyf.error(result.error || result.message || 'Erro ao gerar cobrança.');
             }
         } catch (error) {
             console.error('Erro:', error);
@@ -332,6 +356,7 @@
             if(document.getElementById('pixLine')) document.getElementById('pixLine').value = data.payload || '';
             if(document.getElementById('smsVal')) document.getElementById('smsVal').textContent = data.vSms || '0,0000';
             if(document.getElementById('voiceVal')) document.getElementById('voiceVal').textContent = data.vVoice || '0,0000';
+            if(document.getElementById('voiceCliVal')) document.getElementById('voiceCliVal').textContent = data.vVoiceCli || '0,0000';
 
             // 3. QR Code Image - Tratando o Base64
             //const qrImage = document.getElementById('qr-code-image');
@@ -400,7 +425,8 @@
             const result = await response.json();
 
             // Se o status for RECEIVED ou CONFIRMED (depende do retorno do seu PHP)
-            if (result.status === 200 && (result.data === 'RECEIVED' || result.data === 'CONFIRMED')) {
+            const pixStatus = String(result.data?.status || result.data || '').toUpperCase();
+            if (result.success && (pixStatus === 'PAYMENT_RECEIVED' || pixStatus === 'PAYMENT_CONFIRMED' || pixStatus === 'RECEIVED' || pixStatus === 'CONFIRMED')) {
                 clearInterval(window.pixStatusInterval);
                 clearInterval(window.pixCountdownInterval);
 

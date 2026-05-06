@@ -2336,6 +2336,8 @@
     let PRICES = {
         sms: 0,
         voice: 0,
+        voice_open_rate: 0,
+        voice_smart_rate: 0,
         torpedo: 0,
         whatsapp: 0,
     };
@@ -2348,6 +2350,8 @@
             if (data.success) {
                 PRICES.sms = Number(data.data.sms);
                 PRICES.voice = Number(data.data.voice);
+                PRICES.voice_open_rate = Number(data.data.voice_open_rate ?? data.data.voice ?? 0);
+                PRICES.voice_smart_rate = Number(data.data.voice_smart_rate ?? data.data.voice ?? 0);
                 PRICES.torpedo = Number(data.data.torpedo);
                 PRICES.whatsapp = Number(data.data.whatsapp ?? 0);
 
@@ -3251,16 +3255,29 @@
                 return (mode === "fixed") ? "cli_aberta" : "bina_inteligente";
             }
 
-            // --- Lógica de Troncos SIP (REINTEGRADA) ---
-            // --- Lógica de Troncos SIP (CORRIGIDA) ---
+            // --- Lógica de Troncos SIP (tempo real) ---
             async function loadTrunksByType() {
                 if (!trunkSelect) return;
                 const desiredType = getDesiredTrunkType();
+                const previousValue = trunkSelect.value != null ? String(trunkSelect.value) : "";
+                const previousSelected = (trunkSelect.selectedOptions && trunkSelect.selectedOptions[0])
+                    ? trunkSelect.selectedOptions[0]
+                    : null;
+                const previousId = previousSelected?.dataset?.id ? String(previousSelected.dataset.id) : "";
 
                 trunkSelect.innerHTML = '<option value="">Carregando troncos...</option>';
 
                 try {
-                    const res = await fetch(`${baseUrl}/campaign/voice/sip-trunks/view`);
+                    const url = new URL(`${baseUrl}/campaign/voice/sip-trunks/view`, window.location.origin);
+                    url.searchParams.set("_ts", String(Date.now()));
+
+                    const res = await fetch(url.toString(), {
+                        cache: "no-store",
+                        headers: {
+                            "Cache-Control": "no-cache",
+                            "Pragma": "no-cache"
+                        }
+                    });
                     const result = await res.json();
                     const trunksAll = result.data || [];
 
@@ -3285,6 +3302,18 @@
                         opt.textContent = (t.sip_status === 'OK' ? '🟢 ' : '🔴 ') + (t.name || t.trunk_id);
                         trunkSelect.appendChild(opt);
                     });
+
+                    if (previousValue) {
+                        const options = Array.from(trunkSelect.options || []);
+                        const sameOption = options.find(o =>
+                            String(o.value || "") === previousValue
+                            && String(o.dataset?.id || "") === previousId
+                        ) || options.find(o => String(o.value || "") === previousValue);
+
+                        if (sameOption) {
+                            trunkSelect.value = sameOption.value;
+                        }
+                    }
                 } catch (e) {
                     trunkSelect.innerHTML = '<option value="">Erro ao carregar troncos</option>';
                 }
@@ -3365,6 +3394,27 @@
             loadTrunksByType();
             loadQueuesToCampaign();
             paintStep4UI();
+
+            window.__refreshVoiceTrunks = loadTrunksByType;
+
+            if (window.__voiceTrunksRefreshTimer) {
+                clearInterval(window.__voiceTrunksRefreshTimer);
+            }
+
+            window.__voiceTrunksRefreshTimer = setInterval(() => {
+                if (!document.hidden) {
+                    loadTrunksByType();
+                }
+            }, 10000);
+
+            if (!window.__voiceTrunksVisibilityBound) {
+                window.__voiceTrunksVisibilityBound = true;
+                document.addEventListener("visibilitychange", () => {
+                    if (!document.hidden && typeof window.__refreshVoiceTrunks === "function") {
+                        window.__refreshVoiceTrunks();
+                    }
+                });
+            }
 
             function paintStep4UI() {
                 const hero = document.getElementById("step4Hero");
@@ -3591,6 +3641,14 @@
             };
         }
         function getPriceByType(type) {
+            if (type === "voice") {
+                const trunkInfo = typeof getSelectedTrunkPayload === "function" ? getSelectedTrunkPayload() : null;
+                const cliType = String(trunkInfo?.selected_cli_type || trunkInfo?.cli_type || "").toLowerCase();
+
+                if (cliType === "cli_aberta") return PRICES.voice_open_rate ?? 0;
+                if (cliType === "bina_inteligente") return PRICES.voice_smart_rate ?? 0;
+            }
+
             return PRICES[type] ?? 0;
         }
 
@@ -4203,8 +4261,11 @@
                         const queueId = queueSelect ? queueSelect.value : "";
                         const queueStrategy = (selectedQueueOpt && selectedQueueOpt.dataset.strategy) ? selectedQueueOpt.dataset.strategy : "rrmemory";
 
-                        // 3. Tronco SIP (AQUI ESTÁ A CORREÇÃO)
-                        const trunkInfo = getSelectedTrunkPayload(); // Esta função já captura o dataset.id
+                        // 3. Tronco SIP: sincroniza antes do envio para usar o status mais atual
+                        if (typeof window.__refreshVoiceTrunks === "function") {
+                            await window.__refreshVoiceTrunks();
+                        }
+                        const trunkInfo = getSelectedTrunkPayload();
 
                         const formData = new FormData();
                         formData.append("campaign_name", campaignName);

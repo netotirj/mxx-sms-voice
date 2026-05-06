@@ -230,7 +230,6 @@
                             class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
                         <option value="cli_aberta">Cli-Aberta</option>
                         <option value="bina_inteligente">Bina</option>
-                        <option value="cli_fechada">Cli-Fechada</option>
                     </select>
                 </div>
 
@@ -368,8 +367,22 @@
          * ===================================================== */
 
         const auth = { role: "" };
+        let trunksRefreshTimer = null;
+
+        function buildNoCacheUrl(url) {
+            const freshUrl = new URL(url, window.location.origin);
+            freshUrl.searchParams.set("_ts", String(Date.now()));
+            return freshUrl.toString();
+        }
+
         async function fetchTrunks() {
-            const res = await fetch(API.list);
+            const res = await fetch(buildNoCacheUrl(API.list), {
+                cache: "no-store",
+                headers: {
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
+                }
+            });
             const json = await res.json();
             auth.role = String(json?.meta?.role || "").toLowerCase();
             state.trunks = json.data || [];
@@ -415,6 +428,18 @@
             });
 
             if (!res.ok) throw new Error();
+        }
+
+        function startTrunksAutoRefresh() {
+            if (trunksRefreshTimer) {
+                clearInterval(trunksRefreshTimer);
+            }
+
+            trunksRefreshTimer = setInterval(() => {
+                if (!document.hidden) {
+                    fetchTrunks().catch(() => {});
+                }
+            }, 10000);
         }
 
         /* =====================================================
@@ -578,16 +603,12 @@
                     ? 'bg-emerald-100 text-emerald-700'
                     : trunk.cli_type === 'bina_inteligente'
                         ? 'bg-indigo-100 text-indigo-700'
-                        : trunk.cli_type === 'cli_fechada'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-slate-100 text-slate-500'}">
+                        : 'bg-slate-100 text-slate-500'}">
             ${trunk.cli_type === 'cli_aberta'
                     ? 'CLI Aberta'
                     : trunk.cli_type === 'bina_inteligente'
                         ? 'BINA Inteligente'
-                        : trunk.cli_type === 'cli_fechada'
-                            ? 'CLI Fechada'
-                            : '—'}
+                        : '—'}
           </span>
         </td>
 
@@ -690,7 +711,7 @@
 
                 try {
                     await toggleStatus(id, status);
-                    if (trunk) trunk.status = status;
+                    await fetchTrunks();
                     notyf.success("Status atualizado");
                 } catch {
                     e.target.checked = !e.target.checked;
@@ -793,6 +814,13 @@
         /* =====================================================
          * INIT
          * ===================================================== */
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                fetchTrunks().catch(() => {});
+            }
+        });
+
         fetchTrunks();
+        startTrunksAutoRefresh();
     });
 </script>

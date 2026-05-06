@@ -144,8 +144,9 @@ class WhatsAppOutbox
     {
         $connection = new Database();
         $lockName = self::idempotencyLockName($key);
+        $quotedLock = addslashes($lockName);
         $acquired = (int)$connection
-            ->execute('SELECT GET_LOCK(:lock_name, 5) AS acquired', [':lock_name' => $lockName])
+            ->execute("SELECT GET_LOCK('{$quotedLock}', 5) AS acquired")
             ->fetchColumn() === 1;
 
         return ['connection' => $connection, 'acquired' => $acquired];
@@ -153,7 +154,8 @@ class WhatsAppOutbox
 
     private static function releaseIdempotencyLock(Database $connection, string $key): void
     {
-        $connection->execute('SELECT RELEASE_LOCK(:lock_name)', [':lock_name' => self::idempotencyLockName($key)]);
+        $quotedLock = addslashes(self::idempotencyLockName($key));
+        $connection->execute("SELECT RELEASE_LOCK('{$quotedLock}')");
     }
 
     private static function idempotencyLockName(string $key): string
@@ -216,6 +218,25 @@ class WhatsAppOutbox
         return (new Database('whatsapp_outbox'))
             ->select($where, $params, 'available_at ASC, id ASC', (string)$limit)
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public static function dueByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $sql = sprintf(
+            "SELECT * FROM whatsapp_outbox
+             WHERE id IN (%s)
+               AND status = 'queued'
+               AND available_at <= NOW()
+             ORDER BY available_at ASC, id ASC",
+            implode(', ', $ids)
+        );
+
+        return (new Database())->execute($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function resetStaleSending(int $olderThanSeconds = 300): int

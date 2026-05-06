@@ -249,8 +249,8 @@ class StasisListenerAsterisk
             'TYPE','VARIABLE_TYPE','__VARIABLE_TYPE',
             'ROLE','__ROLE',
             'JOB_ID','CALL_ID','CAMPAIGN_ID','TECHPREFIX','CAMPAIGN_TYPE',
-            'TAXA_OF_SERVICE','CALL_MINUTE_COST',
-            'TRUNK','__TRUNK',
+            'TAXA_OF_SERVICE','CALL_MINUTE_COST','TARIFF_USED',
+            'TRUNK','__TRUNK','TRUNK_ID','TRUNK_BILLING_TYPE','PLAN_ID',
             'CALLERID(num)',
             'CALLERID(name)',
         ], true)) {
@@ -268,6 +268,7 @@ class StasisListenerAsterisk
             in_array($var, [
                 'TYPE','VARIABLE_TYPE','CAMPAIGN_ID','CAMPAIGN_TYPE',
                 'CALL_ID','TAXA_OF_SERVICE','TECHPREFIX','JOB_ID',
+                'TRUNK_ID','TRUNK_BILLING_TYPE','PLAN_ID','TARIFF_USED',
                 'CALLERID(num)','CALLERID(name)',
             ], true)
             && isset($this->channelData[$channelId]['pending_fail_cdr'])
@@ -281,7 +282,11 @@ class StasisListenerAsterisk
                 'CALL_ID'         => 'call_id',
                 'TECHPREFIX'      => 'techprefix',
                 'TAXA_OF_SERVICE' => 'taxa_of_service',
+                'TARIFF_USED'     => 'tariff_used',
                 'JOB_ID'          => 'job_id',
+                'TRUNK_ID'        => 'trunk_id',
+                'TRUNK_BILLING_TYPE' => 'trunk_billing_type',
+                'PLAN_ID'         => 'plan_id',
                 'CALLERID(num)'   => 'caller_number',
                 'CALLERID(name)'  => 'caller_name',
             ];
@@ -3184,6 +3189,9 @@ class StasisListenerAsterisk
                 'taxa_of_service'  => (float)($vars['TAXA_OF_SERVICE'] ?? $chan['taxa_of_service'] ?? 0.1),
                 'trunk'            => $vars['TRUNK'] ?? $chan['trunk'] ?? null,
                 'trunk_id'         => $vars['TRUNK_ID'] ?? $chan['trunk_id'] ?? ($vars['TRUNK'] ?? null),
+                'trunk_billing_type' => $vars['TRUNK_BILLING_TYPE'] ?? $chan['trunk_billing_type'] ?? null,
+                'plan_id'          => $vars['PLAN_ID'] ?? $chan['plan_id'] ?? null,
+                'tariff_used'      => $vars['TARIFF_USED'] ?? $vars['CALL_MINUTE_COST'] ?? $chan['call_minute_cost'] ?? 0,
                 'techprefix'       => $vars['TECHPREFIX'] ?? $chan['techprefix'] ?? null,
 
                 'application'      => 'app-asterisk',
@@ -3316,6 +3324,9 @@ class StasisListenerAsterisk
             'cause_txt'         => $failEvent['msg'] ?? $failEvent['cause_txt'] ?? 'Normal Clearing',
             'trunk'             => $failEvent['trunk'] ?? ($vars['TRUNK'] ?? null),
             'trunk_id'          => $failEvent['trunk_id'] ?? ($vars['TRUNK_ID'] ?? ($vars['TRUNK'] ?? null)),
+            'trunk_billing_type'=> $failEvent['trunk_billing_type'] ?? ($vars['TRUNK_BILLING_TYPE'] ?? null),
+            'plan_id'           => $failEvent['plan_id'] ?? ($vars['PLAN_ID'] ?? null),
+            'tariff_used'       => $failEvent['tariff_used'] ?? ($vars['TARIFF_USED'] ?? $vars['CALL_MINUTE_COST'] ?? 0),
             'techprefix'        => $failEvent['techprefix'] ?? ($vars['TECHPREFIX'] ?? null),
             'duration'          => 0,
             'billsec'           => 0,
@@ -3596,6 +3607,9 @@ class StasisListenerAsterisk
             'sip_code'         => !empty($call['answered']) ? 200 : null,
             'trunk'            => $vars['TRUNK'] ?? $vars['__TRUNK'] ?? null,
             'trunk_id'         => $vars['TRUNK_ID'] ?? $vars['__TRUNK_ID'] ?? ($vars['TRUNK'] ?? null),
+            'trunk_billing_type' => $vars['TRUNK_BILLING_TYPE'] ?? $vars['__TRUNK_BILLING_TYPE'] ?? null,
+            'plan_id'          => $vars['PLAN_ID'] ?? $vars['__PLAN_ID'] ?? null,
+            'tariff_used'      => $vars['TARIFF_USED'] ?? $vars['__TARIFF_USED'] ?? $minuteCost,
             'techprefix'       => $vars['TECHPREFIX'] ?? $vars['__TECHPREFIX'] ?? null,
             'duration'         => $durationSec,
             'billsec'          => $durationSec,

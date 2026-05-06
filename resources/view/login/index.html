@@ -250,7 +250,7 @@
         const data = await response.json();
 
         if (data.status === 'OK') {
-          notyf.success('Bem-vindo ao Maxx Solutions!');
+          notyf.success('Bem-vindo à Maxx Solutions!');
           localStorage.setItem('loginSuccess', data.message);
           setTimeout(() => window.location.href = "{{URL}}/dashboard", 1200);
         } else {

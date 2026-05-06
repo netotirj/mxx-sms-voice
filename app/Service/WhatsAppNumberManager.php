@@ -12,6 +12,7 @@ class WhatsAppNumberManager
 {
     public static function listForUser(array $user): array
     {
+        self::ensureTwoStepPinColumns();
         [$where, $params] = self::numberOwnerScope($user, 'wn');
 
         return (new Database('whatsapp_numbers wn LEFT JOIN whatsapp_accounts wa ON wa.id = wn.whatsapp_account_id AND wa.tenancy_id = wn.company_id'))
@@ -55,6 +56,7 @@ class WhatsAppNumberManager
 
     public static function listAvailablePlatformNumbers(): array
     {
+        self::ensureTwoStepPinColumns();
         return (new Database('whatsapp_numbers'))
             ->select("origin = 'platform' AND status = 'available'", [], 'phone_number ASC', '', [
                 'id',
@@ -70,6 +72,7 @@ class WhatsAppNumberManager
 
     public static function listNumberRequests(array $user): array
     {
+        self::ensureTwoStepPinColumns();
         self::syncOpenRequestVerificationStatus($user);
 
         [$where, $params] = self::requestOwnerScope($user, 'nr');
@@ -178,9 +181,7 @@ class WhatsAppNumberManager
     public static function registerClientNumber(array $user, array $input): array
     {
         $phone = self::normalizePhone((string)($input['phone_number'] ?? $input['phone'] ?? ''));
-        if (strlen($phone) < 8 || strlen($phone) > 15) {
-            throw new \InvalidArgumentException('Informe um número válido com DDI e DDD.');
-        }
+        $phone = self::normalizeMetaRequestPhone($phone);
 
         $targetOwner = self::resolveTargetOwner($user, $input);
         if (!self::isPlatformAdmin($user)) {
@@ -491,7 +492,7 @@ class WhatsAppNumberManager
         $alreadyTechnicallyActive = (string)($number['status'] ?? '') === 'active' && !empty($number['verified_at']);
         if (!$alreadyTechnicallyActive) {
             self::assertMetaVerificationStatus((string)($number['meta_id'] ?? ''));
-            self::registerVerifiedPhoneNumber((string)($number['meta_id'] ?? ''));
+            self::registerVerifiedPhoneNumber($numberId, (string)($number['meta_id'] ?? ''));
         }
 
         $owner = self::ownerFromNumber($number);
@@ -604,6 +605,29 @@ class WhatsAppNumberManager
         ]);
 
         return self::getForUser($id, $user) ?: ['id' => $id];
+    }
+
+    public static function revealTwoStepPin(array $user, int $numberId): array
+    {
+        self::assertPlatformAdmin($user);
+
+        $number = self::getForUser($numberId, $user);
+        if (!$number) {
+            throw new \RuntimeException('Número não encontrado.');
+        }
+
+        $pin = trim((string)($number['two_step_pin'] ?? ''));
+        if (!preg_match('/^\d{6}$/', $pin)) {
+            $pin = self::resolvePlatformPinForNumber($numberId);
+        }
+
+        return [
+            'id' => (int)($number['id'] ?? 0),
+            'phone_number' => (string)($number['phone_number'] ?? ''),
+            'internal_label' => (string)($number['internal_label'] ?? $number['display_name'] ?? 'Número WhatsApp'),
+            'two_step_pin' => $pin,
+            'two_step_pin_generated_at' => $number['two_step_pin_generated_at'] ?? null,
+        ];
     }
 
     public static function assignPlatformNumber(array $user, int $numberId, array $input = []): array
@@ -780,7 +804,7 @@ class WhatsAppNumberManager
             return self::getForUser($numberId, self::ownerFromNumber($number)) ?: $number;
         }
 
-        if (!in_array((string)$number['status'], ['pending', 'code_sent', 'failed', 'pending_verification'], true)) {
+        if (!in_array((string)$number['status'], ['pending', 'code_sent', 'failed', 'pending_verification', 'blocked'], true)) {
             throw new \RuntimeException('Este número não está aguardando confirmação automática.');
         }
 
@@ -875,16 +899,17 @@ class WhatsAppNumberManager
         ]);
     }
 
-    private static function registerVerifiedPhoneNumber(string $phoneNumberId): void
+    private static function registerVerifiedPhoneNumber(int $numberId, string $phoneNumberId): void
     {
         if ($phoneNumberId === '') {
             throw new \RuntimeException('Número WhatsApp sem ID Meta para registrar na Cloud API.');
         }
 
+        $pin = self::resolvePlatformPinForNumber($numberId);
         $result = (new MetaWhatsAppCloudApi())->registerPhoneNumber(
             self::platformAccessToken(),
             $phoneNumberId,
-            self::platformPin()
+            $pin
         );
 
         error_log(json_encode([
@@ -952,7 +977,7 @@ class WhatsAppNumberManager
     private static function verifyAndAttachNumber(array $user, array $number): array
     {
         $numberId = (int)($number['id'] ?? 0);
-        if (!in_array((string)($number['status'] ?? ''), ['code_sent', 'pending_verification'], true)) {
+        if (!in_array((string)($number['status'] ?? ''), ['code_sent', 'pending_verification', 'failed', 'blocked'], true)) {
             throw new \RuntimeException('Solicite a confirmação automática antes de concluir.');
         }
 
@@ -962,7 +987,7 @@ class WhatsAppNumberManager
     private static function verifyNumberRequestCode(array $user, array $number, string $code): array
     {
         $numberId = (int)($number['id'] ?? 0);
-        if (!in_array((string)($number['status'] ?? ''), ['code_sent', 'pending_verification'], true)) {
+        if (!in_array((string)($number['status'] ?? ''), ['code_sent', 'pending_verification', 'failed', 'blocked'], true)) {
             throw new \RuntimeException('Solicite o envio do código antes de confirmar.');
         }
 
@@ -1648,6 +1673,72 @@ class WhatsAppNumberManager
         return $pin;
     }
 
+    private static function resolvePlatformPinForNumber(int $numberId): string
+    {
+        self::ensureTwoStepPinColumns();
+
+        $configuredPin = WhatsAppConfig::defaultTwoStepPin();
+        if (preg_match('/^\d{6}$/', $configuredPin)) {
+            (new Database('whatsapp_numbers'))->update('id = :id', [
+                'two_step_pin' => $configuredPin,
+                'two_step_pin_generated_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ], [':id' => $numberId]);
+
+            return $configuredPin;
+        }
+
+        $row = (new Database('whatsapp_numbers'))
+            ->select('id = :id', [':id' => $numberId], '', '1', ['two_step_pin'])
+            ->fetch(PDO::FETCH_ASSOC);
+
+        $existingPin = trim((string)($row['two_step_pin'] ?? ''));
+        if (preg_match('/^\d{6}$/', $existingPin)) {
+            return $existingPin;
+        }
+
+        $generatedPin = (string) random_int(100000, 999999);
+        (new Database('whatsapp_numbers'))->update('id = :id', [
+            'two_step_pin' => $generatedPin,
+            'two_step_pin_generated_at' => date('Y-m-d H:i:s'),
+            'last_error' => 'PIN 2FA gerado automaticamente para este número. Use a ação protegida de visualização para consultar o código quando necessário.',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], [':id' => $numberId]);
+
+        return $generatedPin;
+    }
+
+    private static function ensureTwoStepPinColumns(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+
+        $db = new Database();
+        $rows = $db->execute("
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'whatsapp_numbers'
+              AND COLUMN_NAME IN ('two_step_pin', 'two_step_pin_generated_at')
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        $missing = array_diff(['two_step_pin', 'two_step_pin_generated_at'], $rows);
+        if ($missing !== []) {
+            $alterParts = [];
+            if (in_array('two_step_pin', $missing, true)) {
+                $alterParts[] = 'ADD COLUMN two_step_pin VARCHAR(12) NULL AFTER verification_method';
+            }
+            if (in_array('two_step_pin_generated_at', $missing, true)) {
+                $alterParts[] = 'ADD COLUMN two_step_pin_generated_at DATETIME NULL AFTER two_step_pin';
+            }
+            $db->execute('ALTER TABLE whatsapp_numbers ' . implode(', ', $alterParts));
+        }
+
+        $ensured = true;
+    }
+
     private static function defaultDisplayName(array $user): string
     {
         $name = self::nullableString($user['tenancy_name'] ?? null);
@@ -1673,6 +1764,53 @@ class WhatsAppNumberManager
     private static function normalizePhone(string $phone): string
     {
         return preg_replace('/\D+/', '', $phone) ?: '';
+    }
+
+    private static function normalizeMetaRequestPhone(string $phone): string
+    {
+        $phone = self::normalizePhone($phone);
+        if ($phone === '') {
+            throw new \InvalidArgumentException('Informe um número válido com DDI e DDD.');
+        }
+
+        if (str_starts_with($phone, '55')) {
+            self::assertBrazilMetaRequestPhone($phone);
+            return $phone;
+        }
+
+        if (preg_match('/^\d{10,11}$/', $phone)) {
+            $brazilPhone = '55' . $phone;
+            self::assertBrazilMetaRequestPhone($brazilPhone);
+            return $brazilPhone;
+        }
+
+        if (strlen($phone) < 8 || strlen($phone) > 15) {
+            throw new \InvalidArgumentException('Informe um número válido com DDI e DDD.');
+        }
+
+        return $phone;
+    }
+
+    private static function assertBrazilMetaRequestPhone(string $phone): void
+    {
+        if (!str_starts_with($phone, '55')) {
+            return;
+        }
+
+        $national = substr($phone, 2);
+        if (!preg_match('/^\d{10,11}$/', $national)) {
+            throw new \InvalidArgumentException('Para números do Brasil, informe DDI 55 + DDD + número fixo ou móvel.');
+        }
+
+        $ddd = substr($national, 0, 2);
+        if (!preg_match('/^[1-9]{2}$/', $ddd) || $ddd[0] === '0') {
+            throw new \InvalidArgumentException('DDD brasileiro inválido. Revise o número informado.');
+        }
+
+        $subscriber = substr($national, 2);
+        if (strlen($subscriber) === 8 && preg_match('/^[6-9]/', $subscriber)) {
+            throw new \InvalidArgumentException('Número brasileiro parece celular sem o nono dígito. Revise o 9 após o DDD.');
+        }
     }
 
     private static function nullableString(mixed $value): ?string

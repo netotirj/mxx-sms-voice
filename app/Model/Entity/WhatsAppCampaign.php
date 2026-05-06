@@ -51,7 +51,7 @@ class WhatsAppCampaign
                     FROM whatsapp_message_cdr cdr
                     INNER JOIN whatsapp_outbox wo ON wo.id = cdr.whatsapp_outbox_id
                     WHERE wo.campaign_id = wc.id
-                      AND cdr.status = 'sent') AS billed_message_count",
+                      AND cdr.billed = 1) AS billed_message_count",
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

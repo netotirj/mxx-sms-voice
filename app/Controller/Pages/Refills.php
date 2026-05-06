@@ -12,6 +12,7 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\RegisterTenancies;
+use App\Service\PixService;
 use Random\RandomException;
 
 class Refills extends ViewComponents
@@ -24,7 +25,7 @@ class Refills extends ViewComponents
         return parent::getComponentsRefills('Maxx Solutions - SMS | Recargas', $content);
     }
 
-    public static function getComponentsPlains($request, $type): string
+    public static function getComponentsPlains($request, $type): Response
     {
 
         //echo "<pre>";
@@ -43,12 +44,18 @@ class Refills extends ViewComponents
                 'desc'        => $p->description,
                 'price'       => number_format($p->amount_plan, 2, ',', '.'),
                 'is_popular'  => (bool)$p->is_popular,
-                'service_fee' => number_format($p->service_fee, 2, ',', '.'),
+                'service_fee' => number_format((float)($p->service_fee ?? 0), 2, ',', '.'),
+                'route_fee'   => number_format((float)($p->service_fee ?? 0), 4, ',', '.'),
                 'price_raw'   => $p->amount_plan, // Para o Modal
                 'type'        => $p->type_plan,
+                'payment_type' => $p->payment_type ?? '',
                 // Tarifas para o Modal
                 'v_sms'       => number_format($p->value_sms, 4, ',', '.'),
-                'v_voice'     => number_format($p->value_voice, 4, ',', '.'),
+                'v_voice'     => number_format((float)($p->voice_smart_rate ?? $p->value_voice), 4, ',', '.'),
+                'v_voice_bina' => number_format((float)($p->voice_smart_rate ?? $p->value_voice), 4, ',', '.'),
+                'v_voice_cli' => number_format((float)($p->voice_open_rate ?? $p->value_voice), 4, ',', '.'),
+                'v_voice_open' => number_format((float)($p->voice_open_rate ?? $p->value_voice), 4, ',', '.'),
+                'v_voice_smart' => number_format((float)($p->voice_smart_rate ?? $p->value_voice), 4, ',', '.'),
                 'v_whatsapp'  => number_format($p->value_whatsapp, 4, ',', '.'),
                 'v_whatsapp_marketing' => number_format((float)($p->value_whatsapp_marketing ?? $p->value_whatsapp), 4, ',', '.'),
                 'v_whatsapp_utility' => number_format((float)($p->value_whatsapp_utility ?? $p->value_whatsapp), 4, ',', '.'),
@@ -63,10 +70,10 @@ class Refills extends ViewComponents
         }
 
 
-        return new Response(200, [
-            'status' => 200,
-            'plans' => $formatted
-        ], 'application/json');
+        $response = PixService::success(['plans' => $formatted], 'Planos encontrados.');
+        $response['plans'] = $formatted;
+
+        return new Response(200, $response, 'application/json');
 
 
     }
@@ -162,62 +169,93 @@ class Refills extends ViewComponents
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
+            return new Response(401, PixService::error('Usuário não autenticado.', 401), 'application/json');
         }
 
-        // Instancia a API (Certifique-se que o ASASURL no seu .env seja https://sandbox.asaas.com/api/v3)
-        $obApiSaas = new AssasApiTest(getenv('ASASURLSANDBOX'), getenv('ASASSANDBOX'));
+        $planId = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (!$planId) {
+            return new Response(400, PixService::error('Plano inválido.', 400), 'application/json');
+        }
 
-        $obPlan = UserPlans::getPlanById($id);
+        $asaasEnv = strtolower(trim((string)(getenv('ASAAS_ENV') ?: 'production')));
+        $useSandbox = in_array($asaasEnv, ['sandbox', 'test', 'testing', 'homolog', 'homologation'], true);
+        $baseUrl = $useSandbox ? getenv('ASASURLSANDBOX') : getenv('ASASURL');
+        $apiKey = $useSandbox ? getenv('ASASSANDBOX') : getenv('ASASKEY');
+        $pixKey = $useSandbox ? getenv('PIXKEYSANDBOX') : getenv('PIXKEY');
+
+        if (empty($baseUrl) || empty($apiKey) || empty($pixKey)) {
+            PixService::log('asaas_config_missing', ['sandbox' => $useSandbox]);
+            return new Response(500, PixService::error('Configuração da API PIX incompleta.', 500), 'application/json');
+        }
+
+        $obApiSaas = $useSandbox
+            ? new AssasApiTest($baseUrl, $apiKey)
+            : new AssasApi($baseUrl, $apiKey);
+
+        $obPlan = UserPlans::getPlanById((int)$planId);
         if (!$obPlan instanceof UserPlans) {
-            return new Response(404, [
-                'status' => 404,
-                'message' => 'Plano não encontrado.'
-            ], 'application/json');
+            return new Response(404, PixService::error('Plano não encontrado.', 404), 'application/json');
         }
 
-        // Gerar um ID único de referência para o seu banco
-        $externalReference = uniqid('ref_');
-        // Pega a descrição do plano
-        $description = $obPlan->description;
+        $amount = round((float)$obPlan->amount_plan, 2);
+        if ($amount <= 0) {
+            return new Response(422, PixService::error('Valor do plano inválido para cobrança PIX.', 422), 'application/json');
+        }
 
-        // Limita a descrição para 30 caracteres (margem de segurança)
-        // e remove caracteres especiais que podem bugar a string PIX
-        $description = mb_substr($description, 0, 30);
-        $description = preg_replace('/[^A-Za-z0-0 ]/', '', $description); // Remove acentos/especiais
+        $externalReference = 'pix_' . bin2hex(random_bytes(16));
+        $description = mb_substr((string)$obPlan->description, 0, 60);
+        $description = preg_replace('/[^A-Za-z0-9 ]/', '', $description) ?: 'Recarga Maxx Solutions';
 
-        // Dados para requisição PIX conforme documentação Asaas
         $pixRequest = [
-            'addressKey' => getenv('PIXKEYSANDBOX'), // Sua chave PIX cadastrada no Sandbox
+            'addressKey' => $pixKey,
             'description' => $description,
-            'value' => floatval($obPlan->amount_plan),
-            'format' => 'ALL', // Retorna Imagem Base64 + Payload
+            'value' => $amount,
+            'format' => 'ALL',
             'expirationSeconds' => 3600,
+            'allowsMultiplePayments' => false,
             'externalReference' => $externalReference
         ];
 
-        // 1. Enviar requisição para gerar a cobrança/QR Code na Asaas
+        PixService::log('charge_create_requested', [
+            'user_id' => $obUser['id'],
+            'tenancy_id' => $obUser['tenancy_id'],
+            'plan_id' => $planId,
+            'amount' => $amount,
+            'sandbox' => $useSandbox,
+            'externalReference' => $externalReference,
+        ]);
+
         $pixResponse = $obApiSaas->createCob($pixRequest);
 
-        // Validar se a API retornou erro
         if (isset($pixResponse['error']) || isset($pixResponse['errors'])) {
-            return new Response(500, [
-                'status' => 500,
-                'message' => 'Erro na API Asaas Sandbox.',
-                'details' => $pixResponse
-            ], 'application/json');
+            PixService::log('charge_provider_error', [
+                'externalReference' => $externalReference,
+                'provider_error' => $pixResponse['error'] ?? $pixResponse['errors'] ?? null,
+            ]);
+            return new Response(502, PixService::error('Erro ao gerar cobrança no provedor PIX.', 502), 'application/json');
         }
 
-        // Salvar no banco de dados com os dados REAIS vindos da API
+        if (empty($pixResponse['id']) || empty($pixResponse['encodedImage']) || empty($pixResponse['payload'])) {
+            PixService::log('charge_provider_incomplete_response', [
+                'externalReference' => $externalReference,
+                'keys' => array_keys((array)$pixResponse),
+            ]);
+            return new Response(502, PixService::error('Resposta incompleta do provedor PIX.', 502), 'application/json');
+        }
+
+        UserPlans::createUserPlan([
+            'user_id' => (int)$obUser['id'],
+            'plan_id' => (int)$planId,
+            'tenancy_id' => (string)$obUser['tenancy_id'],
+            'status' => 'pending'
+        ]);
+
         $pix = new PixSearch();
-        $pix->user_id = $obUser['id'];
-        $pix->tenancy_id = $obUser['tenancy_id'];
-        $pix->user_plain_id = $obPlan->id;
-        $pix->payment_status = 'PENDING'; // Status inicial do Asaas
-        $pix->value = $obPlan->amount_plan;
+        $pix->user_id = (int)$obUser['id'];
+        $pix->tenancy_id = (string)$obUser['tenancy_id'];
+        $pix->user_plain_id = (int)$obPlan->id;
+        $pix->payment_status = 'PAYMENT_CREATED';
+        $pix->value = (string)$amount;
         $pix->pixQrCodeId = $pixResponse['id'] ?? '';
         $pix->external_Reference = $externalReference;
         $pix->billingType = "PIX";
@@ -226,18 +264,31 @@ class Refills extends ViewComponents
         $pix->dateCreated = date('Y-m-d H:i:s');
         $pix->createPix();
 
-        // Retornar resposta ao frontend (Agora com dados reais do Sandbox)
-        return new Response(200, [
-            'status' => 200,
-            'message' => 'Cobrança Pix gerada no Sandbox.',
-            'data' => [
+        PixService::log('charge_created', [
+            'invoiceNumber' => $pix->invoiceNumber,
+            'pixQrCodeId' => $pix->pixQrCodeId,
+            'externalReference' => $externalReference,
+            'user_id' => $pix->user_id,
+            'tenancy_id' => $pix->tenancy_id,
+        ]);
+
+        $response = PixService::success([
+            'id' => $pixResponse['id'],
+            'encodedImage' => $pixResponse['encodedImage'],
+            'payload' => $pixResponse['payload'],
+            'externalReference' => $externalReference,
+            'payment' => [
                 'id' => $pixResponse['id'],
-                'encodedImage' => $pixResponse['encodedImage'], // Base64 real
-                'payload' => $pixResponse['payload'],       // Copia e cola real
+                'encodedImage' => $pixResponse['encodedImage'],
+                'payload' => $pixResponse['payload'],
                 'externalReference' => $externalReference
             ],
-            'value' => $obPlan->amount_plan
-        ], 'application/json');
+            'value' => $amount,
+            'invoiceNumber' => $pix->invoiceNumber,
+        ], 'Cobrança Pix gerada com sucesso.');
+        $response['value'] = $amount;
+
+        return new Response(200, $response, 'application/json');
     }
 
 
@@ -245,84 +296,21 @@ class Refills extends ViewComponents
     {
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
-            return new Response(401, [
-                'status' => 401,
-                'message' => 'Usuário não autenticado.'
-            ], 'application/json');
+            return new Response(401, PixService::error('Usuário não autenticado.', 401), 'application/json');
         }
 
         $obPix = PixSearch::getPixByQrCode($pixQrCodeId, $obUser['tenancy_id'], $obUser['id']);
 
         if (!$obPix instanceof PixSearch) {
-            return new Response(404, [
-                'status' => 404,
-                'message' => 'Registro PIX não encontrado.'
-            ], 'application/json');
+            return new Response(404, PixService::error('Registro PIX não encontrado.', 404), 'application/json');
         }
 
-        function isValidDateString($date): bool
-        {
-            return isset($date) &&
-                is_string($date) &&
-                trim($date) !== '' &&
-                strtotime($date) !== false;
-        }
-
-        if (strtoupper(trim($obPix->payment_status)) === 'PAYMENT_RECEIVED' && isValidDateString($obPix->confirmed_date)) {
-
-            if (!empty($obPix->confirmed_date)) {
-
-                // Buscar informações do plano e saldo
-                $planInfo = UserPlans::getUserPlanInfo(
-                    $obPix->user_plain_id,
-                    $obPix->user_id,
-                    $obPix->tenancy_id
-                );
-
-                if ($planInfo) {
-                    // Atualizar saldo
-                    BalanceSms::insertBalance(
-                        $planInfo->user_id,
-                        $planInfo->plan_id,
-                        $planInfo->tenancy_id,
-                        $planInfo->amount_plan,
-                        $planInfo->value_sms,
-                        //$planInfo->value_voice,
-                        //$planInfo->value_torpedo,
-                        //$planInfo->value_whatsapp,
-                        $obPix->invoiceNumber
-                    );
-
-                    // Ativar plano
-                    UserPlans::updateUserPlan($planInfo->user_plan_id, [
-                        'status_payment' => 'confirmed'
-                    ]);
-
-                    RegisterTenancies::updateActivePlan($planInfo->tenancy_id, $planInfo->plan_id);
-
-                }
-                Notifications::insertNotifications(
-                    $planInfo->tenancy_id,
-                    $planInfo->user_id,
-                    "Pagamento confirmado",
-                    "O pagamento referente à fatura <b>#{$obPix->invoiceNumber}</b> foi confirmado, seu plano e saldo foram atualizados!.",
-                    'notice'
-                );
-
-            }
-
-            return new Response(200, [
-                'status' => 200,
-                'message' => 'Pagamento recebido com sucesso.',
-                'data' => 'RECEIVED'
-            ], 'application/json');
-        }
-
-        return new Response(200, [
-            'status' => 200,
-            'message' => 'Pagamento ainda não confirmado.',
-            'data' => 'WAITING'
-        ], 'application/json');
+        $status = strtoupper(trim($obPix->payment_status));
+        return new Response(200, PixService::success([
+            'status' => $status,
+            'invoiceNumber' => $obPix->invoiceNumber,
+            'confirmed' => PixService::isPaidEvent($status) && !empty($obPix->confirmed_date),
+        ], PixService::isPaidEvent($status) ? 'Pagamento confirmado.' : 'Pagamento ainda não confirmado.'), 'application/json');
 
     }
 

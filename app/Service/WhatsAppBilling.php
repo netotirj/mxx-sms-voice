@@ -217,7 +217,6 @@ class WhatsAppBilling
     {
         $category = WhatsAppCostPolicy::normalizeCategory((string)$billing['message_category']);
         $priceBrl = round((float)$billing['price_brl'], 4);
-
         $row['pricing_snapshot'] = $billing['pricing_snapshot'] ?? null;
         self::generateCdr($row, 'sent', $messageId, $wamid, $category, $priceBrl, false);
         return false;
@@ -261,7 +260,17 @@ class WhatsAppBilling
     {
         $category = WhatsAppCostPolicy::normalizeCategory($category);
         $priceBrl = round(max(0, $priceBrl), 4);
+        $pricingSnapshot = is_array($row['pricing_snapshot'] ?? null)
+            ? $row['pricing_snapshot']
+            : self::pricingSnapshot(
+                (int)$row['user_id'],
+                (string)$row['tenancy_id'],
+                $category,
+                (string)($row['contact_phone'] ?? ''),
+                $priceBrl
+            );
 
+        $row['pricing_snapshot'] = $pricingSnapshot;
         self::generateCdr($row, 'sent', $messageId, $wamid, $category, $priceBrl, false);
     }
 
@@ -274,7 +283,7 @@ class WhatsAppBilling
 
         $row = (new Database('whatsapp_message_cdr c'))
             ->select(
-                "c.wamid = :wamid AND c.status = 'sent' AND c.billed = 0",
+                "c.wamid = :wamid AND c.status = 'sent'",
                 [':wamid' => $wamid],
                 'c.id DESC',
                 '1',
@@ -290,6 +299,8 @@ class WhatsAppBilling
                     'c.exchange_rate',
                     'c.whatsapp_outbox_id',
                     'c.whatsapp_message_id',
+                    'c.billed',
+                    'c.delivered_at',
                 ]
             )
             ->fetch(\PDO::FETCH_ASSOC);
@@ -300,7 +311,20 @@ class WhatsAppBilling
 
         $category = WhatsAppCostPolicy::normalizeCategory((string)$row['message_category']);
         $priceBrl = round((float)($row['price_brl'] ?? 0), 4);
-        if ($category === WhatsAppCostPolicy::CATEGORY_SERVICE || $priceBrl <= 0) {
+        $alreadyBilled = (int)($row['billed'] ?? 0) === 1;
+
+        if ($alreadyBilled) {
+            if (empty($row['delivered_at'])) {
+                (new Database('whatsapp_message_cdr'))->update(
+                    'id = :id',
+                    ['delivered_at' => date('Y-m-d H:i:s')],
+                    [':id' => (int)$row['id']]
+                );
+            }
+            return true;
+        }
+
+        if (!self::isChargeableDeliveredTemplate($row, $category, $priceBrl)) {
             return false;
         }
 
@@ -351,6 +375,24 @@ class WhatsAppBilling
         }
 
         return true;
+    }
+
+    private static function isChargeableDeliveredTemplate(array $row, string $category, float $priceBrl): bool
+    {
+        if ($priceBrl <= 0) {
+            return false;
+        }
+
+        $category = WhatsAppCostPolicy::normalizeCategory($category);
+        if (!in_array($category, [
+            WhatsAppCostPolicy::CATEGORY_MARKETING,
+            WhatsAppCostPolicy::CATEGORY_UTILITY,
+            WhatsAppCostPolicy::CATEGORY_AUTHENTICATION,
+        ], true)) {
+            return false;
+        }
+
+        return trim((string)($row['template_name'] ?? '')) !== '';
     }
 
     private static function resolvePlanId(int $userId, string $tenancyId): ?int

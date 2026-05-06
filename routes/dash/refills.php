@@ -52,7 +52,6 @@ $obRouter->get('/refills/{id}/status-pix',[
 
 $obRouter->post('/refills/webhooks-asaas',[
     function($request){
-        return new Response(200,Pages\WebStatusPix::getCallbackAsaas($request));
+        return Pages\WebStatusPix::getCallbackAsaas($request);
     }
 ]);
-

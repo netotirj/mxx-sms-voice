@@ -68,6 +68,16 @@ class SupportTickets extends ViewComponents
                 'message' => $message,
             ]);
 
+            SupportTicket::audit(
+                $id,
+                $user,
+                'ticket_opened',
+                'status',
+                null,
+                'open',
+                self::clientIp()
+            );
+
             return self::json(201, [
                 'success' => true,
                 'message' => 'Ticket aberto com sucesso.',
@@ -119,9 +129,11 @@ class SupportTickets extends ViewComponents
             'success' => true,
             'ticket' => $ticket,
             'data' => SupportTicket::listMessagesForUser((int)$id, $user),
+            'audit' => SupportTicket::listAuditForUser((int)$id, $user),
             'permissions' => [
                 'reply' => SupportTicket::can($user, 'reply', $ticket),
                 'change_status' => SupportTicket::can($user, 'change_status', $ticket),
+                'request_close' => SupportTicket::can($user, 'ticket.request_close', $ticket),
                 'update' => SupportTicket::can($user, 'update', $ticket),
                 'delete' => SupportTicket::can($user, 'delete', $ticket),
             ],
@@ -163,6 +175,15 @@ class SupportTickets extends ViewComponents
             ? 'agent'
             : 'customer';
         $messageId = SupportTicket::addMessage((int)$id, $user, $senderType, $message);
+        SupportTicket::audit(
+            (int)$id,
+            $user,
+            $senderType === 'agent' ? 'ticket_replied_by_support' : 'ticket_replied_by_customer',
+            'message',
+            null,
+            mb_substr($message, 0, 160),
+            self::clientIp()
+        );
 
         return self::json(201, [
             'success' => true,
@@ -196,7 +217,7 @@ class SupportTickets extends ViewComponents
 
         $oldStatus = (string)($ticket['status'] ?? '');
         $newStatus = SupportTicket::normalizeStatusValue((string)($input['status'] ?? 'open'));
-        SupportTicket::updateStatus((int)$id, $newStatus);
+        SupportTicket::updateStatus((int)$id, $newStatus, $user);
         SupportTicket::audit(
             (int)$id,
             $user,
@@ -207,9 +228,76 @@ class SupportTickets extends ViewComponents
             self::clientIp()
         );
 
+        $explicitAction = match (true) {
+            $oldStatus === 'closed' && $newStatus !== 'closed' => 'ticket_reopened',
+            $newStatus === 'closed' => 'ticket_closed',
+            $newStatus === 'in_progress' => 'ticket_taken_in_charge',
+            $newStatus === 'waiting_customer' => 'ticket_waiting_customer',
+            $newStatus === 'closure_requested' => 'ticket_marked_closure_requested',
+            default => null,
+        };
+
+        if ($explicitAction !== null) {
+            SupportTicket::audit(
+                (int)$id,
+                $user,
+                $explicitAction,
+                'status',
+                $oldStatus,
+                $newStatus,
+                self::clientIp()
+            );
+        }
+
         return self::json(200, [
             'success' => true,
             'message' => 'Status atualizado.',
+        ]);
+    }
+
+    public static function requestClosure($request, int|string $id): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $ticket = SupportTicket::getForUser((int)$id, $user);
+        if (!$ticket) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Ticket nao encontrado.',
+            ]);
+        }
+
+        if (!SupportTicket::can($user, 'ticket.request_close', $ticket)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Sem permissao para solicitar o encerramento deste ticket.',
+            ]);
+        }
+
+        if (!empty($ticket['closure_requested_at'])) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'O encerramento deste ticket ja foi solicitado.',
+            ]);
+        }
+
+        SupportTicket::requestClosure((int)$id, $user);
+        SupportTicket::audit(
+            (int)$id,
+            $user,
+            'closure_requested',
+            'closure_requested_at',
+            null,
+            date('Y-m-d H:i:s'),
+            self::clientIp()
+        );
+
+        return self::json(200, [
+            'success' => true,
+            'message' => 'Solicitacao de encerramento enviada para analise do suporte.',
         ]);
     }
 

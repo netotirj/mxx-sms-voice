@@ -152,29 +152,90 @@ class PermissionsRules {
     public static function userCanAccessRoute(int $userId, string $routeName, string $tenancyId): bool
     {
         $db = new Database();
+        $routeName = self::normalizeRoutePath($routeName);
 
-        // 1. Busca o papel (role)
-        $userRole = $db->execute("SELECT role_id FROM user_roles WHERE user_id = :uid LIMIT 1", [
-            ':uid' => $userId
+        // 1. Busca o papel correto dentro da tenancy atual.
+        $userRole = $db->execute("SELECT role_id FROM user_roles WHERE user_id = :uid AND tenancy_id = :tid LIMIT 1", [
+            ':uid' => $userId,
+            ':tid' => $tenancyId,
         ])->fetch(\PDO::FETCH_ASSOC);
 
-        if (!$userRole) return false;
+        if (!$userRole) {
+            $userRole = $db->execute(
+                "SELECT role_id FROM users WHERE id = :uid AND tenancy_id = :tid LIMIT 1",
+                [
+                    ':uid' => $userId,
+                    ':tid' => $tenancyId,
+                ]
+            )->fetch(\PDO::FETCH_ASSOC);
+        }
 
-        // 2. Verifica permissão (Comparando a rota com e sem barra)
+        $roleId = (int)($userRole['role_id'] ?? 0);
+        if ($roleId <= 0) {
+            error_log(sprintf(
+                '[permissions] access_denied reason=no_role user_id=%d tenancy_id=%s route=%s',
+                $userId,
+                $tenancyId,
+                $routeName
+            ));
+            return false;
+        }
+
+        // 2. Verifica permissão exata e herança da rota pai do módulo.
+        $routeCandidates = self::buildRouteCandidates($routeName);
+        $placeholders = [];
+        $params = [
+            ':rid' => $roleId,
+            ':tid' => $tenancyId,
+        ];
+        foreach ($routeCandidates as $index => $candidate) {
+            $key = ':route_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $candidate;
+        }
+
         $access = $db->execute("
         SELECT srp.id 
         FROM sys_role_permissions srp
         INNER JOIN sys_routes sr ON sr.id = srp.route_id
-        WHERE srp.role_id = :rid 
-          AND (sr.route_path = :path OR sr.route_path = :path_alt)
+        WHERE srp.role_id = :rid
+          AND srp.tenancy_id = :tid
+          AND sr.route_path IN (" . implode(', ', $placeholders) . ")
         LIMIT 1
-    ", [
-            ':rid'      => $userRole['role_id'],
-            ':path'     => $routeName,
-            ':path_alt' => '/'.trim($routeName, '/')
-        ])->fetch(\PDO::FETCH_ASSOC);
+    ", $params)->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$access) {
+            error_log(sprintf(
+                '[permissions] access_denied reason=missing_route_permission user_id=%d tenancy_id=%s role_id=%d route=%s candidates=%s',
+                $userId,
+                $tenancyId,
+                $roleId,
+                $routeName,
+                json_encode($routeCandidates, JSON_UNESCAPED_SLASHES)
+            ));
+        }
 
         return (bool)$access;
+    }
+
+    private static function normalizeRoutePath(string $routeName): string
+    {
+        $routeName = '/' . trim($routeName, '/');
+        return preg_replace('#/+#', '/', $routeName) ?: '/';
+    }
+
+    private static function buildRouteCandidates(string $routeName): array
+    {
+        $normalized = self::normalizeRoutePath($routeName);
+        $candidates = [$normalized];
+        $segments = array_values(array_filter(explode('/', trim($normalized, '/')), 'strlen'));
+
+        while (count($segments) > 1) {
+            array_pop($segments);
+            $candidates[] = '/' . implode('/', $segments);
+        }
+
+        return array_values(array_unique($candidates));
     }
 
     /**

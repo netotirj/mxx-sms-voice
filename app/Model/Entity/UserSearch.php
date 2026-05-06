@@ -74,7 +74,33 @@ class UserSearch
             LEFT JOIN address a ON a.tenancy_id = t.id'))
             ->select($where, $params, 'u.id ASC', null,
                 'u.id, u.user_id, u.name, u.role_id, u.tenancy_id, u.last_name, u.email, u.image,               
-                 u.job_title, u.status_account, u.reseller_balance, u.user_function, u.last_activity, 
+                 u.job_title, u.status_account, u.reseller_balance,
+                 COALESCE((SELECT SUM(tb.balance)
+                           FROM tenancy_balance tb
+                           WHERE tb.user_id = u.id AND tb.tenancy_id = u.tenancy_id), 0) AS admin_balance,
+                 u.user_function, u.last_activity, 
+                 u.createdAt, t.name AS tenancy_name, t.tenancy_phone AS tenancy_phone,
+                 a.street AS address_street, a.number AS address_number, a.complement AS address_complement,
+                 a.neighborhood AS address_neighborhood, a.city AS address_city, a.state AS address_state,
+                 a.zipcode AS address_zipcode, a.country AS address_country'
+            )
+            ->fetchAll(PDO::FETCH_ASSOC);
+
+        return self::translateUserFields($result);
+    }
+
+    public static function getAllUsersGlobal(): array
+    {
+        $result = (new Database('users u
+            INNER JOIN tenancies t ON t.id = u.tenancy_id
+            LEFT JOIN address a ON a.tenancy_id = t.id'))
+            ->select('1=1', [], 'u.id ASC', null,
+                'u.id, u.user_id, u.name, u.role_id, u.tenancy_id, u.last_name, u.email, u.image,
+                 u.job_title, u.status_account, u.reseller_balance,
+                 COALESCE((SELECT SUM(tb.balance)
+                           FROM tenancy_balance tb
+                           WHERE tb.user_id = u.id AND tb.tenancy_id = u.tenancy_id), 0) AS admin_balance,
+                 u.user_function, u.last_activity,
                  u.createdAt, t.name AS tenancy_name, t.tenancy_phone AS tenancy_phone,
                  a.street AS address_street, a.number AS address_number, a.complement AS address_complement,
                  a.neighborhood AS address_neighborhood, a.city AS address_city, a.state AS address_state,
@@ -92,6 +118,14 @@ class UserSearch
 
         $user = (new Database('users u INNER JOIN tenancies t ON t.id = u.tenancy_id'))
             ->select($where, $params)->fetch(PDO::FETCH_ASSOC);
+
+        return $user ? self::translateUserFields([$user])[0] : null;
+    }
+
+    public static function getUserByIdGlobal(int $userId): ?array
+    {
+        $user = (new Database('users u INNER JOIN tenancies t ON t.id = u.tenancy_id'))
+            ->select('u.id = :id', [':id' => $userId])->fetch(PDO::FETCH_ASSOC);
 
         return $user ? self::translateUserFields([$user])[0] : null;
     }
@@ -211,7 +245,7 @@ class UserSearch
     /**
      * Update - Respeita o contrato com o Controller
      */
-    public static function updateUsers(int $userId, array $data, string $tenancyId): bool
+    public static function updateUsers(int $userId, array $data, ?string $tenancyId): bool
     {
         $fields = [
             'name'           => trim($data['name'] ?? ''),
@@ -227,11 +261,15 @@ class UserSearch
             $fields['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
         }
 
-        return (new Database('users'))->update(
-                'id = :id AND tenancy_id = :tenancy_id',
-                $fields,
-                [':id' => $userId, ':tenancy_id' => $tenancyId]
-            ) > 0;
+        $where = 'id = :id';
+        $params = [':id' => $userId];
+
+        if ($tenancyId !== null) {
+            $where .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        return (new Database('users'))->update($where, $fields, $params) > 0;
     }
 
     public function updatePassword(): bool
@@ -285,21 +323,30 @@ class UserSearch
     /**
      * Delete - Respeita o contrato com o Controller
      */
-    public static function deleteUsers(int $userId, string $tenancyId): bool
+    public static function deleteUsers(int $userId, ?string $tenancyId): bool
     {
-        return (new Database('users'))->delete(
-                'id = :id AND tenancy_id = :tenancy_id',
-                [':id' => $userId, ':tenancy_id' => $tenancyId]
-            ) > 0;
+        $where = 'id = :id';
+        $params = [':id' => $userId];
+
+        if ($tenancyId !== null) {
+            $where .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        return (new Database('users'))->delete($where, $params) > 0;
     }
 
     // Mantive os métodos específicos que você já usa (UpdateStatus, updateRole, etc)
-    public static function updateStatusUser(int $userId, string $tenancyId, string $status): bool
+    public static function updateStatusUser(int $userId, ?string $tenancyId, string $status): bool
     {
-        return (new Database('users'))->update(
-                'id = :id AND tenancy_id = :tenancy_id',
-                ['status_account' => $status],
-                [':id' => $userId, ':tenancy_id' => $tenancyId]
-            ) > 0;
+        $where = 'id = :id';
+        $params = [':id' => $userId];
+
+        if ($tenancyId !== null) {
+            $where .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        return (new Database('users'))->update($where, ['status_account' => $status], $params) > 0;
     }
 }

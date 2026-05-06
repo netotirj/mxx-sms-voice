@@ -16,7 +16,8 @@ use WilliamCosta\DatabaseManager\Database;
 class PublicDemo
 {
     private const CHANNELS = ['sms', 'whatsapp', 'call'];
-    private const MAX_IP_TOTAL_PER_HOUR = 12;
+    private const CTA_URL = '/register';
+    private const CTA_LABEL = 'Fazer cadastro no painel';
 
     public static function send($request, string $channel): Response
     {
@@ -31,6 +32,9 @@ class PublicDemo
         $input = self::input();
         $ip = self::clientIp();
         $phone = self::normalizePhone((string)($input['phone'] ?? ''));
+        if ($channel === 'call') {
+            $phone = self::siteTestVoicePhone();
+        }
         $email = strtolower(trim((string)($input['email'] ?? '')));
         $consent = filter_var($input['consent'] ?? false, FILTER_VALIDATE_BOOL);
         $turnstileToken = trim((string)($input['turnstile_token'] ?? ''));
@@ -58,15 +62,14 @@ class PublicDemo
             return self::json(403, ['success' => false, 'message' => $turnstile['message']]);
         }
 
-        $blocked = self::rateLimitMessage($ip);
-        if ($blocked !== null) {
-            return self::json(429, ['success' => false, 'message' => $blocked]);
-        }
-
-        if (SiteServiceTest::findByEmailAndService($email, $serviceType)) {
-            return self::json(409, [
+        $availability = self::availabilityStatus($email, $phone, $ip);
+        if (!$availability['available']) {
+            return self::json(($availability['reason'] ?? '') === 'ip' ? 429 : 409, [
                 'success' => false,
-                'message' => self::duplicateMessage($serviceType),
+                'message' => $availability['message'],
+                'blocked' => true,
+                'reason' => $availability['reason'] ?? null,
+                'cta' => self::ctaPayload(),
             ]);
         }
 
@@ -81,6 +84,7 @@ class PublicDemo
                     'channel' => $channel,
                     'service_type' => $serviceType,
                     'phone' => $phone,
+                    'requested_phone' => self::normalizePhone((string)($input['phone'] ?? '')),
                     'email' => $email,
                     'turnstile' => $turnstile,
                 ],
@@ -159,18 +163,30 @@ class PublicDemo
         return $response;
     }
 
-    private static function rateLimitMessage(string $ip): ?string
+    public static function check($request): Response
     {
-        $ipTotal = SiteServiceTest::countRecent(
-            'ip_address = :ip',
-            [':ip' => $ip],
-            60
-        );
-        if ($ipTotal >= self::MAX_IP_TOTAL_PER_HOUR) {
-            return 'Muitas solicitações foram feitas deste acesso. Tente novamente mais tarde.';
+        self::cors();
+
+        $input = self::input();
+        $channel = strtolower(trim((string)($input['channel'] ?? '')));
+        $email = strtolower(trim((string)($input['email'] ?? '')));
+        $phone = self::normalizePhone((string)($input['phone'] ?? ''));
+        $ip = self::clientIp();
+
+        if ($channel === 'call') {
+            $phone = self::siteTestVoicePhone();
         }
 
-        return null;
+        $availability = self::availabilityStatus($email, $phone, $ip);
+
+        return self::json(200, [
+            'success' => true,
+            'available' => $availability['available'],
+            'blocked' => !$availability['available'],
+            'message' => $availability['message'] ?? '',
+            'reason' => $availability['reason'] ?? null,
+            'cta' => !$availability['available'] ? self::ctaPayload() : null,
+        ]);
     }
 
     private static function statsRateLimited(string $ip): bool
@@ -189,6 +205,38 @@ class PublicDemo
         }
 
         return $count > 120;
+    }
+
+    private static function availabilityStatus(string $email, string $phone, string $ip): array
+    {
+        if ($email !== '' && SiteServiceTest::findByEmail($email)) {
+            return [
+                'available' => false,
+                'reason' => 'email',
+                'message' => 'Este e-mail já utilizou o teste do site.',
+            ];
+        }
+
+        if ($phone !== '' && SiteServiceTest::findByDestination($phone)) {
+            return [
+                'available' => false,
+                'reason' => 'phone',
+                'message' => 'Este número já utilizou o teste do site.',
+            ];
+        }
+
+        if ($ip !== '' && SiteServiceTest::findByIp($ip)) {
+            return [
+                'available' => false,
+                'reason' => 'ip',
+                'message' => 'Este acesso já utilizou o teste do site.',
+            ];
+        }
+
+        return [
+            'available' => true,
+            'message' => '',
+        ];
     }
 
     private static function verifyTurnstile(string $token, string $ip): array
@@ -396,9 +444,11 @@ class PublicDemo
         $callerId = trim((string)TelephonyConfig::env('PUBLIC_DEMO_CALLER_ID', 'Maxx Solutions'));
         $stasisApp = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_STASIS_APP', TelephonyConfig::stasisApp()));
         $techPrefix = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TECH_PREFIX', ''));
+        $trunkBillingType = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TRUNK_BILLING_TYPE', 'cli_aberta'));
+        $effectivePhone = self::siteTestVoicePhone() ?: $phone;
 
         if ($trunk === '') {
-            self::registerSiteVoiceCdr($phone, 'FAILED', null, 'Tronco de chamada de demonstração não configurado.');
+            self::registerSiteVoiceCdr($effectivePhone, 'FAILED', null, 'Tronco de chamada de demonstração não configurado.', $trunk, $trunkBillingType);
             return [
                 'success' => false,
                 'message' => 'Tronco de chamada de demonstração não configurado.',
@@ -413,14 +463,14 @@ class PublicDemo
             'http_errors' => false,
         ]);
 
-        $endpoint = 'PJSIP/' . $techPrefix . $phone . '@' . $trunk;
+        $endpoint = 'PJSIP/' . $techPrefix . $effectivePhone . '@' . $trunk;
         $payload = [
             'endpoint' => $endpoint,
             'app' => $stasisApp,
             'appArgs' => json_encode([
                 'action' => 'public_demo',
                 'test_id' => $testId,
-                'destination' => $phone,
+                'destination' => $effectivePhone,
             ], JSON_UNESCAPED_SLASHES),
             'callerId' => $callerId,
             'timeout' => (int)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TIMEOUT', 20),
@@ -428,9 +478,10 @@ class PublicDemo
                 'CALL_TYPE' => 'PUBLIC_DEMO',
                 'PUBLIC_DEMO' => '1',
                 'SITE_SERVICE_TEST_ID' => (string)$testId,
-                'EXTENSION' => $phone,
+                'EXTENSION' => $effectivePhone,
                 'TRUNK' => $trunk,
                 'TRUNK_ID' => $trunk,
+                'TRUNK_BILLING_TYPE' => $trunkBillingType,
                 'TECHPREFIX' => $techPrefix,
                 'CALLERID(name)' => $callerId,
                 'CALLERID(num)' => $callerId,
@@ -447,11 +498,12 @@ class PublicDemo
         $ok = $status >= 200 && $status < 300;
         $error = $ok ? null : self::voiceErrorMessage($status, $body);
         self::registerSiteVoiceCdr(
-            $phone,
+            $effectivePhone,
             $ok ? 'SENT' : 'FAILED',
             $channelId,
             $error,
-            $trunk
+            $trunk,
+            $trunkBillingType
         );
 
         return [
@@ -533,6 +585,11 @@ class PublicDemo
         return "Falha ao iniciar chamada de teste. ARI retornou HTTP {$status}.";
     }
 
+    private static function duplicateMessage(string $serviceType): string
+    {
+        return 'Este teste já foi registrado anteriormente.';
+    }
+
     private static function serviceType(string $channel): string
     {
         return $channel === 'call' ? 'voice' : $channel;
@@ -548,21 +605,14 @@ class PublicDemo
         };
     }
 
-    private static function duplicateMessage(string $serviceType): string
-    {
-        $label = match ($serviceType) {
-            'sms' => 'SMS',
-            'voice' => 'Voz',
-            'whatsapp' => 'WhatsApp',
-            default => 'serviço',
-        };
-
-        return "Este e-mail já realizou o teste de {$label}. Você ainda pode testar os outros serviços.";
-    }
-
     private static function siteTestUserId(): int
     {
         return (int)TelephonyConfig::env('SITE_TEST_USER_ID', 0);
+    }
+
+    private static function siteTestVoicePhone(): string
+    {
+        return self::normalizePhone((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TEST_PHONE', '21968943160'));
     }
 
     private static function siteTestTenancyId(): string
@@ -657,7 +707,14 @@ class PublicDemo
         }
     }
 
-    private static function registerSiteVoiceCdr(string $phone, string $dialStatus, ?string $channelId, ?string $error = null, string $trunk = 'site_test'): void
+    private static function registerSiteVoiceCdr(
+        string $phone,
+        string $dialStatus,
+        ?string $channelId,
+        ?string $error = null,
+        string $trunk = 'site_test',
+        string $trunkBillingType = 'cli_aberta'
+    ): void
     {
         if (!self::siteTestTenancyExists()) {
             error_log('[site_test_voice_cdr] skipped: SITE_TEST_TENANCY_ID not found in tenancies');
@@ -674,21 +731,22 @@ class PublicDemo
             $cdr->campaign_type = 'test_voice';
             $cdr->tenancy_id = self::siteTestTenancyId();
             $cdr->user_id = self::siteTestUserId();
-            $cdr->user_name = 'site_test';
+            $cdr->user_name = 'Site Test';
             $cdr->user_account_code = 'site_test';
-            $cdr->channel_number = 'site_test';
-            $cdr->endpoints = $phone;
-            $cdr->number = 'site_test';
+            $cdr->channel_number = $phone;
+            $cdr->endpoints = 'site_test';
+            $cdr->number = $phone;
             $cdr->destination = $phone;
             $cdr->direction = 'outbound';
             $cdr->trunk = $trunk;
             $cdr->trunk_id = $trunk === 'site_test' ? null : $trunk;
+            $cdr->trunk_billing_type = $trunkBillingType;
             $cdr->techprefix = null;
-            $cdr->type = 'normal';
+            $cdr->type = 'outbound';
             $cdr->state = $dialStatus === 'SENT' ? 'ORIGINATED' : 'FAILED';
             $cdr->dialstatus = $dialStatus;
             $cdr->cause = null;
-            $cdr->cause_txt = $error;
+            $cdr->cause_txt = $error ?: 'Teste de voz disparado pelo site.';
             $cdr->sip_code = null;
             $cdr->duration = 0;
             $cdr->billsec = 0;
@@ -700,7 +758,7 @@ class PublicDemo
             $cdr->hangup_by = null;
             $cdr->sms_cost = 0;
             $cdr->torpedo_cost = 0;
-            $cdr->application = 'site_test';
+            $cdr->application = 'site_test_public_demo';
             $cdr->cdr_timestamp = $now;
             $cdr->role = 'site_test';
             $cdr->started = $now;
@@ -769,5 +827,13 @@ class PublicDemo
     {
         self::cors();
         return new Response($status, $payload, 'application/json');
+    }
+
+    private static function ctaPayload(): array
+    {
+        return [
+            'label' => self::CTA_LABEL,
+            'url' => self::CTA_URL,
+        ];
     }
 }

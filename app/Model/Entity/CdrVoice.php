@@ -24,6 +24,8 @@ class CdrVoice
     public $direction;
     public $trunk;
     public $trunk_id;
+    public $trunk_billing_type;
+    public $plan_id;
     public $type;
     public $state;
     public $dialstatus;
@@ -31,13 +33,18 @@ class CdrVoice
     public $cause_txt;
     public $sip_code;
     public $duration;
+    public $duration_seconds;
     public $billsec;
+    public $billed_seconds;
     public $taxa_of_service;
     public $techprefix;
     public $value;
+    public $final_price;
+    public $charged_at;
     public $agent_abandoned;
     public $agent_abandon_reason;
     public $call_minute_cost;
+    public $tariff_used;
     public $hangup_by;
     public $sms_cost;
     public $torpedo_cost;
@@ -71,6 +78,8 @@ class CdrVoice
             direction,
             trunk,
             trunk_id,
+            trunk_billing_type,
+            plan_id,
             techprefix,
             `type`,
             `state`,
@@ -79,12 +88,17 @@ class CdrVoice
             cause_txt,
             sip_code,
             duration,
+            duration_seconds,
             billsec,
+            billed_seconds,
             `taxa_of_service`,             
             `value`,
+            final_price,
+            charged_at,
             agent_abandoned,
             agent_abandon_reason,
             call_minute_cost,
+            tariff_used,
             hangup_by,
             sms_cost,
             torpedo_cost,
@@ -111,6 +125,8 @@ class CdrVoice
             :direction,
             :trunk,
             :trunk_id,
+            :trunk_billing_type,
+            :plan_id,
             :techprefix,
             :type,
             :state,
@@ -119,12 +135,17 @@ class CdrVoice
             :cause_txt,
             :sip_code,
             :duration,
+            :duration_seconds,
             :billsec,
+            :billed_seconds,
             :taxa_of_service,      
             :value,
+            :final_price,
+            :charged_at,
             :agent_abandoned,
             :agent_abandon_reason,
             :call_minute_cost,
+            :tariff_used,
             :hangup_by,
             :sms_cost,
             :torpedo_cost,
@@ -154,6 +175,8 @@ class CdrVoice
             ':direction'     => $this->direction ?? 'outbound',
             ':trunk'         => $this->trunk,
             ':trunk_id'      => $this->trunk_id,
+            ':trunk_billing_type' => $this->trunk_billing_type,
+            ':plan_id'       => $this->plan_id,
             ':techprefix'    => $this->techprefix,
             ':type'          => $this->type ?? 'normal',
             ':state'         => $this->state,
@@ -162,12 +185,17 @@ class CdrVoice
             ':cause_txt'     => $this->cause_txt,
             ':sip_code'      => $this->sip_code,
             ':duration'      => $this->duration ?? 0,
+            ':duration_seconds' => $this->duration_seconds ?? $this->duration ?? 0,
             ':billsec'       => $this->billsec ?? $this->duration ?? 0,
+            ':billed_seconds' => $this->billed_seconds ?? $this->billsec ?? $this->duration ?? 0,
             ':taxa_of_service' => $this->taxa_of_service ?? 0,
             ':value'         => $this->value ?? 0,
+            ':final_price'   => $this->final_price ?? $this->value ?? 0,
+            ':charged_at'    => $this->charged_at,
             ':agent_abandoned' => $this->agent_abandoned ?? 0,
             ':agent_abandon_reason' => $this->agent_abandon_reason,
             ':call_minute_cost' => $this->call_minute_cost ?? 0,
+            ':tariff_used'   => $this->tariff_used ?? $this->call_minute_cost ?? 0,
             ':hangup_by'     => $this->hangup_by,
             ':sms_cost'      => $this->sms_cost ?? 0,
             ':torpedo_cost'  => $this->torpedo_cost ?? 0,

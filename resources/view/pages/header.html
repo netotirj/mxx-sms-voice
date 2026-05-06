@@ -1,5 +1,6 @@
 <!-- Navbar -->
 <nav class="relative flex flex-wrap items-center justify-between px-0 py-2 mx-6 transition-all ease-in shadow-none duration-250 rounded-2xl lg:flex-nowrap lg:justify-start"
+     style="z-index: 10050;"
      navbar-main navbar-scroll="false">
     <div class="flex items-center justify-between w-full px-4 py-1 mx-auto flex-wrap-inherit">
         <nav>
@@ -298,7 +299,7 @@
                                         <h6 class="text-sm font-bold text-slate-800 truncate">#${ticket.id} - ${departmentLabel(ticket.department)}</h6>
                                         <span class="text-xxs font-bold text-emerald-700 bg-emerald-100 rounded-full px-2 py-1">${statusLabel(ticket.status)}</span>
                                     </div>
-                                    <p class="text-xs text-slate-600 mt-1 leading-snug">${ticket.last_message || ticket.subject || 'Sem mensagem'}</p>
+                                    <p class="text-xs text-slate-600 mt-1 leading-snug">${ticket.opening_message || ticket.subject || 'Sem mensagem'}</p>
                                     <div class="mt-2 flex items-center justify-between text-xxs text-slate-400">
                                         <span>${ticket.requester_phone || 'Sem telefone'}</span>
                                         <span>${ticket.last_message_at ? formatDate(ticket.last_message_at) : formatDate(ticket.created_at)}</span>

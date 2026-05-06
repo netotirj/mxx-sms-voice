@@ -1,135 +1,48 @@
 <?php
 
 namespace App\Controller\Pages;
-use App\Model\Entity\BalanceSms;
-use App\Model\Entity\PixSearch;
-use App\Controller\Pages\PaymentProcessor;
-use App\Model\Entity\UserSearch;
-use JetBrains\PhpStorm\NoReturn;
+
+use App\Http\Response;
+use App\Service\PixService;
 
 class WebStatusPix
 {
-    #[NoReturn] public static function getCallbackAsaas($request): void
+    public static function getCallbackAsaas($request): Response
     {
-        $headers = getallheaders();
-	
-        $secretToken = getenv('ASAAS_WEBHOOK_SECRET');
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $secretToken = (string)getenv('ASAAS_WEBHOOK_SECRET');
+        $receivedToken = (string)($headers['Asaas-Access-Token'] ?? $headers['asaas-access-token'] ?? '');
 
-		
-        // 🔒 Verifica autenticação
-        if (!isset($headers['Asaas-Access-Token']) || $headers['Asaas-Access-Token'] !== $secretToken) {
-            http_response_code(403);
-           echo 'Acesso não autorizado.';
-            exit;
+        if ($secretToken === '' || !hash_equals($secretToken, $receivedToken)) {
+            PixService::log('webhook_unauthorized', [
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                'has_token' => $receivedToken !== '',
+            ]);
+
+            return new Response(403, PixService::error('Webhook nao autorizado.', 403), 'application/json');
         }
 
-        // 📩 Lê e decodifica o corpo JSON
-        $body = file_get_contents('php://input');
+        $body = file_get_contents('php://input') ?: '';
         $bodyArray = json_decode($body, true);
 
-        if (!is_array($bodyArray) || !isset($bodyArray['event']) || !isset($bodyArray['payment'])) {
-            http_response_code(400);
-            echo 'Webhook inválido.';
-            exit;
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($bodyArray)) {
+            PixService::log('webhook_invalid_json', [
+                'json_error' => json_last_error_msg(),
+            ]);
+
+            return new Response(400, PixService::error('JSON do webhook invalido.', 400), 'application/json');
         }
 
-        $event   = strtoupper($bodyArray['event']);
-        $payment = $bodyArray['payment'];
+        $event = PixService::normalizeEvent($bodyArray['event'] ?? null);
+        $payment = $bodyArray['payment'] ?? null;
 
-        if (empty($payment['invoiceNumber'])) {
-            http_response_code(422);
-            echo 'invoiceNumber ausente.';
-            exit;
+        if ($event === '' || !is_array($payment)) {
+            return new Response(400, PixService::error('Payload do webhook incompleto.', 400), 'application/json');
         }
 
-        // 🎯 Roteamento de eventos
-        switch ($event) {
-            case 'PAYMENT_REFUNDED':
-                if (PaymentProcessor::processPaymentRefunded($payment)) {
-                    http_response_code(200);
-                } else {
-                    http_response_code(500);
-                    echo 'Erro ao processar refund.';
-                }
-                exit;
+        $result = PixService::processWebhookPayment($event, $payment);
+        $status = (int)($result['status'] ?? ($result['success'] ? 200 : 400));
 
-            /*case 'PAYMENT_CREATED':
-            case 'PAYMENT_RECEIVED':
-                $webA = new PixSearch();
-                $webA->value                 = $payment['value'] ?? 0;
-                $webA->pixQrCodeId           = $payment['pixQrCodeId'] ?? null;
-                $webA->billingType           = $payment['billingType'] ?? null;
-                $webA->external_Reference    = $payment['externalReference'] ?? null;
-                $webA->invoiceNumber         = $payment['invoiceNumber'];
-                $webA->transactionReceiptUrl = $payment['transactionReceiptUrl'] ?? null;
-                $webA->confirmed_date        = $payment['confirmedDate'] ?? date('Y-m-d H:i:s');
-                $webA->payment_status        = $event;
-
-                if ($webA->updatePayment()) {
-                    http_response_code(200);
-                } else {
-                    http_response_code(500);
-                    echo 'Erro ao atualizar pagamento.';
-                }
-                exit;
-
-            default:
-                http_response_code(204); // Evento ignorado
-                exit;*/
-
-            case 'PAYMENT_CREATED':
-            case 'PAYMENT_RECEIVED':
-
-                // ✅ pega status atual antes de atualizar (idempotência)
-                $old = PixSearch::getByInvoice($payment['invoiceNumber']);
-                $oldStatus = $old->payment_status ?? null;
-
-                $webA = new PixSearch();
-                $webA->value                 = $payment['value'] ?? 0;
-                $webA->pixQrCodeId           = $payment['pixQrCodeId'] ?? null;
-                $webA->billingType           = $payment['billingType'] ?? null;
-                $webA->external_Reference    = $payment['externalReference'] ?? null;
-                $webA->invoiceNumber         = $payment['invoiceNumber'];
-                $webA->transactionReceiptUrl = $payment['transactionReceiptUrl'] ?? null;
-                $webA->confirmed_date        = $payment['confirmedDate'] ?? date('Y-m-d H:i:s');
-                $webA->payment_status        = $event;
-
-                if ($webA->updatePayment()) {
-
-                    // 🔺 Só credita SIP se estava diferente e agora virou RECEIVED
-                    if ($event === 'PAYMENT_RECEIVED' && $oldStatus !== 'PAYMENT_RECEIVED') {
-
-                        $balanceInfo = BalanceSms::getByInvoice($webA->invoiceNumber);
-                        if ($balanceInfo) {
-                            $adminId  = $balanceInfo->user_id;
-                            $tenantId = $balanceInfo->tenancy_id;
-                            $value    = (float)$webA->value;
-
-                            $adminAsterisk = UserSearch::getUserById($tenantId, $adminId);
-                            $adminRole     = $adminAsterisk['user_function'] ?? 'admin';
-
-                            (new AsteriskExtensionsSip())->updateBalance(
-                                ['user_id' => $adminId, 'tenant_id' => $tenantId],
-                                [
-                                    'user_id'       => $adminId,
-                                    'tenant_id'     => $tenantId,
-                                    'balance_admin' => +$value, // ✅ crédito no received
-                                    'role'          => $adminRole
-                                ]
-                            );
-                        }
-                    }
-
-                    http_response_code(200);
-                } else {
-                    http_response_code(500);
-                    echo 'Erro ao atualizar pagamento.';
-                }
-                exit;
-
-        }
+        return new Response($status, $result, 'application/json');
     }
-
-
-
 }

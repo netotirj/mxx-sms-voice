@@ -14,6 +14,7 @@ use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Service\WhatsAppBilling;
+use App\Service\VoicePricingService;
 use App\RedisConn;
 use Exception;
 use GuzzleHttp\Client;
@@ -749,12 +750,78 @@ class Voice extends ViewComponents
 
     public static function makeCallManual($request): Response
     {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, json_encode(['success' => false, 'message' => 'Usuário não autenticado.']), 'application/json');
+        }
+
         $params = json_decode(file_get_contents('php://input'), true);
         $origem  = $params['origem'] ?? null;  // Ex: 50642430
         $destino = $params['destino'] ?? null; // Ex: 5521975643710
+        $sipTrunkId = $params['sip_trunk_id'] ?? null;
 
         if (!$origem || !$destino) {
             return new Response(400, json_encode(['success' => false, 'message' => 'Dados incompletos']), 'application/json');
+        }
+
+        $pricingVariables = [];
+        $isExternalDestination = strlen(preg_replace('/\D+/', '', (string)$destino)) > 4;
+
+        if ($isExternalDestination) {
+            if (empty($sipTrunkId)) {
+                return new Response(400, json_encode([
+                    'success' => false,
+                    'message' => 'Informe o tronco para chamada externa manual.'
+                ]), 'application/json');
+            }
+
+            $tenantId = (string)$obUser['tenancy_id'];
+            $userId = (int)$obUser['id'];
+            $planId = RegisterTenancies::getActivePlanId($tenantId);
+            $asterisk = new AsteriskExtensionsSip();
+            $trunkResponse = $asterisk->getTrunkById([
+                'user_id' => $userId,
+                'tenant_id' => $tenantId,
+            ], (int)$sipTrunkId);
+
+            $trunk = $trunkResponse['data']['data'] ?? $trunkResponse['data'] ?? null;
+            if (!$trunk || !is_array($trunk)) {
+                return new Response(404, json_encode([
+                    'success' => false,
+                    'message' => 'Tronco não encontrado para chamada manual.'
+                ]), 'application/json');
+            }
+
+            [$isApto, $reason] = self::trunkIsApto($trunk);
+            if (!$isApto) {
+                return new Response(422, json_encode([
+                    'success' => false,
+                    'message' => "SIP Trunk Error. Motivo: {$reason}"
+                ]), 'application/json');
+            }
+
+            try {
+                $quote = VoicePricingService::quote([
+                    'trunk' => $trunk,
+                    'user_id' => $userId,
+                    'tenancy_id' => $tenantId,
+                    'plan_id' => $planId ? (int)$planId : null,
+                ]);
+            } catch (Throwable $e) {
+                return new Response(422, json_encode([
+                    'success' => false,
+                    'message' => 'Falha na tarifação de voz: ' . $e->getMessage()
+                ]), 'application/json');
+            }
+
+            $pricingVariables = [
+                'TRUNK_ID' => (string)($trunk['trunk_id'] ?? $sipTrunkId),
+                'TRUNK' => (string)($trunk['name'] ?? $trunk['trunk_id'] ?? $sipTrunkId),
+                'TRUNK_BILLING_TYPE' => (string)$quote['trunk_billing_type'],
+                'PLAN_ID' => (string)$quote['plan_id'],
+                'TARIFF_USED' => (string)$quote['tariff_used'],
+                'CALL_MINUTE_COST' => (string)$quote['call_minute_cost'],
+            ];
         }
 
         try {
@@ -776,7 +843,7 @@ class Voice extends ViewComponents
                 'variables' => [
                     'CALL_TYPE' => 'MANUAL',
                     'AGENT_RAMAL' => $origem
-                ]
+                ] + $pricingVariables
             ];
 
             // Dispara a originação
@@ -881,12 +948,12 @@ class Voice extends ViewComponents
         $audiosOrigin = $data['audios_origin'] ?? [];
         $rate = max(1, (int)($data['rate'] ?? 1));
         $name = $data['campaign_name'] ?? '';
-        $sip_trunk = (string)$data['sip_trunk'];
+        $sip_trunk = (string)($data['sip_trunk'] ?? '');
         $queueId = $data['queue_id'] ?? null;
         $strategy = (string)$data['dial_strategy']?? 'rrmemory';
-        $sip_trunk_id = $data['sip_trunk_id'];
+        $sip_trunk_id = $data['sip_trunk_id'] ?? null;
         $cliType = $data['cli_type'] ?? null;
-        $totalGeral = (float)($data['totalGeral'] ?? 0);
+        $totalGeralFrontend = (float)($data['totalGeral'] ?? 0);
         $scheduleMode = strtolower((string)($data['schedule_mode'] ?? 'now'));
         $scheduledAt = trim((string)($data['scheduled_at'] ?? ''));
 
@@ -1140,6 +1207,41 @@ class Voice extends ViewComponents
         ];
 
         $asterisk = new AsteriskExtensionsSip();
+        if (empty($sip_trunk_id)) {
+            $listTrunks = $asterisk->listTrunks($query);
+            $trunks = $listTrunks['data']['data'] ?? $listTrunks['data'] ?? [];
+            $desiredBillingType = VoicePricingService::normalizeBillingType($cliType ?? null);
+
+            foreach ((array)$trunks as $candidate) {
+                if (!is_array($candidate)) {
+                    continue;
+                }
+
+                $candidateBillingType = VoicePricingService::normalizeBillingType($candidate['billing_type'] ?? null)
+                    ?? VoicePricingService::normalizeBillingType($candidate['cli_type'] ?? null);
+                $candidateStatus = strtoupper((string)($candidate['sip_status'] ?? 'OK'));
+
+                if (
+                    $desiredBillingType !== null
+                    && $candidateBillingType === $desiredBillingType
+                    && ($candidate['status'] ?? '') === 'active'
+                    && in_array(($candidate['direction'] ?? ''), ['outbound', 'both'], true)
+                    && $candidateStatus === 'OK'
+                ) {
+                    $sip_trunk_id = $candidate['id'] ?? null;
+                    $sip_trunk = (string)($candidate['trunk_id'] ?? $candidate['name'] ?? $sip_trunk);
+                    break;
+                }
+            }
+        }
+
+        if (empty($sip_trunk_id)) {
+            return new Response(400, [
+                'status' => 400,
+                'message' => 'Nenhum tronco apto foi selecionado para a campanha.'
+            ], 'application/json');
+        }
+
         $resTrunk = $asterisk->getTrunkById($query, (int)$sip_trunk_id);
 
         if (empty($resTrunk['ok']) || empty($resTrunk['data'])) {
@@ -1176,6 +1278,28 @@ class Voice extends ViewComponents
         $isSystem        = (int)($trunk['is_system'] ?? 0);
         $isCustomerTrunk = ($isSystem === 0);
         $trunkOwnerId    = (int)($trunk['user_id'] ?? 0);
+        $planIdUsed = (int)($obPlan->id ?? $currentPlan);
+
+        try {
+            $voiceQuote = VoicePricingService::quote([
+                'trunk' => $trunk,
+                'user_id' => $userId,
+                'tenancy_id' => $tenantId,
+                'plan_id' => $planIdUsed,
+            ]);
+        } catch (Throwable $e) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Falha na tarifação de voz: ' . $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $trunkBillingType = (string)$voiceQuote['trunk_billing_type'];
+        $planIdUsed = (int)$voiceQuote['plan_id'];
+        $tariffUsed = (float)$voiceQuote['tariff_used'];
+        $rateVoice = (float)$voiceQuote['call_minute_cost'];
+        $rateSms = (float)$voiceQuote['sms_cost'];
+        $rateTorpedo = (float)$voiceQuote['torpedo_cost'];
 
         $applyServiceFee = false;
 
@@ -1265,8 +1389,9 @@ class Voice extends ViewComponents
 
         // valores usados no payload
         $smsCost        = (float)$rateSms;
-        $callMinuteCost = (float)$rateVoice;
+        $callMinuteCost = ($variableTypeReal === 'service_fee') ? 0.0 : (float)$rateVoice;
         $valorTorpedo   = (float)$rateTorpedo;
+        $tariffUsedForCdr = ($variableTypeReal === 'service_fee') ? (float)$taxaOfService : (float)$rateValue;
 
         // (opcional) meta para worker cobrar na answered
         /*$serviceFeeMeta = [
@@ -1299,6 +1424,15 @@ class Voice extends ViewComponents
         //echo "<pre>";
         //print_r($adminId);
         //echo "</pre>";exit();
+
+        $primaryEstimateRate = ($variableTypeReal === 'service_fee') ? (float)$taxaOfService : (float)$rateValue;
+        $totalGeral = VoicePricingService::estimateCampaignTotal(
+            count($contactList),
+            $primaryEstimateRate,
+            $smsCost,
+            $hasSmsDirect,
+            $dtmf
+        );
 
         // =======================
         // Validação de saldo
@@ -1338,7 +1472,8 @@ class Voice extends ViewComponents
                     'status' => 403,
                     'message' => 'Saldo insuficiente para o revendedor.',
                     'reseller_balance' => $resellerBalance,
-                    'need' => $totalGeral
+                    'need' => $totalGeral,
+                    'frontend_estimate' => $totalGeralFrontend
                 ], 'application/json');
             }
 
@@ -1360,7 +1495,8 @@ class Voice extends ViewComponents
                     'status' => 403,
                     'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.',
                     'admin_balance' => $adminAvailable,
-                    'need' => $totalGeral
+                    'need' => $totalGeral,
+                    'frontend_estimate' => $totalGeralFrontend
                 ], 'application/json');
             }
 
@@ -1385,7 +1521,8 @@ class Voice extends ViewComponents
                     'status' => 403,
                     'message' => 'Saldo insuficiente. Plano desativado.',
                     'balance' => $availableBalance,
-                    'necessary' => $totalGeral
+                    'necessary' => $totalGeral,
+                    'frontend_estimate' => $totalGeralFrontend
                 ], 'application/json');
             }
         }
@@ -1551,6 +1688,9 @@ class Voice extends ViewComponents
                 'torpedo_cost' => $valorTorpedo,
                 'taxa_of_service' => $taxaOfService,
                 'sms_cost' => $smsCost,
+                'trunk_billing_type' => $trunkBillingType,
+                'plan_id' => $planIdUsed,
+                'tariff_used' => $tariffUsedForCdr,
                 'audio' => [
                     'main' => $mainAudio,
                     'dtmf' => $dtmf
@@ -1607,7 +1747,7 @@ class Voice extends ViewComponents
         $campaign->name           = $name;
         $campaign->type           = $campaignTypeRequested;
         $campaign->job_id         = $jobId;
-        $campaign->queue_id       = $queueId;
+        $campaign->queue_id       = $queueId ?? '';
         $campaign->total_contacts = count($contactList);
         $campaign->status         = 'y';
 
@@ -1654,6 +1794,9 @@ class Voice extends ViewComponents
                 'torpedo_cost' => $valorTorpedo,
                 'taxa_of_service' => $taxaOfService,
                 'sms_cost' => $smsCost,
+                'trunk_billing_type' => $trunkBillingType,
+                'plan_id' => $planIdUsed,
+                'tariff_used' => $tariffUsedForCdr,
 
                 'variable_type' => $variableTypeReal,
                 'rate' => $rate,
@@ -1864,8 +2007,8 @@ class Voice extends ViewComponents
         }
 
         $tenantId = $obUser['tenancy_id'];
-        $userId = $obUser['id'];
-        $planId = $obUser['plan_id'] ?? null;
+        $userId = (int)$obUser['id'];
+        $planId = RegisterTenancies::getActivePlanId($tenantId) ?: ($obUser['plan_id'] ?? null);
 
         // 🔍 Verifica se é RESELLER
         $isReseller = strtolower($obUser['function']) === 'reseller';
@@ -1875,13 +2018,14 @@ class Voice extends ViewComponents
         // =========================================
         if ($isReseller) {
 
-            $rateData = Rates::getActiveRatesByUser($tenantId, $userId);
             $whatsappCategories = WhatsAppBilling::categoryPricesForUser((int)$userId, (string)$tenantId);
 
-            if (empty($rateData)) {
-                return new Response(404, [
-                    'status' => 404,
-                    'message' => 'Nenhuma tarifa configurada.'
+            try {
+                $planRates = VoicePricingService::planRates($userId, (string)$tenantId, $planId ? (int)$planId : null);
+            } catch (Throwable $e) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => 'Falha ao carregar tarifas reais do plano: ' . $e->getMessage(),
                 ], 'application/json');
             }
 
@@ -1889,9 +2033,11 @@ class Voice extends ViewComponents
                 'success' => true,
                 'type' => 'reseller',
                 'data' => [
-                    'voice' => (float)$rateData['voice'],
-                    'sms' => (float)$rateData['sms'],
-                    'torpedo' => (float)$rateData['torpedo'],
+                    'voice' => (float)$planRates['voice_smart_rate'],
+                    'voice_open_rate' => (float)$planRates['voice_open_rate'],
+                    'voice_smart_rate' => (float)$planRates['voice_smart_rate'],
+                    'sms' => (float)$planRates['sms'],
+                    'torpedo' => (float)$planRates['torpedo'],
                     'whatsapp' => (float)($whatsappCategories['marketing'] ?? 0),
                     'whatsapp_categories' => $whatsappCategories
                 ]
@@ -1901,16 +2047,26 @@ class Voice extends ViewComponents
         // =========================================
         // 👉 2. USUÁRIO NORMAL / ADMIN → BUSCA NO BALANCE
         // =========================================
-        $obBalance = BalanceSms::getBalanceSms($userId, $tenantId, $planId);
         $whatsappCategories = WhatsAppBilling::categoryPricesForUser((int)$userId, (string)$tenantId);
+
+        try {
+            $planRates = VoicePricingService::planRates($userId, (string)$tenantId, $planId ? (int)$planId : null);
+        } catch (Throwable $e) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Falha ao carregar tarifas reais do plano: ' . $e->getMessage(),
+            ], 'application/json');
+        }
 
         return new Response(200, [
             'success' => true,
             'type' => 'balance',
             'data' => [
-                'voice' => (float)($obBalance->value_voice ?? 0),
-                'sms' => (float)($obBalance->value_sms ?? 0),
-                'torpedo' => (float)($obBalance->value_torpedo ?? 0),
+                'voice' => (float)$planRates['voice_smart_rate'],
+                'voice_open_rate' => (float)$planRates['voice_open_rate'],
+                'voice_smart_rate' => (float)$planRates['voice_smart_rate'],
+                'sms' => (float)$planRates['sms'],
+                'torpedo' => (float)$planRates['torpedo'],
                 'whatsapp' => (float)($whatsappCategories['marketing'] ?? 0),
                 'whatsapp_categories' => $whatsappCategories
             ]
@@ -2161,7 +2317,17 @@ class Voice extends ViewComponents
         }
 
         // 🔹 Reindexa os resultados após o filtro
-        $data = array_values($data);
+        $data = array_values(array_map(static function (array $trunk): array {
+            $billingType = VoicePricingService::normalizeBillingType($trunk['billing_type'] ?? null)
+                ?? VoicePricingService::normalizeBillingType($trunk['cli_type'] ?? null);
+
+            if ($billingType !== null) {
+                $trunk['billing_type'] = $billingType;
+                $trunk['cli_type'] = VoicePricingService::cliTypeForBilling($billingType);
+            }
+
+            return $trunk;
+        }, $data));
 
         // ============================================================
         // 🔊 Gera URL pública acessível via audio.php
@@ -2647,6 +2813,7 @@ class Voice extends ViewComponents
             $data = $redis->get('asterisk:active_calls');
             $payload = $data ? json_decode($data, true) : null;
             $calls = $payload['chamadas'] ?? [];
+            $calls = self::hydrateDtmfAcrossRelatedCalls(is_array($calls) ? $calls : []);
 
             // ===== Normaliza dados do usuário =====
             $userRole = strtolower((string)($user['function'] ?? 'reseller'));
@@ -2685,6 +2852,8 @@ class Voice extends ViewComponents
                 $call['owner_id'] = $call['owner_id'] ?? $id['owner'];
                 $call['tenant_id'] = $call['tenant_id'] ?? $id['tenant'];
                 $call['role'] = $call['role'] ?? $id['role'];
+                $call['dtmf'] = self::dtmfString($call['dtmf'] ?? $call['last_dtmf'] ?? null);
+                $call['last_dtmf'] = self::dtmfString($call['last_dtmf'] ?? null);
                 unset($call['vars']); // resposta mais leve
                 return $call;
             }, $filtered);
@@ -2721,6 +2890,125 @@ class Voice extends ViewComponents
             ob_flush();
             flush();
         }
+    }
+
+    private static function hydrateDtmfAcrossRelatedCalls(array $calls): array
+    {
+        $parent = [];
+        $find = static function (string $key) use (&$parent, &$find): string {
+            if (!isset($parent[$key])) {
+                $parent[$key] = $key;
+            }
+            if ($parent[$key] !== $key) {
+                $parent[$key] = $find($parent[$key]);
+            }
+            return $parent[$key];
+        };
+        $union = static function (string $a, string $b) use (&$parent, $find): void {
+            $ra = $find($a);
+            $rb = $find($b);
+            if ($ra !== $rb) {
+                $parent[$rb] = $ra;
+            }
+        };
+
+        $keysByIndex = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call)) {
+                $keysByIndex[$i] = [];
+                continue;
+            }
+            $keys = self::callRelationKeys($call);
+            $keysByIndex[$i] = $keys;
+            for ($j = 1; $j < count($keys); $j++) {
+                $union($keys[0], $keys[$j]);
+            }
+        }
+
+        $bestByRoot = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+            $dtmf = self::dtmfString($call['dtmf'] ?? $call['last_dtmf'] ?? null);
+            if ($dtmf === '') {
+                continue;
+            }
+            $root = $find($keysByIndex[$i][0]);
+            if (!isset($bestByRoot[$root]) || strlen($dtmf) >= strlen($bestByRoot[$root]['dtmf'])) {
+                $bestByRoot[$root] = [
+                    'dtmf' => $dtmf,
+                    'source' => $call['id'] ?? $keysByIndex[$i][0],
+                    'last_dtmf' => self::dtmfString($call['last_dtmf'] ?? null),
+                    'last_dtmf_at' => $call['last_dtmf_at'] ?? null,
+                ];
+            }
+        }
+
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+            $root = $find($keysByIndex[$i][0]);
+            $best = $bestByRoot[$root] ?? null;
+            if (!$best) {
+                continue;
+            }
+            $current = self::dtmfString($call['dtmf'] ?? null);
+            if ($current === '' || strlen($best['dtmf']) > strlen($current)) {
+                $calls[$i]['dtmf'] = $best['dtmf'];
+                $calls[$i]['dtmf_source'] = $best['source'];
+            }
+            if (empty($calls[$i]['last_dtmf']) && $best['last_dtmf'] !== '') {
+                $calls[$i]['last_dtmf'] = $best['last_dtmf'];
+            }
+            if (empty($calls[$i]['last_dtmf_at']) && !empty($best['last_dtmf_at'])) {
+                $calls[$i]['last_dtmf_at'] = $best['last_dtmf_at'];
+            }
+        }
+
+        return $calls;
+    }
+
+    private static function callRelationKeys(array $call): array
+    {
+        $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
+        $values = [
+            $call['id'] ?? null,
+            $call['peer'] ?? null,
+            $call['linkedid'] ?? null,
+            $call['call_id'] ?? null,
+            $vars['CALL_ID'] ?? null,
+            $vars['__CALL_ID'] ?? null,
+        ];
+
+        $keys = [];
+        foreach ($values as $value) {
+            $value = trim((string)($value ?? ''));
+            if ($value === '') {
+                continue;
+            }
+            $keys[] = $value;
+            $base = preg_replace('/\.\d+$/', '', $value);
+            if ($base !== $value && $base !== '') {
+                $keys[] = $base;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    private static function dtmfString(mixed $value): string
+    {
+        if ($value === null || $value === false) {
+            return '';
+        }
+
+        if (is_array($value)) {
+            $value = implode('', array_map(static fn($digit) => (string)$digit, $value));
+        }
+
+        return preg_replace('/[^\d#*ABCD]/i', '', (string)$value) ?? '';
     }
 
     private static function onlyDigits(?string $v): string
@@ -3371,7 +3659,7 @@ class Voice extends ViewComponents
         //print_r($data);
         //echo "</pre>";exit();
 
-        return new Response(200, [
+        $response = new Response(200, [
             'status'  => 200,
             'success' => true,
             'message' => 'SIP Trunks encontrados com sucesso.',
@@ -3381,6 +3669,12 @@ class Voice extends ViewComponents
             ],
             'data'    => $data,
         ], 'application/json');
+
+        $response->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->addHeader('Pragma', 'no-cache');
+        $response->addHeader('Expires', '0');
+
+        return $response;
     }
 
 
@@ -3432,6 +3726,13 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
+        $billingType = VoicePricingService::normalizeBillingType($input['billing_type'] ?? $input['cli_type'] ?? null);
+        if ($billingType === null) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Tipo de tarifação do tronco é obrigatório. Use CLI Aberta ou Bina Inteligente.'
+            ], 'application/json');
+        }
 
         try {
 
@@ -3452,7 +3753,8 @@ class Voice extends ViewComponents
                 'port'       => (int)($input['port'] ?? 5060),
                 'transport'  => $input['transport'] ?? 'udp',
                 'direction'  => $input['direction'] ?? 'both',
-                'cli_type'   => $input['cli_type']?? 'bina_inteligente',
+                'cli_type'   => VoicePricingService::cliTypeForBilling($billingType),
+                'billing_type' => $billingType,
                 'techprefix' => $input['techprefix'] ?? '',
                 'dial_prefix' => $input['dial_prefix'] ?? '',
                 'service_fee' => $serviceSee,
@@ -3590,6 +3892,13 @@ class Voice extends ViewComponents
         }
 
         $serviceSee = 0.03;
+        $billingType = VoicePricingService::normalizeBillingType($input['billing_type'] ?? $input['cli_type'] ?? null);
+        if ($billingType === null) {
+            return new Response(400, [
+                'success' => false,
+                'message' => 'Tipo de tarifação do tronco é obrigatório. Use CLI Aberta ou Bina Inteligente.',
+            ], 'application/json');
+        }
 
 
         try {
@@ -3607,7 +3916,8 @@ class Voice extends ViewComponents
                 'port'       => (int)($input['port'] ?? 5060),
                 'transport'  => strtolower((string)($input['transport'] ?? 'udp')),
                 'direction'  => strtolower((string)($input['direction'] ?? 'outbound')),
-                'cli_type'   => $input['cli_type']?? 'bina_inteligente',
+                'cli_type'   => VoicePricingService::cliTypeForBilling($billingType),
+                'billing_type' => $billingType,
                 'techprefix' => (string)($input['techprefix'] ?? ''),
                 'dial_prefix' => $input['dial_prefix'] ?? '',
                 'service_fee' => $serviceSee,
@@ -4215,6 +4525,8 @@ final class VoiceCdrMapper
         $cdr->direction = $tariff['direction'] ?? 'outbound';
         $cdr->trunk = $tariff['trunk_name'] ?? $tariff['trunk'] ?? $tariff['TRUNK'] ?? null;
         $cdr->trunk_id = $tariff['trunk_id'] ?? $tariff['TRUNK_ID'] ?? null;
+        $cdr->trunk_billing_type = $tariff['trunk_billing_type'] ?? $tariff['TRUNK_BILLING_TYPE'] ?? null;
+        $cdr->plan_id = $tariff['plan_id'] ?? $tariff['PLAN_ID'] ?? null;
         $cdr->endpoints = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
 
         $cdr->type = strtolower((string)($tariff['type'] ?? 'normal'));
@@ -4225,11 +4537,15 @@ final class VoiceCdrMapper
         $cdr->cause_txt = $tariff['cause_txt'] ?? null;
         $cdr->sip_code = $tariff['sip_code'] ?? null;
         $cdr->duration = (int)($tariff['duration'] ?? 0);
+        $cdr->duration_seconds = (int)($tariff['duration_seconds'] ?? $tariff['duration'] ?? 0);
         $cdr->billsec = (int)($tariff['billsec'] ?? $tariff['duration'] ?? 0);
+        $cdr->billed_seconds = (int)($tariff['billed_seconds'] ?? $tariff['billsec'] ?? $tariff['duration'] ?? 0);
         $cdr->value = round((float)($tariff['value'] ?? 0), 4);
+        $cdr->final_price = round((float)($tariff['final_price'] ?? $tariff['value'] ?? 0), 4);
         $cdr->agent_abandoned = (int)($tariff['agent_abandoned'] ?? 0);
         $cdr->agent_abandon_reason = $tariff['agent_abandon_reason'] ?? null;
         $cdr->call_minute_cost = round((float)($tariff['call_minute_cost'] ?? 0), 4);
+        $cdr->tariff_used = round((float)($tariff['tariff_used'] ?? $tariff['TARIFF_USED'] ?? $cdr->call_minute_cost), 4);
         $cdr->hangup_by = $tariff['hangup_by'] ?? null;
         $cdr->sms_cost = round((float)($tariff['sms_cost'] ?? 0), 4);
         $cdr->torpedo_cost = round((float)($tariff['torpedo_cost'] ?? 0), 4);
@@ -4242,8 +4558,10 @@ final class VoiceCdrMapper
         $cdr->started = self::timestampToDate($tariff['started'] ?? null);
         $cdr->answered = self::timestampToDate($tariff['answered'] ?? null);
         $cdr->ended = self::timestampToDate($tariff['ended'] ?? null);
+        $cdr->charged_at = $tariff['charged_at'] ?? $cdr->answered ?? $cdr->ended ?? $cdr->started ?? date('Y-m-d H:i:s');
 
         self::removeTechPrefix($cdr);
+        self::normalizeExtensionLeg($cdr);
 
         return $cdr;
     }
@@ -4262,6 +4580,53 @@ final class VoiceCdrMapper
         ) {
             $cdr->destination = substr((string)$cdr->destination, strlen((string)$cdr->techprefix));
         }
+    }
+
+    private static function normalizeExtensionLeg(CdrVoice $cdr): void
+    {
+        $extension = self::onlyDigits($cdr->channel_number);
+
+        if ($extension === '' || !self::isExtension($extension)) {
+            return;
+        }
+
+        $number = trim((string)($cdr->number ?? ''));
+        $destination = trim((string)($cdr->destination ?? ''));
+        $numberDigits = self::onlyDigits($number);
+        $destinationDigits = self::onlyDigits($destination);
+
+        $numberLooksLikeExtension = $numberDigits !== '' && self::isExtension($numberDigits);
+        $destinationLooksExternal = $destinationDigits !== '' && !self::isExtension($destinationDigits);
+
+        // Na perna do ramal, o relatório deve manter o CID/cliente em number e o ramal em destination.
+        if (($number === '' || $numberLooksLikeExtension) && $destinationLooksExternal) {
+            $number = $destination;
+        }
+
+        if ($number === '') {
+            $number = (string)($cdr->user_account_code ?? $cdr->channel_number ?? $extension);
+        }
+
+        $cdr->channel_number = $extension;
+        $cdr->number = $number;
+        $cdr->destination = $extension;
+    }
+
+    private static function onlyDigits(mixed $value): string
+    {
+        return preg_replace('/\D+/', '', (string)($value ?? '')) ?: '';
+    }
+
+    private static function isExtension(string $value): bool
+    {
+        $digits = self::onlyDigits($value);
+        $normalized = ltrim($digits, '0');
+
+        if ($normalized === '') {
+            $normalized = '0';
+        }
+
+        return strlen($normalized) >= 3 && strlen($normalized) <= 8;
     }
 }
 
@@ -4343,10 +4708,6 @@ final class VoiceCampaignCdrUpdater
 {
     public static function update(CdrVoice $cdr): void
     {
-        if (!empty($cdr->job_id)) {
-            CampaignVoice::updateStatusByJob($cdr->job_id, 'f');
-        }
-
         if (empty($cdr->campaign_id) || empty($cdr->dialstatus)) {
             return;
         }
@@ -4600,7 +4961,12 @@ final class VoiceBillingProcessor
             return 0.0;
         }
 
-        $voiceCost = (float)($rates->value_voice ?? 0);
+        $billingType = VoicePricingService::normalizeBillingType($cdr->trunk_billing_type ?? null);
+        $voiceCost = match ($billingType) {
+            VoicePricingService::BILLING_OPEN => (float)($rates->voice_open_rate ?? 0),
+            VoicePricingService::BILLING_SMART => (float)($rates->voice_smart_rate ?? 0),
+            default => (float)($rates->value_voice ?? 0),
+        };
         $smsCost = (float)($rates->value_sms ?? 0);
         $torpedoCost = (float)($rates->value_torpedo ?? 0);
         $whatsCost = (float)(WhatsAppBilling::categoryPricesForUser($tenantOwnerId, (string)$cdr->tenancy_id)['marketing'] ?? 0);

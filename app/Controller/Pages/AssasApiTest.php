@@ -44,10 +44,8 @@ class AssasApiTest
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $headers,
 
-            // --- O DRIBLE DO SSL ---
-            CURLOPT_SSL_VERIFYPEER => false, // Desativa a verificação de peer
-            CURLOPT_SSL_VERIFYHOST => false, // Desativa a verificação do host
-            // -----------------------
+            CURLOPT_SSL_VERIFYPEER => getenv('ASAAS_DISABLE_SSL_VERIFY') === 'true' ? false : true,
+            CURLOPT_SSL_VERIFYHOST => getenv('ASAAS_DISABLE_SSL_VERIFY') === 'true' ? 0 : 2,
 
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_TIMEOUT => 30
@@ -67,7 +65,7 @@ class AssasApiTest
 
         if ($error) {
             return [
-                'error' => 'Curl Error: ' . $error,
+                'error' => 'Falha de comunicação com o provedor PIX.',
                 'status' => $httpCode
             ];
         }
@@ -76,9 +74,16 @@ class AssasApiTest
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             return [
-                'error' => 'Erro ao decodificar JSON',
-                'raw' => $response,
+                'error' => 'Resposta inválida do provedor PIX.',
                 'status' => $httpCode
+            ];
+        }
+
+        if ($httpCode >= 400) {
+            return [
+                'error' => 'Provedor PIX retornou erro HTTP.',
+                'status' => $httpCode,
+                'errors' => $responseData['errors'] ?? null
             ];
         }
 

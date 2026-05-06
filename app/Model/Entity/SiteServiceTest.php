@@ -52,6 +52,106 @@ class SiteServiceTest
         return is_array($row) ? $row : null;
     }
 
+    public static function findByEmail(string $email): ?array
+    {
+        self::ensureSchema();
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'email = :email',
+                [':email' => $email],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function findByDestination(string $destination): ?array
+    {
+        self::ensureSchema();
+
+        $destination = preg_replace('/\D+/', '', $destination);
+        if ($destination === '') {
+            return null;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'destination = :destination',
+                [':destination' => $destination],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function findByIp(string $ipAddress): ?array
+    {
+        self::ensureSchema();
+
+        if (trim($ipAddress) === '') {
+            return null;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'ip_address = :ip',
+                [':ip' => $ipAddress],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function findByDestinationAndServiceToday(string $destination, string $serviceType): ?array
+    {
+        self::ensureSchema();
+
+        $destination = preg_replace('/\D+/', '', $destination);
+        if ($destination === '') {
+            return null;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'destination = :destination AND service_type = :service_type AND DATE(created_at) = CURDATE()',
+                [':destination' => $destination, ':service_type' => $serviceType],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function countDestinationToday(string $destination): int
+    {
+        self::ensureSchema();
+
+        $destination = preg_replace('/\D+/', '', $destination);
+        if ($destination === '') {
+            return 0;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'destination = :destination AND DATE(created_at) = CURDATE()',
+                [':destination' => $destination],
+                '',
+                '1',
+                'COUNT(*) AS total'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return (int)($row['total'] ?? 0);
+    }
+
     public static function createPending(array $data): int
     {
         self::ensureSchema();

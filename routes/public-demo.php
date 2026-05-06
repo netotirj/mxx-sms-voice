@@ -5,6 +5,18 @@ use App\Http\Response;
 
 global $obRouter;
 
+$obRouter->post('/api/public/demo/check', [
+    'name' => '/api/public/demo/check',
+    'middlewares' => [],
+    fn($request) => Pages\PublicDemo::check($request),
+]);
+
+$obRouter->options('/api/public/demo/check', [
+    'name' => '/api/public/demo/check',
+    'middlewares' => [],
+    fn($request) => Pages\PublicDemo::options($request, 'check'),
+]);
+
 $obRouter->options('/api/public/demo/{channel}', [
     'name' => '/api/public/demo/{channel}',
     'middlewares' => [],

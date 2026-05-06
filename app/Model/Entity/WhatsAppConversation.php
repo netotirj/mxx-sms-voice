@@ -10,7 +10,9 @@ class WhatsAppConversation
 {
     public static function findOrCreate(array $data): int
     {
-        $phone = preg_replace('/\D+/', '', (string)$data['contact_phone']);
+        $phone = self::normalizePhone((string)$data['contact_phone']);
+        $contactName = self::nullableString($data['contact_name'] ?? null);
+        $allowNameOverwrite = !empty($data['overwrite_contact_name']);
         $existing = (new Database('whatsapp_conversations'))
             ->select(
                 'account_id = :account_id AND contact_phone = :phone',
@@ -24,47 +26,185 @@ class WhatsAppConversation
             ->fetch(PDO::FETCH_ASSOC);
 
         if ($existing) {
-            if (!empty($data['contact_name'])) {
-                self::update((int)$existing['id'], [
-                    'contact_name' => $data['contact_name'],
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
+            self::syncExistingConversationContactName($existing, $contactName, $allowNameOverwrite);
 
             return (int)$existing['id'];
         }
 
-        return (int)(new Database('whatsapp_conversations'))->insert([
-            'tenancy_id' => $data['tenancy_id'],
-            'user_id' => (int)$data['user_id'],
-            'account_id' => (int)$data['account_id'],
-            'contact_phone' => $phone,
-            'contact_name' => $data['contact_name'] ?? null,
-            'last_message' => $data['last_message'] ?? null,
-            'last_direction' => $data['last_direction'] ?? null,
-            'last_message_at' => $data['last_message_at'] ?? date('Y-m-d H:i:s'),
-            'unread_count' => (int)($data['unread_count'] ?? 0),
-            'status' => $data['status'] ?? 'open',
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            return (int)(new Database('whatsapp_conversations'))->insert([
+                'tenancy_id' => $data['tenancy_id'],
+                'user_id' => (int)$data['user_id'],
+                'account_id' => (int)$data['account_id'],
+                'contact_phone' => $phone,
+                'contact_name' => $contactName,
+                'last_message' => $data['last_message'] ?? null,
+                'last_direction' => $data['last_direction'] ?? null,
+                'last_message_at' => $data['last_message_at'] ?? date('Y-m-d H:i:s'),
+                'unread_count' => (int)($data['unread_count'] ?? 0),
+                'status' => $data['status'] ?? 'open',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            if (!self::isDuplicateKeyException($e)) {
+                throw $e;
+            }
+
+            $existing = (new Database('whatsapp_conversations'))
+                ->select(
+                    'account_id = :account_id AND contact_phone = :phone',
+                    [
+                        ':account_id' => (int)$data['account_id'],
+                        ':phone' => $phone,
+                    ],
+                    '',
+                    '1'
+                )
+                ->fetch(PDO::FETCH_ASSOC);
+
+            if (!$existing) {
+                throw $e;
+            }
+
+            self::syncExistingConversationContactName($existing, $contactName, $allowNameOverwrite);
+
+            return (int)$existing['id'];
+        }
     }
 
-    public static function listForUser(array $user, ?int $accountId = null): array
+    public static function listForUser(array $user, ?int $accountId = null, array $filters = []): array
     {
-        $where = TenancyHelper::applySecurityFilter("wa.status = 'active'", $user, 'user_id', 'wc');
+        $isRestrictedAgent = self::isRestrictedSupportRole($user);
+        $hasQueueId = self::conversationHasColumn('queue_id');
+        $hasAssignedUserId = self::conversationHasColumn('assigned_user_id');
+        $hasQueueStatus = self::conversationHasColumn('queue_status');
+        $hasQueuedAt = self::conversationHasColumn('queued_at');
         $params = [];
+        $limit = max(1, min(200, (int)($filters['limit'] ?? 120)));
+        $search = trim((string)($filters['search'] ?? ''));
+
+        if ($isRestrictedAgent) {
+            if ($hasAssignedUserId && $hasQueueStatus && $hasQueueId) {
+                $where = "wa.status = 'active' AND wc.tenancy_id = :tenancy_id AND (
+                    wc.assigned_user_id = :agent_user_id
+                    OR (
+                        wc.queue_status = 'waiting'
+                        AND wc.queue_id IS NOT NULL
+                        AND EXISTS (
+                            SELECT 1
+                            FROM whatsapp_support_queue_agents qa
+                            WHERE qa.queue_id = wc.queue_id
+                              AND qa.agent_user_id = :agent_user_id
+                              AND qa.tenancy_id = wc.tenancy_id
+                        )
+                    )
+                )";
+                $params[':tenancy_id'] = $user['tenancy_id'];
+                $params[':agent_user_id'] = (int)$user['id'];
+            } else {
+                $where = TenancyHelper::applySecurityFilter("wa.status = 'active'", $user, 'user_id', 'wc');
+            }
+        } else {
+            $where = TenancyHelper::applySecurityFilter("wa.status = 'active'", $user, 'user_id', 'wc');
+        }
 
         if ($accountId !== null && $accountId > 0) {
             $where = "({$where}) AND wc.account_id = :account_id";
             $params[':account_id'] = $accountId;
         }
 
-        return (new Database('whatsapp_conversations wc INNER JOIN whatsapp_accounts wa ON wa.id = wc.account_id AND wa.tenancy_id = wc.tenancy_id'))
-            ->select($where, $params, 'wc.last_message_at DESC, wc.id DESC', '', [
-                'wc.*',
-                'wa.label AS account_label',
-                'wa.display_phone_number AS account_phone',
+        $queueId = isset($filters['queue_id']) ? (int)$filters['queue_id'] : 0;
+        if ($hasQueueId && $queueId > 0) {
+            $where = "({$where}) AND wc.queue_id = :queue_id";
+            $params[':queue_id'] = $queueId;
+        }
+
+        $queueStatus = strtolower(trim((string)($filters['queue_status'] ?? '')));
+        if ($hasQueueStatus && in_array($queueStatus, ['waiting', 'active', 'finished', 'transferred'], true)) {
+            $where = "({$where}) AND wc.queue_status = :queue_status";
+            $params[':queue_status'] = $queueStatus;
+        }
+
+        if ($hasAssignedUserId && !empty($filters['assigned_only'])) {
+            $where = "({$where}) AND wc.assigned_user_id IS NOT NULL AND wc.assigned_user_id > 0";
+        }
+
+        if ($hasAssignedUserId && !empty($filters['unassigned_only'])) {
+            $where = "({$where}) AND (wc.assigned_user_id IS NULL OR wc.assigned_user_id = 0)";
+        }
+
+        if ($search !== '') {
+            $where = "({$where}) AND (
+                wc.contact_name LIKE :search
+                OR wc.contact_phone LIKE :search
+                OR wc.last_message LIKE :search
+            )";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $joinQueue = $hasQueueId ? 'LEFT JOIN whatsapp_support_queues q ON q.id = wc.queue_id AND q.tenancy_id = wc.tenancy_id' : '';
+        $joinAssigned = $hasAssignedUserId ? 'LEFT JOIN users au ON au.id = wc.assigned_user_id AND au.tenancy_id = wc.tenancy_id' : '';
+        $fields = [
+            'wc.*',
+            'wa.label AS account_label',
+            'wa.display_phone_number AS account_phone',
+        ];
+        if ($hasQueueId) {
+            $fields[] = 'q.name AS queue_name';
+            $fields[] = self::queueHasColumn('color') ? 'q.color AS queue_color' : "NULL AS queue_color";
+            $fields[] = 'q.priority AS queue_priority';
+            $fields[] = "(SELECT s.id
+                FROM whatsapp_support_sessions s
+                WHERE s.conversation_id = wc.id
+                  AND s.state IN ('waiting', 'active')
+                ORDER BY s.id DESC
+                LIMIT 1) AS support_session_id";
+            $fields[] = "(SELECT TIMESTAMPDIFF(SECOND, s.queued_at,
+                    CASE
+                        WHEN s.state = 'active' THEN COALESCE(s.started_at, NOW())
+                        ELSE NOW()
+                    END)
+                FROM whatsapp_support_sessions s
+                WHERE s.conversation_id = wc.id
+                  AND s.state IN ('waiting', 'active')
+                ORDER BY s.id DESC
+                LIMIT 1) AS queue_waiting_seconds";
+        } else {
+            $fields[] = 'NULL AS queue_name';
+            $fields[] = 'NULL AS queue_color';
+            $fields[] = 'NULL AS queue_priority';
+            $fields[] = 'NULL AS support_session_id';
+            $fields[] = 'NULL AS queue_waiting_seconds';
+        }
+        if ($hasAssignedUserId) {
+            $fields[] = 'au.name AS assigned_user_name';
+            $fields[] = 'au.image AS assigned_user_image';
+            $fields[] = 'au.last_activity AS assigned_user_last_activity';
+        } else {
+            $fields[] = 'NULL AS assigned_user_name';
+            $fields[] = 'NULL AS assigned_user_image';
+            $fields[] = 'NULL AS assigned_user_last_activity';
+        }
+        if (!$hasQueueId) {
+            $fields[] = 'NULL AS queue_id';
+        }
+        if (!$hasAssignedUserId) {
+            $fields[] = 'NULL AS assigned_user_id';
+        }
+        if (!$hasQueueStatus) {
+            $fields[] = 'NULL AS queue_status';
+        }
+        if (!$hasQueuedAt) {
+            $fields[] = 'NULL AS queued_at';
+        }
+
+        return (new Database("whatsapp_conversations wc
+            INNER JOIN whatsapp_accounts wa ON wa.id = wc.account_id AND wa.tenancy_id = wc.tenancy_id
+            {$joinQueue}
+            {$joinAssigned}"))
+            ->select($where, $params, 'wc.last_message_at DESC, wc.id DESC', (string)$limit, [
+                ...$fields,
                 "(SELECT wm.status
                     FROM whatsapp_messages wm
                     WHERE wm.conversation_id = wc.id
@@ -103,15 +243,48 @@ class WhatsAppConversation
 
     public static function getForUser(int $id, array $user): ?array
     {
-        $where = TenancyHelper::applySecurityFilter('id = :id', $user, 'user_id', 'whatsapp_conversations');
-        $row = (new Database('whatsapp_conversations'))
-            ->select($where, [':id' => $id], '', '1')
-            ->fetch(PDO::FETCH_ASSOC);
+        if (self::isRestrictedSupportRole($user)
+            && self::conversationHasColumn('assigned_user_id')
+            && self::conversationHasColumn('queue_status')
+            && self::conversationHasColumn('queue_id')) {
+            $row = (new Database('whatsapp_conversations'))
+                ->select(
+                    "id = :id
+                     AND tenancy_id = :tenancy_id
+                     AND (
+                        assigned_user_id = :agent_user_id
+                        OR (
+                            queue_status = 'waiting'
+                            AND queue_id IS NOT NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM whatsapp_support_queue_agents qa
+                                WHERE qa.queue_id = whatsapp_conversations.queue_id
+                                  AND qa.agent_user_id = :agent_user_id
+                                  AND qa.tenancy_id = whatsapp_conversations.tenancy_id
+                            )
+                        )
+                     )",
+                    [
+                        ':id' => $id,
+                        ':tenancy_id' => $user['tenancy_id'],
+                        ':agent_user_id' => (int)$user['id'],
+                    ],
+                    '',
+                    '1'
+                )
+                ->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $where = TenancyHelper::applySecurityFilter('id = :id', $user, 'user_id', 'whatsapp_conversations');
+            $row = (new Database('whatsapp_conversations'))
+                ->select($where, [':id' => $id], '', '1')
+                ->fetch(PDO::FETCH_ASSOC);
+        }
 
         return $row ?: null;
     }
 
-    public static function listMessagesForUser(int $conversationId, array $user): array
+    public static function listMessagesForUser(int $conversationId, array $user, int $limit = 200, ?int $beforeId = null): array
     {
         $conversation = self::getForUser($conversationId, $user);
         if (!$conversation) {
@@ -121,9 +294,19 @@ class WhatsAppConversation
         self::update($conversationId, ['unread_count' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
         self::markInboundMessagesRead($conversationId);
 
+        $limit = max(1, min(500, $limit));
+        $where = 'conversation_id = :conversation_id';
+        $params = [':conversation_id' => $conversationId];
+        if ($beforeId !== null && $beforeId > 0) {
+            $where .= ' AND id < :before_id';
+            $params[':before_id'] = $beforeId;
+        }
+
         $rows = (new Database('whatsapp_messages'))
-            ->select('conversation_id = :conversation_id', [':conversation_id' => $conversationId], 'id ASC')
+            ->select($where, $params, 'id DESC', (string)$limit)
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $rows = array_reverse($rows);
 
         foreach ($rows as &$row) {
             $payload = json_decode((string)($row['payload'] ?? ''), true);
@@ -179,10 +362,19 @@ class WhatsAppConversation
 
     public static function addMessage(array $data): int
     {
+        $wamid = self::nullableString($data['wamid'] ?? null);
+        if ($wamid !== null) {
+            $existing = self::findMessageByWamid($wamid);
+            if ($existing) {
+                self::mergeDuplicateMessage((int)$existing['id'], $existing, $data);
+                return (int)$existing['id'];
+            }
+        }
+
         $values = [
             'conversation_id' => (int)$data['conversation_id'],
             'account_id' => (int)$data['account_id'],
-            'wamid' => $data['wamid'] ?? null,
+            'wamid' => $wamid,
             'direction' => $data['direction'],
             'message_type' => $data['message_type'] ?? 'text',
             'template_name' => $data['template_name'] ?? null,
@@ -213,7 +405,21 @@ class WhatsAppConversation
             }
         }
 
-        $id = (int)(new Database('whatsapp_messages'))->insert($values);
+        try {
+            $id = (int)(new Database('whatsapp_messages'))->insert($values);
+        } catch (\Throwable $e) {
+            if ($wamid === null || !self::isDuplicateKeyException($e)) {
+                throw $e;
+            }
+
+            $existing = self::findMessageByWamid($wamid);
+            if (!$existing) {
+                throw $e;
+            }
+
+            self::mergeDuplicateMessage((int)$existing['id'], $existing, $data);
+            return (int)$existing['id'];
+        }
 
         self::touchFromMessage(
             (int)$data['conversation_id'],
@@ -429,6 +635,149 @@ class WhatsAppConversation
         return isset($columns[$column]);
     }
 
+    private static function conversationHasColumn(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_conversations')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
+    }
+
+    private static function findMessageByWamid(string $wamid): ?array
+    {
+        if ($wamid === '') {
+            return null;
+        }
+
+        $row = (new Database('whatsapp_messages'))
+            ->select('wamid = :wamid', [':wamid' => $wamid], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    private static function mergeDuplicateMessage(int $id, array $existing, array $incoming): void
+    {
+        $values = [];
+        $existingStatus = (string)($existing['status'] ?? '');
+        $incomingStatus = (string)($incoming['status'] ?? '');
+        if ($incomingStatus !== '' && self::messageStatusRank($incomingStatus) > self::messageStatusRank($existingStatus)) {
+            $values['status'] = $incomingStatus;
+        }
+
+        $incomingError = self::nullableString($incoming['error_message'] ?? null);
+        if ($incomingError !== null && self::nullableString($existing['error_message'] ?? null) !== $incomingError) {
+            $values['error_message'] = $incomingError;
+        }
+
+        $incomingBody = self::nullableString($incoming['body'] ?? null);
+        if ($incomingBody !== null && self::nullableString($existing['body'] ?? null) === null) {
+            $values['body'] = $incomingBody;
+        }
+
+        $existingPayload = json_decode((string)($existing['payload'] ?? ''), true);
+        $existingPayload = is_array($existingPayload) ? $existingPayload : [];
+        $incomingPayload = is_array($incoming['payload'] ?? null) ? $incoming['payload'] : [];
+        if ($incomingPayload !== []) {
+            $mergedPayload = array_replace_recursive($existingPayload, $incomingPayload);
+            if ($mergedPayload !== $existingPayload) {
+                $values['payload'] = json_encode($mergedPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+        }
+
+        foreach ([
+            'preview_body' => $incoming['preview_body'] ?? $incoming['body'] ?? null,
+            'template_variables' => isset($incoming['template_variables'])
+                ? json_encode($incoming['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null,
+            'pricing_snapshot' => isset($incoming['pricing_snapshot'])
+                ? json_encode($incoming['pricing_snapshot'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null,
+        ] as $column => $value) {
+            if (!self::messageHasColumn($column)) {
+                continue;
+            }
+
+            $existingValue = $existing[$column] ?? null;
+            if (($existingValue === null || $existingValue === '') && $value !== null && $value !== '') {
+                $values[$column] = $value;
+            }
+        }
+
+        if ($values === []) {
+            return;
+        }
+
+        $values['updated_at'] = date('Y-m-d H:i:s');
+        (new Database('whatsapp_messages'))->update('id = :id', $values, [':id' => $id]);
+    }
+
+    private static function syncExistingConversationContactName(array $existing, ?string $contactName, bool $allowOverwrite): void
+    {
+        if ($contactName === null) {
+            return;
+        }
+
+        $currentName = self::nullableString($existing['contact_name'] ?? null);
+        if ($currentName !== null && !$allowOverwrite) {
+            return;
+        }
+
+        if ($currentName === $contactName) {
+            return;
+        }
+
+        self::update((int)$existing['id'], [
+            'contact_name' => $contactName,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private static function normalizePhone(string $phone): string
+    {
+        return preg_replace('/\D+/', '', $phone) ?: '';
+    }
+
+    private static function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+        return $value !== '' ? $value : null;
+    }
+
+    private static function isDuplicateKeyException(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return str_contains($message, 'duplicate entry')
+            || str_contains($message, 'integrity constraint violation')
+            || str_contains($message, '1062');
+    }
+
+    private static function queueHasColumn(string $column): bool
+    {
+        static $columns = null;
+        if ($columns === null) {
+            try {
+                $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_support_queues')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            } catch (\Throwable $e) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
+    }
+
     private static function markCdrDelivered(string $wamid): void
     {
         try {
@@ -497,5 +846,15 @@ class WhatsAppConversation
             'pending' => 1,
             default => 0,
         };
+    }
+
+    private static function normalizedRole(array $user): string
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+    }
+
+    private static function isRestrictedSupportRole(array $user): bool
+    {
+        return in_array(self::normalizedRole($user), ['agent', 'support_l1', 'operator', 'o'], true);
     }
 }

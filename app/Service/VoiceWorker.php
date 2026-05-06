@@ -182,6 +182,24 @@ class VoiceWorker
 
             $data['strategy'] = $strategy;
 
+            $pricingError = $this->validatePricingPayload($data);
+            if ($pricingError !== null) {
+                $this->pushDlq($jobId, $callId, $raw, 'invalid_pricing_payload', [
+                    'error' => $pricingError,
+                ]);
+
+                if ($jobId) {
+                    $this->markCallFailed($data, $jobId);
+                    $this->notifyJob($jobId, 'invalid_pricing_payload', $pricingError, [
+                        'call_id' => $callId,
+                        'phone' => $data['phone'] ?? null,
+                    ]);
+                }
+
+                echo "❌ Payload sem tarifação segura → {$pricingError}\n";
+                continue;
+            }
+
             if (!empty($jobId)) {
                 $lockKey = "campaign:{$jobId}:started";
 
@@ -433,8 +451,7 @@ class VoiceWorker
                         $this->pushDlq($jobId, $callId, $raw, $cls, $result);
 
                         if ($jobId) {
-                            $this->redis->hIncrBy("campaign:{$jobId}", 'failed_calls', 1);
-                            CampaignVoice::updateStatusByJob($jobId, 'c'); // e = erro (ou 'c' se preferir cancelar)
+                            $this->markCallFailed($data, $jobId);
                         }
                         echo "❌ ORIGINATE {$cls} → movido p/ DLQ\n";
                         continue;
@@ -463,8 +480,7 @@ class VoiceWorker
                     $this->pushDlq($jobId, $callId, $raw, "max_retries:{$cls}", $result);
 
                     if ($jobId) {
-                        $this->redis->hIncrBy("campaign:{$jobId}", 'failed_calls', 1);
-                        CampaignVoice::updateStatusByJob($jobId, 'c'); // cancelada (ou 'e')
+                        $this->markCallFailed($data, $jobId);
                     }
 
                     echo "❌ ORIGINATE falhou ({$cls}) → max retries → DLQ + cancel\n";
@@ -520,6 +536,10 @@ class VoiceWorker
                     'ts' => time(),
                 ], JSON_UNESCAPED_UNICODE));
 
+                if ($jobId) {
+                    $this->markCallFailed($data, $jobId);
+                }
+
                 echo "[ORIGINATE] ERRO: {$e->getMessage()}\n";
             }
 
@@ -545,6 +565,60 @@ class VoiceWorker
         if ($this->redis->setnx($k, time())) {
             $this->redis->expire($k, $ttl);
             echo $msg . "\n";
+        }
+    }
+
+    private function validatePricingPayload(array $data): ?string
+    {
+        $type = strtolower(trim((string)($data['variable_type'] ?? 'voice')));
+
+        if (empty($data['trunk_id']) || empty($data['trunk'])) {
+            return 'Payload de voz sem trunk_id/trunk.';
+        }
+
+        if (empty($data['trunk_billing_type'])) {
+            return 'Payload de voz sem tipo de tarifação do tronco.';
+        }
+
+        if (empty($data['plan_id'])) {
+            return 'Payload de voz sem plan_id.';
+        }
+
+        $tariffUsed = round((float)($data['tariff_used'] ?? 0), 4);
+        if ($tariffUsed <= 0) {
+            return 'Payload de voz sem tarifa usada.';
+        }
+
+        if (in_array($type, ['voice', 'normal', 'outbound'], true) && (float)($data['call_minute_cost'] ?? 0) <= 0) {
+            return 'Payload de voz sem call_minute_cost.';
+        }
+
+        if ($type === 'torpedo' && (float)($data['torpedo_cost'] ?? 0) <= 0) {
+            return 'Payload de torpedo sem torpedo_cost.';
+        }
+
+        if ($type === 'sms' && (float)($data['sms_cost'] ?? 0) <= 0) {
+            return 'Payload de SMS sem sms_cost.';
+        }
+
+        if ($type === 'service_fee' && (float)($data['taxa_of_service'] ?? 0) <= 0) {
+            return 'Payload de taxa de serviço sem valor configurado.';
+        }
+
+        return null;
+    }
+
+    private function markCallFailed(array $data, ?string $jobId): void
+    {
+        if (!$jobId) {
+            return;
+        }
+
+        $this->redis->hIncrBy("campaign:{$jobId}", 'failed_calls', 1);
+        $this->redis->hIncrBy("campaign:{$jobId}", 'processed', 1);
+
+        if (!empty($data['campaign_id'])) {
+            CampaignVoice::incrementCampaignCounters((int)$data['campaign_id'], 'FAILED');
         }
     }
 

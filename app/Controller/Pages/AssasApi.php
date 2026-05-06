@@ -9,7 +9,7 @@ class AssasApi
 
     public function __construct(string $baseUrl, string $clientSecret)
     {
-        $this->baseUrl = $baseUrl;
+        $this->baseUrl = rtrim($baseUrl, '/');
         $this->clientSecret = $clientSecret;
     }
 
@@ -44,6 +44,9 @@ class AssasApi
             CURLOPT_HTTPHEADER => $headers,
             // ❌ não usa caminho fixo de Windows
             CURLOPT_SSL_VERIFYPEER => true,  // garante HTTPS
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 30,
         ]);
 
         if (in_array($method, ['POST', 'PUT']) && !empty($request)) {
@@ -52,16 +55,20 @@ class AssasApi
 
         $response = curl_exec($curl);
         $error = curl_error($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
 
         if ($error) {
-            return ['error' => $error];
+            return ['error' => 'Falha de comunicação com o provedor PIX.', 'status' => $httpCode];
         }
 
         $responseData = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return ['error' => 'Erro ao decodificar JSON: ' . json_last_error_msg(), 'raw' => $response];
+            return ['error' => 'Resposta inválida do provedor PIX.', 'status' => $httpCode];
+        }
+        if ($httpCode >= 400) {
+            return ['error' => 'Provedor PIX retornou erro HTTP.', 'status' => $httpCode, 'errors' => $responseData['errors'] ?? null];
         }
         return $responseData;
     }

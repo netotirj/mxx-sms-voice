@@ -41,6 +41,7 @@ class User
             'email'         => $obUser->email,
             'account_code'  => $obUser->account_code ?? null, // ✅ sem espaço
             'function'      => $obUser->user_function ?? '',
+            'user_function' => $obUser->user_function ?? '',
             'role_id'       => $obUser->role_id ?? 0, // 🚀 AQUI: Salvando o ID do papel
             'tenancy_id'    => $obUser->tenancy_id ?? null, // <-- adicionado
             'timezone'      => $obUser->timezone ?? 'America/Sao_Paulo',
@@ -134,6 +135,7 @@ class User
                 'email'        => $obUser->email,
                 'account_code' => $obUser->account_code ?? null,
                 'function'     => $obUser->user_function ?? '',
+                'user_function'=> $obUser->user_function ?? '',
                 'role_id'      => $obUser->role_id ?? 0,
                 'tenancy_id'   => $obUser->tenancy_id ?? null,
                 'timezone'     => $obUser->timezone ?? 'America/Sao_Paulo',
@@ -167,4 +169,3 @@ class User
         session_destroy();
     }
 }
-

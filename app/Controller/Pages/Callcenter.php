@@ -178,6 +178,7 @@ class Callcenter extends ViewComponents
             // 3. PROCESSAMENTO DE CHAMADAS ATIVAS
             $rawCallsJson = $redis->get('asterisk:active_calls');
             $calls = ($rawCallsJson ? json_decode($rawCallsJson, true) : [])['chamadas'] ?? [];
+            $calls = self::hydrateDtmfAcrossRelatedCalls(is_array($calls) ? $calls : []);
 
             $chamadasFinal = [];
             $tempoConversaPorRamal = [];
@@ -236,6 +237,15 @@ class Callcenter extends ViewComponents
 
                 $chamadasFinal[] = [
                     'id'            => $call['id'] ?? '',
+                    'peer'          => $call['peer'] ?? null,
+                    'linkedid'      => $call['linkedid'] ?? null,
+                    'call_id'       => $call['call_id'] ?? ($vars['CALL_ID'] ?? $vars['__CALL_ID'] ?? null),
+                    'vars'          => [
+                        'CALL_ID' => $vars['CALL_ID'] ?? $vars['__CALL_ID'] ?? null,
+                        'AGENT_RAMAL' => $vars['AGENT_RAMAL'] ?? null,
+                        'AGENT_ID' => $vars['AGENT_ID'] ?? null,
+                        '__RAMAL' => $vars['__RAMAL'] ?? null,
+                    ],
                     'caller'        => $call['caller'] ?? 'Privado',
                     'dest'          => $call['destination'] ?? $call['number'] ?? '',
                     'status'        => $isUp ? 'Conversando' : 'Chamando',
@@ -244,7 +254,10 @@ class Callcenter extends ViewComponents
                     'campanha_nome' => $nomeExibicao,
                     'agente'        => $vars['__RAMAL'] ?? $vars['AGENT_RAMAL'] ?? $ramalDaChamada,
                     'voice_list_id' => $voiceListId,
-                    'dtmf'          => $call['dtmf'] ?? null
+                    'dtmf'          => self::dtmfString($call['dtmf'] ?? $call['last_dtmf'] ?? null),
+                    'last_dtmf'     => self::dtmfString($call['last_dtmf'] ?? null),
+                    'last_dtmf_at'  => $call['last_dtmf_at'] ?? null,
+                    'dtmf_source'   => $call['dtmf_source'] ?? null,
                 ];
             }
 
@@ -442,6 +455,138 @@ class Callcenter extends ViewComponents
                 ]) . "\n\n";
             flush();
         }
+    }
+
+    private static function hydrateDtmfAcrossRelatedCalls(array $calls): array
+    {
+        $parent = [];
+
+        $find = static function (string $key) use (&$parent, &$find): string {
+            if (!isset($parent[$key])) {
+                $parent[$key] = $key;
+            }
+
+            if ($parent[$key] !== $key) {
+                $parent[$key] = $find($parent[$key]);
+            }
+
+            return $parent[$key];
+        };
+
+        $union = static function (string $a, string $b) use (&$parent, $find): void {
+            $ra = $find($a);
+            $rb = $find($b);
+            if ($ra !== $rb) {
+                $parent[$rb] = $ra;
+            }
+        };
+
+        $keysByIndex = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call)) {
+                $keysByIndex[$i] = [];
+                continue;
+            }
+
+            $keys = self::callRelationKeys($call);
+            $keysByIndex[$i] = $keys;
+
+            for ($j = 1; $j < count($keys); $j++) {
+                $union($keys[0], $keys[$j]);
+            }
+        }
+
+        $bestByRoot = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+
+            $dtmf = self::dtmfString($call['dtmf'] ?? $call['last_dtmf'] ?? null);
+            if ($dtmf === '') {
+                continue;
+            }
+
+            $root = $find($keysByIndex[$i][0]);
+            if (!isset($bestByRoot[$root]) || strlen($dtmf) >= strlen($bestByRoot[$root]['dtmf'])) {
+                $bestByRoot[$root] = [
+                    'dtmf' => $dtmf,
+                    'source' => $call['id'] ?? $keysByIndex[$i][0],
+                    'last_dtmf' => self::dtmfString($call['last_dtmf'] ?? null),
+                    'last_dtmf_at' => $call['last_dtmf_at'] ?? null,
+                ];
+            }
+        }
+
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+
+            $root = $find($keysByIndex[$i][0]);
+            $best = $bestByRoot[$root] ?? null;
+            if (!$best) {
+                continue;
+            }
+
+            $current = self::dtmfString($call['dtmf'] ?? null);
+            if ($current === '' || strlen($best['dtmf']) > strlen($current)) {
+                $calls[$i]['dtmf'] = $best['dtmf'];
+                $calls[$i]['dtmf_source'] = $best['source'];
+            }
+
+            if (empty($calls[$i]['last_dtmf']) && $best['last_dtmf'] !== '') {
+                $calls[$i]['last_dtmf'] = $best['last_dtmf'];
+            }
+
+            if (empty($calls[$i]['last_dtmf_at']) && !empty($best['last_dtmf_at'])) {
+                $calls[$i]['last_dtmf_at'] = $best['last_dtmf_at'];
+            }
+        }
+
+        return $calls;
+    }
+
+    private static function callRelationKeys(array $call): array
+    {
+        $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
+        $values = [
+            $call['id'] ?? null,
+            $call['peer'] ?? null,
+            $call['linkedid'] ?? null,
+            $call['call_id'] ?? null,
+            $vars['CALL_ID'] ?? null,
+            $vars['__CALL_ID'] ?? null,
+        ];
+
+        $keys = [];
+        foreach ($values as $value) {
+            $value = trim((string)($value ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $keys[] = $value;
+            $base = preg_replace('/\.\d+$/', '', $value);
+            if ($base !== $value && $base !== '') {
+                $keys[] = $base;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    private static function dtmfString(mixed $value): string
+    {
+        if ($value === null || $value === false) {
+            return '';
+        }
+
+        if (is_array($value)) {
+            $value = implode('', array_map(static fn($digit) => (string)$digit, $value));
+        }
+
+        return preg_replace('/[^\d#*ABCD]/i', '', (string)$value) ?? '';
     }
 
 

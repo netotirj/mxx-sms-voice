@@ -475,7 +475,9 @@
                 const podeExcluir = window.canDeleteUser(user);
                 const podeAlterarStatus = window.canChangeStatus(user);
 
-                if (String(user.user_function || '').toLowerCase() === 'reseller') {
+                const listedRole = String(user.user_function || '').toLowerCase();
+
+                if (listedRole === 'reseller') {
                     if (souAdmin) {
                         colSaldoHTML = `<span class="cursor-pointer px-2 py-0.5 text-xxs font-bold rounded bg-blue-100 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
                     onclick="openRecargaModal('${user.id}', '${String(user.email || '').replace(/'/g, "\\'")}', '${user.balance}')">
@@ -486,6 +488,10 @@
                     ${saldoFormatado}
                 </span>`;
                     }
+                } else if (['admin', 'super_admin'].includes(listedRole)) {
+                    colSaldoHTML = `<span class="px-2 py-0.5 text-xxs font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    ${saldoFormatado}
+                </span>`;
                 } else {
                     colSaldoHTML = '<span class="text-slate-300">-</span>';
                 }

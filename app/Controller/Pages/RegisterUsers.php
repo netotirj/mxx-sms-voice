@@ -15,6 +15,8 @@ use Random\RandomException;
 
 class RegisterUsers extends ViewComponents
 {
+    private const int BOOTSTRAP_PLAN_ID = 37;
+
     public static function getRegister($request): array|bool|string
     {
         $content = View::render('', []);
@@ -186,7 +188,7 @@ class RegisterUsers extends ViewComponents
 
         $obTenancy = new RegisterTenancies();
         $obTenancy->id = $tenancyId;
-        $obTenancy->name = $name . ' ' . $lastname;
+        $obTenancy->name = $name;
         $obTenancy->tenancy_phone = $phone;
         $obTenancy->account_code = $accountCode;
         $obTenancy->status = 'active';
@@ -237,14 +239,26 @@ class RegisterUsers extends ViewComponents
             // 5️⃣ Configurações de Plano e Saldo (SMS)
             $userPlanId = UserPlans::createUserPlan([
                 'user_id'    => $newUserId,
-                'plan_id'    => 1,
+                'plan_id'    => self::BOOTSTRAP_PLAN_ID,
                 'tenancy_id' => $tenancyId,
                 'status'     => 'confirmed'
             ]);
 
             $invoiceNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
-            BalanceSms::insertBalance($newUserId, 1, $tenancyId, 3, 0.30, 0.20, 0.10, $invoiceNumber);
-            RegisterTenancies::updateActivePlan($tenancyId, 1);
+            BalanceSms::insertBalance(
+                $newUserId,
+                self::BOOTSTRAP_PLAN_ID,
+                $tenancyId,
+                3,
+                0.20,
+                0.35,
+                0.35,
+                $invoiceNumber,
+                0.85,
+                0.35,
+                0.70
+            );
+            RegisterTenancies::updateActivePlan($tenancyId, self::BOOTSTRAP_PLAN_ID);
 
             // 6️⃣ Notificação
             Notifications::insertNotifications(

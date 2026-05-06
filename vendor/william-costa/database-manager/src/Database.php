@@ -77,8 +77,44 @@ class Database
             $statement->execute($params);
             return $statement;
         } catch (PDOException $e) {
+            error_log(json_encode([
+                'event' => 'database_execute_error',
+                'message' => $e->getMessage(),
+                'query' => $query,
+                'params' => $params,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             die('DB Execute Error: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Executa query preparada lançando exceção para permitir controle transacional.
+     */
+    public function run(string $query, array $params = []): PDOStatement
+    {
+        $statement = $this->connection->prepare($query);
+        $statement->execute($params);
+        return $statement;
+    }
+
+    public function beginTransaction(): bool
+    {
+        return $this->connection->beginTransaction();
+    }
+
+    public function commit(): bool
+    {
+        return $this->connection->commit();
+    }
+
+    public function rollBack(): bool
+    {
+        return $this->connection->rollBack();
+    }
+
+    public function inTransaction(): bool
+    {
+        return $this->connection->inTransaction();
     }
 
     /**

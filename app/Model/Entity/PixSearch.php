@@ -16,10 +16,34 @@ class PixSearch
 
     public ?string $external_Reference = null;
     public ?string $billingType = null;
-    public int $invoiceNumber;
+    public $invoiceNumber = null;
     public ?string $transactionReceiptUrl = null;
     public ?string $dateCreated = null;
     public ?string $confirmed_date = null;
+
+    private static function hydrate(array|object $data): self
+    {
+        $row = is_object($data) ? get_object_vars($data) : $data;
+        $obj = new self();
+
+        foreach ($row as $field => $value) {
+            if (property_exists($obj, $field)) {
+                $obj->$field = $value;
+            }
+        }
+
+        return $obj;
+    }
+
+    private static function normalizeInvoice(mixed $invoice): ?string
+    {
+        $invoice = trim((string)($invoice ?? ''));
+        if ($invoice === '' || $invoice === '0') {
+            return null;
+        }
+
+        return ctype_digit($invoice) ? $invoice : null;
+    }
 
     public function createPix(): bool
     {
@@ -153,6 +177,153 @@ class PixSearch
         return (new Database())->execute($query, $params)->rowCount() > 0;
     }
 
+    public static function updateProviderStatus(string $invoiceNumber, string $status, array $payment, bool $confirmed): bool
+    {
+        $confirmedDate = $confirmed
+            ? ($payment['confirmedDate'] ?? $payment['paymentDate'] ?? date('Y-m-d H:i:s'))
+            : null;
+
+        $query = "
+            UPDATE webhook_pix
+            SET
+                payment_status = :payment_status,
+                value = :value,
+                pixQrCodeId = COALESCE(:pixQrCodeId, pixQrCodeId),
+                external_Reference = COALESCE(:externalReference, external_Reference),
+                billingType = COALESCE(:billingType, billingType),
+                transactionReceiptUrl = COALESCE(:transactionReceiptUrl, transactionReceiptUrl)
+                " . ($confirmedDate !== null ? ", confirmed_date = :confirmed_date" : "") . "
+            WHERE invoiceNumber = :invoice
+        ";
+
+        $params = [
+            ':payment_status' => $status,
+            ':value' => (float)($payment['value'] ?? 0),
+            ':pixQrCodeId' => $payment['pixQrCodeId'] ?? null,
+            ':externalReference' => $payment['externalReference'] ?? null,
+            ':billingType' => $payment['billingType'] ?? null,
+            ':transactionReceiptUrl' => $payment['transactionReceiptUrl'] ?? null,
+            ':invoice' => $invoiceNumber,
+        ];
+
+        if ($confirmedDate !== null) {
+            $params[':confirmed_date'] = $confirmedDate;
+        }
+
+        return (new Database())->execute($query, $params)->rowCount() > 0;
+    }
+
+    public static function updateProviderStatusForPix(self $pix, string $status, array $payment, bool $confirmed): bool
+    {
+        $confirmedDate = $confirmed
+            ? ($payment['confirmedDate'] ?? $payment['paymentDate'] ?? date('Y-m-d H:i:s'))
+            : null;
+
+        $query = "
+            UPDATE webhook_pix
+            SET
+                payment_status = :payment_status,
+                value = :value,
+                invoiceNumber = COALESCE(:invoiceNumber, invoiceNumber),
+                external_Reference = COALESCE(:externalReference, external_Reference),
+                billingType = COALESCE(:billingType, billingType),
+                transactionReceiptUrl = COALESCE(:transactionReceiptUrl, transactionReceiptUrl)
+                " . ($confirmedDate !== null ? ", confirmed_date = :confirmed_date" : "") . "
+            WHERE webhook_id = :webhook_id
+        ";
+
+        $params = [
+            ':payment_status' => $status,
+            ':value' => (float)($payment['value'] ?? $pix->value ?? 0),
+            ':invoiceNumber' => self::normalizeInvoice($payment['invoiceNumber'] ?? null),
+            ':externalReference' => $payment['externalReference'] ?? null,
+            ':billingType' => $payment['billingType'] ?? null,
+            ':transactionReceiptUrl' => $payment['transactionReceiptUrl'] ?? null,
+            ':webhook_id' => (int)$pix->webhook_id,
+        ];
+
+        if ($confirmedDate !== null) {
+            $params[':confirmed_date'] = $confirmedDate;
+        }
+
+        return (new Database())->execute($query, $params)->rowCount() > 0;
+    }
+
+    public static function markPaidOnceForPix(self $pix, string $status, array $payment = []): bool
+    {
+        $query = "
+            UPDATE webhook_pix
+            SET
+                payment_status = :payment_status,
+                value = :value,
+                pixQrCodeId = COALESCE(:pixQrCodeId, pixQrCodeId),
+                external_Reference = COALESCE(:externalReference, external_Reference),
+                billingType = COALESCE(:billingType, billingType),
+                invoiceNumber = COALESCE(:invoiceNumber, invoiceNumber),
+                transactionReceiptUrl = COALESCE(:transactionReceiptUrl, transactionReceiptUrl),
+                confirmed_date = :confirmed_date
+            WHERE webhook_id = :webhook_id
+              AND payment_status NOT IN ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+        ";
+
+        $params = [
+            ':payment_status' => $status,
+            ':value' => (float)($payment['value'] ?? $pix->value ?? 0),
+            ':pixQrCodeId' => $payment['pixQrCodeId'] ?? $pix->pixQrCodeId ?? null,
+            ':externalReference' => $payment['externalReference'] ?? null,
+            ':billingType' => $payment['billingType'] ?? null,
+            ':invoiceNumber' => self::normalizeInvoice($payment['invoiceNumber'] ?? null),
+            ':transactionReceiptUrl' => $payment['transactionReceiptUrl'] ?? null,
+            ':confirmed_date' => $payment['confirmedDate'] ?? $payment['paymentDate'] ?? date('Y-m-d H:i:s'),
+            ':webhook_id' => (int)$pix->webhook_id,
+        ];
+
+        return (new Database())->execute($query, $params)->rowCount() > 0;
+    }
+
+    public static function markPaidOnce(string $invoiceNumber, string $status, array $payment = []): bool
+    {
+        $pix = self::getByInvoice($invoiceNumber);
+        return $pix ? self::markPaidOnceForPix($pix, $status, $payment) : false;
+    }
+
+    public static function markRefundedOnceForPix(self $pix, array $payment = []): bool
+    {
+        $query = "
+            UPDATE webhook_pix
+            SET
+                payment_status = 'PAYMENT_REFUNDED',
+                value = :value,
+                pixQrCodeId = COALESCE(:pixQrCodeId, pixQrCodeId),
+                external_Reference = COALESCE(:externalReference, external_Reference),
+                billingType = COALESCE(:billingType, billingType),
+                invoiceNumber = COALESCE(:invoiceNumber, invoiceNumber),
+                transactionReceiptUrl = COALESCE(:transactionReceiptUrl, transactionReceiptUrl),
+                confirmed_date = :confirmed_date
+            WHERE webhook_id = :webhook_id
+              AND payment_status != 'PAYMENT_REFUNDED'
+        ";
+
+        $params = [
+            ':value' => (float)($payment['value'] ?? $pix->value ?? 0),
+            ':pixQrCodeId' => $payment['pixQrCodeId'] ?? $pix->pixQrCodeId ?? null,
+            ':externalReference' => $payment['externalReference'] ?? null,
+            ':billingType' => $payment['billingType'] ?? null,
+            ':invoiceNumber' => self::normalizeInvoice($payment['invoiceNumber'] ?? null),
+            ':transactionReceiptUrl' => $payment['transactionReceiptUrl'] ?? null,
+            ':confirmed_date' => $payment['confirmedDate'] ?? $payment['paymentDate'] ?? date('Y-m-d H:i:s'),
+            ':webhook_id' => (int)$pix->webhook_id,
+        ];
+
+        return (new Database())->execute($query, $params)->rowCount() > 0;
+    }
+
+    public static function markRefundedOnce(string $invoiceNumber, array $payment = []): bool
+    {
+        $pix = self::getByInvoice($invoiceNumber);
+        return $pix ? self::markRefundedOnceForPix($pix, $payment) : false;
+    }
+
     public static function getPixLast(?int $userId, ?string $tenancyId): ?self
     {
         $where = "1=1";
@@ -234,7 +405,7 @@ class PixSearch
         // 🔹 Se for reembolso, tratamos diferente
         if ($this->payment_status === 'PAYMENT_REFUNDED') {
             return $db->update(
-                'invoiceNumber = ' . "'$this->invoiceNumber'",
+                'invoiceNumber = :invoice',
                 [
                     'payment_status'        => $this->payment_status,
                     'value'                 => $this->value, // pode salvar valor reembolsado
@@ -244,7 +415,8 @@ class PixSearch
                     'invoiceNumber'         => $this->invoiceNumber,
                     'transactionReceiptUrl' => $this->transactionReceiptUrl,
                     'confirmed_date'        => $this->confirmed_date, // 👈 cria coluna refund_date no banco
-                ]
+                ],
+                [':invoice' => $this->invoiceNumber]
             );
         }
         return true;
@@ -252,10 +424,43 @@ class PixSearch
 
     public static function getByInvoice(string $invoiceNumber): ?self
     {
-        $db = new Database('webhook_pix');
-        $data = $db->select("invoiceNumber = '$invoiceNumber'")->fetchObject(self::class);
+        $data = (new Database('webhook_pix'))
+            ->select('invoiceNumber = :invoice', [':invoice' => $invoiceNumber])
+            ->fetch(\PDO::FETCH_ASSOC);
 
-        return $data ?: null;
+        return $data ? self::hydrate($data) : null;
+    }
+
+    public static function findByProviderPayload(array $payment): ?self
+    {
+        $pixQrCodeId = trim((string)($payment['pixQrCodeId'] ?? ''));
+        if ($pixQrCodeId !== '') {
+            $data = (new Database('webhook_pix'))
+                ->select('pixQrCodeId = :pixQrCodeId', [':pixQrCodeId' => $pixQrCodeId])
+                ->fetch(\PDO::FETCH_ASSOC);
+
+            if ($data) {
+                return self::hydrate($data);
+            }
+        }
+
+        $externalReference = trim((string)($payment['externalReference'] ?? ''));
+        if ($externalReference !== '') {
+            $data = (new Database('webhook_pix'))
+                ->select('external_Reference = :externalReference', [':externalReference' => $externalReference])
+                ->fetch(\PDO::FETCH_ASSOC);
+
+            if ($data) {
+                return self::hydrate($data);
+            }
+        }
+
+        $invoice = self::normalizeInvoice($payment['invoiceNumber'] ?? null);
+        if ($invoice !== null) {
+            return self::getByInvoice($invoice);
+        }
+
+        return null;
     }
 
     public static function getWebhookAsaasCount(string $tenancyId, ?string $searchValue = null): int

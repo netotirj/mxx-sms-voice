@@ -53,6 +53,9 @@ class VoiceOriginate
         $trunkUsed      = $data['trunk'];
         $trunkId        = $data['trunk_id'] ?? $trunkUsed;
         $trunkName      = $data['trunk_name'] ?? $trunkUsed;
+        $trunkBillingType = $data['trunk_billing_type'] ?? '';
+        $planId         = $data['plan_id'] ?? '';
+        $tariffUsed     = $data['tariff_used'] ?? $callMinuteCost;
         $techPrefix     = trim($data['tech_prefix'] ?? '');
         $jobId          = $data['job_id'] ?? null;
         $callId         = $data['call_id'] ?? null;
@@ -85,6 +88,9 @@ class VoiceOriginate
             'EXTENSION'        => (string)$number,
             'TRUNK'            => (string)$trunkName,
             'TRUNK_ID'         => (string)$trunkId,
+            'TRUNK_BILLING_TYPE' => (string)$trunkBillingType,
+            'PLAN_ID'          => (string)$planId,
+            'TARIFF_USED'      => (string)$tariffUsed,
             'TECHPREFIX'       => (string)$techPrefix,
             'CALL_MINUTE_COST' => (string)$callMinuteCost,
             'TORPEDO_COST'     => (string)$torpedoCost,
@@ -102,8 +108,6 @@ class VoiceOriginate
             'TORPEDO_TYPE'     => (string)$action,
             'VOICE_LIST_ID'    => (string)$voiceListId
         ];
-
-        print_r($variables);
 
         if ($reservedAgent) {
             $variables['RESERVED_AGENT'] = (string)$reservedAgent;

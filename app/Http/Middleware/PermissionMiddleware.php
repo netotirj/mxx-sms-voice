@@ -7,6 +7,7 @@ use App\Session\User as SessionLogin;
 use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\UserPlans;
 use App\Http\Response;
+use App\Utils\TenancyHelper;
 use Closure;
 
 class PermissionMiddleware
@@ -30,7 +31,7 @@ class PermissionMiddleware
         $obUser     = SessionLogin::getLogged();
         $userId     = $obUser['id']          ?? null;
         $tenancyId  = $obUser['tenancy_id']  ?? null;
-        $userFunc   = $obUser['function']    ?? 'user';
+        $userFunc   = $obUser['user_function'] ?? $obUser['function'] ?? 'user';
 
         // Identificação dinâmica da URL Base para redirecionamentos via JS
         $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http");
@@ -41,7 +42,7 @@ class PermissionMiddleware
         }
 
         // 2️⃣ Se for SUPER ADMIN → ignora todas as restrições
-        if ($userFunc === 'super_admin') {
+        if (TenancyHelper::isSuperAdmin($obUser)) {
             return $next($request);
         }
 

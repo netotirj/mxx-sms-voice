@@ -5,7 +5,9 @@ namespace App\Controller\Pages;
 
 use App\Http\Response;
 use App\Model\Entity\AddressSearch;
+use App\Model\Entity\RegisterTenancies;
 use App\Session\User as SessionUser;
+use App\Utils\TenancyHelper;
 use App\Utils\View;
 use \App\Model\Entity\UserSearch;
 use \App\Model\Entity\PermissionsRules;
@@ -129,13 +131,13 @@ class Users extends ViewComponents
         }
 
 
-        $role = $obUser['user_function'] ?? $obUser['function'] ?? '';
+        $role = strtolower((string)($obUser['user_function'] ?? $obUser['function'] ?? ''));
         $canEditBalance = in_array($role, ['super_admin', 'admin'], true);
 
         // --- LÓGICA DE FILTRAGEM REFINADA ---
-        if ($role === 'super_admin') {
+        if (TenancyHelper::isSuperAdmin($obUser)) {
             // Vê absolutamente todos os usuários do sistema (Global)
-            $users = UserSearch::getUsers($obUser['tenancy_id']);
+            $users = UserSearch::getAllUsersGlobal();
 
         } elseif ($role === 'admin') {
             // Vê todos os usuários da empresa (Tenancy) dele
@@ -166,6 +168,11 @@ class Users extends ViewComponents
                 ? URL . '/resources/assets/img/' . $user['image']
                 : URL . '/resources/assets/img/default-avatar.png';
 
+            $listedRole = strtolower((string)($user['user_function'] ?? ''));
+            $balance = in_array($listedRole, ['admin', 'super_admin'], true)
+                ? ($user['admin_balance'] ?? '0.0000')
+                : ($user['reseller_balance'] ?? '0.0000');
+
             $formattedUsers[] = [
                 'id'             => $user['id'],
                 'user_id'        => $user['user_id'],
@@ -184,9 +191,7 @@ class Users extends ViewComponents
                 'status_account' => $user['status_account'],
                 'status'         => $status,
 
-                // ✅ só envia balance para super_admin/admin
-                // ✅ Envia o saldo sempre, para o usuário ver quanto tem
-                'balance' => $user['reseller_balance'] ?? '0.0000',
+                'balance'        => $balance,
 
                 'created'        => (new DateTime($user['createdAt']))->format('d/m/Y H:i'),
             ];
@@ -315,8 +320,7 @@ class Users extends ViewComponents
 
     private static function canManageUsersByPlan(array $user): bool
     {
-        $role = (string)($user['user_function'] ?? $user['function'] ?? '');
-        if ($role === 'super_admin') {
+        if (TenancyHelper::isSuperAdmin($user)) {
             return true;
         }
 
@@ -397,7 +401,6 @@ class Users extends ViewComponents
 
     public static function setUsersImagesProfile($request): Response
     {
-        // Pega usuário logado
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
             return new Response(401, [
@@ -406,7 +409,6 @@ class Users extends ViewComponents
             ], 'application/json');
         }
 
-        // Verifica se enviou arquivo
         if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
             return new Response(400, [
                 'status' => 400,
@@ -417,18 +419,51 @@ class Users extends ViewComponents
         $file = $_FILES['image'];
         $tenancyId = $obUser['tenancy_id'];
         $userId = $obUser['id'];
+        $size = (int)($file['size'] ?? 0);
+        if ($size <= 0) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'O avatar enviado está vazio.'
+            ], 'application/json');
+        }
+
+        if ($size > 2 * 1024 * 1024) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'O avatar deve ter no máximo 2 MB.'
+            ], 'application/json');
+        }
+
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Arquivo de avatar inválido.'
+            ], 'application/json');
+        }
+
+        $mimeType = self::detectAvatarMimeType($tmpName);
+        $extensionMap = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+        if (!isset($extensionMap[$mimeType])) {
+            return new Response(422, [
+                'status' => 422,
+                'message' => 'Envie um avatar JPG, PNG ou WEBP.'
+            ], 'application/json');
+        }
 
         $uploadDir = __DIR__ . "/../../../resources/assets/img/upload/{$tenancyId}/{$userId}/";
         if (!file_exists($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
+            mkdir($uploadDir, 0775, true);
         }
 
-        // Gera nome único para evitar sobrescrita
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $fileName = uniqid('imageUser_', true) . "." . $extension;
+        $fileName = uniqid('imageUser_', true) . "." . $extensionMap[$mimeType];
         $targetPath = $uploadDir . $fileName;
 
-        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+        if (!move_uploaded_file($tmpName, $targetPath)) {
             return new Response(500, [
                 'status' => 500,
                 'message' => 'Erro ao mover o arquivo para o servidor.'
@@ -461,7 +496,8 @@ class Users extends ViewComponents
             return new Response(200, [
                 'status' => 200,
                 'message' => 'Imagem salva com sucesso!',
-                'image' => $obUserImage->image // retorna caminho da imagem
+                'image' => $obUserImage->image,
+                'avatar_url' => URL . '/resources/assets/img/' . $obUserImage->image
             ], 'application/json');
         } else {
             return new Response(500, [
@@ -469,6 +505,22 @@ class Users extends ViewComponents
                 'message' => 'Erro ao atualizar a imagem no banco.'
             ], 'application/json');
         }
+    }
+
+    private static function detectAvatarMimeType(string $path): string
+    {
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $detected = finfo_file($finfo, $path);
+                finfo_close($finfo);
+                if (is_string($detected) && $detected !== '') {
+                    return strtolower($detected);
+                }
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -534,7 +586,9 @@ class Users extends ViewComponents
         }
 
         // Buscar usuário no banco pelo ID passado
-        $userData = UserSearch::getUserById($obUser['tenancy_id'], $id);
+        $userData = TenancyHelper::isSuperAdmin($obUser)
+            ? UserSearch::getUserByIdGlobal($id)
+            : UserSearch::getUserById($obUser['tenancy_id'], $id);
 
         if (!$userData) {
             return new Response(404, [
@@ -654,7 +708,23 @@ class Users extends ViewComponents
         }
 
         try {
-            $success = UserSearch::updateUsers((int)$data['id'], $fields, $obUser['tenancy_id']);
+            $targetUser = TenancyHelper::isSuperAdmin($obUser)
+                ? UserSearch::getUserByIdGlobal((int)$data['id'])
+                : UserSearch::getUserById($obUser['tenancy_id'], (int)$data['id']);
+
+            if (!$targetUser) {
+                return new Response(404, [
+                    'status' => 404,
+                    'message' => 'Usuário não encontrado.'
+                ], 'application/json');
+            }
+
+            $targetTenancyId = (string)$targetUser['tenancy_id'];
+            $success = UserSearch::updateUsers(
+                (int)$data['id'],
+                $fields,
+                TenancyHelper::isSuperAdmin($obUser) ? null : $obUser['tenancy_id']
+            );
 
             if (!$success) {
                 return new Response(404, [
@@ -663,10 +733,12 @@ class Users extends ViewComponents
                 ], 'application/json');
             }
 
-            $roleId = self::ensureRoleForUserFunction($data['role'], $obUser);
+            $roleOwner = $obUser;
+            $roleOwner['tenancy_id'] = $targetTenancyId;
+            $roleId = self::ensureRoleForUserFunction($data['role'], $roleOwner);
             if ($roleId > 0) {
-                PermissionsRules::assignRoleToUser((int)$data['id'], $obUser['tenancy_id'], $roleId);
-                self::grantTicketSupportDefaults($obUser['tenancy_id'], $roleId, $data['role']);
+                PermissionsRules::assignRoleToUser((int)$data['id'], $targetTenancyId, $roleId);
+                self::grantTicketSupportDefaults($targetTenancyId, $roleId, $data['role']);
             }
 
             return new Response(200, [
@@ -712,13 +784,18 @@ class Users extends ViewComponents
 
         $paths = [
             '/support',
+            '/support/diagnostics',
             '/support/tickets',
             '/support/tickets/create',
             '/support/tickets/{id}/messages',
             '/support/tickets/{id}/messages/create',
-            '/support/tickets/{id}/status',
             'ticket.view_all',
+            'ticket.view_own',
+            'ticket.create',
             'ticket.reply',
+            '/support/tickets/{id}/status',
+            'ticket.change_status',
+            'ticket.update',
         ];
 
         $db = new Database();
@@ -755,7 +832,40 @@ class Users extends ViewComponents
         }
 
         try {
-            $success = UserSearch::deleteUsers($Id, $obUser['tenancy_id']);
+            $isSuperAdmin = TenancyHelper::isSuperAdmin($obUser);
+            $targetUser = $isSuperAdmin
+                ? UserSearch::getUserByIdGlobal($Id)
+                : UserSearch::getUserById((string)$obUser['tenancy_id'], $Id);
+
+            if (!$targetUser) {
+                return new Response(404, [
+                    'status' => 404,
+                    'message' => 'Usuário não encontrado.'
+                ], 'application/json');
+            }
+
+            $targetTenancyId = (string)($targetUser['tenancy_id'] ?? '');
+            $tenantOwnerId = $targetTenancyId !== ''
+                ? RegisterTenancies::getTenancyOwnerUserId($targetTenancyId)
+                : null;
+
+            if ($isSuperAdmin
+                && $targetTenancyId !== ''
+                && strtolower((string)($targetUser['user_function'] ?? '')) === 'admin'
+                && $tenantOwnerId === (int)$targetUser['id']) {
+                $summary = RegisterTenancies::deleteTenancyTree($targetTenancyId);
+
+                return new Response(200, [
+                    'status' => 200,
+                    'message' => 'Tenant e toda a árvore de dados foram excluídos com sucesso.',
+                    'data' => $summary,
+                ], 'application/json');
+            }
+
+            $success = UserSearch::deleteUsers(
+                $Id,
+                $isSuperAdmin ? null : $obUser['tenancy_id']
+            );
 
             if (!$success) {
                 return new Response(404, [
@@ -789,7 +899,11 @@ class Users extends ViewComponents
                $dataStatus = $request->getPostVars();
 
         try {
-            $success = UserSearch::updateStatusUser($dataStatus['id'], $obUser['tenancy_id'], $dataStatus['status'],);
+            $success = UserSearch::updateStatusUser(
+                (int)$dataStatus['id'],
+                TenancyHelper::isSuperAdmin($obUser) ? null : $obUser['tenancy_id'],
+                (string)$dataStatus['status']
+            );
 
             if (!$success) {
                 return new Response(404, [

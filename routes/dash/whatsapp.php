@@ -197,6 +197,17 @@ $obRouter->post('/campaign/whatsapp/numbers/{id}/confirm-code', [
     }
 ]);
 
+$obRouter->post('/campaign/whatsapp/numbers/{id}/reveal-pin', [
+    'name' => '/campaign/whatsapp/numbers/{id}/reveal-pin',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::revealNumberPin($request, $id);
+    }
+]);
+
 $obRouter->post('/whatsapp/verification', [
     'name' => '/whatsapp/verification',
     'middlewares' => [
@@ -475,6 +486,39 @@ $obRouter->post('/campaign/whatsapp/support/queues', [
     }
 ]);
 
+$obRouter->get('/campaign/whatsapp/support/queues/{id}', [
+    'name' => '/campaign/whatsapp/support/queues/{id}',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::getSupportQueue($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/queues/{id}', [
+    'name' => '/campaign/whatsapp/support/queues/{id}/update',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::updateSupportQueue($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/queues/{id}/delete', [
+    'name' => '/campaign/whatsapp/support/queues/{id}/delete',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::deleteSupportQueue($request, $id);
+    }
+]);
+
 $obRouter->post('/campaign/whatsapp/support/queues/{id}/agents', [
     'name' => '/campaign/whatsapp/support/queues/{id}/agents',
     'middlewares' => [
@@ -483,6 +527,28 @@ $obRouter->post('/campaign/whatsapp/support/queues/{id}/agents', [
     ],
     function ($request, $id) {
         return Pages\WhatsApp::upsertSupportQueueAgent($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/support/queues/{id}/agents/remove', [
+    'name' => '/campaign/whatsapp/support/queues/{id}/agents/remove',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::removeSupportQueueAgent($request, $id);
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/support/assignable-users', [
+    'name' => '/campaign/whatsapp/support/assignable-users',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listSupportAssignableUsers();
     }
 ]);
 
@@ -593,6 +659,39 @@ $obRouter->post('/campaign/whatsapp/conversations/{id}/delete', [
     ],
     function ($request, $id) {
         return Pages\WhatsApp::deleteConversation($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/conversations/{id}/queue', [
+    'name' => '/campaign/whatsapp/conversations/{id}/queue',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::assignConversationQueue($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/conversations/{id}/claim', [
+    'name' => '/campaign/whatsapp/conversations/{id}/claim',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::claimConversationQueue($request, $id);
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/conversations/{id}/queue-history', [
+    'name' => '/campaign/whatsapp/conversations/{id}/queue-history',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::conversationQueueHistory($request, $id);
     }
 ]);
 

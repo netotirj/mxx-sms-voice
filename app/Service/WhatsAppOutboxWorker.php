@@ -38,6 +38,32 @@ class WhatsAppOutboxWorker
         }
     }
 
+    public function runOutboxIds(array $ids): array
+    {
+        $lock = $this->acquireLock();
+        if (!$lock['acquired']) {
+            return ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => 0, 'locked' => true];
+        }
+
+        try {
+            $rows = WhatsAppOutbox::dueByIds($ids);
+            $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'requeued' => 0, 'locked' => false];
+
+            foreach ($rows as $row) {
+                $summary['processed']++;
+                if ($this->processRow($row)) {
+                    $summary['sent']++;
+                } else {
+                    $summary['failed']++;
+                }
+            }
+
+            return $summary;
+        } finally {
+            $this->releaseLock($lock['connection']);
+        }
+    }
+
     private function processRow(array $row): bool
     {
         $id = (int)$row['id'];

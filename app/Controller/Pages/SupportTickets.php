@@ -3,11 +3,14 @@
 namespace App\Controller\Pages;
 
 use App\Config\TelephonyConfig;
+use App\Config\WhatsAppConfig;
 use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\SupportTicket;
+use App\Model\Entity\WhatsAppAccount;
 use App\RedisConn;
 use App\Session\User as SessionUser;
+use App\Service\MetaWhatsAppCloudApi;
 use App\Utils\View;
 use GuzzleHttp\Client;
 
@@ -313,12 +316,14 @@ class SupportTickets extends ViewComponents
         $asterisk = self::checkAsterisk();
         $trunks = self::checkTrunks($user);
         $balance = self::checkBalance($user);
+        $smsApi = self::checkSmsApi();
+        $whatsAppApi = self::checkWhatsAppApi();
         $serverLatencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
 
         return self::json(200, [
             'success' => true,
             'checked_at' => date('H:i:s'),
-            'summary' => self::buildDiagnosticsSummary($redis, $asterisk, $trunks, $balance, $serverLatencyMs),
+            'summary' => self::buildDiagnosticsSummary($redis, $asterisk, $trunks, $balance, $smsApi, $whatsAppApi, $serverLatencyMs),
             'data' => [
                 'server' => [
                     'ok' => true,
@@ -330,6 +335,8 @@ class SupportTickets extends ViewComponents
                 'asterisk' => $asterisk,
                 'trunks' => $trunks,
                 'balance' => $balance,
+                'sms_api' => $smsApi,
+                'whatsapp_api' => $whatsAppApi,
             ],
         ]);
     }
@@ -496,7 +503,105 @@ class SupportTickets extends ViewComponents
         }
     }
 
-    private static function buildDiagnosticsSummary(array $redis, array $asterisk, array $trunks, array $balance, int $serverLatencyMs): string
+    private static function checkSmsApi(): array
+    {
+        $startedAt = microtime(true);
+        $apiUrl = trim((string)getenv('DISPROURLBALANCE')) ?: trim((string)getenv('DISPROURL')) ?: 'https://apihttp.disparopro.com.br:8433';
+        $hasKey = trim((string)getenv('DISPROKEY')) !== '';
+
+        if (!$hasKey) {
+            return [
+                'ok' => false,
+                'label' => 'API SMS',
+                'latency_ms' => null,
+                'detail' => 'DISPROKEY não configurada',
+                'endpoint' => $apiUrl,
+            ];
+        }
+
+        try {
+            $balance = DisproClient::getBalanceDISPRO();
+            $latencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+
+            if ($balance === null) {
+                return [
+                    'ok' => false,
+                    'label' => 'API SMS',
+                    'latency_ms' => $latencyMs,
+                    'detail' => 'Sem resposta da Disparo Pro',
+                    'endpoint' => $apiUrl,
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'label' => 'API SMS',
+                'latency_ms' => $latencyMs,
+                'detail' => 'Saldo provedor OK - ' . $latencyMs . ' ms',
+                'endpoint' => $apiUrl,
+                'provider_balance' => $balance,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'API SMS',
+                'latency_ms' => null,
+                'detail' => 'Falha ao consultar API SMS',
+                'endpoint' => $apiUrl,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function checkWhatsAppApi(): array
+    {
+        $startedAt = microtime(true);
+        $account = WhatsAppAccount::getSupportAccount();
+        $accessToken = (string)($account['access_token'] ?? WhatsAppConfig::platformAccessToken());
+        $wabaId = (string)($account['waba_id'] ?? WhatsAppConfig::platformWabaId());
+        $phoneNumberId = (string)($account['phone_number_id'] ?? WhatsAppConfig::phoneNumberId());
+
+        if ($accessToken === '' || $wabaId === '' || $phoneNumberId === '') {
+            return [
+                'ok' => false,
+                'label' => 'API WhatsApp',
+                'latency_ms' => null,
+                'detail' => 'Token, WABA ou phone number ID ausente',
+            ];
+        }
+
+        try {
+            $api = new MetaWhatsAppCloudApi();
+            $phoneNumbers = $api->listPhoneNumbers($accessToken, $wabaId);
+            $latencyMs = max(1, (int)round((microtime(true) - $startedAt) * 1000));
+
+            if (empty($phoneNumbers['ok'])) {
+                return [
+                    'ok' => false,
+                    'label' => 'API WhatsApp',
+                    'latency_ms' => $latencyMs,
+                    'detail' => $phoneNumbers['error'] ?? 'Falha ao consultar números da Meta',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'label' => 'API WhatsApp',
+                'latency_ms' => $latencyMs,
+                'detail' => 'Meta OK - ' . $latencyMs . ' ms',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'label' => 'API WhatsApp',
+                'latency_ms' => null,
+                'detail' => 'Falha ao consultar API WhatsApp',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function buildDiagnosticsSummary(array $redis, array $asterisk, array $trunks, array $balance, array $smsApi, array $whatsAppApi, int $serverLatencyMs): string
     {
         $issues = [];
 
@@ -516,13 +621,23 @@ class SupportTickets extends ViewComponents
             $issues[] = 'saldo indisponível';
         }
 
-        $balanceDetail = $balance['detail'] ?? 'saldo --';
-
-        if ($issues === []) {
-            return 'Tudo parece OK. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . '.';
+        if (!$smsApi['ok']) {
+            $issues[] = 'api sms com alerta';
         }
 
-        return 'Encontrei alerta: ' . implode(', ', $issues) . '. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . '.';
+        if (!$whatsAppApi['ok']) {
+            $issues[] = 'api whatsapp com alerta';
+        }
+
+        $balanceDetail = $balance['detail'] ?? 'saldo --';
+        $smsDetail = $smsApi['detail'] ?? 'sms --';
+        $whatsAppDetail = $whatsAppApi['detail'] ?? 'whatsapp --';
+
+        if ($issues === []) {
+            return 'Tudo parece OK. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . ', ' . $smsDetail . ', ' . $whatsAppDetail . '.';
+        }
+
+        return 'Encontrei alerta: ' . implode(', ', $issues) . '. Servidor ' . $serverLatencyMs . ' ms, Asterisk ' . ($asterisk['detail'] ?? '--') . ', Redis ' . ($redis['detail'] ?? '--') . ', troncos ' . ($trunks['detail'] ?? '--') . ', ' . $balanceDetail . ', ' . $smsDetail . ', ' . $whatsAppDetail . '.';
     }
 
     private static function requireUser(): array|Response

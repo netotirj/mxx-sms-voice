@@ -364,13 +364,22 @@ class MetaWhatsAppCloudApi
 
     public function downloadMediaToFile(string $accessToken, string $mediaUrl, string $targetPath): array
     {
-        $response = $this->client->request('GET', $mediaUrl, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $accessToken,
-                'Accept' => '*/*',
-            ],
-            'verify' => WhatsAppConfig::sslVerify(),
-        ]);
+        try {
+            $response = $this->client->request('GET', $mediaUrl, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Accept' => '*/*',
+                ],
+                'verify' => WhatsAppConfig::sslVerify(),
+            ]);
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [],
+                'error' => $e->getMessage(),
+            ];
+        }
 
         $status = $response->getStatusCode();
         if ($status < 200 || $status >= 300) {
@@ -382,14 +391,22 @@ class MetaWhatsAppCloudApi
             ];
         }
 
-        file_put_contents($targetPath, (string)$response->getBody());
+        $bytes = @file_put_contents($targetPath, (string)$response->getBody());
+        if ($bytes === false) {
+            return [
+                'ok' => false,
+                'status' => $status,
+                'data' => [],
+                'error' => 'Falha ao salvar a mídia recebida da Meta no disco local.',
+            ];
+        }
 
         return [
             'ok' => true,
             'status' => $status,
             'data' => [
                 'path' => $targetPath,
-                'size' => filesize($targetPath) ?: 0,
+                'size' => filesize($targetPath) ?: $bytes,
             ],
             'error' => null,
         ];

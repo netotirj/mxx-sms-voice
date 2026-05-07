@@ -19,7 +19,7 @@
     <!-- Argon Dashboard CSS -->
     <link href="{{URL}}/resources/assets/css/nucleo-icons.css" rel="stylesheet" />
     <link href="{{URL}}/resources/assets/css/nucleo-svg.css" rel="stylesheet" />
-    <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=1.0.2" rel="stylesheet" />
+    <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=1.0.3" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 
     <script src="https://unpkg.com/feather-icons"></script>
@@ -27,6 +27,7 @@
     <!-- Notify CSS -->
     <link href="{{URL}}/resources/view/login/assets/css/notify.css" rel="stylesheet">
     <link href="{{URL}}/resources/view/login/assets/css/auth-notify.css" rel="stylesheet">
+    <link href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css?v=20260507-3" rel="stylesheet">
 
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -47,6 +48,9 @@
         <a id="support-whatsapp-floating"
            href="{{URL}}/campaign/whatsapp"
            class="support-whatsapp-floating"
+           data-support-whatsapp-phone="{{SUPPORT_WHATSAPP_PHONE}}"
+           data-support-ticket-url="{{SUPPORT_TICKET_URL}}"
+           data-support-tickets-url="{{SUPPORT_TICKETS_URL}}"
            aria-label="Abrir assistente Lívia">
             <span class="support-whatsapp-floating__status" aria-hidden="true"></span>
             <span class="support-whatsapp-floating__icon" aria-hidden="true">
@@ -83,13 +87,15 @@
             </div>
 
             <div id="support-bot-after-ticket" class="support-bot-options hidden">
-                <button type="button" data-support-action="new-ticket">Abrir outro ticket</button>
+                <button type="button" data-support-action="new-ticket">Abrir novo ticket</button>
+                <button type="button" data-support-action="view-open-tickets">Ver tickets abertos</button>
+                <button type="button" data-support-action="open-support-panel">Abrir painel de suporte</button>
                 <button type="button" data-support-action="close-panel">Encerrar conversa</button>
             </div>
 
             <div id="support-bot-support-actions" class="support-bot-options hidden">
                 <button type="button" data-support-action="diagnostics">Checar status</button>
-                <button type="button" data-support-action="continue-ticket">Abrir ticket</button>
+                <button type="button" data-support-action="continue-ticket">Abrir ticket no sistema</button>
             </div>
 
             <div id="support-bot-contact" class="support-bot-contact hidden">
@@ -104,8 +110,8 @@
                 <p id="support-whatsapp-feedback" class="support-whatsapp-feedback"></p>
                 <div class="support-whatsapp-panel__actions">
                     <button id="support-bot-back" type="button" class="support-whatsapp-panel__secondary">Voltar</button>
-                    <button id="support-bot-ticket" type="button" class="support-whatsapp-panel__send">Abrir ticket</button>
-                    <button id="support-bot-whatsapp" type="button" class="support-whatsapp-panel__secondary">Abrir WhatsApp</button>
+                    <button id="support-bot-ticket" type="button" class="support-whatsapp-panel__send">Abrir ticket no sistema</button>
+                    <button id="support-bot-whatsapp" type="button" class="support-whatsapp-panel__secondary">Abrir WhatsApp da empresa</button>
                 </div>
             </div>
         </div>
@@ -126,476 +132,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-
-    <style>
-        /* Estilização customizada para bater com as cores do seu dashboard (Azul Maxx) */
-        :root {
-            --plyr-color-main: #007bff; /* Ajuste para o azul exato do seu sistema */
-        }
-        .swal2-html-container {
-            padding: 1em 2em !important;
-        }
-        .plyr--audio .plyr__controls {
-            background: transparent !important;
-            padding: 0 !important;
-        }
-        .support-whatsapp-floating {
-            position: fixed;
-            right: 1.25rem;
-            bottom: 1.25rem;
-            z-index: 9999;
-            display: inline-flex;
-            align-items: center;
-            gap: 0;
-            width: 3.35rem;
-            min-height: 3.35rem;
-            max-width: calc(100vw - 2rem);
-            overflow: hidden;
-            padding: 0.4rem;
-            color: #ffffff;
-            text-decoration: none;
-            background: linear-gradient(135deg, #0f172a 0%, #112240 48%, #059669 100%);
-            border: 1px solid rgba(148, 163, 184, 0.26);
-            border-radius: 999px;
-            box-shadow: 0 18px 45px -20px rgba(2, 6, 23, 0.9), 0 12px 30px -18px rgba(5, 150, 105, 0.8);
-            backdrop-filter: blur(16px);
-            transition: width 0.22s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, border-radius 0.2s ease;
-        }
-        .support-whatsapp-floating:hover,
-        .support-whatsapp-floating:focus-visible,
-        .support-whatsapp-floating.is-open {
-            width: 16rem;
-            gap: 0.72rem;
-            border-radius: 1.1rem;
-            transform: translateY(-3px);
-            border-color: rgba(45, 206, 137, 0.55);
-            box-shadow: 0 22px 55px -22px rgba(2, 6, 23, 0.95), 0 16px 34px -18px rgba(5, 150, 105, 0.9);
-        }
-        .support-whatsapp-floating.is-offline {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #475569 100%);
-            box-shadow: 0 18px 45px -22px rgba(2, 6, 23, 0.95);
-        }
-        .support-whatsapp-floating__icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.55rem;
-            height: 2.55rem;
-            flex: 0 0 auto;
-            color: #ffffff;
-            background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.22), rgba(45, 206, 137, 0.2));
-            border: 1px solid rgba(167, 243, 208, 0.28);
-            border-radius: 0.9rem;
-            font-size: 1rem;
-            font-weight: 950;
-            letter-spacing: 0;
-        }
-        .support-whatsapp-floating.is-offline .support-whatsapp-floating__icon {
-            background: rgba(148, 163, 184, 0.18);
-            border-color: rgba(203, 213, 225, 0.22);
-        }
-        .support-whatsapp-floating__icon svg {
-            width: 1.55rem;
-            height: 1.55rem;
-        }
-        .support-whatsapp-floating__copy {
-            display: flex;
-            min-width: 0;
-            flex-direction: column;
-            line-height: 1.05;
-            width: 0;
-            opacity: 0;
-            pointer-events: none;
-            transform: translateX(0.4rem);
-            transition: width 0.2s ease, opacity 0.16s ease, transform 0.18s ease;
-            white-space: nowrap;
-        }
-        .support-whatsapp-floating:hover .support-whatsapp-floating__copy,
-        .support-whatsapp-floating:focus-visible .support-whatsapp-floating__copy,
-        .support-whatsapp-floating.is-open .support-whatsapp-floating__copy {
-            width: 11.8rem;
-            opacity: 1;
-            transform: translateX(0);
-        }
-        .support-whatsapp-floating__eyebrow {
-            margin-bottom: 0.18rem;
-            color: #a7f3d0;
-            font-size: 0.64rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-        .support-whatsapp-floating.is-offline .support-whatsapp-floating__eyebrow {
-            color: #cbd5e1;
-        }
-        .support-whatsapp-floating__label {
-            color: #f8fafc;
-            font-size: 0.86rem;
-            font-weight: 800;
-            white-space: nowrap;
-        }
-        .support-whatsapp-floating__hours {
-            margin-top: 0.2rem;
-            color: rgba(226, 232, 240, 0.72);
-            font-size: 0.68rem;
-            font-weight: 700;
-            white-space: nowrap;
-        }
-        .support-whatsapp-floating__status {
-            position: absolute;
-            top: 0.36rem;
-            right: 0.48rem;
-            width: 0.58rem;
-            height: 0.58rem;
-            background: #34d399;
-            border: 2px solid #0f172a;
-            border-radius: 999px;
-            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.72);
-            animation: supportWhatsAppPulse 1.8s infinite;
-        }
-        .support-whatsapp-floating.is-offline .support-whatsapp-floating__status {
-            background: #94a3b8;
-            box-shadow: none;
-            animation: none;
-        }
-        .support-whatsapp-panel {
-            position: fixed;
-            right: 1.25rem;
-            bottom: 5.05rem;
-            z-index: 10000;
-            width: min(24rem, calc(100vw - 2rem));
-            padding: 1rem;
-            color: #334155;
-            background: #ffffff;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            border-radius: 1rem;
-            box-shadow: 0 24px 70px -28px rgba(2, 6, 23, 0.75);
-            transform-origin: right bottom;
-            animation: supportPanelIn 0.22s ease-out;
-        }
-        .support-whatsapp-panel.hidden {
-            display: none;
-        }
-        .support-whatsapp-panel__header,
-        .support-whatsapp-panel__actions {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            flex-wrap: wrap;
-        }
-        .support-whatsapp-panel__header {
-            margin-bottom: 0.9rem;
-        }
-        .support-whatsapp-panel__eyebrow {
-            margin: 0 0 0.15rem;
-            color: #059669;
-            font-size: 0.68rem;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-        .support-whatsapp-panel__title {
-            margin: 0;
-            color: #0f172a;
-            font-size: 0.95rem;
-            font-weight: 800;
-        }
-        .support-whatsapp-panel__close {
-            width: 2rem;
-            height: 2rem;
-            border-radius: 0.6rem;
-            color: #64748b;
-            background: #f1f5f9;
-            font-size: 1.3rem;
-            line-height: 1;
-        }
-        .support-whatsapp-field {
-            display: block;
-            margin-bottom: 0.7rem;
-        }
-        .support-whatsapp-field span {
-            display: block;
-            margin-bottom: 0.28rem;
-            color: #64748b;
-            font-size: 0.72rem;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-        .support-whatsapp-field input,
-        .support-whatsapp-field select,
-        .support-whatsapp-field textarea {
-            width: 100%;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.7rem;
-            padding: 0.65rem 0.75rem;
-            color: #0f172a;
-            font-size: 0.84rem;
-            outline: none;
-        }
-        .support-whatsapp-field textarea {
-            resize: vertical;
-        }
-        .support-whatsapp-field input:focus,
-        .support-whatsapp-field select:focus,
-        .support-whatsapp-field textarea:focus {
-            border-color: #10b981;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
-        }
-        .support-whatsapp-feedback {
-            min-height: 1rem;
-            margin: 0.2rem 0 0.85rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-        .support-whatsapp-feedback.is-error {
-            color: #dc2626;
-        }
-        .support-whatsapp-feedback.is-success {
-            color: #059669;
-        }
-        .support-whatsapp-panel__hint {
-            color: #64748b;
-            font-size: 0.76rem;
-            font-weight: 800;
-        }
-        .support-bot-messages {
-            display: flex;
-            max-height: 14rem;
-            flex-direction: column;
-            gap: 0.55rem;
-            overflow-y: auto;
-            padding: 0.2rem 0 0.75rem;
-        }
-        .support-bot-message {
-            width: fit-content;
-            max-width: 90%;
-            border-radius: 0.9rem;
-            padding: 0.65rem 0.75rem;
-            font-size: 0.82rem;
-            font-weight: 700;
-            line-height: 1.35;
-        }
-        .support-bot-message--bot {
-            color: #334155;
-            background: #f1f5f9;
-            border-bottom-left-radius: 0.25rem;
-        }
-        .support-bot-message--diagnostics {
-            width: min(100%, 21rem);
-            max-width: 96%;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 14px 34px -24px rgba(15, 23, 42, 0.6);
-        }
-        .support-diagnostics-title {
-            margin-bottom: 0.55rem;
-            color: #0f172a;
-            font-size: 0.74rem;
-            font-weight: 900;
-            text-transform: uppercase;
-        }
-        .support-diagnostics-steps {
-            display: grid;
-            gap: 0.42rem;
-        }
-        .support-diagnostics-step {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.65rem;
-            padding: 0.52rem 0.58rem;
-            border-radius: 0.75rem;
-            background: #f8fafc;
-            color: #475569;
-            font-size: 0.75rem;
-            font-weight: 800;
-        }
-        .support-diagnostics-step__left {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.48rem;
-            min-width: 0;
-        }
-        .support-diagnostics-step__icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.1rem;
-            height: 1.1rem;
-            border-radius: 999px;
-            background: #cbd5e1;
-            color: #ffffff;
-            font-size: 0.62rem;
-            flex: 0 0 auto;
-        }
-        .support-diagnostics-step__detail {
-            color: #94a3b8;
-            font-size: 0.68rem;
-            white-space: nowrap;
-        }
-        .support-diagnostics-step.is-checking .support-diagnostics-step__icon {
-            background: #0ea5e9;
-            animation: supportSpin 0.9s linear infinite;
-        }
-        .support-diagnostics-step.is-ok .support-diagnostics-step__icon {
-            background: #10b981;
-        }
-        .support-diagnostics-step.is-alert .support-diagnostics-step__icon {
-            background: #ef4444;
-        }
-        .support-diagnostics-summary {
-            margin-top: 0.58rem;
-            color: #334155;
-            font-size: 0.72rem;
-            line-height: 1.35;
-        }
-        .support-bot-message--user {
-            align-self: flex-end;
-            color: #ffffff;
-            background: #059669;
-            border-bottom-right-radius: 0.25rem;
-        }
-        .support-bot-message--typing {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            min-width: 4.2rem;
-        }
-        .support-bot-message--typing span {
-            width: 0.38rem;
-            height: 0.38rem;
-            border-radius: 999px;
-            background: #94a3b8;
-            animation: supportTyping 1s infinite ease-in-out;
-        }
-        .support-bot-message--typing span:nth-child(2) {
-            animation-delay: 0.14s;
-        }
-        .support-bot-message--typing span:nth-child(3) {
-            animation-delay: 0.28s;
-        }
-        .support-bot-options {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.55rem;
-            margin-top: 0.35rem;
-        }
-        .support-bot-options button {
-            min-height: 2.5rem;
-            border-radius: 0.75rem;
-            color: #0f172a;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            font-size: 0.76rem;
-            font-weight: 800;
-            animation: supportOptionIn 0.24s ease-out both;
-        }
-        .support-bot-options button:nth-child(2) { animation-delay: 0.04s; }
-        .support-bot-options button:nth-child(3) { animation-delay: 0.08s; }
-        .support-bot-options button:nth-child(4) { animation-delay: 0.12s; }
-        .support-bot-options button:hover {
-            color: #047857;
-            border-color: #a7f3d0;
-            background: #ecfdf5;
-        }
-        .support-bot-contact {
-            margin-top: 0.8rem;
-        }
-        .support-whatsapp-panel__send {
-            min-height: 2.35rem;
-            padding: 0 0.9rem;
-            border-radius: 0.72rem;
-            color: #ffffff;
-            background: linear-gradient(135deg, #059669, #0f766e);
-            font-size: 0.78rem;
-            font-weight: 800;
-        }
-        .support-whatsapp-panel__send:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-        }
-        .support-whatsapp-panel__send.is-done {
-            background: linear-gradient(135deg, #16a34a, #059669);
-        }
-        .support-whatsapp-panel__secondary {
-            min-height: 2.35rem;
-            padding: 0 0.9rem;
-            border-radius: 0.72rem;
-            color: #475569;
-            background: #f1f5f9;
-            font-size: 0.78rem;
-            font-weight: 800;
-        }
-        @keyframes supportWhatsAppPulse {
-            70% {
-                box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
-            }
-        }
-        @keyframes supportPanelIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px) scale(0.96);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-        @keyframes supportOptionIn {
-            from {
-                opacity: 0;
-                transform: translateY(6px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        @keyframes supportTyping {
-            0%, 80%, 100% {
-                opacity: 0.35;
-                transform: translateY(0);
-            }
-            40% {
-                opacity: 1;
-                transform: translateY(-3px);
-            }
-        }
-        @keyframes supportSpin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-        @media (max-width: 520px) {
-            .support-whatsapp-floating {
-                right: 1rem;
-                bottom: 1rem;
-                width: 3.25rem;
-                min-height: 3.25rem;
-                padding: 0.4rem;
-            }
-            .support-whatsapp-floating:hover,
-            .support-whatsapp-floating:focus-visible,
-            .support-whatsapp-floating.is-open {
-                width: 3.25rem;
-                gap: 0;
-            }
-            .support-whatsapp-floating__icon {
-                width: 2.45rem;
-                height: 2.45rem;
-            }
-            .support-whatsapp-floating__copy {
-                display: none;
-            }
-            .support-whatsapp-panel {
-                right: 1rem;
-                bottom: 4.8rem;
-            }
-        }
-    </style>
 
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 
@@ -622,26 +158,35 @@
         const whatsappBtn = document.getElementById('support-bot-whatsapp');
         const feedback = document.getElementById('support-whatsapp-feedback');
         const apiBaseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
+        const supportWhatsappPhone = (button.dataset.supportWhatsappPhone || '').replace(/\D+/g, '') || '5568992024512';
+        const supportTicketUrl = button.dataset.supportTicketUrl || `${apiBaseUrl}/support`;
+        const supportTicketsUrl = button.dataset.supportTicketsUrl || supportTicketUrl;
+        const externalWhatsAppDelayMs = 1800;
         const optionCopy = {
             support: {
                 label: 'Suporte técnico',
-                reply: 'Certo, vou te ajudar com suporte. Me diga seu WhatsApp e um resumo do problema para eu encaminhar melhor.'
+                onlineReply: 'Certo, vou te ajudar com suporte.',
+                offlineReply: 'No momento nosso atendimento em tempo real está offline. Você pode deixar seu WhatsApp e um resumo do problema para o time responder no próximo expediente.'
             },
             commercial: {
                 label: 'Comercial',
-                reply: 'Perfeito. Me passa seu WhatsApp e o assunto comercial para eu direcionar ao time certo.'
+                onlineReply: 'Perfeito. Vou abrir a central WhatsApp da empresa para o atendimento comercial.',
+                offlineReply: 'No momento nosso atendimento em tempo real está offline. Deixe seu WhatsApp e o assunto comercial para o time continuar no próximo expediente.'
             },
             sales: {
                 label: 'Vendas',
-                reply: 'Legal. Deixe seu WhatsApp e me conte o que você procura para o time de vendas continuar.'
+                onlineReply: 'Legal. Vou abrir a central WhatsApp da empresa para o time de vendas.',
+                offlineReply: 'No momento nosso atendimento em tempo real está offline. Deixe seu WhatsApp e o que você procura para o time de vendas continuar no próximo expediente.'
             },
             finance: {
                 label: 'Financeiro',
-                reply: 'Tudo bem. Informe seu WhatsApp e o assunto financeiro para eu organizar o atendimento.'
+                onlineReply: 'Tudo bem. Vou abrir a central WhatsApp da empresa para o atendimento financeiro.',
+                offlineReply: 'No momento nosso atendimento em tempo real está offline. Deixe seu WhatsApp e o assunto financeiro para o time responder no próximo expediente.'
             },
             updates: {
                 label: 'Novidades/Melhorias',
-                reply: 'Certo. Informe seu WhatsApp e qual módulo, melhoria ou novidade você quer acompanhar.'
+                onlineReply: 'Certo. Vou abrir a central WhatsApp da empresa para falar sobre novidades e melhorias.',
+                offlineReply: 'No momento nosso atendimento em tempo real está offline. Deixe seu WhatsApp e qual módulo, melhoria ou novidade você quer acompanhar.'
             }
         };
         let selectedOption = null;
@@ -763,6 +308,7 @@
 
         function showContactForm() {
             supportActions?.classList.add('hidden');
+            afterTicketOptions?.classList.add('hidden');
             contact?.classList.remove('hidden');
             phoneInput?.focus();
         }
@@ -776,23 +322,31 @@
                 <div class="support-diagnostics-title">Checagem do ambiente</div>
                 <div class="support-diagnostics-steps">
                     <div class="support-diagnostics-step is-checking" data-diagnostic-step="server">
-                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Servidor</span></span>
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">Servidor</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
                     <div class="support-diagnostics-step is-checking" data-diagnostic-step="asterisk">
-                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Asterisk</span></span>
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">Asterisk</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
                     <div class="support-diagnostics-step is-checking" data-diagnostic-step="redis">
-                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Redis</span></span>
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">Redis</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
                     <div class="support-diagnostics-step is-checking" data-diagnostic-step="trunks">
-                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Troncos</span></span>
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">Troncos</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
                     <div class="support-diagnostics-step is-checking" data-diagnostic-step="balance">
-                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span>Saldo</span></span>
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">Saldo</span></span>
+                        <span class="support-diagnostics-step__detail">checando...</span>
+                    </div>
+                    <div class="support-diagnostics-step is-checking" data-diagnostic-step="sms_api">
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">API SMS</span></span>
+                        <span class="support-diagnostics-step__detail">checando...</span>
+                    </div>
+                    <div class="support-diagnostics-step is-checking" data-diagnostic-step="whatsapp_api">
+                        <span class="support-diagnostics-step__left"><span class="support-diagnostics-step__icon">•</span><span class="support-diagnostics-step__label">API WhatsApp</span></span>
                         <span class="support-diagnostics-step__detail">checando...</span>
                     </div>
                 </div>
@@ -837,7 +391,9 @@
                     ['asterisk', diagnostics.asterisk],
                     ['redis', diagnostics.redis],
                     ['trunks', diagnostics.trunks],
-                    ['balance', diagnostics.balance]
+                    ['balance', diagnostics.balance],
+                    ['sms_api', diagnostics.sms_api],
+                    ['whatsapp_api', diagnostics.whatsapp_api]
                 ];
 
                 ordered.forEach(([key, item], index) => {
@@ -863,6 +419,49 @@
             }
         }
 
+        function openCompanyWhatsAppForArea(includeContactDetails = false) {
+            const userPhone = (phoneInput?.value || '').replace(/\D+/g, '');
+            const note = (noteInput?.value || '').trim();
+
+            if (!selectedOption) {
+                setSupportFeedback('Escolha uma área de atendimento.', 'error');
+                return false;
+            }
+
+            if (includeContactDetails && userPhone.length < 8) {
+                setSupportFeedback('Informe seu WhatsApp com DDI e DDD.', 'error');
+                return false;
+            }
+
+            if (includeContactDetails && !note) {
+                setSupportFeedback('Conte rapidamente o que você precisa.', 'error');
+                return false;
+            }
+
+            const area = optionCopy[selectedOption]?.label || 'Atendimento';
+            const text = [
+                `Olá, preciso falar com ${area}.`,
+                `Estou na tela: ${document.title || 'Maxx Solutions'}.`,
+                includeContactDetails ? `Meu WhatsApp: ${userPhone}.` : '',
+                note ? `Mensagem: ${note}` : ''
+            ].filter(Boolean).join('\n');
+
+            if (includeContactDetails) {
+                localStorage.setItem('support_bot_last_phone', userPhone);
+                setSupportFeedback('Mensagem preparada. Em breve entraremos em contato.', 'success');
+                appendBotMessage('Enviar para WhatsApp da empresa', 'user');
+                appendBotMessageWithTyping('Tudo certo. Vou preparar sua mensagem e abrir o WhatsApp externo da empresa em instantes. Em breve entraremos em contato.', 520);
+            } else {
+                appendBotMessage('Abrir WhatsApp da empresa', 'user');
+                appendBotMessageWithTyping('Tudo certo. Vou abrir o WhatsApp externo da empresa em instantes para você conferir a conversa. Em breve entraremos em contato.', 520);
+            }
+
+            window.setTimeout(() => {
+                window.open(`https://wa.me/${supportWhatsappPhone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+            }, externalWhatsAppDelayMs);
+            return true;
+        }
+
         function chooseOption(option) {
             const data = optionCopy[option];
             if (!data) return;
@@ -874,23 +473,39 @@
             options?.classList.add('hidden');
             contact?.classList.add('hidden');
             supportActions?.classList.add('hidden');
-            appendBotMessageWithTyping(
-                availability.online
-                    ? data.reply
-                    : `No momento nosso atendimento em tempo real está offline. Posso abrir um ticket agora para o time responder no próximo expediente (${availability.nextOpeningText}).`,
-                720
-            );
+
             if (option === 'support') {
+                appendBotMessageWithTyping(
+                    availability.online
+                        ? `${data.onlineReply} Se quiser, eu posso checar o status do ambiente antes de abrir o ticket.`
+                        : `${data.offlineReply} O retorno acontece no próximo expediente (${availability.nextOpeningText}).`,
+                    720
+                );
+
                 window.setTimeout(() => {
-                    appendBotMessage(availability.online
-                        ? 'Se quiser, eu posso checar o status do ambiente antes de abrir o ticket.'
-                        : 'Se quiser, eu também posso checar status do ambiente e saldo antes de registrar o ticket.'
-                    , 'bot');
-                    supportActions?.classList.remove('hidden');
+                    if (availability.online) {
+                        supportActions?.classList.remove('hidden');
+                        return;
+                    }
+
+                    showContactForm();
                 }, 900);
                 return;
             }
-            setTimeout(() => {
+
+            if (availability.online) {
+                appendBotMessageWithTyping(data.onlineReply, 720);
+                window.setTimeout(() => {
+                    openCompanyWhatsAppForArea(false);
+                }, 880);
+                return;
+            }
+
+            appendBotMessageWithTyping(
+                `${data.offlineReply} O retorno acontece no próximo expediente (${availability.nextOpeningText}).`,
+                720
+            );
+            window.setTimeout(() => {
                 showContactForm();
             }, 760);
         }
@@ -898,18 +513,20 @@
         function resetBot() {
             selectedOption = null;
             setSupportFeedback('');
+            if (phoneInput) phoneInput.value = localStorage.getItem('support_bot_last_phone') || '';
             if (noteInput) noteInput.value = '';
             contact?.classList.add('hidden');
             supportActions?.classList.add('hidden');
             afterTicketOptions?.classList.add('hidden');
             options?.classList.remove('hidden');
             ticketBtn?.classList.remove('is-done');
-            if (ticketBtn) ticketBtn.textContent = 'Abrir ticket';
+            if (ticketBtn) ticketBtn.textContent = 'Abrir ticket no sistema';
         }
 
         function showAfterTicketOptions() {
             selectedOption = null;
             setSupportFeedback('');
+            if (phoneInput) phoneInput.value = localStorage.getItem('support_bot_last_phone') || '';
             if (noteInput) noteInput.value = '';
             contact?.classList.add('hidden');
             supportActions?.classList.add('hidden');
@@ -919,31 +536,12 @@
             if (ticketBtn) ticketBtn.textContent = 'Abrir ticket';
         }
 
-        function openWhatsAppFallback() {
-            const userPhone = (phoneInput?.value || '').replace(/\D+/g, '');
-            const note = (noteInput?.value || '').trim();
+        function openSupportPanelPage() {
+            window.location.href = supportTicketUrl;
+        }
 
-            if (userPhone.length < 8) {
-                setSupportFeedback('Informe seu WhatsApp com DDI e DDD.', 'error');
-                return;
-            }
-
-            const area = optionCopy[selectedOption]?.label || 'Atendimento';
-            const text = [
-                `Olá, preciso falar com ${area}.`,
-                `Meu WhatsApp: ${userPhone}.`,
-                note ? `Mensagem: ${note}` : ''
-            ].filter(Boolean).join('\n');
-
-            localStorage.setItem('support_bot_last_phone', userPhone);
-            const params = new URLSearchParams({
-                support_phone: userPhone,
-                support_message: text,
-                support_department: selectedOption || 'support'
-            });
-
-            window.location.href = `${apiBaseUrl}/campaign/whatsapp?${params.toString()}`;
-            setSupportFeedback('Vou abrir a central WhatsApp aqui no painel.', 'success');
+        function openOpenTicketsPage() {
+            window.location.href = supportTicketsUrl;
         }
 
         async function createSupportTicket() {
@@ -1040,9 +638,23 @@
             if (!btn) return;
 
             if (btn.dataset.supportAction === 'new-ticket') {
-                appendBotMessage('Quero abrir outro ticket', 'user');
+                appendBotMessage('Quero abrir um novo ticket', 'user');
                 appendBotMessageWithTyping('Claro. Escolha a área que melhor combina com o novo atendimento.', 520);
                 resetBot();
+                return;
+            }
+
+            if (btn.dataset.supportAction === 'view-open-tickets') {
+                appendBotMessage('Ver tickets abertos', 'user');
+                appendBotMessageWithTyping('Vou abrir o painel para você acompanhar os tickets em aberto.', 520);
+                window.setTimeout(openOpenTicketsPage, 500);
+                return;
+            }
+
+            if (btn.dataset.supportAction === 'open-support-panel') {
+                appendBotMessage('Abrir painel de suporte', 'user');
+                appendBotMessageWithTyping('Vou abrir o painel completo de suporte para você.', 520);
+                window.setTimeout(openSupportPanelPage, 500);
                 return;
             }
 
@@ -1060,12 +672,12 @@
                 return;
             }
 
-            appendBotMessage('Abrir ticket', 'user');
+            appendBotMessage('Abrir ticket no sistema', 'user');
             showContactForm();
         });
         backBtn?.addEventListener('click', resetBot);
         ticketBtn?.addEventListener('click', createSupportTicket);
-        whatsappBtn?.addEventListener('click', openWhatsAppFallback);
+        whatsappBtn?.addEventListener('click', () => openCompanyWhatsAppForArea(true));
     })();
 
     </script>

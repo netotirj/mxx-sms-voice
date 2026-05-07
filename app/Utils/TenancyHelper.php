@@ -71,6 +71,7 @@ class TenancyHelper
             case 'supervisor':
             case 'monitor':
             case 'support_l2':
+            case 'support_ticket_manager':
                 break;
 
             // 🤝 Parceiros
@@ -86,6 +87,7 @@ class TenancyHelper
             // 🎧 Operacional / restrito
             case 'agent':
             case 'support_l1':
+            case 'ticket_support':
             default:
                 // IMPORTANTE:
                 // uso userColumn aqui para evitar erro lógico em tabelas onde o vínculo é user_id e não id
@@ -119,7 +121,7 @@ class TenancyHelper
         return match ($role) {
             'super_admin' => '1=1',
 
-            'admin', 'manager', 'supervisor', 'rh', 'financial', 'reception', 'monitor', 'support_l2' => $filter,
+            'admin', 'manager', 'supervisor', 'rh', 'financial', 'reception', 'monitor', 'support_l2', 'support_ticket_manager' => $filter,
 
             'reseller' => "{$filter} AND (
                 {$prefix}user_id = {$userId}

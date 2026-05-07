@@ -75,11 +75,14 @@ class WhatsAppConversation
 
     public static function listForUser(array $user, ?int $accountId = null, array $filters = []): array
     {
+        self::ensureProtocolTrackingColumns();
         $isRestrictedAgent = self::isRestrictedSupportRole($user);
         $hasQueueId = self::conversationHasColumn('queue_id');
         $hasAssignedUserId = self::conversationHasColumn('assigned_user_id');
         $hasQueueStatus = self::conversationHasColumn('queue_status');
         $hasQueuedAt = self::conversationHasColumn('queued_at');
+        $hasProtocolReference = self::conversationHasColumn('protocol_reference');
+        $hasProtocolSentAt = self::conversationHasColumn('protocol_sent_at');
         $params = [];
         $limit = max(1, min(200, (int)($filters['limit'] ?? 120)));
         $search = trim((string)($filters['search'] ?? ''));
@@ -197,6 +200,16 @@ class WhatsAppConversation
         }
         if (!$hasQueuedAt) {
             $fields[] = 'NULL AS queued_at';
+        }
+        if ($hasProtocolReference) {
+            $fields[] = 'wc.protocol_reference';
+        } else {
+            $fields[] = 'NULL AS protocol_reference';
+        }
+        if ($hasProtocolSentAt) {
+            $fields[] = 'wc.protocol_sent_at';
+        } else {
+            $fields[] = 'NULL AS protocol_sent_at';
         }
 
         return (new Database("whatsapp_conversations wc
@@ -545,6 +558,64 @@ class WhatsAppConversation
         return true;
     }
 
+    public static function reconcileContactPhone(int $conversationId, int $accountId, string $contactPhone, ?string $contactName = null): int
+    {
+        $canonicalPhone = self::normalizePhone($contactPhone);
+        if ($conversationId <= 0 || $accountId <= 0 || $canonicalPhone === '') {
+            return $conversationId;
+        }
+
+        $current = (new Database('whatsapp_conversations'))
+            ->select(
+                'id = :id AND account_id = :account_id',
+                [
+                    ':id' => $conversationId,
+                    ':account_id' => $accountId,
+                ],
+                '',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        if (!$current) {
+            return $conversationId;
+        }
+
+        $canonicalName = self::nullableString($contactName);
+        $currentPhone = self::normalizePhone((string)($current['contact_phone'] ?? ''));
+        if ($currentPhone === $canonicalPhone) {
+            self::syncExistingConversationContactName($current, $canonicalName, true);
+            return (int)$current['id'];
+        }
+
+        $target = (new Database('whatsapp_conversations'))
+            ->select(
+                'account_id = :account_id AND contact_phone = :phone',
+                [
+                    ':account_id' => $accountId,
+                    ':phone' => $canonicalPhone,
+                ],
+                '',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        if ($target && (int)$target['id'] !== (int)$current['id']) {
+            return self::mergeConversations((int)$current['id'], $current, (int)$target['id'], $target, $canonicalName);
+        }
+
+        $values = [
+            'contact_phone' => $canonicalPhone,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($canonicalName !== null) {
+            $values['contact_name'] = $canonicalName;
+        }
+
+        self::update((int)$current['id'], $values);
+        return (int)$current['id'];
+    }
+
     public static function updateMessageStatusByWamid(string $wamid, string $status, ?string $errorMessage = null, array $payload = []): bool
     {
         if ($wamid === '') {
@@ -611,6 +682,79 @@ class WhatsAppConversation
         );
     }
 
+    public static function ensureConversationProtocolReference(int $conversationId, string $companySeed, ?string $fallbackReference = null): string
+    {
+        self::ensureProtocolTrackingColumns();
+        if ($conversationId <= 0) {
+            return '';
+        }
+
+        $row = (new Database('whatsapp_conversations'))
+            ->select('id = :id', [':id' => $conversationId], '', '1', ['protocol_reference'])
+            ->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $existing = trim((string)($row['protocol_reference'] ?? ''));
+        if ($existing !== '') {
+            return $existing;
+        }
+
+        $reference = trim((string)$fallbackReference);
+        if ($reference === '') {
+            $reference = self::buildProtocolReference($conversationId, $companySeed);
+        }
+
+        self::update($conversationId, [
+            'protocol_reference' => $reference,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return $reference;
+    }
+
+    public static function protocolAlreadySent(int $conversationId): bool
+    {
+        self::ensureProtocolTrackingColumns();
+        if ($conversationId <= 0 || !self::conversationHasColumn('protocol_sent_at')) {
+            return false;
+        }
+
+        $row = (new Database('whatsapp_conversations'))
+            ->select('id = :id', [':id' => $conversationId], '', '1', ['protocol_sent_at'])
+            ->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return !empty($row['protocol_sent_at']);
+    }
+
+    public static function markConversationProtocolSent(int $conversationId, string $reference): bool
+    {
+        self::ensureProtocolTrackingColumns();
+        if ($conversationId <= 0) {
+            return false;
+        }
+
+        $values = [
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if (self::conversationHasColumn('protocol_reference') && trim($reference) !== '') {
+            $values['protocol_reference'] = trim($reference);
+        }
+        if (self::conversationHasColumn('protocol_sent_at')) {
+            $values['protocol_sent_at'] = date('Y-m-d H:i:s');
+        }
+
+        return self::update($conversationId, $values);
+    }
+
+    public static function buildProtocolReference(int $conversationId, string $companySeed): string
+    {
+        $digits = preg_replace('/\D+/', '', $companySeed) ?: '';
+        $companyPart = str_pad(substr($digits !== '' ? $digits : '0', -5), 5, '0', STR_PAD_LEFT);
+        $sequencePart = str_pad((string)max(0, $conversationId), 6, '0', STR_PAD_LEFT);
+
+        return 'ATD-' . $companyPart . '-' . $sequencePart;
+    }
+
     private static function update(int $id, array $values): bool
     {
         return (new Database('whatsapp_conversations'))->update(
@@ -618,6 +762,35 @@ class WhatsAppConversation
             $values,
             [':id' => $id]
         );
+    }
+
+    private static function ensureProtocolTrackingColumns(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        $checked = true;
+
+        try {
+            $rows = (new Database())->execute('SHOW COLUMNS FROM whatsapp_conversations')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $columns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $rows), true);
+            $alter = [];
+
+            if (!isset($columns['protocol_reference'])) {
+                $alter[] = "ADD COLUMN protocol_reference VARCHAR(64) NULL AFTER status";
+            }
+            if (!isset($columns['protocol_sent_at'])) {
+                $alter[] = "ADD COLUMN protocol_sent_at DATETIME NULL AFTER protocol_reference";
+            }
+
+            if ($alter !== []) {
+                (new Database())->execute('ALTER TABLE whatsapp_conversations ' . implode(', ', $alter));
+            }
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_protocol_columns] ' . $e->getMessage());
+        }
     }
 
     private static function messageHasColumn(string $column): bool
@@ -738,6 +911,58 @@ class WhatsAppConversation
             'contact_name' => $contactName,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    private static function mergeConversations(int $sourceId, array $source, int $targetId, array $target, ?string $contactName = null): int
+    {
+        if ($sourceId <= 0 || $targetId <= 0 || $sourceId === $targetId) {
+            return $targetId > 0 ? $targetId : $sourceId;
+        }
+
+        foreach ([
+            'whatsapp_messages',
+            'whatsapp_outbox',
+            'whatsapp_support_sessions',
+            'whatsapp_support_queue_history',
+        ] as $table) {
+            (new Database($table))->execute(
+                "UPDATE {$table} SET conversation_id = :target_id WHERE conversation_id = :source_id",
+                [
+                    ':target_id' => $targetId,
+                    ':source_id' => $sourceId,
+                ]
+            );
+        }
+
+        $sourceLastAt = strtotime((string)($source['last_message_at'] ?? '')) ?: 0;
+        $targetLastAt = strtotime((string)($target['last_message_at'] ?? '')) ?: 0;
+
+        $values = [
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($sourceLastAt > $targetLastAt) {
+            $values['last_message'] = $source['last_message'] ?? $target['last_message'] ?? null;
+            $values['last_direction'] = $source['last_direction'] ?? $target['last_direction'] ?? null;
+            $values['last_message_at'] = $source['last_message_at'] ?? $target['last_message_at'] ?? date('Y-m-d H:i:s');
+        }
+
+        $mergedName = $contactName
+            ?? self::nullableString($target['contact_name'] ?? null)
+            ?? self::nullableString($source['contact_name'] ?? null);
+        if ($mergedName !== null) {
+            $values['contact_name'] = $mergedName;
+        }
+
+        $values['unread_count'] = max(
+            (int)($target['unread_count'] ?? 0),
+            (int)($source['unread_count'] ?? 0)
+        );
+
+        self::update($targetId, $values);
+        (new Database('whatsapp_conversations'))->delete('id = :id', [':id' => $sourceId]);
+
+        return $targetId;
     }
 
     private static function normalizePhone(string $phone): string

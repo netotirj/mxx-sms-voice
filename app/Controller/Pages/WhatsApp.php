@@ -1212,6 +1212,8 @@ class WhatsApp extends ViewComponents
         $templateComponents = $input['template_components'] ?? [];
         $templateVariables = WhatsAppTemplateVariableResolver::normalizeInputVariables($input['template_variables'] ?? []);
         $contactName = self::nullableString($input['name'] ?? null);
+        $protocolRequested = (int)($input['protocol_requested'] ?? 0) === 1;
+        $protocolReferenceInput = trim((string)($input['protocol_reference'] ?? ''));
 
         if ($accountId <= 0) {
             return self::json(422, [
@@ -1302,6 +1304,9 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
+        $billingUserId = (int)($account['user_id'] ?? $obUser['id']);
+        $billingTenancyId = (string)($account['tenancy_id'] ?? $obUser['tenancy_id']);
+
         try {
             WhatsAppNumberSafety::assertVerifiedForUse($account);
         } catch (\Throwable $e) {
@@ -1350,7 +1355,9 @@ class WhatsApp extends ViewComponents
                     'contact_name_fallback' => self::templateContactFallback(),
                     'contact_phone' => $to,
                 ], $templateVariables);
-                $templateComponents = $resolvedTemplate['components'];
+                $templateComponents = is_array($resolvedTemplate['components'] ?? null)
+                    ? $resolvedTemplate['components']
+                    : [];
             } catch (\Throwable $e) {
                 error_log(json_encode([
                     'event' => 'whatsapp_template_variable_error',
@@ -1495,6 +1502,47 @@ class WhatsApp extends ViewComponents
             'unread_count' => 0,
         ]);
 
+        $protocolReference = '';
+        if ($protocolRequested) {
+            if (WhatsAppConversation::protocolAlreadySent($conversationId)) {
+                return self::json(409, [
+                    'success' => false,
+                    'message' => 'Este atendimento ja possui um protocolo enviado. Reenvio do mesmo protocolo deve ser tratado separadamente.',
+                    'conversation_id' => $conversationId,
+                ]);
+            }
+
+            $protocolReference = WhatsAppConversation::ensureConversationProtocolReference(
+                $conversationId,
+                (string)($account['display_phone_number'] ?? $account['phone_number'] ?? $accountId),
+                $protocolReferenceInput
+            );
+
+            if ($messageType === 'text') {
+                $message = "Seu protocolo de atendimento é: {$protocolReference}";
+            }
+
+            if ($messageType === 'template') {
+                foreach (['protocolo_atendimento', 'protocolo', 'ticket_protocol', 'ticket.protocol'] as $key) {
+                    $templateVariables[$key] = $protocolReference;
+                }
+
+                if ($template) {
+                    $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
+                        'tenancy_id' => $obUser['tenancy_id'],
+                        'tenant_name' => self::tenantName((string)$obUser['tenancy_id']),
+                        'contact_name' => $contactName,
+                        'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
+                        'contact_name_fallback' => self::templateContactFallback(),
+                        'contact_phone' => $to,
+                    ], $templateVariables);
+                    $templateComponents = is_array($resolvedTemplate['components'] ?? null)
+                        ? $resolvedTemplate['components']
+                        : [];
+                }
+            }
+        }
+
         if ($messageType === 'template' && !$serviceWindowOpen) {
             self::auditTemplateWindowEvent('whatsapp_template_reopen_window_closed', [
                 'tenancy_id' => (string)$obUser['tenancy_id'],
@@ -1512,8 +1560,8 @@ class WhatsApp extends ViewComponents
         if ($messageType === 'audio') {
             try {
                 $audioCategory = WhatsAppBilling::resolveCategory('audio', null, $serviceWindowOpen);
-                $audioPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $audioCategory);
-                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $audioCategory, $audioPriceBrl);
+                $audioPriceBrl = WhatsAppBilling::priceForUser($billingUserId, $billingTenancyId, $audioCategory);
+                WhatsAppBilling::assertCanSend($billingUserId, $billingTenancyId, $audioCategory, $audioPriceBrl);
 
                 $audioFile = !empty($_FILES['audio']) ? $_FILES['audio'] : ($_FILES['media'] ?? null);
                 if (!is_array($audioFile)) {
@@ -1554,6 +1602,13 @@ class WhatsApp extends ViewComponents
                     ]);
                 }
 
+                $conversationId = WhatsAppConversation::reconcileContactPhone(
+                    $conversationId,
+                    $accountId,
+                    self::metaRecipientPhone($result, $to),
+                    $contactName
+                );
+
                 $messageId = WhatsAppConversation::addMessage([
                     'conversation_id' => $conversationId,
                     'account_id' => $accountId,
@@ -1578,8 +1633,8 @@ class WhatsApp extends ViewComponents
                 ]);
 
                 WhatsAppBilling::recordDirectSent([
-                    'user_id' => (int)$obUser['id'],
-                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => $billingUserId,
+                    'tenancy_id' => $billingTenancyId,
                     'contact_phone' => $to,
                     'template_name' => null,
                 ], $messageId, $result['data']['messages'][0]['id'] ?? null, $audioCategory, $audioPriceBrl);
@@ -1603,8 +1658,8 @@ class WhatsApp extends ViewComponents
         if ($messageType === 'image') {
             try {
                 $imageCategory = WhatsAppBilling::resolveCategory('image', null, $serviceWindowOpen);
-                $imagePriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $imageCategory);
-                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $imageCategory, $imagePriceBrl);
+                $imagePriceBrl = WhatsAppBilling::priceForUser($billingUserId, $billingTenancyId, $imageCategory);
+                WhatsAppBilling::assertCanSend($billingUserId, $billingTenancyId, $imageCategory, $imagePriceBrl);
 
                 $media = self::storeUploadedImage(
                     $_FILES['media'],
@@ -1641,6 +1696,13 @@ class WhatsApp extends ViewComponents
                     ]);
                 }
 
+                $conversationId = WhatsAppConversation::reconcileContactPhone(
+                    $conversationId,
+                    $accountId,
+                    self::metaRecipientPhone($result, $to),
+                    $contactName
+                );
+
                 $messageId = WhatsAppConversation::addMessage([
                     'conversation_id' => $conversationId,
                     'account_id' => $accountId,
@@ -1665,8 +1727,8 @@ class WhatsApp extends ViewComponents
                 ]);
 
                 WhatsAppBilling::recordDirectSent([
-                    'user_id' => (int)$obUser['id'],
-                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => $billingUserId,
+                    'tenancy_id' => $billingTenancyId,
                     'contact_phone' => $to,
                     'template_name' => null,
                 ], $messageId, $result['data']['messages'][0]['id'] ?? null, $imageCategory, $imagePriceBrl);
@@ -1690,8 +1752,8 @@ class WhatsApp extends ViewComponents
         if ($messageType === 'video') {
             try {
                 $videoCategory = WhatsAppBilling::resolveCategory('video', null, $serviceWindowOpen);
-                $videoPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $videoCategory);
-                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $videoCategory, $videoPriceBrl);
+                $videoPriceBrl = WhatsAppBilling::priceForUser($billingUserId, $billingTenancyId, $videoCategory);
+                WhatsAppBilling::assertCanSend($billingUserId, $billingTenancyId, $videoCategory, $videoPriceBrl);
 
                 $media = self::storeUploadedVideo(
                     $_FILES['media'],
@@ -1728,6 +1790,13 @@ class WhatsApp extends ViewComponents
                     ]);
                 }
 
+                $conversationId = WhatsAppConversation::reconcileContactPhone(
+                    $conversationId,
+                    $accountId,
+                    self::metaRecipientPhone($result, $to),
+                    $contactName
+                );
+
                 $messageId = WhatsAppConversation::addMessage([
                     'conversation_id' => $conversationId,
                     'account_id' => $accountId,
@@ -1752,8 +1821,8 @@ class WhatsApp extends ViewComponents
                 ]);
 
                 WhatsAppBilling::recordDirectSent([
-                    'user_id' => (int)$obUser['id'],
-                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => $billingUserId,
+                    'tenancy_id' => $billingTenancyId,
                     'contact_phone' => $to,
                     'template_name' => null,
                 ], $messageId, $result['data']['messages'][0]['id'] ?? null, $videoCategory, $videoPriceBrl);
@@ -1777,8 +1846,8 @@ class WhatsApp extends ViewComponents
         if ($messageType === 'document') {
             try {
                 $documentCategory = WhatsAppBilling::resolveCategory('document', null, $serviceWindowOpen);
-                $documentPriceBrl = WhatsAppBilling::priceForUser((int)$obUser['id'], (string)$obUser['tenancy_id'], $documentCategory);
-                WhatsAppBilling::assertCanSend((int)$obUser['id'], (string)$obUser['tenancy_id'], $documentCategory, $documentPriceBrl);
+                $documentPriceBrl = WhatsAppBilling::priceForUser($billingUserId, $billingTenancyId, $documentCategory);
+                WhatsAppBilling::assertCanSend($billingUserId, $billingTenancyId, $documentCategory, $documentPriceBrl);
 
                 $media = self::storeUploadedDocument(
                     $_FILES['media'],
@@ -1816,6 +1885,13 @@ class WhatsApp extends ViewComponents
                     ]);
                 }
 
+                $conversationId = WhatsAppConversation::reconcileContactPhone(
+                    $conversationId,
+                    $accountId,
+                    self::metaRecipientPhone($result, $to),
+                    $contactName
+                );
+
                 $messageId = WhatsAppConversation::addMessage([
                     'conversation_id' => $conversationId,
                     'account_id' => $accountId,
@@ -1840,8 +1916,8 @@ class WhatsApp extends ViewComponents
                 ]);
 
                 WhatsAppBilling::recordDirectSent([
-                    'user_id' => (int)$obUser['id'],
-                    'tenancy_id' => (string)$obUser['tenancy_id'],
+                    'user_id' => $billingUserId,
+                    'tenancy_id' => $billingTenancyId,
                     'contact_phone' => $to,
                     'template_name' => null,
                 ], $messageId, $result['data']['messages'][0]['id'] ?? null, $documentCategory, $documentPriceBrl);
@@ -1886,8 +1962,8 @@ class WhatsApp extends ViewComponents
             }
 
             $billableMessages[] = self::withWhatsAppBilling([
-                'tenancy_id' => $obUser['tenancy_id'],
-                'user_id' => (int)$obUser['id'],
+                'tenancy_id' => $billingTenancyId,
+                'user_id' => $billingUserId,
                 'account_id' => $accountId,
                 'conversation_id' => $conversationId,
                 'contact_phone' => $to,
@@ -1895,8 +1971,25 @@ class WhatsApp extends ViewComponents
             ], $planned, $serviceWindowOpen);
         }
 
+        if ($protocolRequested && isset($billableMessages[0])) {
+            $billableMessages[0]['pricing_snapshot'] = is_array($billableMessages[0]['pricing_snapshot'] ?? null)
+                ? $billableMessages[0]['pricing_snapshot']
+                : [];
+            $billableMessages[0]['pricing_snapshot']['pricing_payload'] = is_array($billableMessages[0]['pricing_snapshot']['pricing_payload'] ?? null)
+                ? $billableMessages[0]['pricing_snapshot']['pricing_payload']
+                : [];
+            $billableMessages[0]['pricing_snapshot']['pricing_payload']['protocol_tracking'] = [
+                'reference' => $protocolReference,
+                'conversation_id' => $conversationId,
+                'account_id' => $accountId,
+                'requested_by_user_id' => (int)$obUser['id'],
+                'requested_at' => date('Y-m-d H:i:s'),
+                'message_type' => $messageType,
+            ];
+        }
+
         try {
-            WhatsAppBilling::assertCanSendBatch((int)$obUser['id'], (string)$obUser['tenancy_id'], $billableMessages);
+            WhatsAppBilling::assertCanSendBatch($billingUserId, $billingTenancyId, $billableMessages);
         } catch (\Throwable $e) {
             return self::json(402, [
                 'success' => false,
@@ -1922,6 +2015,7 @@ class WhatsApp extends ViewComponents
                 ? 'Mensagem enviada.'
                 : 'Mensagem recebida pelo sistema e colocada na fila de envio.',
             'conversation_id' => $conversationId,
+            'protocol_reference' => $protocolReference ?: null,
             'outbox_ids' => $outboxIds,
             'processed_now' => $flush,
             'parts' => $plannedMessages,
@@ -1946,7 +2040,21 @@ class WhatsApp extends ViewComponents
     public static function receiveWebhook($request = null): Response
     {
         $rawPayload = file_get_contents('php://input') ?: '';
+        self::logWebhookDebug('receive.start', [
+            'method' => $_SERVER['REQUEST_METHOD'] ?? null,
+            'uri' => $_SERVER['REQUEST_URI'] ?? null,
+            'query' => $_GET ?? [],
+            'headers' => self::captureWebhookHeaders($request),
+            'raw' => $rawPayload,
+        ]);
+
         if (!self::isValidWebhookSignature($rawPayload, $request)) {
+            self::logWebhookDebug('receive.invalid_signature', [
+                'method' => $_SERVER['REQUEST_METHOD'] ?? null,
+                'uri' => $_SERVER['REQUEST_URI'] ?? null,
+                'headers' => self::captureWebhookHeaders($request),
+                'raw' => $rawPayload,
+            ]);
             return self::json(403, [
                 'success' => false,
                 'message' => 'Assinatura do webhook inválida.',
@@ -1965,11 +2073,19 @@ class WhatsApp extends ViewComponents
                     $value = $change['value'] ?? [];
                     $phoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
                     if ($phoneNumberId === '') {
+                        self::logWebhookDebug('receive.skip_missing_phone_number_id', [
+                            'change_field' => $change['field'] ?? null,
+                            'value_keys' => array_keys(is_array($value) ? $value : []),
+                        ]);
                         continue;
                     }
 
                     $account = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
                     if (!$account) {
+                        self::logWebhookDebug('receive.skip_unknown_phone_number_id', [
+                            'phone_number_id' => $phoneNumberId,
+                            'change_field' => $change['field'] ?? null,
+                        ]);
                         continue;
                     }
 
@@ -1991,11 +2107,20 @@ class WhatsApp extends ViewComponents
                 }
             }
 
+            self::logWebhookDebug('receive.success', [
+                'processed' => $processed,
+            ]);
+
             return self::json(200, [
                 'success' => true,
                 'processed' => $processed,
             ]);
         } catch (\Throwable $e) {
+            self::logWebhookDebug('receive.exception', [
+                'processed' => $processed,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return self::json(200, [
                 'success' => false,
                 'processed' => $processed,
@@ -2220,6 +2345,11 @@ class WhatsApp extends ViewComponents
     {
         $from = self::normalizePhone((string)($message['from'] ?? ''));
         if ($from === '') {
+            self::logWebhookDebug('message.skip_missing_from', [
+                'account_id' => (int)($account['id'] ?? 0),
+                'wamid' => $message['id'] ?? null,
+                'message_type' => $message['type'] ?? null,
+            ]);
             return false;
         }
 
@@ -2274,11 +2404,38 @@ class WhatsApp extends ViewComponents
                 'status' => 'received',
                 'payload' => $payload,
             ]);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            self::logWebhookDebug('message.add_failed', [
+                'account_id' => (int)($account['id'] ?? 0),
+                'conversation_id' => $conversationId,
+                'wamid' => $message['id'] ?? null,
+                'from' => $from,
+                'message_type' => $messageType,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
 
-        WhatsAppSupportDesk::handleInboundConversation($conversationId, $account, $body);
+        self::logWebhookDebug('message.stored', [
+            'account_id' => (int)($account['id'] ?? 0),
+            'conversation_id' => $conversationId,
+            'wamid' => $message['id'] ?? null,
+            'from' => $from,
+            'message_type' => $messageType,
+            'body_preview' => mb_substr($body, 0, 200),
+        ]);
+
+        try {
+            WhatsAppSupportDesk::handleInboundConversation($conversationId, $account, $body);
+        } catch (\Throwable $e) {
+            self::logWebhookDebug('message.supportdesk_failed', [
+                'account_id' => (int)($account['id'] ?? 0),
+                'conversation_id' => $conversationId,
+                'wamid' => $message['id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
 
         return true;
     }
@@ -2317,9 +2474,56 @@ class WhatsApp extends ViewComponents
         try {
             WhatsAppNumberSafety::handleMetaWebhook($value);
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            self::logWebhookDebug('number_quality.failed', [
+                'phone_number_id' => $value['metadata']['phone_number_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
+    }
+
+    private static function captureWebhookHeaders(mixed $request = null): array
+    {
+        $headers = is_object($request) && method_exists($request, 'getHeaders')
+            ? $request->getHeaders()
+            : [];
+
+        if (!is_array($headers) || $headers === []) {
+            $headers = function_exists('getallheaders') ? (getallheaders() ?: []) : [];
+        }
+
+        $sanitized = [];
+        foreach ($headers as $name => $value) {
+            $headerName = (string)$name;
+            if (stripos($headerName, 'authorization') !== false || stripos($headerName, 'cookie') !== false) {
+                $sanitized[$headerName] = '[redacted]';
+                continue;
+            }
+
+            $sanitized[$headerName] = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return $sanitized;
+    }
+
+    private static function logWebhookDebug(string $event, array $context = []): void
+    {
+        $payload = [
+            'at' => date('c'),
+            'event' => $event,
+            'context' => $context,
+        ];
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        if ($json === false) {
+            $json = '{"at":"' . date('c') . '","event":"' . addslashes($event) . '","context":"json_encode_failed"}';
+        }
+
+        error_log('[meta_webhook] ' . $event . ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        $logFile = 'C:/wamp64/logs/meta_whatsapp_webhook_dump.log';
+        @file_put_contents($logFile, $json . PHP_EOL . str_repeat('-', 80) . PHP_EOL, FILE_APPEND);
     }
 
     private static function extractWebhookMessageBody(array $message): string
@@ -3215,7 +3419,7 @@ class WhatsApp extends ViewComponents
     private static function canUseSupportAccount(array $user): bool
     {
         $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
-        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'agent', 'operator', 'o', 'support_l1', 'support_l2'], true);
+        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'agent', 'operator', 'o', 'support_l1', 'support_l2', 'ticket_support', 'support_ticket_manager'], true);
     }
 
     private static function canManageWhatsAppNumbers(array $user): bool
@@ -3233,7 +3437,7 @@ class WhatsApp extends ViewComponents
     private static function canViewWhatsAppSupportAccounts(array $user): bool
     {
         $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
-        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'monitor', 'support_l2', 'agent', 'support_l1', 'operator', 'o'], true);
+        return in_array($role, ['super_admin', 'admin', 'manager', 'supervisor', 'monitor', 'support_l2', 'support_ticket_manager', 'agent', 'support_l1', 'ticket_support', 'operator', 'o'], true);
     }
 
     private static function getConversationAccountForUser(int $accountId, array $user): ?array
@@ -3290,7 +3494,13 @@ class WhatsApp extends ViewComponents
 
     private static function json(int $status, array $payload): Response
     {
-        return new Response($status, $payload, 'application/json');
+        $response = new Response($status, $payload, 'application/json');
+        $response->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->addHeader('Pragma', 'no-cache');
+        $response->addHeader('Expires', '0');
+        $response->addHeader('Surrogate-Control', 'no-store');
+        $response->addHeader('Vary', 'Cookie, Authorization');
+        return $response;
     }
 
     private static function jsonInput(): array
@@ -3455,6 +3665,12 @@ class WhatsApp extends ViewComponents
             $target['path']
         );
 
+        $originalName = (string)(
+            $node['filename']
+            ?? $media['data']['filename']
+            ?? ($messageType === 'document' ? ('documento.' . self::documentExtension($mimeType)) : ($messageType . '.' . self::extensionForMessageType($messageType, $mimeType)))
+        );
+
         if (!$download['ok']) {
             self::logMediaDiagnostic('inbound.download_failed', [
                 'tenancy_id' => (string)($account['tenancy_id'] ?? ''),
@@ -3463,14 +3679,20 @@ class WhatsApp extends ViewComponents
                 'media_id' => $mediaId,
                 'error' => $download['error'] ?: 'Falha ao baixar mídia.',
             ]);
-            return null;
+            return [
+                'id' => $mediaId,
+                'type' => $messageType,
+                'mime_type' => $mimeType,
+                'sha256' => $node['sha256'] ?? $media['data']['sha256'] ?? null,
+                'file_size' => $media['data']['file_size'] ?? null,
+                'local_path' => null,
+                'path' => null,
+                'url' => null,
+                'original_name' => $originalName,
+                'caption' => self::extractInboundMediaCaption($messageType, $message),
+                'download_error' => $download['error'] ?: 'Falha ao baixar mídia.',
+            ];
         }
-
-        $originalName = (string)(
-            $node['filename']
-            ?? $media['data']['filename']
-            ?? ($messageType === 'document' ? ('documento.' . self::documentExtension($mimeType)) : ($messageType . '.' . self::extensionForMessageType($messageType, $mimeType)))
-        );
 
         return [
             'id' => $mediaId,
@@ -3987,6 +4209,24 @@ class WhatsApp extends ViewComponents
     private static function normalizePhone(string $phone): string
     {
         return preg_replace('/\D+/', '', $phone) ?: '';
+    }
+
+    private static function metaRecipientPhone(array $result, string $fallback = ''): string
+    {
+        $candidates = [
+            $result['data']['contacts'][0]['wa_id'] ?? null,
+            $result['data']['recipient_id'] ?? null,
+            $fallback,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $digits = preg_replace('/\D+/', '', (string)$candidate) ?: '';
+            if ($digits !== '') {
+                return $digits;
+            }
+        }
+
+        return '';
     }
 
     private static function maskPhoneForLog(string $phone): string

@@ -212,11 +212,11 @@ class WhatsAppAccount
         ];
         $where = "{$prefix}tenancy_id = :scope_tenancy_id";
 
-        if (in_array($role, ['admin', 'manager', 'supervisor', 'monitor', 'support_l2'], true)) {
+        if (in_array($role, ['admin', 'manager', 'supervisor', 'monitor', 'support_l2', 'support_ticket_manager'], true)) {
             return [$where, $params];
         }
 
-        if (in_array($role, ['agent', 'support_l1', 'operator', 'o'], true)) {
+        if (in_array($role, ['agent', 'support_l1', 'operator', 'o', 'ticket_support'], true)) {
             $where .= " AND EXISTS (
                 SELECT 1
                 FROM whatsapp_support_queues scope_q

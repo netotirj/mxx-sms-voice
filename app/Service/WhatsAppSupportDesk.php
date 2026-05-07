@@ -20,9 +20,6 @@ class WhatsAppSupportDesk
 
     public static function listQueuesForUser(array $user): array
     {
-        if (!empty($user['tenancy_id'])) {
-            self::ensureLegacyDefaultQueueRenamed((string)$user['tenancy_id'], null);
-        }
         [$where, $params] = self::queueScope($user, 'q');
 
         $queues = (new Database('whatsapp_support_queues q LEFT JOIN whatsapp_accounts wa ON wa.id = q.account_id AND wa.tenancy_id = q.tenancy_id'))
@@ -1140,8 +1137,6 @@ class WhatsAppSupportDesk
 
     private static function selectInboundQueue(array $account): ?array
     {
-        self::ensureDefaultCommercialQueueForAccount($account);
-
         $row = (new Database('whatsapp_support_queues'))
             ->select(
                 "status = 'active' AND (account_id = :account_id OR account_id IS NULL) AND tenancy_id = :tenancy_id",
@@ -1154,24 +1149,7 @@ class WhatsAppSupportDesk
             )
             ->fetch(PDO::FETCH_ASSOC);
 
-        if ($row) {
-            return $row;
-        }
-
-        $id = (int)(new Database('whatsapp_support_queues'))->insert([
-            'tenancy_id' => $account['tenancy_id'],
-            'user_id' => (int)$account['user_id'],
-            'account_id' => (int)$account['id'],
-            'name' => 'Comercial',
-            'description' => 'Fila padrão criada automaticamente para mensagens recebidas.',
-            'priority' => 0,
-            'is_default' => 1,
-            'status' => 'active',
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ] + (self::queueHasColumn('color') ? ['color' => '#10b981'] : []));
-
-        return self::getQueueById($id);
+        return $row ?: null;
     }
 
     private static function getQueueForUser(int $queueId, array $user): ?array
@@ -1809,7 +1787,7 @@ class WhatsAppSupportDesk
     {
         return in_array(
             self::normalizedRole($user),
-            ['admin', 'manager', 'supervisor', 'monitor', 'support_l2'],
+            ['admin', 'manager', 'supervisor', 'monitor', 'support_l2', 'support_ticket_manager'],
             true
         );
     }
@@ -1828,7 +1806,7 @@ class WhatsAppSupportDesk
 
     private static function isRestrictedAgent(array $user): bool
     {
-        return in_array(self::normalizedRole($user), ['agent', 'support_l1', 'operator', 'o'], true);
+        return in_array(self::normalizedRole($user), ['agent', 'support_l1', 'operator', 'o', 'ticket_support'], true);
     }
 
     private static function looksVip(string $body): bool

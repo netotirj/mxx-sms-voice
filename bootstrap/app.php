@@ -49,6 +49,9 @@ View::init([
     'SOCIAL_URL' => URL,
     'ASTERISK_WS_HOST' => $asteriskWsHost,
     'ASTERISK_WS_PORT' => getenv('ASTERISK_WS_PORT') ?: '8089',
+    'SUPPORT_WHATSAPP_PHONE' => getenv('SUPPORT_WHATSAPP_PHONE') ?: '5568992024512',
+    'SUPPORT_TICKET_URL' => VIEW_URL . '/support',
+    'SUPPORT_TICKETS_URL' => VIEW_URL . '/support',
 ]);
 
 MiddlewareQueue::setMap([

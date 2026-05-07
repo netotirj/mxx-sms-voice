@@ -157,16 +157,29 @@ class WhatsAppOutboxWorker
                 return false;
             }
 
-            $conversationId = (int)($row['conversation_id'] ?: WhatsAppConversation::findOrCreate([
-                'tenancy_id' => $row['tenancy_id'],
-                'user_id' => (int)$row['user_id'],
-                'account_id' => (int)$row['account_id'],
-                'contact_phone' => (string)$row['contact_phone'],
-                'contact_name' => $row['contact_name'] ?? null,
-                'last_message' => (string)($row['body'] ?? ''),
-                'last_direction' => 'outbound',
-                'unread_count' => 0,
-            ]));
+            $resolvedPhone = $this->metaRecipientPhone($result, (string)($row['contact_phone'] ?? ''));
+            $conversationId = !empty($row['conversation_id'])
+                ? WhatsAppConversation::reconcileContactPhone(
+                    (int)$row['conversation_id'],
+                    (int)$row['account_id'],
+                    $resolvedPhone,
+                    $row['contact_name'] ?? null
+                )
+                : WhatsAppConversation::findOrCreate([
+                    'tenancy_id' => $row['tenancy_id'],
+                    'user_id' => (int)$row['user_id'],
+                    'account_id' => (int)$row['account_id'],
+                    'contact_phone' => $resolvedPhone,
+                    'contact_name' => $row['contact_name'] ?? null,
+                    'last_message' => (string)($row['body'] ?? ''),
+                    'last_direction' => 'outbound',
+                    'unread_count' => 0,
+                ]);
+
+            $pricingSnapshot = $this->jsonColumnToArray($row['pricing_snapshot'] ?? null) ?: [];
+            $protocolTracking = is_array($pricingSnapshot['pricing_payload']['protocol_tracking'] ?? null)
+                ? $pricingSnapshot['pricing_payload']['protocol_tracking']
+                : null;
 
             $payload = array_merge($result['data'] ?? [], [
                 'billing' => [
@@ -181,6 +194,9 @@ class WhatsAppOutboxWorker
                     'pricing_snapshot' => $billing['pricing_snapshot'] ?? null,
                 ],
             ]);
+            if ($protocolTracking) {
+                $payload['protocol_tracking'] = $protocolTracking;
+            }
 
             $messageId = WhatsAppConversation::addMessage([
                 'conversation_id' => $conversationId,
@@ -203,6 +219,9 @@ class WhatsAppOutboxWorker
 
             $billed = WhatsAppBilling::billSent($row, $messageId, $wamid, $billing);
             WhatsAppOutbox::markSent($id, $wamid, $messageId);
+            if ($protocolTracking && !empty($protocolTracking['reference'])) {
+                WhatsAppConversation::markConversationProtocolSent($conversationId, (string)$protocolTracking['reference']);
+            }
             if ($billed) {
                 WhatsAppOutbox::markBilled($id);
                 WhatsAppConversation::markMessageBilled($messageId);
@@ -360,5 +379,23 @@ class WhatsAppOutboxWorker
         }
 
         return substr($phone, 0, 4) . '***' . substr($phone, -2);
+    }
+
+    private function metaRecipientPhone(array $result, string $fallback): string
+    {
+        $candidates = [
+            $result['data']['contacts'][0]['wa_id'] ?? null,
+            $result['data']['recipient_id'] ?? null,
+            $fallback,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $digits = preg_replace('/\D+/', '', (string)$candidate) ?: '';
+            if ($digits !== '') {
+                return $digits;
+            }
+        }
+
+        return '';
     }
 }

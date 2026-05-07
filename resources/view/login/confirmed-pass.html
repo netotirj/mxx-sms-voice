@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/fonts/tabler-icons.min.css" />
   <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/notify.css" />
   <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/auth-notify.css" />
-  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css" />
+  <link rel="stylesheet" href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css?v=20260507-3" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -109,10 +109,13 @@
   </section>
 
   <a id="support-whatsapp-floating"
-     href="https://wa.me/5521968943160"
+     href="https://wa.me/{{SUPPORT_WHATSAPP_PHONE}}"
      target="_blank"
      rel="noopener noreferrer"
      class="support-whatsapp-floating"
+     data-support-whatsapp-phone="{{SUPPORT_WHATSAPP_PHONE}}"
+     data-support-ticket-url="{{SUPPORT_TICKET_URL}}"
+     data-support-tickets-url="{{SUPPORT_TICKETS_URL}}"
      aria-label="Fale conosco no WhatsApp">
     <span class="support-whatsapp-floating__status" aria-hidden="true"></span>
     <span class="support-whatsapp-floating__icon" aria-hidden="true">
@@ -128,7 +131,7 @@
   </a>
 
   <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
-  <script src="{{URL}}/resources/view/login/assets/js/support-whatsapp.js"></script>
+  <script src="{{URL}}/resources/view/login/assets/js/support-whatsapp.js?v=20260507-2"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const form = document.getElementById("newPasswordForm");

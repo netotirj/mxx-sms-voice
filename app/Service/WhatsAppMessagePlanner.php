@@ -41,9 +41,10 @@ class WhatsAppMessagePlanner
         return $messages;
     }
 
-    public static function planTemplate(string $templateName, string $language, ?string $category, array $components = [], ?string $body = null): array
+    public static function planTemplate(string $templateName, string $language, ?string $category, ?array $components = null, ?string $body = null): array
     {
         $category = WhatsAppCostPolicy::normalizeCategory($category);
+        $components = is_array($components) ? $components : [];
 
         return [[
             'sequence' => 1,

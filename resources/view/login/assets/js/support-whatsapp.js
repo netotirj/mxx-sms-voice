@@ -6,23 +6,40 @@
   const label = document.getElementById('support-whatsapp-label');
   const hours = document.getElementById('support-whatsapp-hours');
   const icon = button.querySelector('.support-whatsapp-floating__icon');
-  const phone = '5521968943160';
+  const supportPhone = (button.dataset.supportWhatsappPhone || '').replace(/\D+/g, '') || '5568992024512';
+  const externalWhatsAppDelayMs = 1800;
   const optionCopy = {
     support: {
-      label: 'Suporte tecnico',
-      reply: 'Certo, vou te ajudar com suporte. Me diga seu WhatsApp e um resumo do problema para eu encaminhar melhor.'
+      label: 'Suporte',
+      onlineReply: 'Entendi. Se a dificuldade for para acessar sua conta, vou te direcionar agora para o WhatsApp da empresa.',
+      offlineReply: 'Se você está com dificuldade para acessar sua conta, deixe seu WhatsApp e descreva o problema para o time analisar no próximo expediente.',
+      intro: 'Olá! Estou com dificuldade para acessar minha conta.',
+      prompt: 'Se puder, me ajude com esse acesso.',
+      category: 'suporte de acesso'
     },
     commercial: {
       label: 'Comercial',
-      reply: 'Perfeito. Me passa seu WhatsApp e o assunto comercial para eu direcionar ao time certo.'
+      onlineReply: 'Perfeito. Vou te direcionar agora para o WhatsApp da empresa no atendimento comercial.',
+      offlineReply: 'No momento nosso atendimento está fora do horario. Deixe seu WhatsApp e o assunto comercial para o time continuar no proximo expediente.',
+      intro: 'Olá! Gostaria de falar com o time comercial.',
+      prompt: 'Preciso de informações comerciais e gostaria de um retorno.',
+      category: 'comercial'
     },
     sales: {
       label: 'Vendas',
-      reply: 'Legal. Deixe seu WhatsApp e me conte o que voce procura para o time de vendas continuar.'
+      onlineReply: 'Legal. Vou abrir o WhatsApp da empresa para voce falar com o time de vendas.',
+      offlineReply: 'No momento nosso atendimento está fora do horario. Deixe seu WhatsApp e o que voce procura para o time continuar no proximo expediente.',
+      intro: 'Olá! Tenho interesse em conhecer melhor as soluções da Maxx.',
+      prompt: 'Gostaria de receber informações de vendas e entender a melhor opção para o meu caso.',
+      category: 'vendas'
     },
     finance: {
       label: 'Financeiro',
-      reply: 'Tudo bem. Informe seu WhatsApp e o assunto financeiro para eu organizar o atendimento.'
+      onlineReply: 'Tudo bem. Vou te direcionar agora para o WhatsApp da empresa no atendimento financeiro.',
+      offlineReply: 'No momento nosso atendimento está fora do horario. Deixe seu WhatsApp e o assunto financeiro para o time responder no proximo expediente.',
+      intro: 'Olá! Preciso falar com o financeiro.',
+      prompt: 'Preciso de informações sobre pagamentos, faturas ou assuntos financeiros.',
+      category: 'financeiro'
     }
   };
   let selectedOption = null;
@@ -99,14 +116,14 @@
         <button id="support-whatsapp-close" type="button" class="support-whatsapp-panel__close" aria-label="Fechar">x</button>
       </div>
 
-      <div id="support-bot-messages" class="support-bot-messages">
+        <div id="support-bot-messages" class="support-bot-messages">
         <div class="support-bot-message support-bot-message--bot">
-          Ola! Eu sou a Livia, assistente da Maxx. Escolha uma opcao para eu te direcionar.
+          Ola! Eu sou a Livia, assistente da Maxx. Escolha a area para falar com nosso time.
         </div>
       </div>
 
       <div id="support-bot-options" class="support-bot-options">
-        <button type="button" data-support-option="support">Suporte tecnico</button>
+        <button type="button" data-support-option="support">Suporte</button>
         <button type="button" data-support-option="commercial">Comercial</button>
         <button type="button" data-support-option="sales">Vendas</button>
         <button type="button" data-support-option="finance">Financeiro</button>
@@ -114,12 +131,13 @@
 
       <div id="support-bot-after-message" class="support-bot-options hidden">
         <button type="button" data-support-action="new-message">Novo atendimento</button>
+        <button type="button" data-support-action="open-whatsapp">Abrir WhatsApp da empresa</button>
         <button type="button" data-support-action="close-panel">Encerrar conversa</button>
       </div>
 
       <div id="support-bot-contact" class="support-bot-contact hidden">
         <label class="support-whatsapp-field">
-          <span>Seu WhatsApp</span>
+          <span>Seu WhatsApp para retorno</span>
           <input id="support-bot-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
         </label>
         <label class="support-whatsapp-field">
@@ -129,7 +147,7 @@
         <p id="support-whatsapp-feedback" class="support-whatsapp-feedback"></p>
         <div class="support-whatsapp-panel__actions">
           <button id="support-bot-back" type="button" class="support-whatsapp-panel__secondary">Voltar</button>
-          <button id="support-bot-whatsapp" type="button" class="support-whatsapp-panel__send">Abrir WhatsApp</button>
+          <button id="support-bot-whatsapp" type="button" class="support-whatsapp-panel__send">Enviar para WhatsApp da empresa</button>
         </div>
       </div>
     `;
@@ -213,8 +231,58 @@
   }
 
   function showContactForm() {
+    afterMessageOptions?.classList.add('hidden');
     contact?.classList.remove('hidden');
     phoneInput?.focus();
+  }
+
+  function openWhatsAppConversation(includeContactDetails = false) {
+    const selectedArea = optionCopy[selectedOption] || null;
+    const area = selectedArea?.label || 'Atendimento';
+    const userPhone = (phoneInput?.value || '').replace(/\D+/g, '');
+    const note = (noteInput?.value || '').trim();
+
+    if (!selectedOption || !selectedArea) {
+      setSupportFeedback('Escolha uma area de atendimento.', 'error');
+      return false;
+    }
+
+    if (includeContactDetails) {
+      if (userPhone.length < 8) {
+        setSupportFeedback('Informe seu WhatsApp com DDI e DDD.', 'error');
+        return false;
+      }
+
+      if (!note) {
+        setSupportFeedback('Conte rapidamente o que voce precisa.', 'error');
+        return false;
+      }
+    }
+
+    const text = [
+      selectedArea.intro || `Ola, preciso falar com ${area}.`,
+      selectedArea.prompt || '',
+      `Pagina de origem: ${document.title || 'Maxx Solutions'}.`,
+      includeContactDetails ? `WhatsApp para retorno: ${userPhone}.` : '',
+      includeContactDetails ? `Detalhes: ${note}` : '',
+      `Area selecionada: ${selectedArea.category || area}.`
+    ].filter(Boolean).join('\n');
+
+    if (includeContactDetails) {
+      localStorage.setItem('support_bot_last_phone', userPhone);
+      setSupportFeedback('Mensagem preparada. Em breve entraremos em contato.', 'success');
+      appendBotMessage('Enviar para WhatsApp da empresa', 'user');
+      appendBotMessageWithTyping('Tudo certo. Vou preparar sua mensagem e abrir o WhatsApp da empresa em instantes. Em breve entraremos em contato.', 520);
+    } else {
+      appendBotMessage('Abrir WhatsApp da empresa', 'user');
+      appendBotMessageWithTyping('Tudo certo. Vou abrir o WhatsApp da empresa em instantes para você conferir a conversa. Em breve entraremos em contato.', 520);
+    }
+
+    window.setTimeout(() => {
+      window.open(`https://wa.me/${supportPhone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+    }, externalWhatsAppDelayMs);
+    window.setTimeout(showAfterMessageOptions, externalWhatsAppDelayMs + 250);
+    return true;
   }
 
   function chooseOption(option) {
@@ -226,11 +294,19 @@
     setSupportFeedback('');
     appendBotMessage(data.label, 'user');
     options?.classList.add('hidden');
+    contact?.classList.add('hidden');
     afterMessageOptions?.classList.add('hidden');
+
+    if (availability.online) {
+      appendBotMessageWithTyping(data.onlineReply, 720);
+      window.setTimeout(() => {
+        openWhatsAppConversation(false);
+      }, 880);
+      return;
+    }
+
     appendBotMessageWithTyping(
-      availability.online
-        ? data.reply
-        : `No momento nosso atendimento em tempo real está offline. Você pode deixar seu recado agora e o time responde no próximo expediente (${availability.nextOpeningText}).`,
+      `${data.offlineReply} O retorno acontece no próximo expediente (${availability.nextOpeningText}).`,
       720
     );
     window.setTimeout(showContactForm, 760);
@@ -239,6 +315,7 @@
   function resetBot() {
     selectedOption = null;
     setSupportFeedback('');
+    if (phoneInput) phoneInput.value = localStorage.getItem('support_bot_last_phone') || '';
     if (noteInput) noteInput.value = '';
     contact?.classList.add('hidden');
     afterMessageOptions?.classList.add('hidden');
@@ -246,47 +323,12 @@
   }
 
   function showAfterMessageOptions() {
-    selectedOption = null;
     setSupportFeedback('');
+    if (phoneInput) phoneInput.value = localStorage.getItem('support_bot_last_phone') || '';
     if (noteInput) noteInput.value = '';
     contact?.classList.add('hidden');
     options?.classList.add('hidden');
     afterMessageOptions?.classList.remove('hidden');
-  }
-
-  function openWhatsApp() {
-    const userPhone = (phoneInput?.value || '').replace(/\D+/g, '');
-    const note = (noteInput?.value || '').trim();
-
-    if (!selectedOption) {
-      setSupportFeedback('Escolha uma area de atendimento.', 'error');
-      return;
-    }
-
-    if (userPhone.length < 8) {
-      setSupportFeedback('Informe seu WhatsApp com DDI e DDD.', 'error');
-      return;
-    }
-
-    if (!note) {
-      setSupportFeedback('Conte rapidamente o que voce precisa.', 'error');
-      return;
-    }
-
-    const area = optionCopy[selectedOption]?.label || 'Atendimento';
-    const text = [
-      `Ola, preciso falar com ${area}.`,
-      `Estou na pagina: ${document.title || 'Maxx Solutions'}.`,
-      `Meu WhatsApp: ${userPhone}.`,
-      `Mensagem: ${note}`
-    ].join('\n');
-
-    localStorage.setItem('support_bot_last_phone', userPhone);
-    setSupportFeedback('Abrindo WhatsApp...', 'success');
-    appendBotMessage('Abrir WhatsApp', 'user');
-    appendBotMessageWithTyping('Tudo certo. Vou abrir o WhatsApp com sua mensagem pronta.', 520);
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
-    window.setTimeout(showAfterMessageOptions, 900);
   }
 
   updateWhatsAppSupportStatus();
@@ -321,11 +363,16 @@
       return;
     }
 
+    if (btn.dataset.supportAction === 'open-whatsapp') {
+      openWhatsAppConversation(false);
+      return;
+    }
+
     appendBotMessage('Encerrar conversa', 'user');
     appendBotMessageWithTyping('Tudo certo. Quando precisar, eu fico por aqui.', 520);
     afterMessageOptions.classList.add('hidden');
   });
 
   backBtn?.addEventListener('click', resetBot);
-  whatsappBtn?.addEventListener('click', openWhatsApp);
+  whatsappBtn?.addEventListener('click', () => openWhatsAppConversation(true));
 })();

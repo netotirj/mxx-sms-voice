@@ -2242,8 +2242,13 @@ class WhatsApp extends ViewComponents
         $mode = (string)($query['hub_mode'] ?? $query['hub.mode'] ?? '');
         $token = (string)($query['hub_verify_token'] ?? $query['hub.verify_token'] ?? '');
         $challenge = (string)($query['hub_challenge'] ?? $query['hub.challenge'] ?? '');
+        $expectedToken = trim((string)WhatsAppConfig::webhookVerifyToken());
 
-        if ($mode === 'subscribe' && hash_equals(WhatsAppConfig::webhookVerifyToken(), $token)) {
+        if ($expectedToken === '') {
+            return new Response(503, 'Webhook verify token not configured');
+        }
+
+        if ($mode === 'subscribe' && hash_equals($expectedToken, $token)) {
             return new Response(200, $challenge);
         }
 
@@ -2582,7 +2587,7 @@ class WhatsApp extends ViewComponents
     {
         $secret = WhatsAppConfig::webhookAppSecret();
         if ($secret === '') {
-            return true;
+            return false;
         }
 
         $headers = is_object($request) && method_exists($request, 'getHeaders')

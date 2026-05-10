@@ -395,8 +395,6 @@
                 // B - A quantidade de chamadas mudou (entrada/saída de ligações)
                 // C - A quantidade de agentes mudou ou tabela está vazia
                 if (trsAtuais.length !== payload.agentes.length || assinaturaNovosDados !== assinaturaTelaAtual || tbody.innerHTML.includes('Carregando')) {
-                    console.log("🔄 Mudança detectada (Status de Chamada). Renderizando tabela...");
-
                     // Se nomes mudaram, forçamos a atualização dos selects de filtro
                     const nomesNovos = payload.agentes.map(a => a.nome).sort().join('');
                     const nomesAtuais = trsAtuais.map(tr => tr.querySelector('td:first-child')?.innerText.trim()).sort().join('');

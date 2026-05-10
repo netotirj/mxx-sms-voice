@@ -8,7 +8,6 @@ class WhatsAppConfig
         'localhost',
         '127.0.0.1',
         '::1',
-        'dev.maxxsolutions.com.br',
     ];
 
     public static function graphVersion(): string

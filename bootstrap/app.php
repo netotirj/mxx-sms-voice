@@ -12,7 +12,7 @@ use App\Http\Middleware\Queue as MiddlewareQueue;
 Environment::load(__DIR__.'/../');
 
 // 2. Define a URL
-define('URL', getenv('URL') ?: 'http://localhost');
+define('URL', getenv('URL') ?: 'https://maxxsolutions.com.br/system');
 define('VIEW_URL', buildCurrentViewUrl(URL));
 
 // 3. CONFIGURA O BANCO PRIMEIRO (Obrigatório antes de ler sessão) 🚀
@@ -44,7 +44,7 @@ if (preg_match('#^https?://#i', $asteriskWsHost)) {
 
 View::init([
     'URL' => VIEW_URL,
-    'SOCIAL_URL' => URL,
+    'SOCIAL_URL' => VIEW_URL,
     'ASTERISK_WS_HOST' => $asteriskWsHost,
     'ASTERISK_WS_PORT' => getenv('ASTERISK_WS_PORT') ?: '8089',
     'SUPPORT_WHATSAPP_PHONE' => getenv('SUPPORT_WHATSAPP_PHONE') ?: '5568992024512',
@@ -57,6 +57,7 @@ MiddlewareQueue::setMap([
     'require-session-logout' => \App\Http\Middleware\RequireSessionLogout::class,
     'require-session-login'  => \App\Http\Middleware\RequireSessionLogin::class,
     'auto-logout-inactive'   => \App\Http\Middleware\AutoLogoutInactiveMiddleware::class,
+    'verify-same-origin-mutation' => \App\Http\Middleware\VerifySameOriginMutationMiddleware::class,
     'performance-monitor'    => \App\Http\Middleware\PerformanceMonitorMiddleware::class,
     'require-permissions-tenancies' => \App\Http\Middleware\PermissionMiddleware::class,
 ]);
@@ -64,6 +65,7 @@ MiddlewareQueue::setMap([
 MiddlewareQueue::setDefault([
     'maintenance',
     'auto-logout-inactive',
+    'verify-same-origin-mutation',
     'performance-monitor',
 ]);
 

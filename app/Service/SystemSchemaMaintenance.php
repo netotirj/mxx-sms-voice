@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Model\Entity\Notifications;
+use App\Model\Entity\MarketingCampaign;
 use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\SupportTicket;
 use App\Model\Entity\SystemUpdate;
@@ -141,11 +142,13 @@ class SystemSchemaMaintenance
     public static function syncApplicationSchema(): array
     {
         Notifications::syncSchema();
+        MarketingCampaign::syncSchema();
         SystemUpdate::syncSchema();
         SupportTicket::syncSchema();
 
         return [
             'notifications',
+            'marketing_campaigns',
             'system_updates',
             'support_tickets',
             'support_ticket_audit_logs',

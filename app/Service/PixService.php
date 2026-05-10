@@ -53,13 +53,15 @@ class PixService
 
     public static function log(string $message, array $context = []): void
     {
-        $safe = $context;
-        unset($safe['access_token'], $safe['encodedImage'], $safe['payload']);
+        PixSearch::ensureSchema();
+        $safe = self::sanitizeLogContext($context);
         error_log('[pix] ' . $message . ' ' . json_encode($safe, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        PixSearch::appendApiLog($message, $safe, self::inferLogLevel($message));
     }
 
     public static function validateProviderPayment(array $payment, string $event): array
     {
+        PixSearch::ensureSchema();
         $invoice = trim((string)($payment['invoiceNumber'] ?? ''));
         $pixQrCodeId = trim((string)($payment['pixQrCodeId'] ?? ''));
         $externalReference = trim((string)($payment['externalReference'] ?? ''));
@@ -113,6 +115,7 @@ class PixService
 
     public static function processWebhookPayment(string $event, array $payment): array
     {
+        PixSearch::ensureSchema();
         $event = self::normalizeEvent($event);
         self::log('webhook_received', [
             'event' => $event,
@@ -154,6 +157,35 @@ class PixService
         }
 
         return self::success(['invoiceNumber' => $invoice, 'event' => $event], 'Evento sem acao.');
+    }
+
+    public static function syncProviderStatusPayment(PixSearch $pix, array $payment): array
+    {
+        $providerStatus = strtoupper(trim((string)($payment['status'] ?? '')));
+        $event = match ($providerStatus) {
+            'RECEIVED' => 'PAYMENT_RECEIVED',
+            'CONFIRMED' => 'PAYMENT_CONFIRMED',
+            'REFUNDED' => 'PAYMENT_REFUNDED',
+            default => 'PAYMENT_CREATED',
+        };
+
+        $payment['pixQrCodeId'] = $payment['pixQrCodeId'] ?? $pix->pixQrCodeId;
+        $payment['invoiceNumber'] = $payment['invoiceNumber'] ?? $pix->invoiceNumber;
+        $payment['externalReference'] = $payment['externalReference'] ?? $pix->external_Reference;
+        $payment['value'] = $payment['value'] ?? $pix->value;
+
+        self::log('status_sync_provider_payment', [
+            'event' => $event,
+            'providerStatus' => $providerStatus,
+            'invoiceNumber' => $payment['invoiceNumber'] ?? null,
+            'pixQrCodeId' => $payment['pixQrCodeId'] ?? null,
+            'paymentId' => $payment['id'] ?? null,
+            'webhook_id' => $pix->webhook_id,
+            'user_id' => $pix->user_id,
+            'tenancy_id' => $pix->tenancy_id,
+        ]);
+
+        return self::processWebhookPayment($event, $payment);
     }
 
     public static function confirmPayment(PixSearch $pix, string $event, array $payment = []): array
@@ -321,5 +353,36 @@ class PixService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private static function sanitizeLogContext(array $context): array
+    {
+        $safe = $context;
+        unset(
+            $safe['access_token'],
+            $safe['apiKey'],
+            $safe['clientSecret'],
+            $safe['encodedImage'],
+            $safe['pix_encoded_image'],
+            $safe['payload'],
+            $safe['pix_payload'],
+            $safe['last_webhook_payload']
+        );
+
+        return $safe;
+    }
+
+    private static function inferLogLevel(string $message): string
+    {
+        $normalized = strtolower($message);
+        if (str_contains($normalized, 'error') || str_contains($normalized, 'failed') || str_contains($normalized, 'rejected') || str_contains($normalized, 'unauthorized')) {
+            return 'error';
+        }
+
+        if (str_contains($normalized, 'created') || str_contains($normalized, 'confirmed') || str_contains($normalized, 'received')) {
+            return 'success';
+        }
+
+        return 'info';
     }
 }

@@ -1774,7 +1774,7 @@ class Reports extends ViewComponents
             'date'           => date('d/m/Y H:i', strtotime($recharge->created_at)),
             'name'           => $reseller['name'] . ' ' . ($reseller['last_name'] ?? ''),
             'email'          => $reseller['email'],
-            'logo_url'       => 'http://localhost/sms/resources/assets/img/profile-mxx.png', // Caminho da sua imagem
+            'logo_url'       => rtrim((defined('VIEW_URL') ? VIEW_URL : URL), '/') . '/resources/assets/img/profile-mxx.png',
             'company_name'   => 'Maxx Solutions',
             'amount'         => number_format($recharge->balance, 2, ',', '.'),
             'status'         => strtoupper($recharge->status),

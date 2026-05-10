@@ -46,7 +46,10 @@ class AgentsPortal {
      */
     public static function getAgentByExtension($extension, $tenancyId) {
         return (new Database('agentes_portal'))
-            ->select('extension = "'.$extension.'" AND tenancy_id = "'.$tenancyId.'"')
+            ->select('extension = :extension AND tenancy_id = :tenancy_id', [
+                ':extension' => (string)$extension,
+                ':tenancy_id' => (string)$tenancyId,
+            ])
             ->fetchObject(self::class);
     }
 
@@ -58,13 +61,15 @@ class AgentsPortal {
         // Define a data de atualização
         $this->updatedAt = date('Y-m-d H:i:s');
 
-        return (new Database('agentes_portal'))->update('id = '.$this->id, [
+        return (new Database('agentes_portal'))->update('id = :id', [
             'user_id'       => $this->user_id,
             'name'          => $this->name,
             'password'      => $this->password,
             'status'        => $this->status,
             'last_activity' => $this->last_activity,
             'updatedAt'     => $this->updatedAt
+        ], [
+            ':id' => (int)$this->id,
         ]);
     }
 
@@ -73,6 +78,8 @@ class AgentsPortal {
      */
     public function excluir(): bool
     {
-        return (new Database('agentes_portal'))->delete('id = '.$this->id);
+        return (new Database('agentes_portal'))->delete('id = :id', [
+            ':id' => (int)$this->id,
+        ]);
     }
 }

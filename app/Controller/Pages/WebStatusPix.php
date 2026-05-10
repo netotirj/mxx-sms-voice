@@ -2,15 +2,18 @@
 
 namespace App\Controller\Pages;
 
+use App\Config\AsaasConfig;
 use App\Http\Response;
+use App\Model\Entity\PixSearch;
 use App\Service\PixService;
 
 class WebStatusPix
 {
     public static function getCallbackAsaas($request): Response
     {
+        PixSearch::ensureSchema();
         $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $secretToken = (string)getenv('ASAAS_WEBHOOK_SECRET');
+        $secretToken = AsaasConfig::webhookSecret();
         $receivedToken = (string)($headers['Asaas-Access-Token'] ?? $headers['asaas-access-token'] ?? '');
 
         if ($secretToken === '' || !hash_equals($secretToken, $receivedToken)) {
@@ -42,6 +45,10 @@ class WebStatusPix
 
         $result = PixService::processWebhookPayment($event, $payment);
         $status = (int)($result['status'] ?? ($result['success'] ? 200 : 400));
+        if (!$result['success'] && in_array($status, [404, 409, 422], true)) {
+            $result['acknowledged'] = true;
+            $status = 200;
+        }
 
         return new Response($status, $result, 'application/json');
     }

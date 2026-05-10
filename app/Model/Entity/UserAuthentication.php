@@ -70,22 +70,28 @@ class UserAuthentication
 
     public function updatePassword(): bool
     {
-        return (new Database('users'))->update('email = "' . addslashes($this->email) . '"', [
+        return (new Database('users'))->update('email = :email', [
             'password' => $this->password,
+        ], [
+            ':email' => (string)$this->email,
         ]);
     }
 
     public function updateStatusUser(): bool
     {
-        return (new Database('users'))->update('email = "' . addslashes($this->email) . '"', [
+        return (new Database('users'))->update('email = :email', [
             'status' => $this->status,
+        ], [
+            ':email' => (string)$this->email,
         ]);
     }
 
     public static function getUserByEmail(string $email): ?self
     {
         return (new Database('users'))
-            ->select('email = "' . addslashes($email) . '"')
+            ->select('email = :email', [
+                ':email' => $email,
+            ])
             ->fetchObject(self::class) ?: null;
     }
 
@@ -126,10 +132,13 @@ class UserAuthentication
     public static function setStatusAndActivity(string $email, string $status, string $activityTimestamp): bool
     {
         return (new Database('users'))->update(
-            'email = "' . addslashes($email) . '"',
+            'email = :email',
             [
                 'status' => $status,
                 'last_activity' => $activityTimestamp
+            ],
+            [
+                ':email' => $email,
             ]
         );
     }
@@ -137,19 +146,21 @@ class UserAuthentication
     public static function updateLastActivity(string $email, string $timestamp): bool
     {
         return (new Database('users'))->update(
-            'email = "' . addslashes($email) . '"',
-            ['last_activity' => $timestamp]
+            'email = :email',
+            ['last_activity' => $timestamp],
+            [':email' => $email]
         );
     }
 
     public static function setRememberToken(int $userId, string $hashedToken, string $tenancyId): bool
     {
-        // Garante que tenancyId seja string segura
-        $tenancyId = addslashes($tenancyId);
-
         return (new Database('users'))->update(
-            'id = ' . (int)$userId . ' AND tenancy_id = "' . $tenancyId . '"',
-            ['remember_token' => $hashedToken]
+            'id = :id AND tenancy_id = :tenancy_id',
+            ['remember_token' => $hashedToken],
+            [
+                ':id' => $userId,
+                ':tenancy_id' => $tenancyId,
+            ]
         );
     }
 
@@ -186,15 +197,18 @@ class UserAuthentication
     public static function invalidateUserSession(int $userId, string $tenancyId): bool
     {
         return (new Database('users'))->update(
-            'id = ' . (int)$userId . ' AND tenancy_id = "' . addslashes($tenancyId) . '"',
+            'id = :id AND tenancy_id = :tenancy_id',
             [
                 'remember_token' => '',              // 🔥 mata auto login
                 'last_activity'  => null,            // 🔥 zera presença
                 'status'         => 'n'              // 🔥 marca offline
+            ],
+            [
+                ':id' => $userId,
+                ':tenancy_id' => $tenancyId,
             ]
         );
     }
 
 
 }
-

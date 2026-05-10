@@ -58,8 +58,10 @@ class CallCenterQueues
     public static function clearQueueMembers(string $queueId, string $tenancyId): bool
     {
         $db = new Database('queue_members');
-        // Supondo que sua classe Database tenha um método delete ou query
-        return $db->delete("queue_id = '$queueId' AND tenancy_id = '$tenancyId'");
+        return $db->delete('queue_id = :queue_id AND tenancy_id = :tenancy_id', [
+            ':queue_id' => $queueId,
+            ':tenancy_id' => $tenancyId,
+        ]);
     }
 
     /**
@@ -70,10 +72,10 @@ class CallCenterQueues
         $db = new Database('queues_config');
         $data['updated_at'] = date('Y-m-d H:i:s');
 
-        // O WHERE agora ignora o dono original e foca na empresa
-        $where = "queue_id = '{$queueId}' AND tenancy_id = '{$tenancyId}'";
-
-        return $db->update($where, $data);
+        return $db->update('queue_id = :queue_id AND tenancy_id = :tenancy_id', $data, [
+            ':queue_id' => $queueId,
+            ':tenancy_id' => $tenancyId,
+        ]);
     }
 
     public static function getQueues(string $tenancyId, ?int $userId = null): array
@@ -178,9 +180,14 @@ class CallCenterQueues
         $dbQueues  = new Database('queues_config');
 
         // --- 1. AÇÃO DE REMOVER: SEMPRE LIVRE ---
-        $where = "queue_id = '{$queueId}' AND agent_ramal = '{$ramal}' AND tenancy_id = '{$tenancyId}'";
+        $where = 'queue_id = :queue_id AND agent_ramal = :agent_ramal AND tenancy_id = :tenancy_id';
+        $whereParams = [
+            ':queue_id' => $queueId,
+            ':agent_ramal' => $ramal,
+            ':tenancy_id' => $tenancyId,
+        ];
         if ($action === 'remove') {
-            return $dbMembers->delete($where);
+            return $dbMembers->delete($where, $whereParams);
         }
 
         // --- 2. AÇÃO DE ADICIONAR: VALIDAÇÃO HIERÁRQUICA ---
@@ -189,7 +196,10 @@ class CallCenterQueues
             $loggedUserId = (int)$obUser['id'];
 
             // Busca dados da fila para saber quem é o DONO da fila
-            $queueData = $dbQueues->select("queue_id = '{$queueId}' AND tenancy_id = '{$tenancyId}'")->fetch();
+            $queueData = $dbQueues->select('queue_id = :queue_id AND tenancy_id = :tenancy_id', [
+                ':queue_id' => $queueId,
+                ':tenancy_id' => $tenancyId,
+            ])->fetch();
             $queueOwnerId = (int)($queueData['user_id'] ?? 0);
 
             /**
@@ -219,7 +229,7 @@ class CallCenterQueues
             }
 
             // --- 3. EXECUÇÃO DO VÍNCULO ---
-            $exists = $dbMembers->select($where)->fetch();
+            $exists = $dbMembers->select($where, $whereParams)->fetch();
             if ($exists) return true;
 
             return $dbMembers->insert([
@@ -265,10 +275,16 @@ class CallCenterQueues
         $dbMembers = new Database('queue_members');
 
         // 1. Remove os membros primeiro (limpeza de chaves/vínculos)
-        $dbMembers->delete("queue_id = '{$queueId}' AND tenancy_id = '{$tenancyId}'");
+        $dbMembers->delete('queue_id = :queue_id AND tenancy_id = :tenancy_id', [
+            ':queue_id' => $queueId,
+            ':tenancy_id' => $tenancyId,
+        ]);
 
         // 2. Remove a configuração da fila
-        return $dbQueues->delete("queue_id = '{$queueId}' AND tenancy_id = '{$tenancyId}'");
+        return $dbQueues->delete('queue_id = :queue_id AND tenancy_id = :tenancy_id', [
+            ':queue_id' => $queueId,
+            ':tenancy_id' => $tenancyId,
+        ]);
     }
 
 

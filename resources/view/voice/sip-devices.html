@@ -746,8 +746,6 @@
             .then((r) => r.json())
             .then((result) => {
                 const devices = Array.isArray(result.data) ? result.data : result.data?.data || [];
-                console.log(devices)
-
                 allRows = buildRows(devices);
                 filteredRows = allRows;
                 renderPage(currentPage);

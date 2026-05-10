@@ -323,6 +323,9 @@ class ViewComponents
         $gestao = '';
         $comunicacao = '';
         $config = '';
+        $obUser = SessionUser::getLogged();
+        $marketingRole = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $canSeeMarketingAdmin = in_array($marketingRole, ['admin', 'super_admin', 'developer'], true);
 
         if (self::hasPlanFeature('users') && self::hasPerm($userPerms, ['/users'])) {
             $gestao .= self::buildMenuItem('/users', 'Lista de Usuários', 'ni ni-circle-08', 'text-blue-500');
@@ -334,6 +337,10 @@ class ViewComponents
 
         if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/system-updates'])) {
             $comunicacao .= self::buildMenuItem('/system-updates', 'Atualizações', 'fa fa-bullhorn', 'text-cyan-500');
+        }
+
+        if ($canSeeMarketingAdmin && self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/system-updates'])) {
+            $comunicacao .= self::buildMenuItem('/system-updates/marketing', 'Marketing', 'fa fa-rectangle-ad', 'text-rose-500');
         }
 
         if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/reports/notifications'])) {

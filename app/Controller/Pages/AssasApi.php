@@ -9,19 +9,24 @@ class AssasApi
 
     public function __construct(string $baseUrl, string $clientSecret)
     {
-        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->baseUrl = self::normalizeBaseUrl($baseUrl);
         $this->clientSecret = $clientSecret;
     }
 
 
     public function createCob(array $request): array
     {
-        return $this->send('POST', '/v3/pix/qrCodes/static', $request);
+        return $this->send('POST', '/pix/qrCodes/static', $request);
     }
 
     public function consultStatusCob(): array
     {
         return $this->send('GET', '/webhooks');
+    }
+
+    public function listPaymentsByPixQrCodeId(string $pixQrCodeId): array
+    {
+        return $this->send('GET', '/payments?pixQrCodeId=' . rawurlencode($pixQrCodeId));
     }
 
     private function send(string $method, string $resource, array $request = []): array
@@ -73,5 +78,14 @@ class AssasApi
         return $responseData;
     }
 
+    private static function normalizeBaseUrl(string $baseUrl): string
+    {
+        $baseUrl = rtrim(trim($baseUrl), '/');
+        if ($baseUrl === '') {
+            return 'https://api.asaas.com/v3';
+        }
+
+        return preg_match('#/v3$#i', $baseUrl) ? $baseUrl : $baseUrl . '/v3';
+    }
 
 }

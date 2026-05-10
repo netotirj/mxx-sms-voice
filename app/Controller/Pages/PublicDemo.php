@@ -817,8 +817,18 @@ class PublicDemo
             return;
         }
 
-        $allowed = trim((string)TelephonyConfig::env('PUBLIC_DEMO_ALLOWED_ORIGIN', '*'));
-        header('Access-Control-Allow-Origin: ' . ($allowed ?: '*'));
+        $configured = trim((string)TelephonyConfig::env('PUBLIC_DEMO_ALLOWED_ORIGIN', ''));
+        $fallbackOrigin = self::sameOriginBase();
+        $allowedOrigin = $configured !== '' ? $configured : $fallbackOrigin;
+        $requestOrigin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+
+        if ($requestOrigin !== '' && self::originMatches($requestOrigin, $allowedOrigin, $fallbackOrigin)) {
+            header('Access-Control-Allow-Origin: ' . $requestOrigin);
+            header('Vary: Origin');
+        } elseif ($allowedOrigin !== '') {
+            header('Access-Control-Allow-Origin: ' . $allowedOrigin);
+        }
+
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, Accept');
     }
@@ -835,5 +845,26 @@ class PublicDemo
             'label' => self::CTA_LABEL,
             'url' => self::CTA_URL,
         ];
+    }
+
+    private static function sameOriginBase(): string
+    {
+        $baseUrl = (string)(defined('VIEW_URL') ? VIEW_URL : (defined('URL') ? URL : ''));
+        $scheme = (string)(parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https');
+        $host = (string)(parse_url($baseUrl, PHP_URL_HOST) ?: '');
+
+        return $host !== '' ? $scheme . '://' . $host : '';
+    }
+
+    private static function originMatches(string $origin, string ...$allowedOrigins): bool
+    {
+        foreach ($allowedOrigins as $allowedOrigin) {
+            $allowedOrigin = trim($allowedOrigin);
+            if ($allowedOrigin !== '' && strcasecmp($origin, $allowedOrigin) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

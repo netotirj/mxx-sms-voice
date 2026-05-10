@@ -43,11 +43,36 @@ class Response
     {
         if (!headers_sent()) {
             http_response_code($this->httpCode);
+            $this->applyDefaultSecurityHeaders();
             foreach ($this->headers as $key => $value) {
                 header("{$key}: {$value}");
             }
         } else {
             error_log("Headers já enviados, impossível setar HTTP code {$this->httpCode} ou headers adicionais.");
+        }
+    }
+
+    private function applyDefaultSecurityHeaders(): void
+    {
+        $defaults = [
+            'X-Frame-Options' => 'SAMEORIGIN',
+            'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
+        ];
+
+        $isHttps = (
+            (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+        );
+        if ($isHttps) {
+            $defaults['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+        }
+
+        foreach ($defaults as $key => $value) {
+            if (!isset($this->headers[$key])) {
+                $this->headers[$key] = $value;
+            }
         }
     }
 

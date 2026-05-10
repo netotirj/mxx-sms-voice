@@ -2355,8 +2355,6 @@
                 PRICES.torpedo = Number(data.data.torpedo);
                 PRICES.whatsapp = Number(data.data.whatsapp ?? 0);
 
-                console.log("📌 Tarifas carregadas:", PRICES);
-
                 updatePreview?.();
             } else {
                 console.error("Erro ao carregar preços");
@@ -3931,7 +3929,6 @@
                 const variableType = document.getElementById("variableType");
                 if (variableType) {
                     variableType.addEventListener("change", () => {
-                        console.log("🔄 variableType mudou → resetando estado (sms/dtmf/audio) + preview");
                         onVariableTypeChanged();
                     });
                 }
@@ -3940,7 +3937,6 @@
 
             if (variableType) {
                 variableType.addEventListener("change", () => {
-                    console.log("🔄 variableType mudou → recalculando preview");
                     updatePreview();
                 });
             }

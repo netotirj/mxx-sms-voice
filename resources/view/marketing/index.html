@@ -1,0 +1,986 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="grid grid-cols-1 gap-6">
+        <section class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-xl">
+            <div class="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-rose-900 px-6 py-7 text-white md:px-8">
+                <div class="absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_top_right,_rgba(251,113,133,0.28),_transparent_58%)] lg:block"></div>
+                <div class="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div class="max-w-3xl">
+                        <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-100">
+                            <i class="fa fa-shield-halved"></i>
+                            Exclusivo do administrativo
+                        </div>
+                        <h1 class="text-2xl font-black tracking-tight text-white md:text-3xl">Marketing e Campanhas em Vídeo</h1>
+                        <p class="mt-3 max-w-2xl text-sm text-slate-200">
+                            Módulo administrativo funcional para estruturar campanhas promocionais com persistência, upload de mídia, auditoria e integração futura com Meta Ads.
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 lg:w-[360px]">
+                        <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-rose-100/80">Status da base</p>
+                            <p id="marketingHeroStatus" class="mt-2 text-lg font-black">Backend ativo</p>
+                        </div>
+                        <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-rose-100/80">Integração futura</p>
+                            <p id="marketingHeroIntegration" class="mt-2 text-lg font-black">Meta Ads preparada</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 border-t border-slate-200 bg-slate-50 px-6 py-5 md:grid-cols-4 xl:grid-cols-8">
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Impressões</p>
+                    <p id="metricImpressions" class="mt-2 text-lg font-black text-slate-700">0</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Cliques</p>
+                    <p id="metricClicks" class="mt-2 text-lg font-black text-slate-700">0</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">CPC</p>
+                    <p id="metricCpc" class="mt-2 text-lg font-black text-slate-700">R$ 0,00</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Leads</p>
+                    <p id="metricLeads" class="mt-2 text-lg font-black text-slate-700">0</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Conversas</p>
+                    <p id="metricConversations" class="mt-2 text-lg font-black text-slate-700">0</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Conversões</p>
+                    <p id="metricConversions" class="mt-2 text-lg font-black text-slate-700">0</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Investimento</p>
+                    <p id="metricInvestment" class="mt-2 text-lg font-black text-slate-700">R$ 0,00</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Retorno estimado</p>
+                    <p id="metricReturn" class="mt-2 text-lg font-black text-slate-700">R$ 0,00</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">Tela inicial</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Campanhas criadas</h2>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="marketingReloadBtn" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-600">Atualizar</button>
+                        <button id="marketingNewCampaignBtn" type="button" class="rounded-xl bg-rose-500 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white">Nova campanha</button>
+                    </div>
+                </div>
+                <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Pesquisar</span>
+                        <input id="marketingSearch" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="Nome, objetivo ou status">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Filtrar status</span>
+                        <select id="marketingStatusFilter" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                            <option value="">Todos</option>
+                            <option value="draft">Rascunho</option>
+                            <option value="planned">Planejada</option>
+                            <option value="review">Em revisão</option>
+                            <option value="active">Ativa</option>
+                            <option value="paused">Pausada</option>
+                            <option value="archived">Arquivada</option>
+                        </select>
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Total</p>
+                            <p id="summaryTotalCampaigns" class="mt-2 text-lg font-black text-slate-700">0</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ativas</p>
+                            <p id="summaryActiveCampaigns" class="mt-2 text-lg font-black text-slate-700">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="marketingCampaignList" class="space-y-4">
+                    {{campaign_rows}}
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                    <div class="mb-5">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-600">Configuração protegida</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Meta Ads</h2>
+                    </div>
+                    <form id="marketingSettingsForm" class="space-y-4">
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Access Token</span>
+                            <input id="metaAccessToken" type="password" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="Cole um novo token para atualizar">
+                            <p id="metaAccessTokenHint" class="mt-1 text-xs text-slate-400">Token atual não é exposto no frontend.</p>
+                        </label>
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Meta Ad Account ID</span>
+                            <input id="metaAdAccountId" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                        </label>
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Pixel ID</span>
+                            <input id="metaPixelId" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                        </label>
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Página vinculada</span>
+                            <input id="metaPageId" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                        </label>
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">WhatsApp destino padrão</span>
+                            <input id="metaWhatsAppDestination" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                        </label>
+                        <label class="block">
+                            <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Business ID</span>
+                            <input id="metaBusinessId" type="text" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                        </label>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Status da conexão</p>
+                            <p id="metaConnectionStatus" class="mt-2 text-sm font-black text-slate-700">Não configurado</p>
+                            <p id="metaConnectionError" class="mt-1 text-xs text-rose-500"></p>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white">Salvar config</button>
+                            <button id="marketingTestConnectionBtn" type="button" class="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-slate-600">Testar conexão</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                    <div class="mb-5">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Auditoria</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Histórico recente</h2>
+                    </div>
+                    <div id="marketingHistoryList" class="space-y-3">
+                        <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Selecione uma campanha para visualizar o histórico.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">Cadastro real</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Campanha de vídeo</h2>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="marketingResetFormBtn" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-600">Limpar</button>
+                        <button id="marketingSyncPreviewBtn" type="button" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Prévia Meta</button>
+                    </div>
+                </div>
+                <form id="marketingCampaignForm" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <input id="marketingCampaignId" type="hidden" value="">
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Nome da campanha</span>
+                        <input id="campaignName" name="name" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Descrição</span>
+                        <textarea id="campaignDescription" name="description" rows="3" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none"></textarea>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Objetivo</span>
+                        <select id="campaignObjective" name="objective" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                            <option value="lead_generation">Gerar leads</option>
+                            <option value="whatsapp">Mandar para WhatsApp</option>
+                            <option value="sell_plan">Vender plano</option>
+                            <option value="schedule_demo">Agendar demonstração</option>
+                            <option value="website_traffic">Tráfego para site</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Tipo de campanha</span>
+                        <select id="campaignType" name="campaign_type" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                            <option value="video">Vídeo institucional</option>
+                            <option value="video_whatsapp">Vídeo para WhatsApp</option>
+                            <option value="video_leads">Vídeo para leads</option>
+                            <option value="video_sales">Vídeo para vendas</option>
+                            <option value="video_traffic">Vídeo para tráfego</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Status</span>
+                        <select id="campaignStatus" name="status" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                            <option value="draft">Rascunho</option>
+                            <option value="planned">Planejada</option>
+                            <option value="review">Em revisão</option>
+                            <option value="active">Ativa</option>
+                            <option value="paused">Pausada</option>
+                            <option value="archived">Arquivada</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Vídeo</span>
+                        <input id="campaignVideoFile" name="video_file" type="file" accept="video/mp4,video/webm,video/quicktime" class="block h-12 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+                        <p id="campaignVideoHint" class="mt-1 text-xs text-slate-400">MP4, MOV ou WEBM até 100 MB.</p>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Thumbnail</span>
+                        <input id="campaignThumbnailFile" name="thumbnail_file" type="file" accept="image/jpeg,image/png,image/webp" class="block h-12 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+                        <p id="campaignThumbnailHint" class="mt-1 text-xs text-slate-400">JPG, PNG ou WEBP até 5 MB.</p>
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Texto principal do anúncio</span>
+                        <textarea id="campaignPrimaryText" name="primary_text" rows="3" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none"></textarea>
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Título do anúncio</span>
+                        <input id="campaignAdTitle" name="ad_title" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Chamada para ação</span>
+                        <input id="campaignCallToAction" name="call_to_action" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Link de destino</span>
+                        <input id="campaignDestinationLink" name="destination_link" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">WhatsApp destino</span>
+                        <input id="campaignWhatsAppNumber" name="whatsapp_number" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Público-alvo</span>
+                        <input id="campaignAudienceName" name="audience_name" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Cidade</span>
+                        <input id="campaignCity" name="city" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Estado</span>
+                        <input id="campaignState" name="state" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Faixa etária inicial</span>
+                        <input id="campaignAgeStart" name="age_start" type="number" min="0" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Faixa etária final</span>
+                        <input id="campaignAgeEnd" name="age_end" type="number" min="0" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Interesses</span>
+                        <input id="campaignInterests" name="interests" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="CRM, vendas, automação, WhatsApp Business">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Orçamento diário</span>
+                        <input id="campaignBudgetDaily" name="budget_daily" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="R$ 80,00">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Orçamento total</span>
+                        <input id="campaignBudgetTotal" name="budget_total" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="R$ 1500,00">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Data inicial</span>
+                        <input id="campaignStartDate" name="start_date" type="date" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Data final</span>
+                        <input id="campaignEndDate" name="end_date" type="date" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Meta Ad Account da campanha</span>
+                        <input id="campaignAccountId" name="account_id" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="Opcional, pode herdar da configuração">
+                    </label>
+                    <div class="md:col-span-2 flex flex-wrap gap-3 pt-2">
+                        <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white">Salvar campanha</button>
+                        <button id="marketingPauseBtn" type="button" class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-amber-700">Pausar</button>
+                        <button id="marketingActivateBtn" type="button" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Ativar</button>
+                        <button id="marketingArchiveBtn" type="button" class="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-slate-600">Arquivar</button>
+                        <button id="marketingDeleteBtn" type="button" class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-rose-700">Excluir</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="space-y-6">
+                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                    <div class="mb-5">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">Prévia do anúncio</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Simulação visual</h2>
+                    </div>
+                    <div class="mx-auto max-w-md rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+                        <div class="mb-4 flex items-center gap-3">
+                            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-sm font-black text-rose-600">MS</div>
+                            <div>
+                                <p class="mb-0 text-sm font-black text-slate-800">Maxx Solutions</p>
+                                <p class="mb-0 text-xs text-slate-400">Patrocinado</p>
+                            </div>
+                        </div>
+                        <p id="previewPrimaryText" class="text-sm leading-6 text-slate-600">
+                            Preencha o texto principal para visualizar a prévia.
+                        </p>
+                        <div class="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950">
+                            <div id="previewMedia" class="relative aspect-[4/5] bg-[linear-gradient(180deg,_rgba(15,23,42,0.15),_rgba(15,23,42,0.8)),radial-gradient(circle_at_top,_rgba(251,113,133,0.55),_transparent_42%),linear-gradient(135deg,_#0f172a,_#1e293b)] p-5 text-white">
+                                <div class="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] backdrop-blur">Vídeo demo</div>
+                                <div class="absolute inset-x-5 bottom-5 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                                    <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-100">Thumbnail / vídeo</p>
+                                    <h3 id="previewAdTitle" class="mt-2 text-xl font-black">Veja o sistema em ação</h3>
+                                    <p id="previewObjective" class="mt-2 text-sm text-slate-100">Campanha preparada para levar o lead ao WhatsApp ou site.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Destino</p>
+                            <p id="previewWhatsApp" class="mt-2 text-sm font-semibold text-slate-700">WhatsApp: --</p>
+                            <p id="previewDestinationLink" class="mt-1 text-xs text-slate-500">ou site: --</p>
+                        </div>
+                        <button id="previewCallToAction" type="button" class="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white">Chamada para ação</button>
+                    </div>
+                </div>
+
+                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                    <div class="mb-4">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Estrutura técnica</p>
+                        <h2 class="text-xl font-black tracking-tight text-slate-800">Reservas ativas</h2>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Cadastro de criativos, vídeos, thumbnails e assets salvo em tabela dedicada.</div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Configuração da Meta isolada e protegida por backend, sem expor token no frontend.</div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Histórico de criação, edição, status, upload e prévia de integração registrado para auditoria.</div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Preview de sincronização com Meta criado, mas sem publicação automática de campanha.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+(() => {
+    const baseUrl = (document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '').replace(/\/$/, '');
+    const marketingBase = `${baseUrl}/system-updates/marketing`;
+    const state = {
+        campaigns: [],
+        summary: {},
+        settings: {},
+        currentCampaign: null,
+    };
+
+    const els = {
+        campaignList: document.getElementById('marketingCampaignList'),
+        historyList: document.getElementById('marketingHistoryList'),
+        search: document.getElementById('marketingSearch'),
+        statusFilter: document.getElementById('marketingStatusFilter'),
+        newBtn: document.getElementById('marketingNewCampaignBtn'),
+        reloadBtn: document.getElementById('marketingReloadBtn'),
+        resetBtn: document.getElementById('marketingResetFormBtn'),
+        syncPreviewBtn: document.getElementById('marketingSyncPreviewBtn'),
+        pauseBtn: document.getElementById('marketingPauseBtn'),
+        activateBtn: document.getElementById('marketingActivateBtn'),
+        archiveBtn: document.getElementById('marketingArchiveBtn'),
+        deleteBtn: document.getElementById('marketingDeleteBtn'),
+        form: document.getElementById('marketingCampaignForm'),
+        formId: document.getElementById('marketingCampaignId'),
+        settingsForm: document.getElementById('marketingSettingsForm'),
+        testConnectionBtn: document.getElementById('marketingTestConnectionBtn'),
+    };
+
+    const fields = {
+        name: document.getElementById('campaignName'),
+        description: document.getElementById('campaignDescription'),
+        objective: document.getElementById('campaignObjective'),
+        campaignType: document.getElementById('campaignType'),
+        status: document.getElementById('campaignStatus'),
+        videoFile: document.getElementById('campaignVideoFile'),
+        thumbnailFile: document.getElementById('campaignThumbnailFile'),
+        primaryText: document.getElementById('campaignPrimaryText'),
+        adTitle: document.getElementById('campaignAdTitle'),
+        callToAction: document.getElementById('campaignCallToAction'),
+        destinationLink: document.getElementById('campaignDestinationLink'),
+        whatsappNumber: document.getElementById('campaignWhatsAppNumber'),
+        audienceName: document.getElementById('campaignAudienceName'),
+        city: document.getElementById('campaignCity'),
+        state: document.getElementById('campaignState'),
+        ageStart: document.getElementById('campaignAgeStart'),
+        ageEnd: document.getElementById('campaignAgeEnd'),
+        interests: document.getElementById('campaignInterests'),
+        budgetDaily: document.getElementById('campaignBudgetDaily'),
+        budgetTotal: document.getElementById('campaignBudgetTotal'),
+        startDate: document.getElementById('campaignStartDate'),
+        endDate: document.getElementById('campaignEndDate'),
+        accountId: document.getElementById('campaignAccountId'),
+    };
+
+    const preview = {
+        primaryText: document.getElementById('previewPrimaryText'),
+        adTitle: document.getElementById('previewAdTitle'),
+        objective: document.getElementById('previewObjective'),
+        whatsapp: document.getElementById('previewWhatsApp'),
+        destinationLink: document.getElementById('previewDestinationLink'),
+        callToAction: document.getElementById('previewCallToAction'),
+        media: document.getElementById('previewMedia'),
+    };
+
+    const settingsFields = {
+        accessToken: document.getElementById('metaAccessToken'),
+        accessTokenHint: document.getElementById('metaAccessTokenHint'),
+        adAccountId: document.getElementById('metaAdAccountId'),
+        pixelId: document.getElementById('metaPixelId'),
+        pageId: document.getElementById('metaPageId'),
+        whatsappDestination: document.getElementById('metaWhatsAppDestination'),
+        businessId: document.getElementById('metaBusinessId'),
+        connectionStatus: document.getElementById('metaConnectionStatus'),
+        connectionError: document.getElementById('metaConnectionError'),
+    };
+
+    const summaryEls = {
+        total: document.getElementById('summaryTotalCampaigns'),
+        active: document.getElementById('summaryActiveCampaigns'),
+        heroStatus: document.getElementById('marketingHeroStatus'),
+        heroIntegration: document.getElementById('marketingHeroIntegration'),
+        impressions: document.getElementById('metricImpressions'),
+        clicks: document.getElementById('metricClicks'),
+        cpc: document.getElementById('metricCpc'),
+        leads: document.getElementById('metricLeads'),
+        conversations: document.getElementById('metricConversations'),
+        conversions: document.getElementById('metricConversions'),
+        investment: document.getElementById('metricInvestment'),
+        estimatedReturn: document.getElementById('metricReturn'),
+    };
+
+    function notify(type, message) {
+        if (typeof notyf !== 'undefined') {
+            if (type === 'success') {
+                notyf.success(message);
+            } else {
+                notyf.error(message);
+            }
+            return;
+        }
+
+        window.alert(message);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+        }[char]));
+    }
+
+    function formatMoney(value) {
+        const number = Number(value || 0);
+        return number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function formatDateTime(value) {
+        if (!value) return '--';
+        const date = new Date(String(value).replace(' ', 'T'));
+        return Number.isNaN(date.getTime())
+            ? value
+            : `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    function statusBadge(status, label) {
+        const map = {
+            draft: 'bg-slate-100 text-slate-700 border-slate-200',
+            planned: 'bg-violet-50 text-violet-700 border-violet-200',
+            review: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+            active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            paused: 'bg-amber-50 text-amber-700 border-amber-200',
+            archived: 'bg-rose-50 text-rose-700 border-rose-200',
+        };
+        return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${map[status] || map.draft}">${escapeHtml(label || status)}</span>`;
+    }
+
+    function objectiveLabel(value) {
+        const labels = {
+            lead_generation: 'Gerar leads',
+            whatsapp: 'Mandar para WhatsApp',
+            sell_plan: 'Vender plano',
+            schedule_demo: 'Agendar demonstração',
+            website_traffic: 'Tráfego para site',
+        };
+        return labels[value] || value || '--';
+    }
+
+    async function request(url, options = {}) {
+        const response = await fetch(url, options);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || 'Falha na operação.');
+        }
+        return data;
+    }
+
+    async function loadDashboard() {
+        els.campaignList.innerHTML = '<div class="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando campanhas...</div>';
+        const data = await request(`${marketingBase}/dashboard`);
+        state.campaigns = Array.isArray(data.data?.campaigns) ? data.data.campaigns : [];
+        state.summary = data.data?.summary || {};
+        renderSummary();
+        renderCampaigns();
+    }
+
+    async function loadSettings() {
+        const data = await request(`${marketingBase}/settings`);
+        state.settings = data.data || {};
+        renderSettings();
+    }
+
+    function renderSummary() {
+        const summary = state.summary || {};
+        summaryEls.total.textContent = String(summary.total_campaigns || 0);
+        summaryEls.active.textContent = String(summary.active_campaigns || 0);
+        summaryEls.heroStatus.textContent = `${summary.total_campaigns || 0} campanhas salvas`;
+        summaryEls.heroIntegration.textContent = state.settings.connection_status === 'connected' ? 'Meta conectada' : 'Meta Ads preparada';
+        summaryEls.impressions.textContent = String(summary.impressions || 0);
+        summaryEls.clicks.textContent = String(summary.clicks || 0);
+        summaryEls.cpc.textContent = formatMoney(summary.cost_per_click || 0);
+        summaryEls.leads.textContent = String(summary.leads || 0);
+        summaryEls.conversations.textContent = String(summary.conversations_started || 0);
+        summaryEls.conversions.textContent = String(summary.conversions || 0);
+        summaryEls.investment.textContent = formatMoney(summary.investment_total || 0);
+        summaryEls.estimatedReturn.textContent = formatMoney(summary.estimated_return || 0);
+    }
+
+    function filteredCampaigns() {
+        const query = String(els.search.value || '').trim().toLowerCase();
+        const status = String(els.statusFilter.value || '').trim();
+
+        return state.campaigns.filter((campaign) => {
+            const haystack = [
+                campaign.name,
+                campaign.objective,
+                campaign.status_label,
+                campaign.description,
+            ].join(' ').toLowerCase();
+
+            const queryOk = !query || haystack.includes(query);
+            const statusOk = !status || campaign.status === status;
+            return queryOk && statusOk;
+        });
+    }
+
+    function renderCampaigns() {
+        const campaigns = filteredCampaigns();
+        if (!campaigns.length) {
+            els.campaignList.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Nenhuma campanha encontrada com os filtros atuais.</div>';
+            return;
+        }
+
+        els.campaignList.innerHTML = campaigns.map((campaign) => `
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="min-w-0 flex-1">
+                        <div class="mb-3 flex flex-wrap items-center gap-2">
+                            ${statusBadge(campaign.status, campaign.status_label)}
+                            <span class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(campaign.campaign_type || 'video')}</span>
+                            <span class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(campaign.sync_status || 'pending')}</span>
+                        </div>
+                        <h3 class="text-base font-black tracking-tight text-slate-800">${escapeHtml(campaign.name)}</h3>
+                        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Vídeo usado</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-700">${campaign.video_path ? escapeHtml(campaign.video_path.split('/').pop()) : 'Sem vídeo'}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Orçamento</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-700">${formatMoney(campaign.budget_daily)} / ${formatMoney(campaign.budget_total)}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Objetivo</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-700">${escapeHtml(campaign.objective)}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Atualizada em</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-700">${escapeHtml(formatDateTime(campaign.updated_at))}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
+                            <span class="font-black uppercase tracking-[0.16em] text-[10px] text-slate-400">Público-alvo</span>
+                            <p class="mt-1 mb-0 font-medium text-slate-600">${escapeHtml(campaign.audience || 'Não definido')}</p>
+                        </div>
+                    </div>
+                    <div class="flex shrink-0 flex-wrap gap-2 xl:w-52 xl:flex-col">
+                        <button type="button" data-action="edit" data-id="${campaign.id}" class="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-white">Editar</button>
+                        <button type="button" data-action="toggle" data-id="${campaign.id}" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-slate-600">${campaign.status === 'active' ? 'Pausar' : 'Ativar'}</button>
+                        <button type="button" data-action="sync" data-id="${campaign.id}" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Prévia Meta</button>
+                        <button type="button" data-action="archive" data-id="${campaign.id}" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-slate-600">Arquivar</button>
+                        <button type="button" data-action="delete" data-id="${campaign.id}" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-rose-700">Excluir</button>
+                    </div>
+                </div>
+            </article>
+        `).join('');
+
+        els.campaignList.querySelectorAll('button[data-action]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const id = Number(button.dataset.id);
+                const action = button.dataset.action;
+                if (action === 'edit') {
+                    await loadCampaign(id);
+                    return;
+                }
+                if (action === 'toggle') {
+                    await changeCampaignStatus(id, findCampaign(id)?.status === 'active' ? 'paused' : 'active');
+                    return;
+                }
+                if (action === 'sync') {
+                    await runSyncPreview(id);
+                    return;
+                }
+                if (action === 'archive') {
+                    await archiveCampaign(id);
+                    return;
+                }
+                if (action === 'delete') {
+                    await deleteCampaign(id);
+                }
+            });
+        });
+    }
+
+    function renderSettings() {
+        const settings = state.settings || {};
+        settingsFields.adAccountId.value = settings.meta_ad_account_id || '';
+        settingsFields.pixelId.value = settings.meta_pixel_id || '';
+        settingsFields.pageId.value = settings.meta_page_id || '';
+        settingsFields.whatsappDestination.value = settings.whatsapp_destination || '';
+        settingsFields.businessId.value = settings.meta_business_id || '';
+        settingsFields.accessToken.value = '';
+        settingsFields.accessTokenHint.textContent = settings.has_access_token
+            ? `Token atual: ${settings.access_token_masked || 'configurado'}`
+            : 'Nenhum token configurado.';
+        settingsFields.connectionStatus.textContent = statusConnectionLabel(settings.connection_status);
+        settingsFields.connectionError.textContent = settings.last_error || '';
+        summaryEls.heroIntegration.textContent = settings.connection_status === 'connected' ? 'Meta conectada' : 'Meta Ads preparada';
+    }
+
+    function statusConnectionLabel(status) {
+        const labels = {
+            connected: 'Conectado',
+            configured: 'Configurado',
+            error: 'Com erro',
+            not_configured: 'Não configurado',
+        };
+        return labels[status] || status || 'Não configurado';
+    }
+
+    async function loadCampaign(id) {
+        const data = await request(`${marketingBase}/${id}`);
+        state.currentCampaign = data.data;
+        fillCampaignForm(data.data);
+        renderHistory(data.data.history || []);
+        updatePreview();
+    }
+
+    function fillCampaignForm(campaign) {
+        els.formId.value = campaign.id || '';
+        fields.name.value = campaign.name || '';
+        fields.description.value = campaign.description || '';
+        fields.objective.value = campaign.objective || 'lead_generation';
+        fields.campaignType.value = campaign.campaign_type || 'video';
+        fields.status.value = campaign.status || 'draft';
+        fields.primaryText.value = campaign.primary_text || '';
+        fields.adTitle.value = campaign.ad_title || '';
+        fields.callToAction.value = campaign.call_to_action || '';
+        fields.destinationLink.value = campaign.destination_link || '';
+        fields.whatsappNumber.value = campaign.whatsapp_number || '';
+        fields.audienceName.value = campaign.audience_name || '';
+        fields.city.value = campaign.city || '';
+        fields.state.value = campaign.state || '';
+        fields.ageStart.value = campaign.age_start ?? '';
+        fields.ageEnd.value = campaign.age_end ?? '';
+        fields.interests.value = Array.isArray(campaign.interests_list) ? campaign.interests_list.join(', ') : (campaign.interests || '');
+        fields.budgetDaily.value = campaign.budget_daily || '';
+        fields.budgetTotal.value = campaign.budget_total || '';
+        fields.startDate.value = campaign.start_date || '';
+        fields.endDate.value = campaign.end_date || '';
+        fields.accountId.value = campaign.account_id || '';
+        fields.videoFile.value = '';
+        fields.thumbnailFile.value = '';
+        document.getElementById('campaignVideoHint').textContent = campaign.video_url ? `Atual: ${campaign.video_url.split('/').pop()}` : 'MP4, MOV ou WEBM até 100 MB.';
+        document.getElementById('campaignThumbnailHint').textContent = campaign.thumbnail_url ? `Atual: ${campaign.thumbnail_url.split('/').pop()}` : 'JPG, PNG ou WEBP até 5 MB.';
+    }
+
+    function clearCampaignForm() {
+        els.form.reset();
+        els.formId.value = '';
+        state.currentCampaign = null;
+        document.getElementById('campaignVideoHint').textContent = 'MP4, MOV ou WEBM até 100 MB.';
+        document.getElementById('campaignThumbnailHint').textContent = 'JPG, PNG ou WEBP até 5 MB.';
+        renderHistory([]);
+        updatePreview();
+    }
+
+    function collectCampaignFormData() {
+        const formData = new FormData();
+        formData.append('name', fields.name.value.trim());
+        formData.append('description', fields.description.value.trim());
+        formData.append('objective', fields.objective.value);
+        formData.append('campaign_type', fields.campaignType.value);
+        formData.append('status', fields.status.value);
+        formData.append('primary_text', fields.primaryText.value.trim());
+        formData.append('ad_title', fields.adTitle.value.trim());
+        formData.append('call_to_action', fields.callToAction.value.trim());
+        formData.append('destination_link', fields.destinationLink.value.trim());
+        formData.append('whatsapp_number', fields.whatsappNumber.value.trim());
+        formData.append('audience_name', fields.audienceName.value.trim());
+        formData.append('city', fields.city.value.trim());
+        formData.append('state', fields.state.value.trim());
+        formData.append('age_start', fields.ageStart.value);
+        formData.append('age_end', fields.ageEnd.value);
+        formData.append('interests', fields.interests.value.trim());
+        formData.append('budget_daily', fields.budgetDaily.value.trim());
+        formData.append('budget_total', fields.budgetTotal.value.trim());
+        formData.append('start_date', fields.startDate.value);
+        formData.append('end_date', fields.endDate.value);
+        formData.append('account_id', fields.accountId.value.trim());
+
+        if (fields.videoFile.files[0]) {
+            formData.append('video_file', fields.videoFile.files[0]);
+        }
+        if (fields.thumbnailFile.files[0]) {
+            formData.append('thumbnail_file', fields.thumbnailFile.files[0]);
+        }
+
+        return formData;
+    }
+
+    async function saveCampaign(event) {
+        event.preventDefault();
+        const campaignId = els.formId.value ? Number(els.formId.value) : null;
+        const url = campaignId ? `${marketingBase}/${campaignId}/update` : `${marketingBase}/create`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: collectCampaignFormData(),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Falha ao salvar campanha.');
+            }
+
+            state.currentCampaign = data.data;
+            fillCampaignForm(data.data);
+            renderHistory(data.data.history || []);
+            updatePreview();
+            await loadDashboard();
+            notify('success', data.message || 'Campanha salva com sucesso.');
+        } catch (error) {
+            notify('error', error.message || 'Falha ao salvar campanha.');
+        }
+    }
+
+    async function changeCampaignStatus(id, status) {
+        try {
+            const data = await request(`${marketingBase}/${id}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ status }),
+            });
+            notify('success', data.message || 'Status atualizado.');
+            await loadDashboard();
+            if (state.currentCampaign && Number(state.currentCampaign.id) === Number(id)) {
+                await loadCampaign(id);
+            }
+        } catch (error) {
+            notify('error', error.message || 'Falha ao atualizar status.');
+        }
+    }
+
+    async function archiveCampaign(id) {
+        try {
+            const data = await request(`${marketingBase}/${id}/archive`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            notify('success', data.message || 'Campanha arquivada.');
+            await loadDashboard();
+            if (state.currentCampaign && Number(state.currentCampaign.id) === Number(id)) {
+                await loadCampaign(id);
+            }
+        } catch (error) {
+            notify('error', error.message || 'Falha ao arquivar campanha.');
+        }
+    }
+
+    async function deleteCampaign(id) {
+        if (!window.confirm('Deseja realmente excluir esta campanha com segurança?')) {
+            return;
+        }
+
+        try {
+            const data = await request(`${marketingBase}/${id}/delete`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            notify('success', data.message || 'Campanha excluída.');
+            if (state.currentCampaign && Number(state.currentCampaign.id) === Number(id)) {
+                clearCampaignForm();
+            }
+            await loadDashboard();
+        } catch (error) {
+            notify('error', error.message || 'Falha ao excluir campanha.');
+        }
+    }
+
+    async function saveSettings(event) {
+        event.preventDefault();
+
+        try {
+            const data = await request(`${marketingBase}/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({
+                    meta_access_token: settingsFields.accessToken.value.trim(),
+                    meta_ad_account_id: settingsFields.adAccountId.value.trim(),
+                    meta_pixel_id: settingsFields.pixelId.value.trim(),
+                    meta_page_id: settingsFields.pageId.value.trim(),
+                    whatsapp_destination: settingsFields.whatsappDestination.value.trim(),
+                    meta_business_id: settingsFields.businessId.value.trim(),
+                }),
+            });
+            state.settings = data.data || {};
+            renderSettings();
+            notify('success', data.message || 'Configurações salvas.');
+        } catch (error) {
+            notify('error', error.message || 'Falha ao salvar configurações.');
+        }
+    }
+
+    async function testConnection() {
+        try {
+            const data = await request(`${marketingBase}/settings/test`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            notify('success', data.message || 'Conexão validada.');
+            await loadSettings();
+        } catch (error) {
+            notify('error', error.message || 'Falha no teste de conexão.');
+            await loadSettings();
+        }
+    }
+
+    async function runSyncPreview(id = null) {
+        const campaignId = id || Number(els.formId.value || 0);
+        if (!campaignId) {
+            notify('error', 'Salve ou selecione uma campanha antes de gerar a prévia Meta.');
+            return;
+        }
+
+        try {
+            const data = await request(`${marketingBase}/${campaignId}/meta/sync-preview`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const payload = data.data || {};
+            if (!payload.ready) {
+                notify('error', (payload.errors || []).join(' | ') || 'Campanha ainda não está pronta para integração.');
+                return;
+            }
+            notify('success', data.message || 'Prévia Meta gerada.');
+        } catch (error) {
+            notify('error', error.message || 'Falha ao gerar prévia Meta.');
+        }
+    }
+
+    function renderHistory(history) {
+        if (!Array.isArray(history) || !history.length) {
+            els.historyList.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">Selecione uma campanha para visualizar o histórico.</div>';
+            return;
+        }
+
+        els.historyList.innerHTML = history.map((item) => `
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">${escapeHtml(item.action_label || item.action)}</p>
+                <p class="mt-2 text-xs font-semibold text-slate-600">${escapeHtml(formatDateTime(item.created_at))}</p>
+                <p class="mt-2 text-xs text-slate-500 break-words">${escapeHtml(item.details_json || '{}')}</p>
+            </div>
+        `).join('');
+    }
+
+    function updatePreview() {
+        const title = fields.adTitle.value.trim() || 'Veja o sistema em ação';
+        const text = fields.primaryText.value.trim() || 'Preencha o texto principal para visualizar a prévia.';
+        const objective = objectiveLabel(fields.objective.value);
+        const whatsapp = fields.whatsappNumber.value.trim() || '--';
+        const destinationLink = fields.destinationLink.value.trim() || '--';
+        const cta = fields.callToAction.value.trim() || 'Chamada para ação';
+
+        preview.adTitle.textContent = title;
+        preview.primaryText.textContent = text;
+        preview.objective.textContent = `${objective} com vídeo demonstrativo.`;
+        preview.whatsapp.textContent = `WhatsApp: ${whatsapp}`;
+        preview.destinationLink.textContent = `ou site: ${destinationLink}`;
+        preview.callToAction.textContent = cta;
+
+        if (state.currentCampaign?.thumbnail_url) {
+            preview.media.style.backgroundImage = `linear-gradient(180deg, rgba(15,23,42,0.15), rgba(15,23,42,0.8)), url('${state.currentCampaign.thumbnail_url}')`;
+            preview.media.style.backgroundSize = 'cover';
+            preview.media.style.backgroundPosition = 'center';
+        } else {
+            preview.media.style.backgroundImage = '';
+            preview.media.style.backgroundSize = '';
+            preview.media.style.backgroundPosition = '';
+        }
+    }
+
+    function findCampaign(id) {
+        return state.campaigns.find((campaign) => Number(campaign.id) === Number(id)) || null;
+    }
+
+    function bindEvents() {
+        els.form.addEventListener('submit', saveCampaign);
+        els.settingsForm.addEventListener('submit', saveSettings);
+        els.testConnectionBtn.addEventListener('click', testConnection);
+        els.reloadBtn.addEventListener('click', () => loadDashboard().catch((error) => notify('error', error.message)));
+        els.newBtn.addEventListener('click', clearCampaignForm);
+        els.resetBtn.addEventListener('click', clearCampaignForm);
+        els.syncPreviewBtn.addEventListener('click', () => runSyncPreview());
+        els.pauseBtn.addEventListener('click', () => {
+            const id = Number(els.formId.value || 0);
+            if (id) changeCampaignStatus(id, 'paused');
+        });
+        els.activateBtn.addEventListener('click', () => {
+            const id = Number(els.formId.value || 0);
+            if (id) changeCampaignStatus(id, 'active');
+        });
+        els.archiveBtn.addEventListener('click', () => {
+            const id = Number(els.formId.value || 0);
+            if (id) archiveCampaign(id);
+        });
+        els.deleteBtn.addEventListener('click', () => {
+            const id = Number(els.formId.value || 0);
+            if (id) deleteCampaign(id);
+        });
+
+        [els.search, els.statusFilter].forEach((element) => {
+            element.addEventListener('input', renderCampaigns);
+            element.addEventListener('change', renderCampaigns);
+        });
+
+        Object.values(fields).forEach((field) => {
+            if (field) {
+                field.addEventListener('input', updatePreview);
+                field.addEventListener('change', updatePreview);
+            }
+        });
+    }
+
+    async function init() {
+        bindEvents();
+        clearCampaignForm();
+        updatePreview();
+        await loadSettings();
+        await loadDashboard();
+    }
+
+    init().catch((error) => {
+        notify('error', error.message || 'Falha ao inicializar o módulo de marketing.');
+    });
+})();
+</script>

@@ -1016,9 +1016,6 @@
     }
 
     async function updateQueueFeature(id, type, current) {
-        // Debug para certificar que o ID da linha clicada é o correto
-        console.log(`[Update] Fila: ${id} | Tipo: ${type} | Valor Atual: ${current}`);
-
         let payload = { queue_id: id };
 
         if (type === 'strategy') {

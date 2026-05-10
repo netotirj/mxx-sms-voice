@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Config\AsaasConfig;
 use App\Http\Response;
 use App\Model\Entity\RefillsResellers;
 use App\Model\Entity\PlanCatalog;
@@ -223,6 +224,7 @@ class Refills extends ViewComponents
 
     public static function getQrCodePix($request, $id): Response
     {
+        PixSearch::ensureSchema();
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
             return new Response(401, PixService::error('Usuário não autenticado.', 401), 'application/json');
@@ -233,20 +235,12 @@ class Refills extends ViewComponents
             return new Response(400, PixService::error('Plano inválido.', 400), 'application/json');
         }
 
-        $asaasEnv = strtolower(trim((string)(getenv('ASAAS_ENV') ?: 'production')));
-        $useSandbox = in_array($asaasEnv, ['sandbox', 'test', 'testing', 'homolog', 'homologation'], true);
-        $baseUrl = $useSandbox ? getenv('ASASURLSANDBOX') : getenv('ASASURL');
-        $apiKey = $useSandbox ? getenv('ASASSANDBOX') : getenv('ASASKEY');
-        $pixKey = $useSandbox ? getenv('PIXKEYSANDBOX') : getenv('PIXKEY');
-
-        if (empty($baseUrl) || empty($apiKey) || empty($pixKey)) {
-            PixService::log('asaas_config_missing', ['sandbox' => $useSandbox]);
+        if (!AsaasConfig::isConfigured()) {
+            PixService::log('asaas_config_missing', AsaasConfig::publicContext());
             return new Response(500, PixService::error('Configuração da API PIX incompleta.', 500), 'application/json');
         }
 
-        $obApiSaas = $useSandbox
-            ? new AssasApiTest($baseUrl, $apiKey)
-            : new AssasApi($baseUrl, $apiKey);
+        $obApiSaas = AsaasConfig::createClient();
 
         $obPlan = UserPlans::getPlanById((int)$planId);
         if (!$obPlan instanceof UserPlans) {
@@ -263,7 +257,7 @@ class Refills extends ViewComponents
         $description = preg_replace('/[^A-Za-z0-9 ]/', '', $description) ?: 'Recarga Maxx Solutions';
 
         $pixRequest = [
-            'addressKey' => $pixKey,
+            'addressKey' => AsaasConfig::pixKey(),
             'description' => $description,
             'value' => $amount,
             'format' => 'ALL',
@@ -277,8 +271,9 @@ class Refills extends ViewComponents
             'tenancy_id' => $obUser['tenancy_id'],
             'plan_id' => $planId,
             'amount' => $amount,
-            'sandbox' => $useSandbox,
+            'sandbox' => AsaasConfig::isSandbox(),
             'externalReference' => $externalReference,
+            'webhookUrl' => AsaasConfig::webhookUrl(),
         ]);
 
         $pixResponse = $obApiSaas->createCob($pixRequest);
@@ -317,6 +312,13 @@ class Refills extends ViewComponents
         $pix->billingType = "PIX";
         $pix->invoiceNumber = $pixResponse['invoiceNumber'] ?? 0;
         $pix->transactionReceiptUrl = $pixResponse['transactionReceiptUrl'] ?? null;
+        $pix->invoice_url = $pixResponse['invoiceUrl'] ?? null;
+        $pix->pix_payload = $pixResponse['payload'] ?? null;
+        $pix->pix_encoded_image = $pixResponse['encodedImage'] ?? null;
+        $pix->due_date = null;
+        $pix->payment_date = null;
+        $pix->last_webhook_event = 'PAYMENT_CREATED';
+        $pix->last_webhook_payload = null;
         $pix->dateCreated = date('Y-m-d H:i:s');
         $pix->createPix();
 
@@ -341,6 +343,8 @@ class Refills extends ViewComponents
             ],
             'value' => $amount,
             'invoiceNumber' => $pix->invoiceNumber,
+            'invoiceUrl' => $pix->invoice_url,
+            'transactionReceiptUrl' => $pix->transactionReceiptUrl,
         ], 'Cobrança Pix gerada com sucesso.');
         $response['value'] = $amount;
 
@@ -350,6 +354,7 @@ class Refills extends ViewComponents
 
     public static function getStatusPix($request, $pixQrCodeId): Response
     {
+        PixSearch::ensureSchema();
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
             return new Response(401, PixService::error('Usuário não autenticado.', 401), 'application/json');
@@ -361,13 +366,81 @@ class Refills extends ViewComponents
             return new Response(404, PixService::error('Registro PIX não encontrado.', 404), 'application/json');
         }
 
+        self::syncPixStatusFromProvider($obPix);
+
+        $freshPix = PixSearch::getPixByQrCode($pixQrCodeId, $obUser['tenancy_id'], (int)$obUser['id']);
+        if ($freshPix instanceof PixSearch) {
+            $obPix = $freshPix;
+        }
+
         $status = strtoupper(trim($obPix->payment_status));
         return new Response(200, PixService::success([
             'status' => $status,
             'invoiceNumber' => $obPix->invoiceNumber,
+            'paymentId' => $obPix->asaas_payment_id,
+            'customerId' => $obPix->asaas_customer_id,
+            'paymentDate' => $obPix->payment_date,
+            'dueDate' => $obPix->due_date,
+            'invoiceUrl' => $obPix->invoice_url,
             'confirmed' => PixService::isPaidEvent($status) && !empty($obPix->confirmed_date),
         ], PixService::isPaidEvent($status) ? 'Pagamento confirmado.' : 'Pagamento ainda não confirmado.'), 'application/json');
 
+    }
+
+    private static function syncPixStatusFromProvider(PixSearch $pix): void
+    {
+        $currentStatus = strtoupper(trim((string)$pix->payment_status));
+        if (PixService::isPaidEvent($currentStatus) || $currentStatus === 'PAYMENT_REFUNDED') {
+            return;
+        }
+
+        if (!AsaasConfig::isConfigured() || empty($pix->pixQrCodeId)) {
+            return;
+        }
+
+        try {
+            $response = AsaasConfig::createClient()->listPaymentsByPixQrCodeId((string)$pix->pixQrCodeId);
+            $items = is_array($response['data'] ?? null) ? $response['data'] : [];
+
+            if ($items === []) {
+                PixService::log('status_sync_no_provider_payment', [
+                    'webhook_id' => $pix->webhook_id,
+                    'pixQrCodeId' => $pix->pixQrCodeId,
+                    'invoiceNumber' => $pix->invoiceNumber,
+                ]);
+                return;
+            }
+
+            usort($items, static function (array $left, array $right): int {
+                $leftDate = strtotime((string)($left['paymentDate'] ?? $left['clientPaymentDate'] ?? $left['confirmedDate'] ?? $left['dateCreated'] ?? '')) ?: 0;
+                $rightDate = strtotime((string)($right['paymentDate'] ?? $right['clientPaymentDate'] ?? $right['confirmedDate'] ?? $right['dateCreated'] ?? '')) ?: 0;
+                return $rightDate <=> $leftDate;
+            });
+
+            $payment = $items[0];
+            $payment['pixQrCodeId'] = $payment['pixQrCodeId'] ?? $pix->pixQrCodeId;
+            $payment['invoiceNumber'] = $payment['invoiceNumber'] ?? $pix->invoiceNumber;
+            $payment['externalReference'] = $payment['externalReference'] ?? $pix->external_Reference;
+            $payment['value'] = $payment['value'] ?? $pix->value;
+
+            $syncResult = PixService::syncProviderStatusPayment($pix, $payment);
+            if (!$syncResult['success']) {
+                PixService::log('status_sync_provider_rejected', [
+                    'webhook_id' => $pix->webhook_id,
+                    'pixQrCodeId' => $pix->pixQrCodeId,
+                    'invoiceNumber' => $pix->invoiceNumber,
+                    'error' => $syncResult['error'] ?? null,
+                    'status' => $syncResult['status'] ?? null,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            PixService::log('status_sync_provider_failed', [
+                'webhook_id' => $pix->webhook_id,
+                'pixQrCodeId' => $pix->pixQrCodeId,
+                'invoiceNumber' => $pix->invoiceNumber,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

@@ -29,6 +29,15 @@ class User
         }
 
         if (session_status() !== PHP_SESSION_ACTIVE) {
+            $cookieParams = self::cookieParams();
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => $cookieParams['path'],
+                'domain' => $cookieParams['domain'],
+                'secure' => $cookieParams['secure'],
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             session_start();
         }
     }
@@ -88,13 +97,14 @@ class User
         UserAuthentication::setRememberToken($obUser->id, $hashedToken, $tenancyId);
 
         // 4️⃣ Cria cookie seguro, válido por 30 dias
+        $cookieParams = self::cookieParams();
         setcookie('remember_me', $token, [
-            'expires'  => time() + (30 * 24 * 60 * 60), // 30 dias
-            'path'     => '/',
-            'domain'   => $_SERVER['HTTP_HOST'],       // se quiser subdomínios, ajustar
-            'secure'   => true,                         // forçar HTTPS
+            'expires'  => time() + (30 * 24 * 60 * 60),
+            'path'     => $cookieParams['path'],
+            'domain'   => $cookieParams['domain'],
+            'secure'   => $cookieParams['secure'],
             'httponly' => true,
-            'samesite' => 'Strict'                      // ou 'Lax' se precisar em subdomínios
+            'samesite' => 'Lax'
         ]);
     }
 
@@ -159,7 +169,7 @@ class User
             return true;
         }
 
-        setcookie('remember_me', '', time() - 3600, '/');
+        self::expireRememberMeCookie();
         return false;
     }
 
@@ -176,7 +186,7 @@ class User
         }
 
         // Limpa cookie
-        setcookie('remember_me', '', time() - 3600, '/');
+        self::expireRememberMeCookie();
 
         // Limpa sessão
         unset($_SESSION['user']);
@@ -195,5 +205,47 @@ class User
         foreach (self::RUNTIME_CACHE_KEYS as $key) {
             unset($_SESSION[$key]);
         }
+    }
+
+    private static function expireRememberMeCookie(): void
+    {
+        $cookieParams = self::cookieParams();
+        setcookie('remember_me', '', [
+            'expires' => time() - 3600,
+            'path' => $cookieParams['path'],
+            'domain' => $cookieParams['domain'],
+            'secure' => $cookieParams['secure'],
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    private static function cookieParams(): array
+    {
+        $fallbackUrl = (string)(getenv('URL') ?: '');
+        $fallbackHost = (string)(parse_url($fallbackUrl, PHP_URL_HOST) ?: '');
+        $fallbackPath = (string)(parse_url($fallbackUrl, PHP_URL_PATH) ?: '/');
+        $hostHeader = (string)($_SERVER['HTTP_HOST'] ?? '');
+        $host = $hostHeader !== ''
+            ? preg_replace('/:\d+$/', '', $hostHeader)
+            : $fallbackHost;
+
+        $https = (string)($_SERVER['HTTPS'] ?? '');
+        $forwardedProto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        $secure = $https === 'on'
+            || $https === '1'
+            || $forwardedProto === 'https'
+            || str_starts_with(strtolower($fallbackUrl), 'https://');
+
+        $path = $fallbackPath !== '' ? rtrim($fallbackPath, '/') : '';
+        if ($path === '') {
+            $path = '/';
+        }
+
+        return [
+            'domain' => $host,
+            'path' => $path,
+            'secure' => $secure,
+        ];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Model\Entity;
 
+use App\Support\RequestCache;
+use App\Service\CallPermissionService;
 use App\Utils\TenancyHelper;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
@@ -76,6 +78,7 @@ class WhatsAppConversation
     public static function listForUser(array $user, ?int $accountId = null, array $filters = []): array
     {
         self::ensureProtocolTrackingColumns();
+        CallPermissionService::ensureSchema();
         $isRestrictedAgent = self::isRestrictedSupportRole($user);
         $hasQueueId = self::conversationHasColumn('queue_id');
         $hasAssignedUserId = self::conversationHasColumn('assigned_user_id');
@@ -91,6 +94,10 @@ class WhatsAppConversation
             if ($hasAssignedUserId && $hasQueueStatus && $hasQueueId) {
                 $where = "wa.status = 'active' AND wc.tenancy_id = :tenancy_id AND (
                     wc.assigned_user_id = :agent_user_id
+                    OR (
+                        wc.user_id = :agent_user_id
+                        AND (wc.queue_id IS NULL OR wc.queue_id = 0)
+                    )
                     OR (
                         wc.queue_status = 'waiting'
                         AND wc.queue_id IS NOT NULL
@@ -148,6 +155,73 @@ class WhatsAppConversation
 
         $joinQueue = $hasQueueId ? 'LEFT JOIN whatsapp_support_queues q ON q.id = wc.queue_id AND q.tenancy_id = wc.tenancy_id' : '';
         $joinAssigned = $hasAssignedUserId ? 'LEFT JOIN users au ON au.id = wc.assigned_user_id AND au.tenancy_id = wc.tenancy_id' : '';
+        $joinSupportSession = $hasQueueId ? "LEFT JOIN (
+                SELECT s.conversation_id,
+                       s.id AS support_session_id,
+                       TIMESTAMPDIFF(
+                           SECOND,
+                           s.queued_at,
+                           CASE
+                               WHEN s.state = 'active' THEN COALESCE(s.started_at, NOW())
+                               ELSE NOW()
+                           END
+                       ) AS queue_waiting_seconds
+                FROM whatsapp_support_sessions s
+                INNER JOIN (
+                    SELECT conversation_id, MAX(id) AS latest_id
+                    FROM whatsapp_support_sessions
+                    WHERE state IN ('waiting', 'active')
+                    GROUP BY conversation_id
+                ) latest_support_session ON latest_support_session.latest_id = s.id
+            ) ss ON ss.conversation_id = wc.id" : '';
+        $joinLastMessage = "LEFT JOIN (
+                SELECT wm.conversation_id, wm.status
+                FROM whatsapp_messages wm
+                INNER JOIN (
+                    SELECT conversation_id, MAX(id) AS latest_id
+                    FROM whatsapp_messages
+                    GROUP BY conversation_id
+                ) latest_message ON latest_message.latest_id = wm.id
+            ) lm ON lm.conversation_id = wc.id";
+        $joinLastOutbound = "LEFT JOIN (
+                SELECT wm.conversation_id, wm.status
+                FROM whatsapp_messages wm
+                INNER JOIN (
+                    SELECT conversation_id, MAX(id) AS latest_id
+                    FROM whatsapp_messages
+                    WHERE direction = 'outbound'
+                    GROUP BY conversation_id
+                ) latest_outbound ON latest_outbound.latest_id = wm.id
+            ) lo ON lo.conversation_id = wc.id";
+        $joinLastInbound = "LEFT JOIN (
+                SELECT conversation_id, MAX(created_at) AS last_inbound_at
+                FROM whatsapp_messages
+                WHERE direction = 'inbound'
+                GROUP BY conversation_id
+            ) li ON li.conversation_id = wc.id";
+        $joinMarketingOptOut = "LEFT JOIN (
+                SELECT account_id, contact_phone, 1 AS marketing_opt_out
+                FROM whatsapp_marketing_opt_outs
+                GROUP BY account_id, contact_phone
+            ) woo ON woo.account_id = wc.account_id AND woo.contact_phone = wc.contact_phone";
+        $joinCallPermission = "LEFT JOIN (
+                SELECT cp.account_id,
+                       cp.phone_number,
+                       cp.contact_id,
+                       cp.permission_status,
+                       cp.permission_requested_at,
+                       cp.permission_approved_at,
+                       cp.permission_expires_at,
+                       cp.last_error_code,
+                       cp.last_error_message,
+                       cp.is_permanent
+                FROM whatsapp_call_permissions cp
+                INNER JOIN (
+                    SELECT account_id, phone_number, MAX(id) AS latest_id
+                    FROM whatsapp_call_permissions
+                    GROUP BY account_id, phone_number
+                ) latest_permission ON latest_permission.latest_id = cp.id
+            ) wcp ON wcp.account_id = wc.account_id AND wcp.phone_number = wc.contact_phone";
         $fields = [
             'wc.*',
             'wa.label AS account_label',
@@ -157,22 +231,8 @@ class WhatsAppConversation
             $fields[] = 'q.name AS queue_name';
             $fields[] = self::queueHasColumn('color') ? 'q.color AS queue_color' : "NULL AS queue_color";
             $fields[] = 'q.priority AS queue_priority';
-            $fields[] = "(SELECT s.id
-                FROM whatsapp_support_sessions s
-                WHERE s.conversation_id = wc.id
-                  AND s.state IN ('waiting', 'active')
-                ORDER BY s.id DESC
-                LIMIT 1) AS support_session_id";
-            $fields[] = "(SELECT TIMESTAMPDIFF(SECOND, s.queued_at,
-                    CASE
-                        WHEN s.state = 'active' THEN COALESCE(s.started_at, NOW())
-                        ELSE NOW()
-                    END)
-                FROM whatsapp_support_sessions s
-                WHERE s.conversation_id = wc.id
-                  AND s.state IN ('waiting', 'active')
-                ORDER BY s.id DESC
-                LIMIT 1) AS queue_waiting_seconds";
+            $fields[] = 'ss.support_session_id';
+            $fields[] = 'ss.queue_waiting_seconds';
         } else {
             $fields[] = 'NULL AS queue_name';
             $fields[] = 'NULL AS queue_color';
@@ -211,101 +271,102 @@ class WhatsAppConversation
         } else {
             $fields[] = 'NULL AS protocol_sent_at';
         }
+        $fields[] = "COALESCE(wcp.permission_status, 'no_permission') AS call_permission_status";
+        $fields[] = 'wcp.permission_requested_at AS call_permission_requested_at';
+        $fields[] = 'wcp.permission_approved_at AS call_permission_approved_at';
+        $fields[] = 'wcp.permission_expires_at AS call_permission_expires_at';
+        $fields[] = 'COALESCE(wcp.is_permanent, 0) AS call_permission_is_permanent';
+        $fields[] = 'wcp.last_error_code AS call_permission_last_error_code';
+        $fields[] = 'wcp.last_error_message AS call_permission_last_error_message';
 
         return (new Database("whatsapp_conversations wc
             INNER JOIN whatsapp_accounts wa ON wa.id = wc.account_id AND wa.tenancy_id = wc.tenancy_id
             {$joinQueue}
-            {$joinAssigned}"))
+            {$joinAssigned}
+            {$joinSupportSession}
+            {$joinLastMessage}
+            {$joinLastOutbound}
+            {$joinLastInbound}
+            {$joinMarketingOptOut}
+            {$joinCallPermission}"))
             ->select($where, $params, 'wc.last_message_at DESC, wc.id DESC', (string)$limit, [
                 ...$fields,
-                "(SELECT wm.status
-                    FROM whatsapp_messages wm
-                    WHERE wm.conversation_id = wc.id
-                      AND wm.direction = 'outbound'
-                    ORDER BY wm.id DESC
-                    LIMIT 1) AS last_outbound_status",
-                "(SELECT wm.status
-                    FROM whatsapp_messages wm
-                    WHERE wm.conversation_id = wc.id
-                    ORDER BY wm.id DESC
-                    LIMIT 1) AS last_message_status",
-                "(SELECT wm.created_at
-                    FROM whatsapp_messages wm
-                    WHERE wm.conversation_id = wc.id
-                      AND wm.direction = 'inbound'
-                    ORDER BY wm.created_at DESC
-                    LIMIT 1) AS last_inbound_at",
+                'lo.status AS last_outbound_status',
+                'lm.status AS last_message_status',
+                'li.last_inbound_at',
                 "CASE
-                    WHEN (SELECT wm.created_at
-                        FROM whatsapp_messages wm
-                        WHERE wm.conversation_id = wc.id
-                          AND wm.direction = 'inbound'
-                        ORDER BY wm.created_at DESC
-                        LIMIT 1) >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                    WHEN li.last_inbound_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                     THEN 1
                     ELSE 0
                 END AS service_window_open",
-                "(SELECT COUNT(*)
-                    FROM whatsapp_marketing_opt_outs woo
-                    WHERE woo.account_id = wc.account_id
-                      AND woo.contact_phone = wc.contact_phone
-                    LIMIT 1) AS marketing_opt_out",
+                'COALESCE(woo.marketing_opt_out, 0) AS marketing_opt_out',
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function getForUser(int $id, array $user): ?array
     {
-        if (self::isRestrictedSupportRole($user)
-            && self::conversationHasColumn('assigned_user_id')
-            && self::conversationHasColumn('queue_status')
-            && self::conversationHasColumn('queue_id')) {
-            $row = (new Database('whatsapp_conversations'))
-                ->select(
-                    "id = :id
-                     AND tenancy_id = :tenancy_id
-                     AND (
-                        assigned_user_id = :agent_user_id
-                        OR (
-                            queue_status = 'waiting'
-                            AND queue_id IS NOT NULL
-                            AND EXISTS (
-                                SELECT 1
-                                FROM whatsapp_support_queue_agents qa
-                                WHERE qa.queue_id = whatsapp_conversations.queue_id
-                                  AND qa.agent_user_id = :agent_user_id
-                                  AND qa.tenancy_id = whatsapp_conversations.tenancy_id
-                            )
-                        )
-                     )",
-                    [
-                        ':id' => $id,
-                        ':tenancy_id' => $user['tenancy_id'],
-                        ':agent_user_id' => (int)$user['id'],
-                    ],
-                    '',
-                    '1'
-                )
-                ->fetch(PDO::FETCH_ASSOC);
-        } else {
-            $where = TenancyHelper::applySecurityFilter('id = :id', $user, 'user_id', 'whatsapp_conversations');
-            $row = (new Database('whatsapp_conversations'))
-                ->select($where, [':id' => $id], '', '1')
-                ->fetch(PDO::FETCH_ASSOC);
-        }
+        $cacheKey = 'whatsapp_conversation.user.' . (int)($user['id'] ?? 0) . '.' . (string)($user['tenancy_id'] ?? '') . '.' . $id;
 
-        return $row ?: null;
+        return RequestCache::remember($cacheKey, function () use ($id, $user): ?array {
+            if (self::isRestrictedSupportRole($user)
+                && self::conversationHasColumn('assigned_user_id')
+                && self::conversationHasColumn('queue_status')
+                && self::conversationHasColumn('queue_id')) {
+                $row = (new Database('whatsapp_conversations'))
+                    ->select(
+                        "id = :id
+                         AND tenancy_id = :tenancy_id
+                         AND (
+                            assigned_user_id = :agent_user_id
+                            OR (
+                                user_id = :agent_user_id
+                                AND (queue_id IS NULL OR queue_id = 0)
+                            )
+                            OR (
+                                queue_status = 'waiting'
+                                AND queue_id IS NOT NULL
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM whatsapp_support_queue_agents qa
+                                    WHERE qa.queue_id = whatsapp_conversations.queue_id
+                                      AND qa.agent_user_id = :agent_user_id
+                                      AND qa.tenancy_id = whatsapp_conversations.tenancy_id
+                                )
+                            )
+                         )",
+                        [
+                            ':id' => $id,
+                            ':tenancy_id' => $user['tenancy_id'],
+                            ':agent_user_id' => (int)$user['id'],
+                        ],
+                        '',
+                        '1'
+                    )
+                    ->fetch(PDO::FETCH_ASSOC);
+            } else {
+                $where = TenancyHelper::applySecurityFilter('id = :id', $user, 'user_id', 'whatsapp_conversations');
+                $row = (new Database('whatsapp_conversations'))
+                    ->select($where, [':id' => $id], '', '1')
+                    ->fetch(PDO::FETCH_ASSOC);
+            }
+
+            return $row ?: null;
+        });
     }
 
-    public static function listMessagesForUser(int $conversationId, array $user, int $limit = 200, ?int $beforeId = null): array
+    public static function listMessagesForUser(int $conversationId, array $user, int $limit = 200, ?int $beforeId = null, ?array $conversation = null): array
     {
-        $conversation = self::getForUser($conversationId, $user);
+        $conversation = $conversation ?: self::getForUser($conversationId, $user);
         if (!$conversation) {
             return [];
         }
 
-        self::update($conversationId, ['unread_count' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
-        self::markInboundMessagesRead($conversationId);
+        // Evita writes e revalidação duplicada quando o usuário só está paginando histórico.
+        if ($beforeId === null && (int)($conversation['unread_count'] ?? 0) > 0) {
+            self::update($conversationId, ['unread_count' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
+            self::markInboundMessagesRead($conversationId);
+        }
 
         $limit = max(1, min(500, $limit));
         $where = 'conversation_id = :conversation_id';
@@ -359,6 +420,28 @@ class WhatsAppConversation
             'unread_count' => 1,
             'updated_at' => date('Y-m-d H:i:s'),
         ]) && self::markLastInboundMessageUnread($conversationId);
+    }
+
+    public static function latestUnreadInboundMessage(int $conversationId): ?array
+    {
+        if ($conversationId <= 0) {
+            return null;
+        }
+
+        $row = (new Database('whatsapp_messages'))
+            ->select(
+                "conversation_id = :conversation_id
+                 AND direction = 'inbound'
+                 AND COALESCE(wamid, '') <> ''
+                 AND status <> 'read'",
+                [':conversation_id' => $conversationId],
+                'id DESC',
+                '1',
+                ['id', 'wamid', 'status', 'account_id']
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
     }
 
     public static function deleteForUser(int $conversationId, array $user): bool
@@ -668,6 +751,11 @@ class WhatsAppConversation
         }
 
         return $ok;
+    }
+
+    public static function getMessageByWamid(string $wamid): ?array
+    {
+        return self::findMessageByWamid($wamid);
     }
 
     public static function markMessageBilled(int $id): bool

@@ -29,7 +29,8 @@ $obRouter->get('/system-updates/list', [
 $obRouter->get('/system-updates/header', [
     'name' => '/system-updates/header',
     'middlewares' => [
-        'require-session-login'
+        'require-session-login',
+        'require-permissions-tenancies'
     ],
     function ($request) {
         return Pages\SystemUpdates::headerList($request);

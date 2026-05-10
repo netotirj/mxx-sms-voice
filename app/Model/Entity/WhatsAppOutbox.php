@@ -9,15 +9,18 @@ class WhatsAppOutbox
 {
     public static function enqueue(array $data): int
     {
-        $idempotencyKey = self::idempotencyKey($data);
-        $lock = self::acquireIdempotencyLock($idempotencyKey);
+        $baseIdempotencyKey = self::idempotencyKey($data);
+        $lock = self::acquireIdempotencyLock($baseIdempotencyKey);
 
         try {
-            $existing = self::findRecentDuplicate($data, $idempotencyKey);
+            $existing = self::findRecentDuplicate($data, $baseIdempotencyKey);
             if ($existing > 0) {
-                self::auditEnqueue($data, $existing, $idempotencyKey, true);
+                self::auditEnqueue($data, $existing, $baseIdempotencyKey, true);
                 return $existing;
             }
+
+            $idempotencyKey = self::nextInsertIdempotencyKey($baseIdempotencyKey);
+            $dbTimestamp = self::currentDbTimestamp();
 
             $values = [
             'tenancy_id' => $data['tenancy_id'],
@@ -44,9 +47,9 @@ class WhatsAppOutbox
             'status' => $data['status'] ?? 'queued',
             'attempts' => 0,
             'max_attempts' => (int)($data['max_attempts'] ?? 3),
-            'available_at' => $data['available_at'] ?? date('Y-m-d H:i:s'),
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
+            'available_at' => $data['available_at'] ?? $dbTimestamp,
+            'created_at' => $dbTimestamp,
+            'updated_at' => $dbTimestamp,
             ];
 
             foreach ([
@@ -69,7 +72,7 @@ class WhatsAppOutbox
             return $id;
         } finally {
             if ($lock['acquired']) {
-                self::releaseIdempotencyLock($lock['connection'], $idempotencyKey);
+                self::releaseIdempotencyLock($lock['connection'], $baseIdempotencyKey);
             }
         }
     }
@@ -79,7 +82,7 @@ class WhatsAppOutbox
         if (self::hasColumn('idempotency_key')) {
             $row = (new Database('whatsapp_outbox'))->select(
                 "idempotency_key = :idempotency_key
-                 AND status IN ('queued', 'sending', 'sent')",
+                 AND status IN ('queued', 'sending')",
                 [':idempotency_key' => $idempotencyKey],
                 'id DESC',
                 '1',
@@ -99,7 +102,7 @@ class WhatsAppOutbox
              AND message_type = :message_type
              AND COALESCE(template_name, '') = :template_name
              AND COALESCE(body, '') = :body
-             AND status IN ('queued', 'sending', 'sent')
+             AND status IN ('queued', 'sending')
              AND created_at >= DATE_SUB(NOW(), INTERVAL 90 SECOND)",
             [
                 ':tenancy_id' => (string)$data['tenancy_id'],
@@ -138,6 +141,61 @@ class WhatsAppOutbox
             'components' => $components,
             'variables' => $variables,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function nextInsertIdempotencyKey(string $baseIdempotencyKey): string
+    {
+        if (!self::hasColumn('idempotency_key')) {
+            return $baseIdempotencyKey;
+        }
+
+        $exists = (new Database('whatsapp_outbox'))->select(
+            'idempotency_key = :idempotency_key',
+            [':idempotency_key' => $baseIdempotencyKey],
+            'id DESC',
+            '1',
+            'id'
+        )->fetch(PDO::FETCH_ASSOC);
+
+        if (!$exists) {
+            return $baseIdempotencyKey;
+        }
+
+        return hash('sha256', implode('|', [
+            $baseIdempotencyKey,
+            date('Y-m-d H:i:s.u'),
+            bin2hex(random_bytes(8)),
+        ]));
+    }
+
+    private static function currentDbTimestamp(): string
+    {
+        try {
+            $value = (new Database())->execute('SELECT NOW()')->fetchColumn();
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return date('Y-m-d H:i:s');
+    }
+
+    private static function currentDbTimestampPlus(int $delaySeconds): string
+    {
+        $delaySeconds = max(0, $delaySeconds);
+
+        try {
+            $value = (new Database())->execute(
+                sprintf('SELECT DATE_ADD(NOW(), INTERVAL %d SECOND)', $delaySeconds)
+            )->fetchColumn();
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return date('Y-m-d H:i:s', time() + $delaySeconds);
     }
 
     private static function acquireIdempotencyLock(string $key): array
@@ -268,14 +326,16 @@ class WhatsAppOutbox
 
     public static function markSent(int $id, ?string $wamid, ?int $messageId = null): bool
     {
+        $dbTimestamp = self::currentDbTimestamp();
+
         return (new Database('whatsapp_outbox'))->update(
             'id = :id',
             [
                 'status' => 'sent',
                 'wamid' => $wamid,
                 'message_id' => $messageId,
-                'sent_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
+                'sent_at' => $dbTimestamp,
+                'updated_at' => $dbTimestamp,
             ],
             [':id' => $id]
         );
@@ -283,11 +343,13 @@ class WhatsAppOutbox
 
     public static function markBilled(int $id): bool
     {
+        $dbTimestamp = self::currentDbTimestamp();
+
         return (new Database('whatsapp_outbox'))->update(
             'id = :id',
             [
                 'billed' => 1,
-                'updated_at' => date('Y-m-d H:i:s'),
+                'updated_at' => $dbTimestamp,
             ],
             [':id' => $id]
         );
@@ -297,6 +359,8 @@ class WhatsAppOutbox
     {
         $status = $attempts >= $maxAttempts ? 'failed' : 'queued';
         $delay = min(3600, max(30, 30 * (2 ** max(0, $attempts - 1))));
+        $dbTimestamp = self::currentDbTimestamp();
+        $dbDelayedTimestamp = self::currentDbTimestampPlus($delay);
 
         return (new Database('whatsapp_outbox'))->update(
             'id = :id',
@@ -304,8 +368,8 @@ class WhatsAppOutbox
                 'status' => $status,
                 'attempts' => $attempts,
                 'error_message' => $error,
-                'available_at' => $status === 'queued' ? date('Y-m-d H:i:s', time() + $delay) : date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
+                'available_at' => $status === 'queued' ? $dbDelayedTimestamp : $dbTimestamp,
+                'updated_at' => $dbTimestamp,
             ],
             [':id' => $id]
         );
@@ -314,14 +378,16 @@ class WhatsAppOutbox
     public static function postpone(int $id, int $delaySeconds, string $reason): bool
     {
         $delaySeconds = max(1, min(86400, $delaySeconds));
+        $dbTimestamp = self::currentDbTimestamp();
+        $dbDelayedTimestamp = self::currentDbTimestampPlus($delaySeconds);
 
         return (new Database('whatsapp_outbox'))->update(
             "id = :id AND status IN ('queued', 'sending')",
             [
                 'status' => 'queued',
                 'error_message' => $reason,
-                'available_at' => date('Y-m-d H:i:s', time() + $delaySeconds),
-                'updated_at' => date('Y-m-d H:i:s'),
+                'available_at' => $dbDelayedTimestamp,
+                'updated_at' => $dbTimestamp,
             ],
             [':id' => $id]
         );

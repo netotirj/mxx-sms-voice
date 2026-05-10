@@ -257,15 +257,70 @@
     document.addEventListener('DOMContentLoaded', () => {
         startTimers(); // Inicia o motor do relógio local
         connectAgentsSSE();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                safeCloseAgentSource();
+                return;
+            }
+
+            if (agentSseCooldownUntil > 0 && agentSseCooldownUntil <= Date.now()) {
+                agentSseCooldownUntil = 0;
+                resetAgentSseFailures();
+            }
+
+            connectAgentsSSE();
+        });
+        window.addEventListener('beforeunload', safeCloseAgentSource);
     });
 
+    let agentSseFailureCount = 0;
+    let agentSseCooldownUntil = 0;
+    const AGENT_SSE_RETRY_MS = 3000;
+    const AGENT_SSE_RETRY_MAX_MS = 60000;
+    const AGENT_SSE_FAILURE_THRESHOLD = 4;
+    const AGENT_SSE_COOLDOWN_MS = 180000;
+
+    function resetAgentSseFailures() {
+        agentSseFailureCount = 0;
+    }
+
+    function nextAgentSseRetryDelay() {
+        agentSseFailureCount += 1;
+        return Math.min(
+            AGENT_SSE_RETRY_MS * Math.max(1, Math.pow(2, agentSseFailureCount - 1)),
+            AGENT_SSE_RETRY_MAX_MS
+        );
+    }
+
+    function tripAgentSseCircuitBreaker() {
+        agentSseCooldownUntil = Date.now() + AGENT_SSE_COOLDOWN_MS;
+        safeCloseAgentSource();
+        console.warn('Callcenter agents SSE em cooldown temporario.', {
+            retryAfterMs: AGENT_SSE_COOLDOWN_MS,
+            failures: agentSseFailureCount
+        });
+
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            if (!document.hidden) {
+                if (agentSseCooldownUntil <= Date.now()) {
+                    agentSseCooldownUntil = 0;
+                    resetAgentSseFailures();
+                }
+                connectAgentsSSE();
+            }
+        }, AGENT_SSE_COOLDOWN_MS);
+    }
+
     function connectAgentsSSE() {
-        if (agentSource) return;
+        if (agentSource || document.hidden) return;
+        if (agentSseCooldownUntil > Date.now()) return;
 
         agentSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
 
         agentSource.addEventListener('update', (event) => {
             try {
+                resetAgentSseFailures();
                 const payload = JSON.parse(event.data);
                 activeCalls = payload.chamadas || [];
 
@@ -364,9 +419,23 @@
         });
 
         agentSource.onerror = () => {
+            const connectionState = agentSource?.readyState;
             safeCloseAgentSource();
+            if (document.hidden || connectionState === EventSource.CONNECTING) {
+                return;
+            }
+
+            const delay = nextAgentSseRetryDelay();
+            if (agentSseFailureCount >= AGENT_SSE_FAILURE_THRESHOLD) {
+                tripAgentSseCircuitBreaker();
+                return;
+            }
+
             if (reconnectTimer) clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(connectAgentsSSE, 3000);
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectAgentsSSE();
+            }, delay);
         };
     }
 
@@ -532,7 +601,16 @@
         return `${h}:${m}:${sc}`;
     }
 
-    function safeCloseAgentSource() { if (agentSource) { agentSource.close(); agentSource = null; } }
+    function safeCloseAgentSource() {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+        if (agentSource) {
+            agentSource.close();
+            agentSource = null;
+        }
+    }
     function updateCards() {
         const agentes = Object.values(agentsMap);
 

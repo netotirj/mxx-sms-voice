@@ -461,21 +461,25 @@ class CdrVoice
 
     private static function hasColumn(string $column): bool
     {
-        static $cache = [];
-        if (array_key_exists($column, $cache)) {
-            return $cache[$column];
+        static $columns = null;
+        if (is_array($columns)) {
+            return isset($columns[$column]);
         }
 
         try {
-            $row = (new Database())->execute('SHOW COLUMNS FROM cdr LIKE :column', [
-                ':column' => $column,
-            ])->fetch(PDO::FETCH_ASSOC);
-            $cache[$column] = !empty($row);
+            $rows = (new Database())->execute('SHOW COLUMNS FROM cdr')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $columns = [];
+            foreach ($rows as $row) {
+                $field = trim((string)($row['Field'] ?? ''));
+                if ($field !== '') {
+                    $columns[$field] = true;
+                }
+            }
         } catch (\Throwable) {
-            $cache[$column] = false;
+            $columns = [];
         }
 
-        return $cache[$column];
+        return isset($columns[$column]);
     }
 
 

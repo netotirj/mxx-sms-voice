@@ -166,8 +166,8 @@
     </div>
 </div>
 
-<div id="createTicketModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[99991] p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+<div id="createTicketModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[100050] p-4">
+    <div class="relative z-[100051] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="fa fa-plus text-xl"></i></div>
@@ -214,8 +214,8 @@
     </div>
 </div>
 
-<div id="ticketDetailsModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[99991] p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down flex flex-col">
+<div id="ticketDetailsModal" class="fixed inset-0 hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm z-[100050] p-4">
+    <div class="relative z-[100051] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down flex flex-col">
         <div class="p-6 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg"><i class="fa fa-life-ring text-xl"></i></div>
@@ -268,6 +268,8 @@
     let supportTicketsSnapshot = new Map();
     let supportTicketsPollTimer = null;
     let supportTicketsPolling = false;
+    let supportTicketsRealtimeEnabled = true;
+    let supportTicketDetailsRefreshTimer = null;
     let supportTicketPermissions = {
         view_all: false,
         create: true,
@@ -313,6 +315,16 @@
         });
 
         document.getElementById('createTicketForm')?.addEventListener('submit', createSupportTicketFromModal);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                return;
+            }
+
+            if (supportTicketsRealtimeEnabled) {
+                loadSupportTickets(true);
+            }
+        });
+        window.addEventListener('beforeunload', stopSupportTicketsRealtime);
     });
 
     function mountSupportModals() {
@@ -527,7 +539,7 @@
             const selectedId = Number(activeTicketDetails.ticket.id);
             const affected = changes.some((change) => Number(change.ticket.id) === selectedId);
             if (affected) {
-                openTicketDetails(selectedId);
+                scheduleTicketDetailsRefresh(selectedId);
             }
         }
     }
@@ -536,13 +548,30 @@
         if (supportTicketsPollTimer) return;
 
         supportTicketsPollTimer = window.setInterval(() => {
-            if (supportTicketsPolling) return;
+            if (document.hidden || !supportTicketsRealtimeEnabled || supportTicketsPolling) return;
             supportTicketsPolling = true;
             loadSupportTickets(true)
                 .finally(() => {
                     supportTicketsPolling = false;
                 });
         }, 10000);
+    }
+
+    function stopSupportTicketsRealtime() {
+        if (supportTicketsPollTimer) {
+            window.clearInterval(supportTicketsPollTimer);
+            supportTicketsPollTimer = null;
+        }
+    }
+
+    function scheduleTicketDetailsRefresh(ticketId) {
+        if (supportTicketDetailsRefreshTimer) {
+            window.clearTimeout(supportTicketDetailsRefreshTimer);
+        }
+
+        supportTicketDetailsRefreshTimer = window.setTimeout(() => {
+            openTicketDetails(ticketId);
+        }, 250);
     }
 
     function loadSupportTickets(silent = false) {
@@ -552,8 +581,17 @@
         }
 
         return fetch(`${supportBaseUrl}/support/tickets?_=${Date.now()}`)
-            .then(res => res.json())
+            .then(async (res) => {
+                if (res.status === 401 || res.status === 403) {
+                    supportTicketsRealtimeEnabled = false;
+                    stopSupportTicketsRealtime();
+                    throw new Error('Sessão expirada ou acesso negado.');
+                }
+
+                return res.json();
+            })
             .then(result => {
+                supportTicketsRealtimeEnabled = true;
                 handleRealtimeTicketChanges(result.data || []);
                 supportTicketsRaw = result.data || [];
                 supportTicketPermissions = { ...supportTicketPermissions, ...(result.permissions || {}) };

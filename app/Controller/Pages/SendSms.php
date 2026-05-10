@@ -5,13 +5,13 @@ namespace App\Controller\Pages;
 use App\Http\Response;
 use App\Model\Entity\CampaignSearch;
 use App\Model\Entity\Rates;
-use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserSearch;
 use App\Session\User as SessionUser;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\UserPlans;
+use App\Service\PlanRuntimeService;
 use App\Utils\View;
 
 
@@ -19,6 +19,18 @@ class SendSms extends ViewComponents
 {
     private const ALLOWED_SERVICES = ['short', 'mkt'];
     private const ALLOWED_CODINGS = ['0', '8'];
+
+    private static function activePlanId(string $tenancyId): int
+    {
+        $subscription = PlanRuntimeService::getActiveSubscription($tenancyId);
+        return (int)($subscription['plan_id'] ?? 0);
+    }
+
+    private static function currentSmsRate(string $tenancyId): float
+    {
+        $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
+        return (float)($summary->value_sms ?? 0);
+    }
 
     private static function normalizePhone(string $phone): string
     {
@@ -120,28 +132,15 @@ class SendSms extends ViewComponents
 
     public static function sendSms($obUser, ?int $campaignId = null, array $phones = [], ?string $message = null, ?string $service = null, ?string $coding = "0"): Response {
         $isReseller = isset($obUser['function']) && $obUser['function'] === 'reseller';
-        $currentPlan = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
+        $currentPlan = self::activePlanId((string)$obUser['tenancy_id']);
 
-
-        if ($isReseller) {
-
-            $obPlan = UserPlans::getActivePlanByTenancy($currentPlan, $obUser['tenancy_id']);
-            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
-                return new Response(404, [
-                    'status'  => 404,
-                    'message' => 'Favor contactar administrador da conta. Plano inativo.'
-                ], 'application/json');
-            }
-
-        } else {
-
-            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $obUser['tenancy_id'], $obUser['id']);
-            if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
-                return new Response(404, [
-                    'status'  => 404,
-                    'message' => 'Nenhum Plano habilitado ou plano inativo.'
-                ], 'application/json');
-            }
+        if ($currentPlan <= 0) {
+            return new Response(404, [
+                'status'  => 404,
+                'message' => $isReseller
+                    ? 'Favor contactar administrador da conta. Plano inativo.'
+                    : 'Nenhum Plano habilitado ou plano inativo.'
+            ], 'application/json');
         }
 
 
@@ -393,16 +392,7 @@ class SendSms extends ViewComponents
             ], 'application/json');
         }
 
-        // 2️⃣ Busca o plano ativo
-        $obPlanId = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
-
-        $valueSms = 0.0;
-        if ($obPlanId) {
-            $obPlan = UserPlans::getUserPlanInfoByPlanId($obPlanId, $obUser['tenancy_id']);
-            if ($obPlan && isset($obPlan->value_sms)) {
-                $valueSms = (float)$obPlan->value_sms;
-            }
-        }
+        $valueSms = self::currentSmsRate((string)$obUser['tenancy_id']);
 
         // 3️⃣ Renderiza view com valor default
         $content = View::render('/campaign/single', [

@@ -5,6 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="base-url" content="{{URL}}">
+    <meta name="permissions-sync-url" content="{{permissionsSyncUrl}}">
+    <meta name="permissions-version-key" content="{{permissionsVersionKey}}">
     <title>{{title}}</title>
 
     <!-- Favicon -->
@@ -19,7 +21,7 @@
     <!-- Argon Dashboard CSS -->
     <link href="{{URL}}/resources/assets/css/nucleo-icons.css" rel="stylesheet" />
     <link href="{{URL}}/resources/assets/css/nucleo-svg.css" rel="stylesheet" />
-    <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=1.0.3" rel="stylesheet" />
+    <link href="{{URL}}/resources/assets/css/argon-dashboard-tailwind.css?v=20260507-1" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 
     <script src="https://unpkg.com/feather-icons"></script>
@@ -31,6 +33,158 @@
 
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <script>
+    (function () {
+        if (typeof window === 'undefined' || typeof window.EventSource === 'undefined') {
+            return;
+        }
+
+        if (window.__appRealtime && window.__appRealtime.version) {
+            return;
+        }
+
+        const NativeEventSource = window.EventSource;
+        const activeSources = new Set();
+
+        function unregisterSource(source) {
+            if (!source) {
+                return;
+            }
+
+            activeSources.delete(source);
+        }
+
+        function registerSource(source, meta = null) {
+            if (!source || source.__appRealtimeManaged) {
+                return source;
+            }
+
+            const originalClose = typeof source.close === 'function'
+                ? source.close.bind(source)
+                : null;
+
+            Object.defineProperty(source, '__appRealtimeManaged', {
+                value: true,
+                configurable: true
+            });
+
+            Object.defineProperty(source, '__appRealtimeMeta', {
+                value: meta,
+                configurable: true
+            });
+
+            if (originalClose) {
+                source.close = function () {
+                    unregisterSource(source);
+                    return originalClose();
+                };
+            }
+
+            activeSources.add(source);
+            return source;
+        }
+
+        function closeAllSources(reason = 'manual') {
+            const sources = Array.from(activeSources);
+            if (!sources.length) {
+                return 0;
+            }
+
+            sources.forEach((source) => {
+                try {
+                    source.close?.();
+                } catch (error) {
+                } finally {
+                    activeSources.delete(source);
+                }
+            });
+
+            document.dispatchEvent(new CustomEvent('app:realtime-closed-all', {
+                detail: {
+                    reason,
+                    count: sources.length
+                }
+            }));
+
+            return sources.length;
+        }
+
+        function ManagedEventSource(url, configuration) {
+            return registerSource(
+                new NativeEventSource(url, configuration),
+                { url: String(url || '') }
+            );
+        }
+
+        ManagedEventSource.prototype = NativeEventSource.prototype;
+        ['CONNECTING', 'OPEN', 'CLOSED'].forEach((key) => {
+            if (key in NativeEventSource) {
+                ManagedEventSource[key] = NativeEventSource[key];
+            }
+        });
+
+        window.__appRealtime = {
+            version: '1.0.0',
+            nativeEventSource: NativeEventSource,
+            registerSource,
+            unregisterSource,
+            closeAllSources,
+            activeCount: () => activeSources.size,
+            activeSources: () => Array.from(activeSources)
+        };
+
+        window.EventSource = ManagedEventSource;
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                closeAllSources('visibility-hidden');
+            }
+        }, true);
+
+        window.addEventListener('pagehide', () => {
+            closeAllSources('pagehide');
+        }, true);
+
+        window.addEventListener('beforeunload', () => {
+            closeAllSources('beforeunload');
+        }, true);
+
+        window.addEventListener('popstate', () => {
+            closeAllSources('popstate');
+        }, true);
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            const anchor = target.closest('a[href]');
+            if (!anchor) {
+                return;
+            }
+
+            const href = String(anchor.getAttribute('href') || '').trim();
+            if (
+                href === ''
+                || href.startsWith('#')
+                || href.startsWith('javascript:')
+                || anchor.target === '_blank'
+                || event.defaultPrevented
+                || event.button !== 0
+                || event.metaKey
+                || event.ctrlKey
+                || event.shiftKey
+                || event.altKey
+            ) {
+                return;
+            }
+
+            closeAllSources('link-navigation');
+        }, true);
+    })();
+    </script>
 
 
 </head>
@@ -611,11 +765,38 @@
             }
         }
 
+        let supportStatusPollTimer = null;
+
+        function startSupportStatusPolling() {
+            if (supportStatusPollTimer) return;
+            supportStatusPollTimer = window.setInterval(() => {
+                if (!document.hidden) {
+                    updateWhatsAppSupportStatus();
+                }
+            }, 60000);
+        }
+
+        function stopSupportStatusPolling() {
+            if (!supportStatusPollTimer) return;
+            window.clearInterval(supportStatusPollTimer);
+            supportStatusPollTimer = null;
+        }
+
         updateWhatsAppSupportStatus();
         if (phoneInput) {
             phoneInput.value = localStorage.getItem('support_bot_last_phone') || '';
         }
-        window.setInterval(updateWhatsAppSupportStatus, 60000);
+        startSupportStatusPolling();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopSupportStatusPolling();
+                return;
+            }
+
+            updateWhatsAppSupportStatus();
+            startSupportStatusPolling();
+        });
+        window.addEventListener('beforeunload', stopSupportStatusPolling);
 
         button.addEventListener('click', (event) => {
             event.preventDefault();
@@ -697,9 +878,17 @@
     </script>
 
 <script>
+        const flashErrorFromUrl = new URLSearchParams(window.location.search).get('flash_error');
         const flashError = localStorage.getItem('flash_error');
-        if (flashError) {
-            notyf.error(flashError);
+        const flashMessage = flashErrorFromUrl || flashError;
+
+        if (flashMessage) {
+            notyf.error(flashMessage);
+            if (flashErrorFromUrl) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('flash_error');
+                window.history.replaceState({}, document.title, cleanUrl.toString());
+            }
             localStorage.removeItem('flash_error');
         }
     </script>

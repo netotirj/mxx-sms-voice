@@ -43,6 +43,17 @@ $obRouter->get('/campaign/whatsapp/accounts', [
     }
 ]);
 
+$obRouter->post('/campaign/whatsapp/accounts/sync-meta', [
+    'name' => '/campaign/whatsapp/accounts/sync-meta',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::syncAccountsMeta();
+    }
+]);
+
 $obRouter->get('/campaign/whatsapp/numbers', [
     'name' => '/campaign/whatsapp/numbers',
     'middlewares' => [
@@ -285,6 +296,28 @@ $obRouter->post('/campaign/whatsapp/accounts/{id}/test', [
     ],
     function ($request, $id) {
         return Pages\WhatsApp::testAccount($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/accounts/{id}/settings', [
+    'name' => '/campaign/whatsapp/accounts/{id}/settings',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::updateAccountSettings($request, $id);
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/accounts/{id}/voice-status', [
+    'name' => '/campaign/whatsapp/accounts/{id}/voice-status',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::getAccountVoiceStatus($request, $id);
     }
 ]);
 
@@ -582,6 +615,105 @@ $obRouter->get('/campaign/whatsapp/support/events', [
     ],
     function ($request) {
         return Pages\WhatsApp::supportEvents($request);
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/calls/permissions', [
+    'name' => '/campaign/whatsapp/calls/permissions',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::getCallPermissions();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/permissions/request', [
+    'name' => '/campaign/whatsapp/calls/permissions/request',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::requestCallPermission();
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/calls/sessions', [
+    'name' => '/campaign/whatsapp/calls/sessions',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::listCallSessions($request);
+    }
+]);
+
+$obRouter->get('/campaign/whatsapp/calls/sessions/{id}', [
+    'name' => '/campaign/whatsapp/calls/sessions/{id}',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::getCallSession($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/connect', [
+    'name' => '/campaign/whatsapp/calls/connect',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::initiateCall();
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/{id}/pre-accept', [
+    'name' => '/campaign/whatsapp/calls/{id}/pre-accept',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::preAcceptCall($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/{id}/accept', [
+    'name' => '/campaign/whatsapp/calls/{id}/accept',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::acceptCall($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/{id}/reject', [
+    'name' => '/campaign/whatsapp/calls/{id}/reject',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::rejectCall($request, $id);
+    }
+]);
+
+$obRouter->post('/campaign/whatsapp/calls/{id}/terminate', [
+    'name' => '/campaign/whatsapp/calls/{id}/terminate',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return Pages\WhatsApp::terminateCall($request, $id);
     }
 ]);
 

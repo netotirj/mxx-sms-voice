@@ -7,7 +7,7 @@ use WilliamCosta\DatabaseManager\Database;
 class Rates
 {
     public int $id;
-    private const WHATSAPP_CATEGORIES = ['marketing', 'utility', 'authentication'];
+    private const WHATSAPP_CATEGORIES = ['marketing', 'utility', 'authentication', 'voice'];
 
     public static function ensureWhatsAppPricingTable(): void
     {
@@ -16,7 +16,7 @@ class Rates
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 reseller_id INT UNSIGNED NOT NULL,
                 tenancy_id CHAR(36) NOT NULL,
-                category ENUM('marketing','utility','authentication') NOT NULL,
+                category VARCHAR(32) NOT NULL,
                 price_brl DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
                 status ENUM('active','inactive') NOT NULL DEFAULT 'active',
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -25,6 +25,11 @@ class Rates
                 UNIQUE KEY uq_reseller_whatsapp_category (reseller_id, tenancy_id, category),
                 KEY idx_reseller_whatsapp_lookup (tenancy_id, reseller_id, status, category)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+
+        (new Database())->execute(
+            "ALTER TABLE reseller_whatsapp_pricing
+             MODIFY COLUMN category VARCHAR(32) NOT NULL"
         );
     }
 
@@ -44,7 +49,7 @@ class Rates
             ->select(
                 $where,
                 $params,
-                'rwp.reseller_id ASC, FIELD(rwp.category, "marketing", "utility", "authentication") ASC',
+                'rwp.reseller_id ASC, FIELD(rwp.category, "marketing", "utility", "authentication", "voice") ASC',
                 null,
                 'rwp.id, rwp.reseller_id, rwp.tenancy_id, rwp.category, rwp.price_brl, rwp.status, rwp.created_at, rwp.updated_at'
             )
@@ -57,6 +62,7 @@ class Rates
             'marketing' => null,
             'utility' => null,
             'authentication' => null,
+            'voice' => null,
         ];
 
         foreach (self::getWhatsAppCategoryRates($tenancyId, $resellerId) as $row) {

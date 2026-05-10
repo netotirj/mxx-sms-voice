@@ -4,12 +4,14 @@ namespace App\Service;
 
 use App\Model\Entity\SupportTicket;
 use App\Model\Entity\WhatsAppAccount;
+use App\Service\PerformanceTelemetry;
 use App\Utils\TenancyHelper;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
 
 class WhatsAppSupportDesk
 {
+    private const DISPATCH_MAX_ITERATIONS = 25;
     private const STATE_WAITING = 'waiting';
     private const STATE_ACTIVE = 'active';
     private const STATE_FINISHED = 'finished';
@@ -32,8 +34,14 @@ class WhatsAppSupportDesk
             ])
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        $queueIds = array_values(array_filter(array_map(
+            static fn (array $queue): int => (int)($queue['id'] ?? 0),
+            $queues
+        )));
+        $agentsByQueue = self::listQueueAgentsBatch($user, $queueIds);
+
         foreach ($queues as &$queue) {
-            $queue['agents'] = self::listQueueAgents($user, (int)$queue['id']);
+            $queue['agents'] = $agentsByQueue[(int)($queue['id'] ?? 0)] ?? [];
         }
         unset($queue);
 
@@ -392,9 +400,39 @@ class WhatsAppSupportDesk
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public static function latestEventId(array $user): int
+    {
+        $params = [];
+        $where = '1=1';
+
+        if (!self::isSuperAdmin($user)) {
+            $where = 'tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $user['tenancy_id'];
+        }
+
+        $value = (new Database('whatsapp_support_events'))
+            ->select($where, $params, '', '1', ['MAX(id) AS latest_id'])
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return (int)($value['latest_id'] ?? 0);
+    }
+
+    public static function emitConversationMessageStatus(string $tenancyId, int $conversationId, int $messageId, string $status, ?string $wamid = null): void
+    {
+        if ($tenancyId === '' || $conversationId <= 0 || $messageId <= 0 || $status === '') {
+            return;
+        }
+
+        self::emitEvent($tenancyId, 'conversation.message', [
+            'conversation_id' => $conversationId,
+            'message_id' => $messageId,
+            'wamid' => $wamid,
+            'status' => $status,
+        ]);
+    }
+
     public static function handleInboundConversation(int $conversationId, array $account, string $body = ''): ?array
     {
-        self::ensureSupportTicketLinkColumn();
         $shouldCreateSupportTicket = self::shouldAutoOpenSupportForAccount($account);
 
         $existing = self::getOpenSessionByConversation($conversationId);
@@ -479,8 +517,6 @@ class WhatsAppSupportDesk
 
     public static function finishSession(array $user, int $sessionId): bool
     {
-        self::ensureSupportTicketLinkColumn();
-
         $session = self::getSessionForUser($sessionId, $user);
         if (!$session || $session['state'] === self::STATE_FINISHED) {
             return false;
@@ -537,8 +573,6 @@ class WhatsAppSupportDesk
 
     public static function appendTicketMessageForConversation(array $user, int $conversationId, string $senderType, string $body): void
     {
-        self::ensureSupportTicketLinkColumn();
-
         $session = self::getOpenSessionByConversation($conversationId);
         if (!$session) {
             return;
@@ -582,7 +616,7 @@ class WhatsAppSupportDesk
             'assigned_agent_user_id' => $values['assigned_agent_user_id'],
             'queue_status' => $values['state'] === self::STATE_ACTIVE
                 ? self::CONVERSATION_STATUS_ACTIVE
-                : self::CONVERSATION_STATUS_TRANSFERRED,
+                : self::CONVERSATION_STATUS_WAITING,
             'queued_at' => $values['queued_at'],
         ]);
         self::registerQueueHistory(
@@ -868,7 +902,9 @@ class WhatsAppSupportDesk
         }
 
         try {
-            while (true) {
+            $iterations = 0;
+            while ($iterations < self::DISPATCH_MAX_ITERATIONS) {
+                $iterations++;
                 $agent = self::selectLeastLoadedAgent($queueId);
                 if (!$agent) {
                     return;
@@ -883,6 +919,11 @@ class WhatsAppSupportDesk
                     continue;
                 }
             }
+
+            PerformanceTelemetry::log('whatsapp.dispatch_guard', [
+                'queue_id' => $queueId,
+                'iterations' => $iterations,
+            ]);
         } finally {
             $connection->execute('SELECT RELEASE_LOCK(:lock_name)', [':lock_name' => $lockName]);
         }
@@ -1103,6 +1144,45 @@ class WhatsAppSupportDesk
                 ]
             )
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function listQueueAgentsBatch(array $user, array $queueIds): array
+    {
+        $queueIds = array_values(array_filter(array_map('intval', $queueIds)));
+        if ($queueIds === []) {
+            return [];
+        }
+
+        $params = [':tenancy_id' => $user['tenancy_id']];
+        $placeholders = [];
+        foreach ($queueIds as $index => $queueId) {
+            $key = ':queue_id_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $queueId;
+        }
+
+        $rows = (new Database('whatsapp_support_queue_agents qa
+            LEFT JOIN users u ON u.id = qa.agent_user_id AND u.tenancy_id = qa.tenancy_id'))
+            ->execute(
+                "SELECT
+                    qa.*,
+                    u.name AS agent_name,
+                    u.user_function AS agent_role
+                 FROM whatsapp_support_queue_agents qa
+                 LEFT JOIN users u ON u.id = qa.agent_user_id AND u.tenancy_id = qa.tenancy_id
+                 WHERE qa.tenancy_id = :tenancy_id
+                   AND qa.queue_id IN (" . implode(', ', $placeholders) . ")
+                 ORDER BY u.name ASC, qa.agent_user_id ASC",
+                $params
+            )
+            ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $grouped[(int)($row['queue_id'] ?? 0)][] = $row;
+        }
+
+        return $grouped;
     }
 
     private static function listSessionsForUser(array $user, string $state): array
@@ -1448,33 +1528,6 @@ class WhatsAppSupportDesk
             'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
-    }
-
-    private static function ensureSupportTicketLinkColumn(): void
-    {
-        static $checked = false;
-        if ($checked) {
-            return;
-        }
-
-        $exists = (new Database())->execute("
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'whatsapp_support_sessions'
-              AND COLUMN_NAME = 'support_ticket_id'
-            LIMIT 1
-        ")->fetch(PDO::FETCH_ASSOC);
-
-        if (!$exists) {
-            (new Database())->execute("
-                ALTER TABLE whatsapp_support_sessions
-                    ADD COLUMN support_ticket_id INT UNSIGNED NULL AFTER conversation_id,
-                    ADD KEY idx_wass_support_ticket (support_ticket_id)
-            ");
-        }
-
-        $checked = true;
     }
 
     private static function normalizeAgentStatus(string $status): string

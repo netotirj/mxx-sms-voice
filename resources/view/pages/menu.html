@@ -27,54 +27,67 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const path = window.location.pathname.replace(/\/$/, '');
-    const currentFullPath = path + window.location.search + window.location.hash;
-    const navLinks = document.querySelectorAll('a.nav-link');
-    let submenuToOpen = null;
+    function refreshSidenavActiveState() {
+      const path = window.location.pathname.replace(/\/$/, '');
+      const currentFullPath = path + window.location.search + window.location.hash;
+      const navLinks = document.querySelectorAll('a.nav-link');
+      let submenuToOpen = null;
 
-    navLinks.forEach(link => {
-      const href = link.getAttribute('href');
-      if (!href) return;
-      const hrefUrl = new URL(href, window.location.origin);
-      const hrefPath = hrefUrl.pathname.replace(/\/$/, '');
-      const hrefFullPath = hrefPath + hrefUrl.search + hrefUrl.hash;
-      const hrefHasState = hrefUrl.search !== '' || hrefUrl.hash !== '';
-      const currentHasState = window.location.search !== '' || window.location.hash !== '';
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        const hrefUrl = new URL(href, window.location.origin);
+        const hrefPath = hrefUrl.pathname.replace(/\/$/, '');
+        const hrefFullPath = hrefPath + hrefUrl.search + hrefUrl.hash;
+        const hrefHasState = hrefUrl.search !== '' || hrefUrl.hash !== '';
+        const currentHasState = window.location.search !== '' || window.location.hash !== '';
 
-      if ((hrefHasState && currentFullPath === hrefFullPath) || (!hrefHasState && !currentHasState && path === hrefPath)) {
-        const isInsideSubmenu = link.closest('.submenu-items');
-
-        // Mantemos o texto estático: pl-6 apenas no principal
-        if (isInsideSubmenu) {
-          link.classList.add('bg-blue-500/10', 'font-semibold', 'text-slate-700');
-        } else {
-          link.classList.add('bg-blue-500/10', 'font-semibold', 'text-slate-700', 'pl-6');
-        }
-
-        if (!link.querySelector('.active-dot')) {
-          const dot = document.createElement('span');
+        if ((hrefHasState && currentFullPath === hrefFullPath) || (!hrefHasState && !currentHasState && path === hrefPath)) {
+          const isInsideSubmenu = link.closest('.submenu-items');
 
           if (isInsideSubmenu) {
-            // PARA SUBMENU:
-            // O segredo está no left-8. Ele entra exatamente no espaço do recuo do Argon.
-            dot.className = 'active-dot absolute left-8 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 z-50';
+            link.classList.add('bg-blue-500/10', 'font-semibold', 'text-slate-700');
           } else {
-            // PARA MENU PRINCIPAL:
-            dot.className = 'active-dot absolute left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 z-50';
+            link.classList.add('bg-blue-500/10', 'font-semibold', 'text-slate-700', 'pl-6');
           }
 
-          // USAR PREPEND PARA O POSICIONAMENTO FICAR RELATIVO AO INÍCIO DO BOTÃO
-          link.prepend(dot);
-        }
+          if (!link.querySelector('.active-dot')) {
+            const dot = document.createElement('span');
+            dot.className = isInsideSubmenu
+              ? 'active-dot absolute left-8 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 z-50'
+              : 'active-dot absolute left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-gradient-to-tl from-blue-500 to-violet-500 z-50';
+            link.prepend(dot);
+          }
 
-        const submenu = link.closest('.submenu');
-        if (submenu && !submenuToOpen) submenuToOpen = submenu;
-      } else {
-        link.classList.remove('bg-blue-500/10', 'font-semibold', 'text-slate-700', 'pl-6');
-        const existingDot = link.querySelector('.active-dot');
-        if (existingDot) existingDot.remove();
+          const submenu = link.closest('.submenu');
+          if (submenu && !submenuToOpen) submenuToOpen = submenu;
+        } else {
+          link.classList.remove('bg-blue-500/10', 'font-semibold', 'text-slate-700', 'pl-6');
+          const existingDot = link.querySelector('.active-dot');
+          if (existingDot) existingDot.remove();
+        }
+      });
+
+      document.querySelectorAll('.submenu.open').forEach(submenu => {
+        if (submenu !== submenuToOpen) {
+          submenu.classList.remove('open');
+          const items = submenu.querySelector('.submenu-items');
+          if (items) items.style.maxHeight = '0px';
+          const toggle = submenu.querySelector('.submenu-toggle');
+          if (toggle) toggle.classList.remove('rotate-180');
+        }
+      });
+
+      if (submenuToOpen) {
+        submenuToOpen.classList.add('open');
+        const items = submenuToOpen.querySelector('.submenu-items');
+        if (items) items.style.maxHeight = `${items.scrollHeight}px`;
+        const toggle = submenuToOpen.querySelector('.submenu-toggle');
+        if (toggle) toggle.classList.add('rotate-180');
       }
-    });
+    }
+
+    window.refreshSidenavActiveState = refreshSidenavActiveState;
 
     // Lógica do Toggle (seu padrão)
     document.querySelectorAll('.submenu-header').forEach(header => {
@@ -88,12 +101,6 @@
       });
     });
 
-    if (submenuToOpen) {
-      submenuToOpen.classList.add('open');
-      const items = submenuToOpen.querySelector('.submenu-items');
-      items.style.maxHeight = `${items.scrollHeight}px`;
-      const toggle = submenuToOpen.querySelector('.submenu-toggle');
-      if(toggle) toggle.classList.add('rotate-180');
-    }
+    refreshSidenavActiveState();
   });
 </script>

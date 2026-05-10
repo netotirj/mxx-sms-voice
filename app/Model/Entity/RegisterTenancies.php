@@ -1,6 +1,10 @@
 <?php
 
 namespace App\Model\Entity;
+
+use App\Service\AuthContext;
+use App\Service\PlanRuntimeService;
+use App\Support\RequestCache;
 use PDOStatement;
 use WilliamCosta\DatabaseManager\Database;
 
@@ -73,7 +77,13 @@ class RegisterTenancies
             ':tenancy_id'  => $tenancyId
         ];
 
-        return (new Database())->execute($query, $params) != false;
+        $updated = (new Database())->execute($query, $params) != false;
+        if ($updated) {
+            PlanRuntimeService::invalidatePlanCache($tenancyId);
+            AuthContext::invalidate($tenancyId);
+        }
+
+        return $updated;
     }
 
     /**
@@ -84,13 +94,13 @@ class RegisterTenancies
      */
     public static function getActivePlanId(string $tenancyId): ?int
     {
-        $query = "SELECT active_plan_id FROM tenancies WHERE id = :id";
+        return RequestCache::remember('tenancy.active_plan.' . $tenancyId, static function () use ($tenancyId): ?int {
+            $query = "SELECT active_plan_id FROM tenancies WHERE id = :id";
+            $params = [':id' => $tenancyId];
+            $result = (new Database())->execute($query, $params)->fetchObject();
 
-        $params = [':id' => $tenancyId];
-
-        $result = (new Database())->execute($query, $params)->fetchObject();
-
-        return $result && $result->active_plan_id ? (int) $result->active_plan_id : null;
+            return $result && $result->active_plan_id ? (int)$result->active_plan_id : null;
+        });
     }
 
     public static function getTenancyByAdminEmail(string $email): ?object
@@ -219,8 +229,8 @@ class RegisterTenancies
             'Operador'
         );
 
-        // 2. Liberar todas as rotas da 'sys_routes' para o Admin deste novo cliente
-        // Isso garante que o dono da conta veja tudo o que você cadastrou no catálogo global
+        // 2. Liberar apenas as rotas padrão da tenancy para o Admin deste novo cliente.
+        // Rotas reservadas ao super administrador ficam fora desse papel inicial.
         \App\Model\Entity\PermissionsRules::initAdminPermissions($this->id, $roleAdminId);
     }
 

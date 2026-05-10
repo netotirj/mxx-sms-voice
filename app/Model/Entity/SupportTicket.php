@@ -2,13 +2,14 @@
 
 namespace App\Model\Entity;
 
+use App\Service\PermissionResolver;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
 
 class SupportTicket
 {
-    private const SUPPORT_ROLES = ['support_ticket_manager', 'ticket_support'];
-    private const STATUS_MANAGER_ROLES = ['support_ticket_manager', 'ticket_support'];
+    private const SUPPORT_ROLES = ['super_admin', 'support_ticket_manager', 'ticket_support'];
+    private const STATUS_MANAGER_ROLES = ['super_admin', 'support_ticket_manager', 'ticket_support'];
     private const STATUS_ALIASES = [
         'pending' => 'waiting_customer',
         'in_progress' => 'in_progress',
@@ -31,8 +32,6 @@ class SupportTicket
 
     public static function create(array $user, array $data): int
     {
-        self::ensureClosureRequestColumns();
-
         $department = self::normalizeDepartment((string)($data['department'] ?? 'support'));
         $message = trim((string)($data['message'] ?? ''));
         $phone = preg_replace('/\D+/', '', (string)($data['requester_phone'] ?? '')) ?: null;
@@ -61,7 +60,6 @@ class SupportTicket
 
     public static function listForUser(array $user, ?string $status = null, ?string $department = null): array
     {
-        self::ensureClosureRequestColumns();
         [$where, $params] = self::scopeForUser($user, 'st');
 
         if ($status !== null && $status !== '') {
@@ -90,7 +88,6 @@ class SupportTicket
 
     public static function getForUser(int $id, array $user): ?array
     {
-        self::ensureClosureRequestColumns();
         [$scope, $params] = self::scopeForUser($user, 'st');
         $params[':id'] = $id;
 
@@ -107,7 +104,6 @@ class SupportTicket
 
     public static function getById(int $id): ?array
     {
-        self::ensureClosureRequestColumns();
         $row = (new Database('support_tickets'))
             ->select('id = :id', [':id' => $id], '', '1')
             ->fetch(PDO::FETCH_ASSOC);
@@ -172,7 +168,6 @@ class SupportTicket
 
     public static function updateStatus(int $ticketId, string $status, ?array $actor = null): bool
     {
-        self::ensureClosureRequestColumns();
         $status = self::normalizeStatus($status);
         $values = [
             'status' => $status,
@@ -207,8 +202,6 @@ class SupportTicket
 
     public static function requestClosure(int $ticketId, array $user): bool
     {
-        self::ensureClosureRequestColumns();
-
         $updated = (new Database('support_tickets'))->update(
             'id = :id',
             [
@@ -317,8 +310,6 @@ class SupportTicket
         mixed $newValue,
         ?string $ipAddress = null
     ): void {
-        self::ensureAuditTable();
-
         (new Database('support_ticket_audit_logs'))->insert([
             'ticket_id' => $ticketId,
             'user_id' => (int)($user['id'] ?? 0),
@@ -380,21 +371,7 @@ class SupportTicket
             return false;
         }
 
-        return (bool)(new Database())->execute("
-            SELECT srp.id
-            FROM user_roles ur
-            INNER JOIN sys_role_permissions srp ON srp.role_id = ur.role_id
-            INNER JOIN sys_routes sr ON sr.id = srp.route_id
-            WHERE ur.user_id = :user_id
-              AND ur.tenancy_id = :tenancy_id
-              AND srp.tenancy_id = :tenancy_id
-              AND sr.route_path = :permission
-            LIMIT 1
-        ", [
-            ':user_id' => $userId,
-            ':tenancy_id' => (string)($user['tenancy_id'] ?? ''),
-            ':permission' => $permission,
-        ])->fetch(PDO::FETCH_ASSOC);
+        return PermissionResolver::userHasPermission($user, $permission);
     }
 
     private static function ensureAuditTable(): void
@@ -522,6 +499,12 @@ class SupportTicket
         ");
 
         $synced = true;
+    }
+
+    public static function syncSchema(): void
+    {
+        self::ensureClosureRequestColumns();
+        self::ensureAuditTable();
     }
 
     private static function normalizeDepartment(string $department): string

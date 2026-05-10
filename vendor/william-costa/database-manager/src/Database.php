@@ -18,6 +18,8 @@ class Database
     private static string $user;
     private static string $pass;
     private static int $port;
+    private static array $connectionPool = [];
+    private static array $timezoneSynced = [];
 
     private string $table;
     private PDO $connection;
@@ -55,16 +57,49 @@ class Database
     {
         try {
             $dsn = "mysql:host=" . self::$host . ";dbname=" . self::$name . ";port=" . self::$port . ";charset=utf8mb4";
-            $this->connection = new PDO($dsn, self::$user, self::$pass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-            ]);
+            $poolKey = md5(json_encode([
+                'dsn' => $dsn,
+                'user' => self::$user,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            $offset = date('P');
-            $this->connection->exec("SET time_zone = '{$offset}'");
+            if (!isset(self::$connectionPool[$poolKey])) {
+                self::$connectionPool[$poolKey] = new PDO($dsn, self::$user, self::$pass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+            }
+
+            $this->connection = self::$connectionPool[$poolKey];
+            $this->syncSessionTimezone($poolKey);
         } catch (PDOException $e) {
             die('DB Connection Error: ' . $e->getMessage());
         }
+    }
+
+    private function syncSessionTimezone(string $poolKey): void
+    {
+        if (isset(self::$timezoneSynced[$poolKey])) {
+            return;
+        }
+
+        $shouldSync = filter_var((string)getenv('DB_FORCE_SESSION_TIMEZONE'), FILTER_VALIDATE_BOOLEAN);
+        $configuredTimezone = trim((string)getenv('DB_SESSION_TIMEZONE'));
+
+        if (!$shouldSync && $configuredTimezone === '') {
+            self::$timezoneSynced[$poolKey] = true;
+            return;
+        }
+
+        $timezone = $configuredTimezone !== '' ? $configuredTimezone : date('P');
+
+        try {
+            $statement = $this->connection->prepare('SET time_zone = :timezone');
+            $statement->execute([':timezone' => $timezone]);
+        } catch (PDOException) {
+            // Mantem o timezone default do servidor se a sincronização falhar.
+        }
+
+        self::$timezoneSynced[$poolKey] = true;
     }
 
     /**

@@ -13,32 +13,12 @@
             {{planSwitcherHtml}}
 
             <div class="relative w-max ml-auto flex items-center self-center">
+                <div id="headerFeatureFlags" class="hidden" data-notifications-enabled="{{notificationsEnabled}}" data-notifications-page-enabled="{{notificationsPageEnabled}}"></div>
                 {{supportTicketsHeader}}
                 {{productUpdatesHeader}}
-
-                <a href="javascript:void(0);" id="notificationBell" class="relative flex items-center justify-center cursor-pointer mr-6">
-                    <i class="fa fa-bell text-xl text-white"></i>
-                    <svg id="badgeT" class="absolute -top-1 -right-1 h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
-                        <circle id="badgePulse" cx="12" cy="12" r="12" fill="red" fill-opacity="0.5" style="display:none">
-                            <animate attributeName="r" values="12;14;12" dur="1s" repeatCount="indefinite"/>
-                            <animate attributeName="fill-opacity" values="0.5;0.2;0.5" dur="1s" repeatCount="indefinite"/>
-                        </circle>
-                        <circle cx="12" cy="12" r="10" fill="red"/>
-                        <text id="badgeCount" x="12" y="16" text-anchor="middle" font-size="12" font-weight="bold"
-                              fill="white" font-family="sans-serif">0</text>
-                    </svg>
-                </a>
+                {{notificationCenter}}
 
                 <div style="display: none;" sidenav-close></div>
-
-                <div id="dropdownMenu"
-                     class="absolute right-0 mt-2 w-100 max-h-100 overflow-y-auto rounded-lg bg-white shadow-lg opacity-0 pointer-events-none transition-all duration-200"
-                     style="z-index:9999; top: 100%;">
-                    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
-                        <p id="clearAll" class="text-xs text-blue-600 font-medium cursor-pointer">Apagar Todas</p>
-                        <p id="markAllRead" class="text-xs text-blue-600 font-medium cursor-pointer">Marcar todas como Lidas</p>
-                    </div>
-                </div>
             </div>
 
             <ul class="flex flex-row justify-end pl-0 mb-0 list-none md-max:w-full items-center">
@@ -151,6 +131,9 @@
         const badgeCount = document.getElementById('badgeCount');
         const badgePulse = document.getElementById('badgePulse');
         const dropdown = document.getElementById('dropdownMenu');
+        const headerFeatureFlags = document.getElementById('headerFeatureFlags');
+        const notificationsEnabled = headerFeatureFlags?.dataset.notificationsEnabled === '1';
+        const notificationsPageEnabled = headerFeatureFlags?.dataset.notificationsPageEnabled === '1';
         const supportTicketsButton = document.getElementById('supportTicketsButton');
         const supportTicketsMenu = document.getElementById('supportTicketsMenu');
         const supportTicketsList = document.getElementById('supportTicketsList');
@@ -170,7 +153,7 @@
 
         // Container para notificações
         let msgNot = document.getElementById('msgNot');
-        if (!msgNot) {
+        if (!msgNot && dropdown) {
             msgNot = document.createElement('div');
             msgNot.id = 'msgNot';
             dropdown.appendChild(msgNot);
@@ -217,9 +200,10 @@
                         </div>
                     </li>
                 `).join('')}
+                ${notificationsPageEnabled ? `
                 <li class="text-center mt-2">
                     <a href="${baseUrl}/reports/notifications" class="text-sm font-semibold text-blue-600 hover:underline block py-2">Ver todas</a>
-                </li>
+                </li>` : ''}
             </ul>`;
             }
 
@@ -476,6 +460,7 @@
 
         function loadSupportTickets() {
             if (!supportTicketsList || typeof axios === 'undefined') return;
+            supportTicketsList.dataset.loaded = '1';
 
             axios.get(`${headerBaseUrl}/support/tickets?status=open`)
                 .then(response => renderSupportTickets(response.data?.data || []))
@@ -486,6 +471,7 @@
 
         function loadProductUpdates() {
             if (!productUpdatesList || typeof axios === 'undefined') return;
+            productUpdatesList.dataset.loaded = '1';
 
             axios.get(`${headerBaseUrl}/system-updates/header`)
                 .then(response => renderProductUpdates(response.data?.data || []))
@@ -571,8 +557,9 @@
             supportTicketsMenu.classList.toggle('opacity-0');
             supportTicketsMenu.classList.toggle('pointer-events-none');
 
-            if (!supportTicketsMenu.classList.contains('opacity-0')) {
+            if (!supportTicketsMenu.classList.contains('opacity-0') && supportTicketsList.dataset.loaded !== '1') {
                 loadSupportTickets();
+                startHeaderRealtime();
             }
         }
 
@@ -586,10 +573,11 @@
             productUpdatesMenu.classList.toggle('opacity-0');
             productUpdatesMenu.classList.toggle('pointer-events-none');
 
-            if (!productUpdatesMenu.classList.contains('opacity-0')) {
+            if (!productUpdatesMenu.classList.contains('opacity-0') && productUpdatesList.dataset.loaded !== '1') {
                 localStorage.setItem('product_updates_seen_marker', productUpdatesSeenMarker);
                 productUpdatesBadge?.classList.add('hidden');
                 loadProductUpdates();
+                startHeaderRealtime();
             }
         }
 
@@ -601,10 +589,11 @@
             event.preventDefault();
             event.stopPropagation();
             loadSupportTickets();
+            startHeaderRealtime();
         });
 
         document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target) && !(bell && bell.contains(e.target)) && !(badgeT && badgeT.contains(e.target))) {
+            if (dropdown && !dropdown.contains(e.target) && !(bell && bell.contains(e.target)) && !(badgeT && badgeT.contains(e.target))) {
                 dropdown.classList.add('opacity-0');
                 dropdown.classList.add('pointer-events-none');
             }
@@ -628,16 +617,79 @@
             }
         });
 
-        loadSupportTickets();
-        loadProductUpdates();
-        document.addEventListener('support:tickets-updated', loadSupportTickets);
-        window.setInterval(loadSupportTickets, 60000);
-        window.setInterval(loadProductUpdates, 60000);
+        let headerSupportTicketsTimer = null;
+        let headerProductUpdatesTimer = null;
+        let notificationsSse = null;
+        let notificationsSseReconnectTimer = null;
+        let notificationsSseFailureCount = 0;
+        let notificationsSseCooldownUntil = 0;
+        const HEADER_NOTIFICATIONS_RETRY_MS = 10000;
+        const HEADER_NOTIFICATIONS_RETRY_MAX_MS = 120000;
+        const HEADER_NOTIFICATIONS_FAILURE_THRESHOLD = 3;
+        const HEADER_NOTIFICATIONS_COOLDOWN_MS = 300000;
 
-        // --- SSE PARA NOTIFICAÇÕES EM TEMPO REAL ---
-        if (typeof(EventSource) !== 'undefined') {
-            const sse = new EventSource(`${baseUrl}/notifications`);
-            sse.addEventListener('notifications', event => {
+        function resetNotificationsSseFailures() {
+            notificationsSseFailureCount = 0;
+        }
+
+        function nextNotificationsSseRetryDelay() {
+            notificationsSseFailureCount += 1;
+            return Math.min(
+                HEADER_NOTIFICATIONS_RETRY_MS * Math.max(1, Math.pow(2, notificationsSseFailureCount - 1)),
+                HEADER_NOTIFICATIONS_RETRY_MAX_MS
+            );
+        }
+
+        function scheduleNotificationsSseReconnect(delay) {
+            if (document.hidden || notificationsSseReconnectTimer || notificationsSseCooldownUntil > Date.now()) {
+                return;
+            }
+
+            notificationsSseReconnectTimer = window.setTimeout(() => {
+                notificationsSseReconnectTimer = null;
+                connectNotificationsSse();
+            }, delay);
+        }
+
+        function tripNotificationsSseCircuitBreaker() {
+            notificationsSseCooldownUntil = Date.now() + HEADER_NOTIFICATIONS_COOLDOWN_MS;
+            notificationsSse?.close?.();
+            notificationsSse = null;
+            console.warn('Notifications SSE em cooldown temporario.', {
+                retryAfterMs: HEADER_NOTIFICATIONS_COOLDOWN_MS,
+                failures: notificationsSseFailureCount
+            });
+            if (notificationsSseReconnectTimer) {
+                window.clearTimeout(notificationsSseReconnectTimer);
+            }
+            notificationsSseReconnectTimer = window.setTimeout(() => {
+                notificationsSseReconnectTimer = null;
+                if (!document.hidden) {
+                    if (notificationsSseCooldownUntil <= Date.now()) {
+                        notificationsSseCooldownUntil = 0;
+                        resetNotificationsSseFailures();
+                    }
+                    connectNotificationsSse();
+                }
+            }, HEADER_NOTIFICATIONS_COOLDOWN_MS);
+        }
+
+        function connectNotificationsSse() {
+            if (!notificationsEnabled) {
+                return;
+            }
+
+            if (notificationsSse || typeof(EventSource) === 'undefined' || document.hidden) {
+                return;
+            }
+
+            if (notificationsSseCooldownUntil > Date.now()) {
+                return;
+            }
+
+            notificationsSse = new EventSource(`${baseUrl}/notifications`);
+            notificationsSse.addEventListener('notifications', event => {
+                resetNotificationsSseFailures();
                 const data = JSON.parse(event.data);
                 if (!data) return;
 
@@ -646,7 +698,87 @@
 
                 renderNotifications(data.notifications);
             });
+            notificationsSse.onerror = () => {
+                const connectionState = notificationsSse?.readyState;
+                notificationsSse?.close?.();
+                notificationsSse = null;
+
+                if (document.hidden || connectionState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextNotificationsSseRetryDelay();
+                if (notificationsSseFailureCount >= HEADER_NOTIFICATIONS_FAILURE_THRESHOLD) {
+                    tripNotificationsSseCircuitBreaker();
+                    return;
+                }
+
+                scheduleNotificationsSseReconnect(delay);
+            };
         }
+
+        function startHeaderRealtime() {
+            if (supportTicketsList?.dataset.loaded === '1' && !headerSupportTicketsTimer) {
+                headerSupportTicketsTimer = window.setInterval(() => {
+                    if (!document.hidden) loadSupportTickets();
+                }, 180000);
+            }
+
+            if (productUpdatesList?.dataset.loaded === '1' && !headerProductUpdatesTimer) {
+                headerProductUpdatesTimer = window.setInterval(() => {
+                    if (!document.hidden) loadProductUpdates();
+                }, 180000);
+            }
+        }
+
+        function stopHeaderRealtime() {
+            if (notificationsSseReconnectTimer) {
+                window.clearTimeout(notificationsSseReconnectTimer);
+                notificationsSseReconnectTimer = null;
+            }
+
+            if (headerSupportTicketsTimer) {
+                window.clearInterval(headerSupportTicketsTimer);
+                headerSupportTicketsTimer = null;
+            }
+
+            if (headerProductUpdatesTimer) {
+                window.clearInterval(headerProductUpdatesTimer);
+                headerProductUpdatesTimer = null;
+            }
+
+            notificationsSse?.close?.();
+            notificationsSse = null;
+        }
+
+        document.addEventListener('support:tickets-updated', loadSupportTickets);
+
+        // --- SSE PARA NOTIFICAÇÕES EM TEMPO REAL ---
+        connectNotificationsSse();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopHeaderRealtime();
+                return;
+            }
+
+            if (notificationsSseCooldownUntil > 0 && notificationsSseCooldownUntil <= Date.now()) {
+                notificationsSseCooldownUntil = 0;
+                resetNotificationsSseFailures();
+            }
+
+            if (supportTicketsList?.dataset.loaded === '1') {
+                loadSupportTickets();
+            }
+
+            if (productUpdatesList?.dataset.loaded === '1') {
+                loadProductUpdates();
+            }
+
+            startHeaderRealtime();
+            connectNotificationsSse();
+        });
+        window.addEventListener('beforeunload', stopHeaderRealtime);
     });
 </script>
 
@@ -672,14 +804,19 @@
             "support": "Suporte",
             "system-updates": "Atualizações",
             "settings": "Configurações",
-            "permissions": "Permissões"
+            "permissions": "Permissões",
+            "plans": "Planos"
         };
 
         const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
         const parts = path.split("/").filter(Boolean);
         const routeKey = parts.join("/");
         const fallbackPart = parts[parts.length - 1] || "dashboard";
-        const currentTitle = routeTitles[routeKey] || routeTitles[fallbackPart] || fallbackPart.replace(/[-_]/g, " ");
+        const queryParams = new URLSearchParams(window.location.search);
+        let currentTitle = routeTitles[routeKey] || routeTitles[fallbackPart] || fallbackPart.replace(/[-_]/g, " ");
+        if (routeKey === "reports/whatsapp") {
+            currentTitle = queryParams.get("report") === "voice" ? "WhatsApp Voz" : "WhatsApp Mensagem";
+        }
         const homeHref = parts.length ? `/${parts[0]}` : "/";
 
         breadcrumbEl.innerHTML = "";

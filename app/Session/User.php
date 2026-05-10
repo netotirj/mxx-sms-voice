@@ -3,6 +3,7 @@
 namespace App\Session;
 
 use App\Model\Entity\UserAuthentication;
+use App\Service\PermissionResolver;
 use Random\RandomException;
 
 
@@ -12,12 +13,21 @@ use Random\RandomException;
  */
 class User
 {
+    private const RUNTIME_CACHE_KEYS = [
+        'permission_cache',
+        'auth_context_cache',
+        'plan_runtime_cache',
+    ];
 
     /**
      * Inicia a sessão PHP de forma segura se ainda não iniciada.
      */
     public static function ensureSessionStarted(): void
     {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
@@ -47,6 +57,8 @@ class User
             'timezone'      => $obUser->timezone ?? 'America/Sao_Paulo',
             'timeSession'   => time()
         ];
+
+        PermissionResolver::warmUserAccess($_SESSION['user']);
 
         if ($remember) {
             self::setRememberMeToken($obUser, $obUser->tenancy_id);
@@ -142,6 +154,8 @@ class User
                 'timeSession'  => time()
             ];
 
+            PermissionResolver::warmUserAccess($_SESSION['user']);
+
             return true;
         }
 
@@ -166,6 +180,20 @@ class User
 
         // Limpa sessão
         unset($_SESSION['user']);
+        self::clearRuntimeCaches();
         session_destroy();
+    }
+
+    public static function clearRuntimeCaches(): void
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        self::ensureSessionStarted();
+
+        foreach (self::RUNTIME_CACHE_KEYS as $key) {
+            unset($_SESSION[$key]);
+        }
     }
 }

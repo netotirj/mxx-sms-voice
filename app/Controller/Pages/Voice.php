@@ -13,6 +13,8 @@ use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
+use App\Service\PlanAccessPolicy;
+use App\Service\PlanRuntimeService;
 use App\Service\WhatsAppBilling;
 use App\Service\VoicePricingService;
 use App\RedisConn;
@@ -96,7 +98,13 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
-        $content = View::render('/voice/sip-devices', []);
+        $planWebrtcEnabled = strtolower((string)($obUser['function'] ?? '')) === 'super_admin'
+            ? 'true'
+            : (PlanRuntimeService::canUseFeature((string)($obUser['tenancy_id'] ?? ''), 'webrtc') ? 'true' : 'false');
+
+        $content = View::render('/voice/sip-devices', [
+            'plan_webrtc_enabled' => $planWebrtcEnabled,
+        ]);
         return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
     }
 
@@ -167,7 +175,7 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
-        self::processCdrFromRedis();
+        self::processCdrFromRedis(false);
 
         // ==============================
         // 🔄 FORMATANDO OS DADOS
@@ -3061,9 +3069,9 @@ class Voice extends ViewComponents
      *
      * Mantido como fachada para não quebrar chamadas existentes em rotas/telas.
      */
-    public static function processCdrFromRedis(): void
+    public static function processCdrFromRedis(bool $emitDebug = false): void
     {
-        VoiceCdrRedisProcessor::process();
+        VoiceCdrRedisProcessor::process(null, $emitDebug);
     }
 
 
@@ -3166,6 +3174,17 @@ class Voice extends ViewComponents
         $userId   = (int)$obUser['id'];
         $isReseller = ($userRole === 'reseller');
         $targetUserId = (!empty($inputData['user_id'])) ? (int)$inputData['user_id'] : $userId;
+        $webrtcRequested = strtolower((string)($inputData['webrtc'] ?? 'no')) === 'yes';
+
+        if ($webrtcRequested) {
+            $webrtcAccess = PlanRuntimeService::assertCanUseFeature($tenantId, 'webrtc');
+            if (empty($webrtcAccess['allowed'])) {
+                return new Response(403, json_encode([
+                    'success' => false,
+                    'message' => 'Seu plano atual não permite criar ramal WebRTC. Crie um SIP comum ou libere o módulo no plano.'
+                ]), 'application/json');
+            }
+        }
 
         // 1. Lógica para definir a ROLE REAL do dono do ramal
         if ($targetUserId === $userId) {
@@ -3734,6 +3753,11 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
+        $planAccess = self::assertTrunkCreationAllowedForTenancy($obUser);
+        if ($planAccess instanceof Response) {
+            return $planAccess;
+        }
+
         try {
 
             $query = [
@@ -3785,6 +3809,72 @@ class Voice extends ViewComponents
                 'message' => $e->getMessage()
             ], 'application/json');
         }
+    }
+
+    private static function assertTrunkCreationAllowedForTenancy(array $user): ?Response
+    {
+        $tenancyId = (string)($user['tenancy_id'] ?? '');
+        if ($tenancyId === '') {
+            return null;
+        }
+
+        try {
+            $currentCount = self::currentTenantTrunkCount($user);
+        } catch (\Throwable $e) {
+            return new Response(409, [
+                'success' => false,
+                'message' => 'Não foi possível validar o limite de trunks do plano.',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $access = PlanAccessPolicy::assertCanCreateTrunk($tenancyId, $currentCount);
+        if (!($access['allowed'] ?? false)) {
+            return new Response(409, [
+                'success' => false,
+                'message' => (string)($access['message'] ?? 'Limite de trunks do plano atingido.'),
+            ], 'application/json');
+        }
+
+        return null;
+    }
+
+    private static function currentTenantTrunkCount(array $user): int
+    {
+        $tenancyId = (string)($user['tenancy_id'] ?? '');
+        if ($tenancyId === '') {
+            return 0;
+        }
+
+        $asterisk = new AsteriskExtensionsSip();
+        $result = $asterisk->listTrunks([
+            'tenant_id' => $tenancyId,
+            'role' => 'admin',
+        ]);
+
+        if (empty($result['ok']) || !$result['ok']) {
+            throw new \RuntimeException((string)($result['error'] ?? 'Falha ao consultar trunks da tenancy.'));
+        }
+
+        $data = $result['data']['data'] ?? $result['data'] ?? [];
+        $count = 0;
+
+        foreach ((array)$data as $trunk) {
+            if (!is_array($trunk)) {
+                continue;
+            }
+
+            $trunkTenancyId = (string)($trunk['tenant_id'] ?? $trunk['tenancy_id'] ?? '');
+            $isSystem = (int)($trunk['is_system'] ?? 0) === 1;
+
+            if ($trunkTenancyId !== $tenancyId || $isSystem) {
+                continue;
+            }
+
+            $count++;
+        }
+
+        return $count;
     }
 
     public static function setEditSipTrunks($request, $id): Response
@@ -4438,7 +4528,7 @@ final class VoiceCdrRedisProcessor
 {
     private const QUEUE_KEY = 'asterisk:tarifacoes';
 
-    public static function process(?RedisClient $redis = null): void
+    public static function process(?RedisClient $redis = null, bool $emitDebug = true): void
     {
         try {
             $redis ??= self::redis();
@@ -4456,22 +4546,22 @@ final class VoiceCdrRedisProcessor
                     VoiceCdrDebug::send([
                         'skip' => true,
                         'reason' => 'invalid_tariff_payload',
-                    ]);
+                    ], $emitDebug);
                     continue;
                 }
 
-                self::processPayload($redis, $tariff);
+                self::processPayload($redis, $tariff, $emitDebug);
             }
         } catch (Throwable $e) {
             VoiceCdrDebug::send([
                 'erro' => true,
                 'mensagem' => 'Erro ao gravar CDR',
                 'detalhes' => $e->getMessage(),
-            ]);
+            ], $emitDebug);
         }
     }
 
-    private static function processPayload(RedisClient $redis, array $tariff): void
+    private static function processPayload(RedisClient $redis, array $tariff, bool $emitDebug): void
     {
         $cdr = VoiceCdrMapper::fromTariff($tariff);
 
@@ -4491,7 +4581,7 @@ final class VoiceCdrRedisProcessor
             'duracao' => $cdr->duration,
             'status' => $cdr->dialstatus,
             'motivo' => $cdr->cause_txt,
-        ]);
+        ], $emitDebug);
     }
 
     private static function redis(): RedisClient
@@ -5030,8 +5120,14 @@ final class VoiceBillingProcessor
 
 final class VoiceCdrDebug
 {
-    public static function send(array $payload): void
+    public static function send(array $payload, bool $emit = true): void
     {
+        error_log('[voice_cdr_debug] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        if (!$emit) {
+            return;
+        }
+
         echo "event: debug\n";
         echo 'data: ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n\n";
 

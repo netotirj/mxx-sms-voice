@@ -17,6 +17,7 @@ include __DIR__.'/dash/reports.php';
 include __DIR__.'/dash/site-tests.php';
 include __DIR__.'/dash/users.php';
 include __DIR__.'/dash/permissions.php';
+include __DIR__.'/dash/plans.php';
 include __DIR__.'/dash/rates.php';
 include __DIR__.'/dash/voice.php';
 include __DIR__.'/dash/whatsapp.php';

@@ -26,8 +26,6 @@ class Notifications
      */
     public static function insertNotifications(string $tenancyId, int $userId, string $title, string $message ,string $type): false|int
     {
-        self::ensureTable();
-
         return (new Database('notifications'))->insert([
             'tenancy_id' => $tenancyId,
             'user_id'    => $userId,
@@ -67,5 +65,10 @@ class Notifications
         ");
 
         $checked = true;
+    }
+
+    public static function syncSchema(): void
+    {
+        self::ensureTable();
     }
 }

@@ -298,8 +298,29 @@
         // Auto Reload
         autoReload.onchange = () => {
             if (autoReloadTimer) clearInterval(autoReloadTimer);
-            if (autoReload.checked) autoReloadTimer = setInterval(() => fetchRefills(false), intervalSel.value);
+            if (autoReload.checked) {
+                autoReloadTimer = setInterval(() => {
+                    if (!document.hidden) fetchRefills(false);
+                }, intervalSel.value);
+            }
         };
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (autoReloadTimer) clearInterval(autoReloadTimer);
+                autoReloadTimer = null;
+                return;
+            }
+
+            if (autoReload.checked) {
+                fetchRefills(false);
+                autoReload.onchange();
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+            if (autoReloadTimer) clearInterval(autoReloadTimer);
+            autoReloadTimer = null;
+        });
 
         // Exportação CSV (Padrão Excel)
         document.getElementById('refillExportCsv').onclick = () => {

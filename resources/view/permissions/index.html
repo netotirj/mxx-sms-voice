@@ -141,8 +141,8 @@
     </div>
 </div>
 
-<div id="roleModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
+<div id="roleModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-[100050] p-4">
+    <div class="relative z-[100051] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
         <div class="p-6 pb-2 flex items-start justify-between">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="ni ni-badge text-xl"></i></div>
@@ -167,6 +167,13 @@
                     <option value="n">Inativo</option>
                 </select>
             </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Criar A Partir Do Modelo</label>
+                <select name="template_name" id="role_template_name" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm dark:bg-slate-800 dark:text-white outline-none">
+                    <option value="">Sem modelo</option>
+                </select>
+                <p id="roleTemplateHint" class="mt-2 text-[11px] text-slate-400">Opcional. Se escolher um modelo do sistema, o novo papel já nasce com uma cópia dessas permissões.</p>
+            </div>
             <div class="flex items-center justify-end gap-3 pt-6 border-t dark:border-slate-800">
                 <button type="button" onclick="closeRoleModal()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
                 <button type="submit" id="saveRoleBtn" class="bg-gradient-to-tr from-blue-700 to-blue-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2"><i class="ni ni-check-bold text-[10px]"></i> Salvar Perfil</button>
@@ -175,8 +182,8 @@
     </div>
 </div>
 
-<div id="permissionsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+<div id="permissionsModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-[100050] p-4">
+    <div class="relative z-[100051] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-100 dark:border-slate-800">
         <div class="p-6 pb-4 flex items-start justify-between border-b dark:border-slate-800">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg"><i class="ni ni-settings-gear-65 text-xl"></i></div>
@@ -188,23 +195,31 @@
             <button onclick="closePermissionsModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100"><i class="fa fa-times text-sm"></i></button>
         </div>
         <div class="px-6 py-3 bg-slate-50 dark:bg-slate-900/50">
+            <div id="permissionsRoleContext" class="hidden mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"></div>
             <div class="relative">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
                 <input type="text" id="searchRouteModal" oninput="filterRoutesInModal()" class="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 dark:text-white text-sm outline-none" placeholder="Procurar módulo ou rota...">
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto" style="max-height: 450px;" id="permissions-modal-content">
+        <div class="flex-1 overflow-y-auto" style="max-height: 380px;" id="permissions-modal-content">
         </div>
 
         <div class="p-4 border-t dark:border-slate-800 text-right bg-slate-50 dark:bg-slate-800/50">
-            <button onclick="closePermissionsModal()" class="px-6 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-lg uppercase tracking-wider">Concluir</button>
+            <div class="flex items-center justify-between gap-3">
+                <button type="button"
+                        onclick="clearAllPermissions()"
+                        class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all">
+                    Limpar Tudo
+                </button>
+                <button onclick="closePermissionsModal()" class="px-6 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-lg uppercase tracking-wider">Concluir</button>
+            </div>
         </div>
     </div>
 </div>
 
-<div id="globalRouteModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-50 p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
+<div id="globalRouteModal" class="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden z-[100050] p-4">
+    <div class="relative z-[100051] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
 
         <div class="p-6 pb-2 flex items-start justify-between">
             <div class="flex items-center gap-4">
@@ -311,11 +326,680 @@
     let filteredRolesData = [];
     let afCurrentPage = 1;
     let currentRoleId = null;
+    let currentPermissionsPayload = [];
+    let availableRoleTemplates = [];
+    let permissionsBulkActionInProgress = false;
+    const permissionToggleRequests = new Set();
+
+    function getRoleById(roleId) {
+        return rawRolesData.find(r => Number(r.id) === Number(roleId)) || null;
+    }
+
+    function fillRoleTemplateSelect(selectedValue = '', disableSelection = false) {
+        const select = document.getElementById('role_template_name');
+        const hint = document.getElementById('roleTemplateHint');
+        if (!select) return;
+
+        const options = ['<option value="">Sem modelo</option>']
+            .concat((availableRoleTemplates || []).map((template) => {
+                const name = String(template.name || '').trim();
+                const label = String(template.label || template.display_name || name).trim();
+                return `<option value="${name}">${label}</option>`;
+            }));
+
+        select.innerHTML = options.join('');
+        select.value = selectedValue || '';
+        select.disabled = disableSelection;
+
+        if (hint) {
+            hint.textContent = disableSelection
+                ? 'A edição mantém o modelo já vinculado. Para reaplicar as permissões do sistema, use o botão de sincronizar na lista.'
+                : 'Opcional. Se escolher um modelo do sistema, o novo papel já nasce com uma cópia dessas permissões.';
+        }
+    }
+
+    async function loadRoleTemplates() {
+        if ((availableRoleTemplates || []).length > 0) {
+            return availableRoleTemplates;
+        }
+
+        const response = await fetch(`${baseUrl}/permissions/templates`);
+        const payload = await response.json();
+        if (payload.status !== 'ok') {
+            throw new Error(payload.message || 'Não foi possível carregar os modelos do sistema.');
+        }
+
+        availableRoleTemplates = Array.isArray(payload.data) ? payload.data : [];
+        return availableRoleTemplates;
+    }
+
+    const routeMeaningByPath = {
+        '/permissions': 'Abrir a tela de papéis e permissões.',
+        '/permissions/search': 'Listar os papéis de acesso cadastrados.',
+        '/permissions/roles/save': 'Criar ou editar um papel de acesso.',
+        '/permissions/global-routes/save': 'Cadastrar um novo grupo global de rotas.',
+        '/permissions/roles/list-all-routes': 'Carregar todas as rotas disponíveis para configurar um papel.',
+        '/permissions/roles/toggle': 'Liberar ou bloquear uma rota para o papel selecionado.',
+        '/permissions/roles/bulk-toggle': 'Liberar ou bloquear várias rotas do módulo selecionado de uma só vez.',
+        '/permissions/roles/clear': 'Remover todas as permissões do papel selecionado de uma só vez.',
+        '/permissions/templates': 'Listar os modelos padrão do sistema para criar papéis.',
+        '/permissions/roles/sync-template': 'Sincronizar um papel local com o modelo padrão do sistema.',
+        '/permissions/roles/list-users': 'Listar os usuários que podem ser vinculados a este papel.',
+        '/permissions/roles/assign-user': 'Vincular ou remover um usuário deste papel.',
+
+        '/dashboard': 'Abrir o dashboard principal do sistema.',
+        '/dashboard/cards': 'Visualizar os cards de indicadores e saldos do dashboard.',
+        '/dashboard/charts': 'Visualizar os gráficos e comparativos do dashboard.',
+        '/dashboard/swap-plan': 'Trocar o plano atual da conta pelo seletor do dashboard.',
+
+        '/help/movies': 'Abrir a central de ajuda com vídeos e orientações do sistema.',
+
+        '/users': 'Abrir a tela de gestão de usuários.',
+        '/users/new': 'Criar um novo usuário no sistema.',
+        '/users/edit': 'Editar os dados de um usuário.',
+        '/users/{id}/edit': 'Editar os dados do usuário selecionado.',
+        '/users/{id}/delete': 'Excluir o usuário selecionado.',
+        '/users/search': 'Listar e pesquisar usuários cadastrados.',
+        '/users/up-status': 'Ativar ou desativar o acesso de um usuário.',
+        '/users/profile': 'Abrir o perfil do usuário logado.',
+        '/users/profile/reset-pass': 'Alterar a senha do usuário logado.',
+        '/users/profile/update-address': 'Atualizar o endereço cadastrado no perfil.',
+        '/users/profile/upload-images': 'Enviar ou trocar a foto e imagens do perfil.',
+        '/users/refills': 'Visualizar as recargas vinculadas aos usuários.',
+
+        '/support': 'Abrir a área de suporte técnico.',
+        '/support/diagnostics': 'Executar diagnósticos técnicos e consultas de suporte.',
+        '/support/tickets': 'Abrir a listagem de tickets de suporte.',
+        '/support/tickets/create': 'Criar um novo ticket de suporte.',
+        '/support/tickets/{id}/messages': 'Visualizar a conversa e as respostas de um ticket.',
+        '/support/tickets/{id}/messages/create': 'Responder um ticket de suporte.',
+        '/support/tickets/{id}/request-close': 'Solicitar o encerramento de um ticket.',
+        '/support/tickets/{id}/status': 'Alterar o status do ticket selecionado.',
+
+        '/callcenter/agent-panel': 'Abrir o painel de atendimento do agente no call center.',
+        '/callcenter/agent-login': 'Entrar no atendimento do call center como agente.',
+        '/callcenter/agent-set-status': 'Alterar o status do agente no call center.',
+        '/callcenter/active-breaks': 'Visualizar as pausas ativas dos agentes.',
+        '/callcenter/monitoring': 'Abrir a tela de monitoramento do call center.',
+        '/callcenter/monitoring-calls': 'Acompanhar as chamadas em andamento no monitoramento.',
+        '/callcenter/monitoring-spy-session': 'Escutar ou monitorar uma sessão de chamada em tempo real.',
+        '/callcenter/reports': 'Abrir os relatórios do call center.',
+        '/callcenter/queues': 'Abrir a gestão de filas do call center.',
+        '/callcenter/queues/list': 'Listar as filas do call center.',
+        '/callcenter/queues/save': 'Criar ou editar uma fila do call center.',
+        '/callcenter/queues/get/{id}': 'Visualizar os detalhes da fila selecionada.',
+        '/callcenter/queues/delete/{id}': 'Excluir a fila selecionada.',
+        '/callcenter/queues/update-agents-quick': 'Alterar rapidamente os agentes vinculados a uma fila.',
+        '/callcenter/queues/update-feature': 'Ativar ou desativar um recurso da fila.',
+        '/callcenter/agents': 'Abrir a gestão de agentes do call center.',
+        '/callcenter/agents-list': 'Listar os agentes do call center.',
+        '/callcenter/agents/save': 'Criar ou editar um agente do call center.',
+        '/callcenter/agents/get/{id}': 'Visualizar os dados do agente selecionado.',
+        '/callcenter/breaks': 'Abrir a gestão de pausas do call center.',
+        '/callcenter/breaks-list': 'Listar os tipos de pausa cadastrados.',
+        '/callcenter/breaks-save': 'Criar ou editar um tipo de pausa.',
+        '/callcenter/breaks-delete': 'Excluir um tipo de pausa.',
+        '/callcenter/breaks-toggle-status': 'Ativar ou desativar um tipo de pausa.',
+
+        '/campaign/whatsapp': 'Abrir o módulo do WhatsApp.',
+        '/campaign/whatsapp/accounts': 'Ver as contas de WhatsApp.',
+        '/campaign/whatsapp/accounts/create': 'Cadastrar uma conta de WhatsApp.',
+        '/campaign/whatsapp/accounts/{id}/profile': 'Ver o perfil de uma conta de WhatsApp.',
+        '/campaign/whatsapp/accounts/{id}/profile/update': 'Editar o perfil de uma conta de WhatsApp.',
+        '/campaign/whatsapp/accounts/{id}/profile/photo': 'Alterar a foto de uma conta de WhatsApp.',
+        '/campaign/whatsapp/accounts/{id}/test': 'Testar uma conta de WhatsApp.',
+        '/campaign/whatsapp/conversations': 'Ver as conversas do atendimento.',
+        '/campaign/whatsapp/conversations/{id}/messages': 'Ver as mensagens de uma conversa.',
+        '/campaign/whatsapp/conversations/{id}/claim': 'Assumir uma conversa no atendimento.',
+        '/campaign/whatsapp/conversations/{id}/queue': 'Mover uma conversa para outra fila.',
+        '/campaign/whatsapp/conversations/{id}/queue-history': 'Ver o histórico de filas da conversa.',
+        '/campaign/whatsapp/conversations/{id}/read': 'Marcar uma conversa como lida.',
+        '/campaign/whatsapp/conversations/{id}/unread': 'Marcar uma conversa como não lida.',
+        '/campaign/whatsapp/conversations/{id}/delete': 'Excluir ou encerrar uma conversa.',
+        '/campaign/whatsapp/support/dashboard': 'Ver o painel operacional do atendimento.',
+        '/campaign/whatsapp/support/events': 'Receber eventos do atendimento em tempo real.',
+        '/campaign/whatsapp/support/send': 'Responder atendimentos pelo WhatsApp.',
+        '/campaign/whatsapp/support/queues': 'Ver as filas do atendimento.',
+        '/campaign/whatsapp/support/queues/create': 'Criar filas de atendimento.',
+        '/campaign/whatsapp/support/queues/{id}': 'Ver os detalhes de uma fila de atendimento.',
+        '/campaign/whatsapp/support/queues/{id}/update': 'Editar filas de atendimento.',
+        '/campaign/whatsapp/support/queues/{id}/delete': 'Excluir filas de atendimento.',
+        '/campaign/whatsapp/support/queues/{id}/agents': 'Vincular agentes a uma fila.',
+        '/campaign/whatsapp/support/queues/{id}/agents/remove': 'Remover agentes de uma fila.',
+        '/campaign/whatsapp/support/assignable-users': 'Ver quem pode receber atendimentos.',
+        '/campaign/whatsapp/support/agents/status': 'Ver o status dos agentes no atendimento.',
+        '/campaign/whatsapp/support/sessions/{id}/finish': 'Finalizar um atendimento.',
+        '/campaign/whatsapp/support/sessions/{id}/transfer': 'Transferir um atendimento.',
+        '/campaign/whatsapp/messages/send': 'Enviar mensagem avulsa pelo WhatsApp.',
+        '/campaign/whatsapp/campaigns': 'Ver as campanhas de WhatsApp.',
+        '/campaign/whatsapp/campaigns/create': 'Criar campanhas de WhatsApp.',
+        '/campaign/whatsapp/campaigns/{id}/send': 'Disparar uma campanha de WhatsApp.',
+        '/campaign/whatsapp/campaigns/{id}/cancel-category': 'Cancelar a categoria de uma campanha.',
+        '/campaign/whatsapp/campaigns/recipients/preview': 'Ver a prévia dos destinatários da campanha.',
+        '/campaign/whatsapp/templates': 'Ver os templates do WhatsApp.',
+        '/campaign/whatsapp/templates/create': 'Criar templates do WhatsApp.',
+        '/campaign/whatsapp/templates/library': 'Ver a biblioteca de templates.',
+        '/campaign/whatsapp/templates/sync': 'Sincronizar os templates com a Meta.',
+        '/campaign/whatsapp/templates/{id}/sync': 'Sincronizar um template com a Meta.',
+        '/campaign/whatsapp/templates/{id}/delete': 'Excluir um template do WhatsApp.',
+        '/campaign/whatsapp/number-requests': 'Ver as solicitações de números.',
+        '/campaign/whatsapp/number-requests/approve': 'Aprovar solicitações de números.',
+        '/campaign/whatsapp/number-requests/reject': 'Rejeitar solicitações de números.',
+        '/campaign/whatsapp/number-requests/confirm-code': 'Confirmar o código de uma solicitação de número.',
+        '/campaign/whatsapp/number-requests/resend-code': 'Reenviar o código de uma solicitação de número.',
+        '/campaign/whatsapp/number-requests/send-meta': 'Enviar uma solicitação de número para a Meta.',
+        '/campaign/whatsapp/number-requests/{id}/approve': 'Aprovar uma solicitação de número.',
+        '/campaign/whatsapp/number-requests/{id}/reject': 'Rejeitar uma solicitação de número.',
+        '/campaign/whatsapp/number-requests/{id}/confirm-code': 'Confirmar o código da solicitação selecionada.',
+        '/campaign/whatsapp/number-requests/{id}/resend-code': 'Reenviar o código da solicitação selecionada.',
+        '/campaign/whatsapp/number-requests/{id}/send-meta': 'Enviar a solicitação selecionada para a Meta.',
+        '/campaign/whatsapp/numbers': 'Ver os números de WhatsApp.',
+        '/campaign/whatsapp/numbers/client': 'Ver os números de WhatsApp do cliente.',
+        '/campaign/whatsapp/numbers/platform': 'Ver os números de WhatsApp da plataforma.',
+        '/campaign/whatsapp/numbers/platform/{id}/assign': 'Vincular um número da plataforma a um cliente.',
+        '/campaign/whatsapp/numbers/{id}/send-code': 'Enviar código para ativar um número.',
+        '/campaign/whatsapp/numbers/{id}/confirm-code': 'Confirmar o código de ativação de um número.',
+        '/campaign/whatsapp/numbers/{id}/remove': 'Remover um número de WhatsApp.',
+        '/campaign/whatsapp/numbers/health': 'Ver a saúde e proteção dos números.',
+        '/campaign/whatsapp/numbers/health/sync': 'Sincronizar a saúde dos números.',
+        '/campaign/whatsapp/pricing/simulate': 'Simular a tarifação do WhatsApp.',
+
+        '/campaign/voice': 'Abrir o módulo de voz e call center.',
+        '/campaign/voice/list': 'Listar as campanhas ou disparos de voz.',
+        '/campaign/voice/search': 'Pesquisar campanhas de voz.',
+        '/campaign/voice/view': 'Visualizar os detalhes de campanhas de voz.',
+        '/campaign/voice/upload': 'Enviar contatos ou arquivos para campanhas de voz.',
+        '/campaign/voice/schedule': 'Agendar uma campanha de voz.',
+        '/campaign/voice/send-voice': 'Disparar uma campanha de voz.',
+        '/campaign/voice/make-call': 'Realizar uma chamada manual.',
+        '/campaign/voice/answer': 'Atender uma chamada.',
+        '/campaign/voice/hangup': 'Encerrar uma chamada em andamento.',
+        '/campaign/voice/list-delete': 'Excluir campanhas ou registros de voz em lote.',
+        '/campaign/voice/calls-view': 'Visualizar o monitoramento de chamadas.',
+        '/campaign/voice/live-calls': 'Acompanhar chamadas de voz em tempo real.',
+        '/campaign/voice/listening': 'Escutar uma chamada em andamento.',
+        '/campaign/voice/stop-listening': 'Parar a escuta de uma chamada.',
+        '/campaign/voice/audios': 'Abrir a biblioteca de áudios da voz.',
+        '/campaign/voice/audios-search': 'Pesquisar áudios cadastrados.',
+        '/campaign/voice/audio-upload': 'Enviar um novo áudio para o módulo de voz.',
+        '/campaign/voice/audio-delete': 'Excluir um áudio do módulo de voz.',
+        '/campaign/voice/sip': 'Abrir a gestão de ramais SIP.',
+        '/campaign/voice/sip-devices': 'Listar os dispositivos ou ramais SIP.',
+        '/campaign/voice/sip-devices/create': 'Cadastrar um novo ramal SIP.',
+        '/campaign/voice/sip-devices/delete': 'Excluir um ramal SIP.',
+        '/campaign/voice/sip-devices/{id}/edit': 'Editar o ramal SIP selecionado.',
+        '/campaign/voice/sip-devices/{id}/status': 'Ativar ou desativar o ramal SIP selecionado.',
+        '/campaign/voice/sip-devices/{id}/update': 'Atualizar os dados do ramal SIP selecionado.',
+        '/campaign/voice/trunks': 'Abrir a gestão de troncos SIP.',
+        '/campaign/voice/sip-trunks/new': 'Cadastrar um novo tronco SIP.',
+        '/campaign/voice/sip-trunks/view': 'Listar os troncos SIP cadastrados.',
+        '/campaign/voice/sip-trunks/delete': 'Excluir um tronco SIP.',
+        '/campaign/voice/sip-trunks/{id}/edit': 'Editar o tronco SIP selecionado.',
+        '/campaign/voice/sip-trunks/{id}/status': 'Ativar ou desativar o tronco SIP selecionado.',
+        '/campaign/voice/prices': 'Visualizar as tarifas de voz e call center.',
+
+        '/campaign': 'Abrir a lista de campanhas de SMS.',
+        '/campaign/new': 'Criar uma nova campanha de SMS.',
+        '/campaign/upload': 'Enviar contatos ou arquivos para a campanha de SMS.',
+        '/campaign/realtime': 'Acompanhar o envio de SMS em tempo real.',
+        '/campaign/{id}/edit': 'Editar a campanha de SMS selecionada.',
+        '/campaign/{id}/send': 'Disparar a campanha de SMS selecionada.',
+        '/campaign/{id}/delete': 'Excluir a campanha de SMS selecionada.',
+        '/campaign/single-shot': 'Abrir o envio unico de SMS.',
+        '/campaign/single-shot-send': 'Enviar um SMS avulso.',
+
+        '/reports': 'Abrir a central de relatórios.',
+        '/reports/cdr': 'Visualizar o relatório de chamadas detalhadas.',
+        '/reports/list-cdr': 'Listar registros detalhados de chamadas.',
+        '/reports/sms': 'Abrir o relatório de SMS.',
+        '/reports/sms-stream': 'Acompanhar o fluxo em tempo real do relatório de SMS.',
+        '/reports/sms-view': 'Visualizar os detalhes do relatório de SMS.',
+        '/reports/sms-view-realtime': 'Acompanhar em tempo real os detalhes do relatório de SMS.',
+        '/reports/whatsapp': 'Abrir o relatório de WhatsApp.',
+        '/reports/whatsapp-realtime': 'Acompanhar em tempo real o relatório de WhatsApp.',
+        '/reports/transactions': 'Abrir o relatório de transações.',
+        '/reports/transactions-realtime': 'Acompanhar em tempo real o relatório de transações.',
+        '/reports/recharge-transactions': 'Visualizar as transações de recarga.',
+        '/reports/recharge-realtime': 'Acompanhar em tempo real as recargas.',
+        '/reports/generate/{id}/invoice': 'Gerar a fatura do registro selecionado.',
+        '/reports/notifications': 'Abrir o relatório de notificações.',
+        '/reports/notifications-realtime': 'Acompanhar em tempo real as notificações.',
+
+        '/plans': 'Abrir a gestão de planos.',
+        '/plans/save': 'Criar ou editar um plano.',
+        '/plans/search': 'Listar e pesquisar planos cadastrados.',
+        '/plans/{id}': 'Visualizar os dados do plano selecionado.',
+        '/plans/{id}/status': 'Ativar ou desativar o plano selecionado.',
+        '/plans/{id}/delete': 'Excluir o plano selecionado.',
+
+        '/rates': 'Abrir a gestão de tarifas.',
+        '/rates/new': 'Cadastrar uma nova tarifa.',
+        '/rates/search': 'Listar e pesquisar tarifas cadastradas.',
+        '/rates/update': 'Atualizar os dados de uma tarifa.',
+        '/rates/{id}/delete': 'Excluir a tarifa selecionada.',
+        '/rates/up-status': 'Ativar ou desativar uma tarifa.',
+        '/rates/users-select': 'Listar os usuários elegíveis para uma tarifa.',
+
+        '/refills': 'Abrir a tela de recargas.',
+        '/refills/{type}/plans': 'Listar os planos disponiveis para recarga.',
+        '/refills/{id}/checkout-pix': 'Gerar ou abrir o checkout PIX da recarga selecionada.',
+        '/refills/{id}/status-pix': 'Consultar o status PIX da recarga selecionada.',
+        '/refills/webhooks-asaas': 'Receber o webhook de confirmacao das recargas pelo Asaas.',
+
+        '/system-updates': 'Abrir a gestão de atualizações do sistema.',
+        '/system-updates/create': 'Criar um novo aviso de atualização.',
+        '/system-updates/list': 'Listar as atualizações cadastradas.',
+        '/system-updates/update': 'Editar uma atualização do sistema.',
+        '/system-updates/header': 'Visualizar os avisos de atualização exibidos no cabeçalho.',
+        '/system-updates/users': 'Definir ou consultar os usuários impactados por uma atualização.',
+
+        '/notifications': 'Abrir a central de notificações.',
+        '/notifications/mark-all-read': 'Marcar todas as notificações como lidas.',
+        '/notifications/delete-all': 'Apagar todas as notificações.'
+    };
+
+    const routeSegmentLabels = {
+        permissions: 'permissões',
+        roles: 'papéis de acesso',
+        role: 'papel de acesso',
+        users: 'usuários',
+        user: 'usuário',
+        whatsapp: 'WhatsApp',
+        support: 'suporte',
+        tickets: 'tickets',
+        dashboard: 'dashboard',
+        reports: 'relatórios',
+        report: 'relatório',
+        register: 'cadastro',
+        numbers: 'números',
+        number: 'número',
+        templates: 'templates',
+        template: 'template',
+        accounts: 'contas',
+        account: 'conta',
+        queues: 'filas',
+        queue: 'fila',
+        campaigns: 'campanhas',
+        campaign: 'campanha',
+        central: 'central',
+        voice: 'voz e call center',
+        rates: 'tarifas',
+        refills: 'recargas',
+        usersroles: 'papéis e usuários'
+    };
+
+    const routeTermLabels = {
+        agent: 'agente',
+        agents: 'agentes',
+        status: 'status',
+        user: 'usuário',
+        users: 'usuários',
+        role: 'papel',
+        roles: 'papéis',
+        permission: 'permissão',
+        permissions: 'permissões',
+        route: 'rota',
+        routes: 'rotas',
+        ticket: 'ticket',
+        tickets: 'tickets',
+        message: 'mensagem',
+        messages: 'mensagens',
+        queue: 'fila',
+        queues: 'filas',
+        account: 'conta',
+        accounts: 'contas',
+        number: 'número',
+        numbers: 'números',
+        plan: 'plano',
+        plans: 'planos',
+        refill: 'recarga',
+        refills: 'recargas',
+        rate: 'tarifa',
+        rates: 'tarifas',
+        report: 'relatório',
+        reports: 'relatórios',
+        campaign: 'campanha',
+        campaigns: 'campanhas',
+        template: 'template',
+        templates: 'templates',
+        contact: 'contato',
+        contacts: 'contatos',
+        department: 'departamento',
+        departments: 'departamentos',
+        notification: 'notificação',
+        notifications: 'notificações',
+        update: 'atualização',
+        updates: 'atualizações',
+        balance: 'saldo',
+        balances: 'saldos',
+        support: 'suporte',
+        callcenter: 'call center',
+        voice: 'voz',
+        whatsapp: 'WhatsApp',
+        sms: 'SMS',
+        audio: 'áudio',
+        audios: 'áudios',
+        trunk: 'tronco',
+        trunks: 'troncos',
+        sip: 'SIP',
+        device: 'dispositivo',
+        devices: 'dispositivos',
+        protocol: 'protocolo',
+        protocols: 'protocolos',
+        profile: 'perfil',
+        profiles: 'perfis',
+        safety: 'proteção',
+        pin: 'PIN',
+        health: 'saúde',
+        history: 'histórico',
+        detail: 'detalhe',
+        details: 'detalhes'
+    };
+
+    function normalizeRoutePath(path) {
+        return `/${String(path || '').trim().replace(/^\/+|\/+$/g, '')}`.replace(/\/+/g, '/');
+    }
+
+    function isRouteParamSegment(segment = '') {
+        return /^\{[^/]+\}$/.test(String(segment || '').trim());
+    }
+
+    function prettifyRouteSegment(segment) {
+        const key = String(segment || '').trim().toLowerCase();
+        if (!key) return '';
+        if (routeSegmentLabels[key]) return routeSegmentLabels[key];
+        return key
+            .replace(/[-_]+/g, ' ')
+            .replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+
+    function humanizeRouteTokens(tokens = []) {
+        return tokens
+            .filter(Boolean)
+            .map((token) => {
+                const key = String(token || '').trim().toLowerCase();
+                return routeTermLabels[key] || prettifyRouteSegment(key).toLowerCase();
+            })
+            .join(' ')
+            .trim();
+    }
+
+    function extractTargetFromRouteLabel(routeLabel = '') {
+        const normalized = String(routeLabel || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!normalized || normalized === 'Sem Rótulo') {
+            return '';
+        }
+
+        const afterColon = normalized.includes(':')
+            ? normalized.split(':').slice(1).join(':').trim()
+            : normalized;
+
+        return afterColon
+            .replace(/\((.*?)\)/g, ' $1 ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    function withTargetPreposition(targetLabel = '') {
+        const normalized = String(targetLabel || '').trim().toLowerCase();
+        if (!normalized) {
+            return 'do módulo';
+        }
+
+        const pluralStarters = ['agentes', 'usuários', 'papéis', 'permissões', 'mensagens', 'filas', 'contas', 'números', 'planos', 'recargas', 'tarifas', 'relatórios', 'campanhas', 'templates', 'contatos', 'departamentos', 'notificações', 'atualizações', 'troncos', 'protocolos', 'perfis', 'detalhes', 'rotas'];
+        if (pluralStarters.some((word) => normalized.startsWith(word))) {
+            return `dos ${normalized}`;
+        }
+
+        if (/^(filas|contas|mensagens|permissões|rotas|campanhas|notificações|atualizações|recargas|tarifas)$/.test(normalized)) {
+            return `das ${normalized}`;
+        }
+
+        if (/^[aeiouáéíóúãõ]/i.test(normalized)) {
+            return `da ${normalized}`;
+        }
+
+        return `do ${normalized}`;
+    }
+
+    function extractRouteAction(tokens = []) {
+        const joined = tokens.join('-');
+        const patterns = [
+            { match: ['set', 'status'], template: (target) => `Permite alterar o status ${target}.` },
+            { match: ['change', 'status'], template: (target) => `Permite alterar o status ${target}.` },
+            { match: ['list', 'all', 'routes'], template: (target) => `Permite listar todas as rotas ${target}.` },
+            { match: ['assign', 'user'], template: (target) => `Permite vincular ou remover usuários ${target}.` },
+            { match: ['list', 'users'], template: (target) => `Permite listar usuários ${target}.` },
+            { match: ['request', 'close'], template: (target) => `Permite solicitar o encerramento ${target}.` },
+            { match: ['change', 'priority'], template: (target) => `Permite alterar a prioridade ${target}.` },
+            { match: ['save'], template: (target) => `Permite criar ou editar ${target}.` },
+            { match: ['create'], template: (target) => `Permite criar ${target}.` },
+            { match: ['new'], template: (target) => `Permite criar ${target}.` },
+            { match: ['edit'], template: (target) => `Permite editar ${target}.` },
+            { match: ['update'], template: (target) => `Permite atualizar ${target}.` },
+            { match: ['delete'], template: (target) => `Permite excluir ${target}.` },
+            { match: ['remove'], template: (target) => `Permite remover ${target}.` },
+            { match: ['toggle'], template: (target) => `Permite ativar ou desativar ${target}.` },
+            { match: ['search'], template: (target) => `Permite pesquisar ${target}.` },
+            { match: ['login'], template: (target) => `Permite realizar login ${target}.` },
+            { match: ['logout'], template: (target) => `Permite realizar logout ${target}.` },
+            { match: ['get'], template: (target) => `Permite visualizar os detalhes ${target}.` },
+            { match: ['show'], template: (target) => `Permite visualizar os detalhes ${target}.` },
+            { match: ['store'], template: (target) => `Permite cadastrar ${target}.` },
+            { match: ['view'], template: (target) => `Permite visualizar ${target}.` },
+            { match: ['open'], template: (target) => `Permite abrir ${target}.` },
+            { match: ['close'], template: (target) => `Permite fechar ${target}.` },
+            { match: ['reply'], template: (target) => `Permite responder ${target}.` },
+            { match: ['send'], template: (target) => `Permite enviar ${target}.` },
+            { match: ['claim'], template: (target) => `Permite assumir ${target}.` },
+            { match: ['read'], template: (target) => `Permite marcar como lido ${target}.` },
+            { match: ['unread'], template: (target) => `Permite marcar como nao lido ${target}.` },
+            { match: ['finish'], template: (target) => `Permite finalizar ${target}.` },
+            { match: ['transfer'], template: (target) => `Permite transferir ${target}.` },
+            { match: ['approve'], template: (target) => `Permite aprovar ${target}.` },
+            { match: ['reject'], template: (target) => `Permite rejeitar ${target}.` },
+            { match: ['import'], template: (target) => `Permite importar ${target}.` },
+            { match: ['export'], template: (target) => `Permite exportar ${target}.` },
+            { match: ['sync'], template: (target) => `Permite sincronizar ${target}.` },
+            { match: ['preview'], template: (target) => `Permite visualizar a previa ${target}.` },
+            { match: ['simulate'], template: (target) => `Permite simular ${target}.` },
+            { match: ['test'], template: (target) => `Permite testar ${target}.` },
+            { match: ['history'], template: (target) => `Permite visualizar o histórico ${target}.` },
+            { match: ['queue', 'history'], template: (target) => `Permite visualizar o historico de fila ${target}.` },
+            { match: ['details'], template: (target) => `Permite visualizar os detalhes ${target}.` },
+            { match: ['messages'], template: (target) => `Permite visualizar as mensagens ${target}.` },
+            { match: ['cards'], template: (target) => `Permite visualizar os cards ${target}.` },
+            { match: ['charts'], template: (target) => `Permite visualizar os graficos ${target}.` },
+            { match: ['permissions'], template: (target) => `Permite gerenciar as permissões ${target}.` },
+            { match: ['index'], template: (target) => `Permite acessar ${target}.` }
+        ];
+
+        for (const pattern of patterns) {
+            if (joined === pattern.match.join('-')) {
+                return pattern;
+            }
+        }
+
+        for (const pattern of patterns) {
+            const patternText = pattern.match.join('-');
+            if (joined.endsWith(patternText)) {
+                return pattern;
+            }
+        }
+
+        return null;
+    }
+
+    function buildRouteSummaryFromPath(path, routeLabel = '') {
+        const segments = path.split('/').filter(Boolean);
+        const meaningfulSegments = segments.filter((segment) => !isRouteParamSegment(segment));
+        const lastSegment = String(meaningfulSegments[meaningfulSegments.length - 1] || '').toLowerCase();
+        const lastTokens = lastSegment.split(/[-_]+/).filter(Boolean);
+        const actionPattern = extractRouteAction(lastTokens);
+        const labelContext = String(routeLabel || '').trim().toLowerCase();
+
+        let targetTokens = [];
+        if (actionPattern) {
+            const actionLength = actionPattern.match.length;
+            targetTokens = lastTokens.slice(0, Math.max(0, lastTokens.length - actionLength));
+        }
+
+        if (!targetTokens.length) {
+            const previousSegment = String(meaningfulSegments[meaningfulSegments.length - 2] || '').toLowerCase();
+            targetTokens = previousSegment.split(/[-_]+/).filter(Boolean);
+        }
+
+        const labelTarget = extractTargetFromRouteLabel(routeLabel);
+        if (!targetTokens.length && labelTarget) {
+            targetTokens = labelTarget.split(/[^a-z0-9]+/i).filter(Boolean).slice(0, 6);
+        }
+
+        if (!targetTokens.length && labelContext) {
+            targetTokens = labelContext.split(/[^a-z0-9]+/i).filter(Boolean).slice(0, 4);
+        }
+
+        let targetLabel = humanizeRouteTokens(targetTokens);
+        if (!targetLabel) {
+            const fallbackSegment = String(segments[0] || routeLabel || 'módulo');
+            targetLabel = prettifyRouteSegment(fallbackSegment).toLowerCase();
+        }
+
+        const targetWithPreposition = withTargetPreposition(targetLabel);
+
+        if (actionPattern) {
+            return actionPattern.template(targetWithPreposition)
+                .replace('do status', 'de status')
+                .replace('da status', 'de status')
+                .replace('do mensagens', 'das mensagens')
+                .replace('do permissões', 'das permissões')
+                .replace('do usuários', 'dos usuários')
+                .replace('do agentes', 'dos agentes')
+                .replace('do detalhes', 'dos detalhes')
+                .replace('do rotas', 'das rotas');
+        }
+
+        return `Permite acessar a área de ${targetLabel}.`;
+    }
+
+    function buildRouteMeaning(route) {
+        const path = normalizeRoutePath(route?.name || '');
+        const exactMeaning = routeMeaningByPath[path];
+        const segments = path.split('/').filter(Boolean);
+        const moduleSegment = String(segments[segments.length - 2] || segments[0] || 'módulo').toLowerCase();
+        const moduleLabel = prettifyRouteSegment(moduleSegment || route?.label || 'módulo');
+
+        let summary = exactMeaning;
+        if (!summary) {
+            summary = buildRouteSummaryFromPath(path, route?.label || moduleLabel);
+        }
+
+        const label = String(route?.label || '').trim();
+        const groupLabel = label && label !== 'Sem Rótulo' ? label : moduleLabel;
+
+        return {
+            path,
+            groupLabel,
+            summary,
+            technicalLabel: `URL técnica: ${path}`
+        };
+    }
+
+    function setPermissionsModalChromeDisabled(disabled) {
+        const navMain = document.querySelector('nav[navbar-main]');
+        const sideNav = document.getElementById('sidenav-main');
+        const supportFloating = document.getElementById('support-whatsapp-floating');
+        const supportPanel = document.getElementById('support-whatsapp-panel');
+
+        [navMain, sideNav, supportFloating, supportPanel].filter(Boolean).forEach((element) => {
+            element.classList.toggle('pointer-events-none', disabled);
+        });
+
+        if (navMain) {
+            navMain.classList.toggle('opacity-0', disabled);
+            navMain.classList.toggle('invisible', disabled);
+        }
+    }
+
+    function syncPermissionsModalChromeState() {
+        const hasOpenModal = ['roleModal', 'permissionsModal', 'globalRouteModal'].some((id) => {
+            const modal = document.getElementById(id);
+            return modal && !modal.classList.contains('hidden');
+        });
+        window.__pausePermissionSync = hasOpenModal;
+        setPermissionsModalChromeDisabled(hasOpenModal);
+    }
+
+    function updateCurrentPermissionState(routeId, enabled) {
+        currentPermissionsPayload = (currentPermissionsPayload || []).map((route) => {
+            const currentRouteId = Number(route.route_id || route.id || 0);
+            if (currentRouteId !== Number(routeId)) {
+                return route;
+            }
+
+            return {
+                ...route,
+                enabled: enabled ? 1 : 0
+            };
+        });
+    }
+
+    function findRouteCheckbox(routeId) {
+        return document.querySelector(`#permissions-modal-content input[data-route-id="${routeId}"]`);
+    }
+
+    function updateModuleHeaderState(index) {
+        const moduleCheckboxes = Array.from(document.querySelectorAll(`.module-cb-${index}`));
+        const headerCheckbox = document.querySelector(`#permissionsModal input[data-module-index="${index}"]`);
+        if (!headerCheckbox || moduleCheckboxes.length === 0) {
+            return;
+        }
+
+        const checkedCount = moduleCheckboxes.filter((checkbox) => checkbox.checked).length;
+        headerCheckbox.checked = checkedCount === moduleCheckboxes.length;
+        headerCheckbox.indeterminate = checkedCount > 0 && checkedCount < moduleCheckboxes.length;
+    }
+
+    function refreshAllModuleHeaderStates() {
+        document.querySelectorAll('#permissionsModal input[data-module-index]').forEach((checkbox) => {
+            const index = checkbox.getAttribute('data-module-index');
+            updateModuleHeaderState(index);
+        });
+    }
+
+    function setPermissionCheckboxBusy(checkbox, busy) {
+        if (!checkbox) {
+            return;
+        }
+
+        checkbox.disabled = busy;
+        checkbox.classList.toggle('opacity-60', busy);
+        checkbox.classList.toggle('pointer-events-none', busy);
+    }
+
+    function setPermissionsModalBusy(busy) {
+        permissionsBulkActionInProgress = busy;
+        document.querySelectorAll('#permissionsModal input[type="checkbox"]').forEach((checkbox) => {
+            checkbox.disabled = busy;
+            checkbox.classList.toggle('opacity-60', busy);
+            checkbox.classList.toggle('pointer-events-none', busy);
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
         // Tenta pegar a base URL do meta tag ou define como vazio
         const metaBaseUrl = document.querySelector('meta[name="base-url"]');
         window.baseUrl = metaBaseUrl ? metaBaseUrl.getAttribute('content') : '';
+
+        ['roleModal', 'permissionsModal', 'globalRouteModal'].forEach((id) => {
+            const modal = document.getElementById(id);
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+        });
 
         // --- SUBMIT DO FORMULÁRIO DE PAPEL ---
         const roleForm = document.getElementById('roleForm');
@@ -393,6 +1077,7 @@
             if(afCurrentPage < totalPages) { afCurrentPage++; renderRolesTable(); }
         });
 
+        loadRoleTemplates().catch(() => {});
         loadRoles();
     });
 
@@ -429,9 +1114,17 @@
 
         // Filtros Combinados
         filteredRolesData = rawRolesData.filter(role => {
-            const matchesSearch = !search || (role.name + (role.label || '')).toLowerCase().includes(search);
+            const searchBase = [
+                role.name || '',
+                role.label || '',
+                role.description || '',
+                role.tenancy_name || '',
+                role.account_code || ''
+            ].join(' ').toLowerCase();
+            const displayName = (role.display_name || role.name || '').toLowerCase();
+            const matchesSearch = !search || searchBase.includes(search) || displayName.includes(search);
             const matchesStatus = !statusF || role.status === statusF;
-            const matchesType = !typeF || role.type === typeF; // Ajuste se o campo for diferente
+            const matchesType = !typeF || role.type === typeF;
             return matchesSearch && matchesStatus && matchesType;
         });
 
@@ -451,19 +1144,71 @@
                 // Garantimos que os valores existam para não dar erro de undefined
                 const totalUsers = role.total_users || 0;
                 const description = role.description || role.label || 'Sem descrição';
-                const roleName = role.name.replace(/'/g, "\\'"); // Escapa aspas simples no nome
+                const displayRoleName = (role.display_name || role.name || '').replace(/'/g, "\\'");
+                const roleName = (role.name || '').replace(/'/g, "\\'"); // Escapa aspas simples no nome
+                const tenancyName = role.tenancy_name || 'Sem cliente';
+                const accountCode = role.account_code || 'Sem código';
+                const roleType = role.scope_kind === 'template'
+                    ? 'Padrão do Sistema'
+                    : (role.type === 'custom' ? 'Customizado' : 'Sistema');
+                const roleTypeClass = role.scope_kind === 'template'
+                    ? 'bg-amber-50 text-amber-700 border-amber-100'
+                    : role.type === 'custom'
+                    ? 'bg-violet-50 text-violet-600 border-violet-100'
+                    : 'bg-sky-50 text-sky-600 border-sky-100';
+                const isTemplateRole = role.scope_kind === 'template';
+                const inheritsTemplate = !isTemplateRole && String(role.inherits_template || '').toLowerCase() === 'y';
+                const inheritanceBadge = inheritsTemplate ? `
+                                <span class="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 font-bold uppercase tracking-tight">
+                                    Herda de ${role.template_name || 'padrao do sistema'}
+                                </span>` : '';
+                const membersButtonHtml = isTemplateRole ? `
+                                <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-amber-100">
+                                    <i class="fa fa-sitemap"></i> ${totalUsers} administradores vinculados
+                                </span>` : `
+                                <button onclick="openMembersView(${role.id}, '${displayRoleName}')"
+                                        class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full hover:bg-emerald-600 hover:text-white transition-all font-bold flex items-center gap-1 border border-emerald-100">
+                                    <i class="fa fa-users"></i> ${totalUsers} ${totalUsers === 1 ? 'membro' : 'membros'}
+                                </button>`;
+                const memberActionHtml = isTemplateRole ? '' : `
+                            <button onclick="manageRoleUsers(${role.id}, '${displayRoleName}')"
+                                    class="p-2 h-8 w-8 inline-flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                                    title="Gerenciar Membros">
+                                <i class="fa fa-users text-xs"></i>
+                            </button>`;
+                const syncActionHtml = (!isTemplateRole && Number(role.template_id || 0) > 0) ? `
+                            <button onclick="syncRoleWithTemplate(${role.id})"
+                                    class="p-2 h-8 w-8 inline-flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+                                    title="Sincronizar com modelo do sistema">
+                                <i class="fa fa-rotate text-xs"></i>
+                            </button>` : '';
+                const editActionHtml = isTemplateRole ? '' : `
+                            <button onclick="editRole(${role.id})"
+                                    class="p-2 h-8 w-8 inline-flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-600 hover:text-white transition-all shadow-sm"
+                                    title="Editar Dados">
+                                <i class="fa fa-edit text-xs"></i>
+                            </button>`;
 
                 return `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-b dark:border-slate-700">
                     <td class="px-6 py-4">
                         <div class="flex flex-col">
-                            <span class="font-bold text-slate-700 dark:text-white">${role.name}</span>
+                            <span class="font-bold text-slate-700 dark:text-white">${role.display_name || role.name}</span>
                             <div class="flex items-center gap-2 mt-1">
                                 <span class="text-xs text-slate-400 italic">${description}</span>
-                                <button onclick="openMembersView(${role.id}, '${roleName}')"
-                                        class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full hover:bg-emerald-600 hover:text-white transition-all font-bold flex items-center gap-1 border border-emerald-100">
-                                    <i class="fa fa-users"></i> ${totalUsers} ${totalUsers === 1 ? 'membro' : 'membros'}
-                                </button>
+                                ${membersButtonHtml}
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 mt-2">
+                                <span class="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-bold uppercase tracking-tight">
+                                    Cliente: ${tenancyName}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-bold uppercase tracking-tight">
+                                    Conta: ${accountCode}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-tight ${roleTypeClass}">
+                                    ${roleType}
+                                </span>
+                                ${inheritanceBadge}
                             </div>
                         </div>
                     </td>
@@ -476,23 +1221,16 @@
 
                     <td class="px-6 py-4 text-center">
                         <div class="flex justify-center gap-2">
-                            <button onclick="manageRoleUsers(${role.id}, '${roleName}')"
-                                    class="p-2 h-8 w-8 inline-flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                                    title="Gerenciar Membros">
-                                <i class="fa fa-users text-xs"></i>
-                            </button>
+                            ${memberActionHtml}
 
-                            <button onclick="managePermissions(${role.id}, '${roleName}')"
+                            <button onclick="managePermissions(${role.id}, '${displayRoleName}')"
                                     class="p-2 h-8 w-8 inline-flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
                                     title="Permissões de Rotas">
                                 <i class="ni ni-settings-gear-65 text-xs"></i>
                             </button>
 
-                            <button onclick="editRole(${role.id})"
-                                    class="p-2 h-8 w-8 inline-flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-600 hover:text-white transition-all shadow-sm"
-                                    title="Editar Dados">
-                                <i class="fa fa-edit text-xs"></i>
-                            </button>
+                            ${syncActionHtml}
+                            ${editActionHtml}
                         </div>
                     </td>
                 </tr>`;
@@ -668,13 +1406,28 @@
         document.getElementById('roleForm').reset();
         document.getElementById('role_id').value = '';
         document.getElementById('roleModalTitle').innerText = 'Novo Papel';
+        fillRoleTemplateSelect('', false);
         document.getElementById('roleModal').classList.replace('hidden', 'flex');
+        syncPermissionsModalChromeState();
+        loadRoleTemplates().then(() => fillRoleTemplateSelect('', false)).catch(() => {});
     };
 
-    window.closeRoleModal = () => document.getElementById('roleModal').classList.replace('flex', 'hidden');
-    window.openGlobalRouteModal = () => document.getElementById('globalRouteModal').classList.replace('hidden', 'flex');
-    window.closeGlobalRouteModal = () => document.getElementById('globalRouteModal').classList.replace('flex', 'hidden');
-    window.closePermissionsModal = () => document.getElementById('permissionsModal').classList.replace('flex', 'hidden');
+    window.closeRoleModal = () => {
+        document.getElementById('roleModal').classList.replace('flex', 'hidden');
+        syncPermissionsModalChromeState();
+    };
+    window.openGlobalRouteModal = () => {
+        document.getElementById('globalRouteModal').classList.replace('hidden', 'flex');
+        syncPermissionsModalChromeState();
+    };
+    window.closeGlobalRouteModal = () => {
+        document.getElementById('globalRouteModal').classList.replace('flex', 'hidden');
+        syncPermissionsModalChromeState();
+    };
+    window.closePermissionsModal = () => {
+        document.getElementById('permissionsModal').classList.replace('flex', 'hidden');
+        syncPermissionsModalChromeState();
+    };
 
     window.editRole = function(id) {
         const role = rawRolesData.find(r => r.id === id);
@@ -685,7 +1438,41 @@
         document.getElementById('description').value = role.description || '';
         document.getElementById('role_status').value = role.status;
         document.getElementById('roleModalTitle').innerText = 'Editar Papel';
+        fillRoleTemplateSelect(String(role.template_name || ''), true);
         document.getElementById('roleModal').classList.replace('hidden', 'flex');
+        syncPermissionsModalChromeState();
+    };
+
+    window.syncRoleWithTemplate = async function(roleId) {
+        const role = getRoleById(roleId);
+        if (!role) return;
+
+        const roleName = role.display_name || role.name || 'este papel';
+        const templateName = role.template_name || 'modelo do sistema';
+        const confirmed = window.confirm(`Sincronizar ${roleName} com ${templateName}? As permissões atuais deste papel local serão substituídas pela cópia do modelo.`);
+        if (!confirmed) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('role_id', roleId);
+
+        try {
+            const response = await fetch(`${baseUrl}/permissions/roles/sync-template`, {
+                method: 'POST',
+                body: formData
+            });
+            const payload = await response.json();
+            if (payload.status !== 'ok') {
+                throw new Error(payload.message || 'Não foi possível sincronizar o papel.');
+            }
+
+            notyf?.success?.(payload.message || 'Permissões sincronizadas com o modelo do sistema.');
+            await loadRoles();
+        } catch (error) {
+            console.error(error);
+            alert(error.message || 'Não foi possível sincronizar o papel.');
+        }
     };
 
     window.managePermissions = function (roleId, roleName) {
@@ -693,9 +1480,25 @@
         document.getElementById('permModalTitle').innerText = `Permissões: ${roleName}`;
         const modal = document.getElementById('permissionsModal');
         const content = document.getElementById('permissions-modal-content');
+        const contextBox = document.getElementById('permissionsRoleContext');
+        const role = getRoleById(roleId);
+        currentPermissionsPayload = [];
 
         modal.classList.replace('hidden', 'flex');
+        syncPermissionsModalChromeState();
         content.innerHTML = '<div class="p-10 text-center text-slate-400 italic"><i class="fa fa-spinner fa-spin mr-2"></i> Carregando rotas...</div>';
+        if (contextBox) {
+            if (role && role.scope_kind !== 'template' && String(role.inherits_template || '').toLowerCase() === 'y') {
+                contextBox.classList.remove('hidden');
+                contextBox.innerHTML = `Este papel local ainda herda permissões de <strong>${role.template_name || 'admin_padrao_sistema'}</strong>. Ao editar individualmente, ele deixa de herdar automaticamente e passa a seguir só as permissões desta empresa.`;
+            } else if (role && role.scope_kind === 'template') {
+                contextBox.classList.remove('hidden');
+                contextBox.innerHTML = 'Você está editando o papel padrão do sistema. Alterações aqui podem refletir em todos os papéis locais que ainda estiverem herdando este padrão.';
+            } else {
+                contextBox.classList.add('hidden');
+                contextBox.innerHTML = '';
+            }
+        }
 
         fetch(`${baseUrl}/permissions/roles/list-all-routes`, {
             method: 'POST',
@@ -705,6 +1508,12 @@
             .then(res => res.json())
             .then(result => {
                 if(result.status === 'ok'){
+                    currentPermissionsPayload = Array.isArray(result.data) ? result.data : [];
+                    const enabledCount = (result.data || []).filter(route => Number(route.enabled) === 1).length;
+                    if (contextBox && !contextBox.classList.contains('hidden')) {
+                        contextBox.innerHTML += `<div class="mt-2 font-semibold">Rotas ativas neste momento: ${enabledCount}</div>`;
+                    }
+
                     const grouped = result.data.reduce((acc, route) => {
                         // Trava de segurança para label não vir undefined
                         let label = route.label || 'Sem Rótulo';
@@ -729,28 +1538,31 @@
                         <span class="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-500">${routes.length} rotas</span>
                     </div>
                     <div onclick="event.stopPropagation()">
-                        <input class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" type="checkbox" ${allEnabled ? 'checked' : ''} onchange="toggleAllInModule('${index}', this.checked)">
+                        <input class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" type="checkbox" data-module-index="${index}" ${allEnabled ? 'checked' : ''} onchange="toggleAllInModule('${index}', this.checked, this)">
                     </div>
                 </div>
                 <div id="module-body-${index}" class="hidden bg-white dark:bg-slate-900 shadow-inner">
-                    ${routes.map(route => `
+                    ${routes.map(route => {
+                        const routeMeaning = buildRouteMeaning(route);
+                        return `
                     <div class="flex items-center justify-between pl-14 pr-6 py-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/30">
-                        <div class="flex flex-col">
-                            <span class="text-sm font-medium text-slate-600 dark:text-slate-300">${route.label || 'Sem Rótulo'}</span>
-
-                            <span class="text-[10px] font-mono text-slate-500">${route.name || ''}</span>
+                        <div class="flex flex-col gap-1 pr-4">
+                            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">${routeMeaning.summary}</span>
+                            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">${routeMeaning.groupLabel}</span>
+                            <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">${routeMeaning.technicalLabel}</span>
                         </div>
                         <input class="form-check-input h-5 w-10 cursor-pointer module-cb-${index}"
                                type="checkbox"
-                               /* 3. AJUSTADO: Garante o uso do ID correto da rota */
                                data-route-id="${route.route_id || route.id}"
                                ${route.enabled == 1 ? 'checked' : ''}
-                               onchange="togglePermission(currentRoleId, ${route.route_id || route.id}, this.checked)">
-                    </div>`).join('')}
+                               onchange="togglePermission(currentRoleId, ${route.route_id || route.id}, this.checked, this)">
+                    </div>`;
+                    }).join('')}
                 </div>
             </div>`;
                     });
                     content.innerHTML = html || '<div class="p-10 text-center text-slate-400">Nenhuma rota encontrada.</div>';
+                    refreshAllModuleHeaderStates();
                 }
             });
     };
@@ -764,29 +1576,205 @@
         }
     };
 
-    window.toggleAllInModule = function(index, isChecked) {
-        const checkboxes = document.querySelectorAll(`.module-cb-${index}`);
-        checkboxes.forEach(cb => {
-            if(cb.checked !== isChecked) {
-                cb.checked = isChecked;
-                const routeId = cb.getAttribute('data-route-id');
-                togglePermission(currentRoleId, routeId, isChecked);
+    window.toggleAllInModule = async function(index, isChecked, sourceCheckbox = null) {
+        if (permissionsBulkActionInProgress) {
+            if (sourceCheckbox) {
+                updateModuleHeaderState(index);
             }
-        });
+            return;
+        }
+
+        const checkboxes = document.querySelectorAll(`.module-cb-${index}`);
+        if (sourceCheckbox) {
+            sourceCheckbox.disabled = true;
+        }
+        setPermissionsModalBusy(true);
+
+        try {
+            const routeIds = Array.from(checkboxes)
+                .map((cb) => Number(cb.getAttribute('data-route-id') || 0))
+                .filter((id) => id > 0);
+
+            if (routeIds.length === 0) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('role_id', currentRoleId);
+            formData.append('active', isChecked ? 1 : 0);
+            routeIds.forEach((routeId) => formData.append('route_ids[]', routeId));
+
+            const response = await fetch(`${baseUrl}/permissions/roles/bulk-toggle`, {
+                method: 'POST',
+                body: formData
+            });
+            const payload = await response.json();
+
+            if (payload.status !== 'ok') {
+                throw new Error(payload.message || 'Não foi possível atualizar as permissões deste módulo.');
+            }
+
+            currentPermissionsPayload = (currentPermissionsPayload || []).map((route) => {
+                const routeId = Number(route.route_id || route.id || 0);
+                if (!routeIds.includes(routeId)) {
+                    return route;
+                }
+
+                return {
+                    ...route,
+                    enabled: isChecked ? 1 : 0
+                };
+            });
+
+            checkboxes.forEach((cb) => {
+                cb.checked = isChecked;
+            });
+        } catch (error) {
+            console.error(error);
+            checkboxes.forEach((cb) => {
+                cb.checked = !isChecked;
+            });
+            if (sourceCheckbox) {
+                sourceCheckbox.checked = !isChecked;
+            }
+            notyf?.error?.(error.message || 'Não foi possível atualizar as permissões deste módulo.');
+        } finally {
+            setPermissionsModalBusy(false);
+            if (sourceCheckbox) {
+                sourceCheckbox.disabled = false;
+            }
+            updateModuleHeaderState(index);
+        }
     };
 
-    window.togglePermission = function(roleId, routeId, active) {
+    window.togglePermission = async function(roleId, routeId, active, checkbox = null, options = {}) {
+        if (permissionsBulkActionInProgress && !options.allowDuringBulk) {
+            if (checkbox) {
+                checkbox.checked = !active;
+            }
+            return false;
+        }
+
+        const requestKey = `${roleId}:${routeId}`;
+        if (permissionToggleRequests.has(requestKey)) {
+            if (checkbox) {
+                checkbox.checked = !active;
+            }
+            return false;
+        }
+
         const formData = new FormData();
         formData.append('role_id', roleId);
         formData.append('route_id', routeId);
         formData.append('active', active ? 1 : 0);
 
-        fetch(`${baseUrl}/permissions/roles/toggle`, {
-            method: 'POST',
-            body: formData
-        }).then(res => res.json()).then(resp => {
-            if (resp.status !== 'ok') console.error('Erro ao salvar permissão');
-        });
+        permissionToggleRequests.add(requestKey);
+        setPermissionCheckboxBusy(checkbox, true);
+
+        try {
+            const response = await fetch(`${baseUrl}/permissions/roles/toggle`, {
+                method: 'POST',
+                body: formData
+            });
+            const payload = await response.json();
+
+            if (payload.status !== 'ok') {
+                throw new Error(payload.message || 'Erro ao salvar permissão.');
+            }
+
+            updateCurrentPermissionState(routeId, active);
+
+            const targetCheckbox = checkbox || findRouteCheckbox(routeId);
+            const moduleClass = Array.from(targetCheckbox?.classList || []).find((className) => className.startsWith('module-cb-'));
+            if (moduleClass) {
+                updateModuleHeaderState(moduleClass.replace('module-cb-', ''));
+            }
+
+            return true;
+        } catch (error) {
+            console.error(error);
+            if (checkbox) {
+                checkbox.checked = !active;
+            }
+
+            if (!options.silent) {
+                notyf?.error?.(error.message || 'Não foi possível atualizar esta permissão.');
+            }
+
+            const targetCheckbox = checkbox || findRouteCheckbox(routeId);
+            const moduleClass = Array.from(targetCheckbox?.classList || []).find((className) => className.startsWith('module-cb-'));
+            if (moduleClass) {
+                updateModuleHeaderState(moduleClass.replace('module-cb-', ''));
+            }
+
+            return false;
+        } finally {
+            permissionToggleRequests.delete(requestKey);
+            setPermissionCheckboxBusy(checkbox, false);
+        }
+    };
+
+    window.clearAllPermissions = async function() {
+        if (!currentRoleId || permissionsBulkActionInProgress) return;
+
+        const enabledRoutes = (currentPermissionsPayload || []).filter(route => Number(route.enabled) === 1);
+        if (enabledRoutes.length === 0) {
+            notyf?.open?.({ type: 'success', message: 'Este papel já está sem permissões ativas.' });
+            return;
+        }
+
+        const role = getRoleById(currentRoleId);
+        const roleName = role?.display_name || role?.name || 'este papel';
+        const confirmed = window.confirm(`Limpar todas as ${enabledRoutes.length} rotas ativas de ${roleName}?`);
+        if (!confirmed) {
+            return;
+        }
+
+        const clearButton = document.querySelector('#permissionsModal button[onclick="clearAllPermissions()"]');
+        if (clearButton) {
+            clearButton.disabled = true;
+            clearButton.textContent = 'Limpando...';
+        }
+        setPermissionsModalBusy(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('role_id', currentRoleId);
+
+            const response = await fetch(`${baseUrl}/permissions/roles/clear`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const payload = await response.json();
+            if (payload.status !== 'ok') {
+                throw new Error(payload.message || 'Não foi possível limpar as permissões deste papel.');
+            }
+
+            currentPermissionsPayload = (currentPermissionsPayload || []).map((route) => ({
+                ...route,
+                enabled: 0
+            }));
+
+            document.querySelectorAll('#permissions-modal-content input[data-route-id]').forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+
+            notyf?.success?.('Todas as permissões foram removidas deste papel.');
+            if (window.loadRoles && typeof window.loadRoles === 'function') {
+                window.loadRoles();
+            }
+        } catch (error) {
+            console.error(error);
+            notyf?.error?.(error.message || 'Não foi possível limpar as permissões deste papel.');
+        } finally {
+            setPermissionsModalBusy(false);
+            refreshAllModuleHeaderStates();
+            if (clearButton) {
+                clearButton.disabled = false;
+                clearButton.textContent = 'Limpar Tudo';
+            }
+        }
     };
 
     window.resetarFiltrosRoles = function () {
@@ -815,9 +1803,10 @@
 
             routes.forEach(route => {
                 const label = route.querySelector('.text-sm').textContent.toLowerCase();
-                const path = route.querySelector('.text-\\[10px\\]').textContent.toLowerCase();
+                const subtitle = route.querySelector('.text-\\[11px\\]')?.textContent.toLowerCase() || '';
+                const path = route.querySelector('.text-\\[10px\\]')?.textContent.toLowerCase() || '';
 
-                if (label.includes(searchValue) || path.includes(searchValue)) {
+                if (label.includes(searchValue) || subtitle.includes(searchValue) || path.includes(searchValue)) {
                     route.style.display = 'flex';
                     moduleHasVisibleRoute = true;
                 } else {
@@ -850,6 +1839,7 @@
     window.onclick = function (event) {
         if (event.target.classList.contains('fixed')) {
             event.target.classList.replace('flex', 'hidden');
+            syncPermissionsModalChromeState();
         }
     };
 </script>

@@ -13,6 +13,10 @@ use App\Model\Entity\WhatsAppTemplate;
 use App\Model\Entity\UserSearch;
 use App\Model\Entity\UserAuthentication;
 use App\Service\MetaWhatsAppCloudApi;
+use App\Service\PlanAccessPolicy;
+use App\Service\PlanRuntimeService;
+use App\Service\CallPermissionService;
+use App\Service\WhatsAppCallingBridge;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
 use App\Service\WhatsAppDefaultTemplateManager;
@@ -21,12 +25,16 @@ use App\Service\WhatsAppMessagePlanner;
 use App\Service\WhatsAppNumberManager;
 use App\Service\WhatsAppNumberSafety;
 use App\Service\WhatsAppOutboxWorker;
+use App\Service\WhatsAppAccountVoice;
 use App\Service\WhatsAppSupportDesk;
 use App\Service\WhatsAppTemplateBlueprintLibrary;
 use App\Service\WhatsAppTemplateVariableResolver;
 use App\Session\User as SessionUser;
+use App\Utils\AsteriskEnv;
+use App\Support\RequestCache;
 use App\Utils\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use WilliamCosta\DatabaseManager\Database;
 
 class WhatsApp extends ViewComponents
 {
@@ -47,7 +55,10 @@ class WhatsApp extends ViewComponents
             ], 'application/json');
         }
 
-        $content = View::render('/whatsapp/index', []);
+        $content = View::render('/whatsapp/index', [
+            'ASTERISK_WS_HOST' => AsteriskEnv::wsHost(),
+            'ASTERISK_WS_PORT' => AsteriskEnv::wsPort(),
+        ]);
         return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
     }
 
@@ -58,12 +69,7 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
-        try {
-            WhatsAppNumberSafety::syncAllForUser($obUser);
-            self::syncBusinessProfilesForUser($obUser);
-        } catch (\Throwable $e) {
-            error_log('[whatsapp_accounts_sync] ' . $e->getMessage());
-        }
+        self::releaseSessionLock();
 
         $data = self::canViewWhatsAppSupportAccounts($obUser)
             ? WhatsAppAccount::listSupportVisibleForUser($obUser)
@@ -87,6 +93,8 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        self::releaseSessionLock();
+
         return self::json(200, [
             'success' => true,
             'data' => WhatsAppNumberManager::listForUser($obUser),
@@ -104,6 +112,8 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        self::releaseSessionLock();
+
         return self::json(200, [
             'success' => true,
             'data' => WhatsAppNumberSafety::listForUser($obUser),
@@ -117,11 +127,40 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        self::releaseSessionLock();
+
         return self::json(200, [
             'success' => true,
             'message' => 'Qualidade dos números atualizada.',
             'data' => WhatsAppNumberSafety::syncAllForUser($obUser),
         ]);
+    }
+
+    public static function syncAccountsMeta(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        self::releaseSessionLock();
+
+        try {
+            $health = WhatsAppNumberSafety::syncAllForUser($obUser);
+            self::syncBusinessProfilesForUser($obUser);
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Contas WhatsApp sincronizadas com a Meta.',
+                'data' => $health,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(500, [
+                'success' => false,
+                'message' => 'Falha ao sincronizar contas WhatsApp.',
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public static function registerClientNumber(): Response
@@ -478,6 +517,15 @@ class WhatsApp extends ViewComponents
                 ]);
             }
 
+            $currentCount = PlanAccessPolicy::currentWhatsAppAccountsCount((string)$obUser['tenancy_id']);
+            $access = PlanAccessPolicy::assertCanCreateWhatsAppAccount((string)$obUser['tenancy_id'], $currentCount);
+            if (!($access['allowed'] ?? false)) {
+                return self::json(409, [
+                    'success' => false,
+                    'message' => (string)($access['message'] ?? 'Limite de contas WhatsApp atingido.'),
+                ]);
+            }
+
             $id = WhatsAppAccount::create([
                 'tenancy_id' => $obUser['tenancy_id'],
                 'user_id' => (int)$obUser['id'],
@@ -491,6 +539,13 @@ class WhatsApp extends ViewComponents
                 'verify_token' => self::nullableString($input['verify_token'] ?? null),
                 'status' => 'active',
             ]);
+
+            if (!empty($input['activate_voice'])) {
+                $account = WhatsAppAccount::getById($id);
+                if ($account) {
+                    WhatsAppAccountVoice::activateIfRequested($account, (int)$obUser['id']);
+                }
+            }
 
             return self::json(201, [
                 'success' => true,
@@ -545,6 +600,137 @@ class WhatsApp extends ViewComponents
                 'success' => false,
                 'message' => 'Falha ao consultar dados do número.',
                 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function updateAccountSettings($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        $account = WhatsAppAccount::getForUser((int)$id, $obUser);
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Número WhatsApp não encontrado.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $label = trim((string)($input['label'] ?? ''));
+        $metaDisplayName = trim((string)($input['display_name_meta'] ?? ''));
+        $activateVoice = !empty($input['activate_voice']);
+        $hasLabelInput = array_key_exists('label', $input);
+        $hasMetaDisplayNameInput = array_key_exists('display_name_meta', $input);
+        $hasActivateVoiceInput = array_key_exists('activate_voice', $input);
+        $currentLabel = trim((string)($account['label'] ?? ''));
+        $currentMetaDisplayName = trim((string)($account['display_name_meta'] ?? $account['display_name'] ?? ''));
+        $voiceAlreadyActive = !empty($account['voice_enabled'])
+            && (($account['voice_status'] ?? '') === 'active' || ($account['voice_status'] ?? '') === '');
+
+        $shouldUpdateLabel = $hasLabelInput && $label !== '' && $label !== $currentLabel;
+        $shouldUpdateMetaDisplayName = $hasMetaDisplayNameInput && $metaDisplayName !== '' && $metaDisplayName !== $currentMetaDisplayName;
+        $shouldActivateVoice = $hasActivateVoiceInput && $activateVoice && !$voiceAlreadyActive;
+
+        try {
+            if ($shouldUpdateLabel) {
+                WhatsAppAccountVoice::updateLocalLabel((int)$account['id'], $obUser, $label);
+            }
+
+            if ($shouldUpdateMetaDisplayName) {
+                WhatsAppAccountVoice::updateMetaDisplayName((int)$account['id'], $obUser, $metaDisplayName);
+            }
+
+            if (!$shouldUpdateLabel && !$shouldUpdateMetaDisplayName && !$shouldActivateVoice) {
+                return self::json(200, [
+                    'success' => true,
+                    'message' => 'Nenhuma alteração necessária.',
+                    'voice' => null,
+                    'data' => WhatsAppAccount::getById((int)$account['id']) ?: $account,
+                ]);
+            }
+
+            $fresh = WhatsAppAccount::getById((int)$account['id']) ?: $account;
+            $voice = $shouldActivateVoice
+                ? WhatsAppAccountVoice::activateIfRequested($fresh, (int)$obUser['id'])
+                : null;
+
+            if ($activateVoice && is_array($voice) && !($voice['ok'] ?? false)) {
+                return self::json(424, [
+                    'success' => false,
+                    'message' => WhatsAppAccountVoice::friendlyMetaMessage(
+                        $voice,
+                        'Não foi possível ativar as chamadas de voz deste número agora.'
+                    ),
+                    'error' => $voice['error'] ?? null,
+                    'voice' => $voice,
+                    'data' => WhatsAppAccount::getById((int)$account['id']),
+                ]);
+            }
+
+            return self::json(200, [
+                'success' => true,
+                'message' => $shouldActivateVoice
+                    ? 'Número atualizado e voz sincronizada.'
+                    : 'Número atualizado.',
+                'voice' => $voice,
+                'data' => WhatsAppAccount::getById((int)$account['id']),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function getAccountVoiceStatus($request, int|string $id): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        $account = WhatsAppAccount::getForUser((int)$id, $obUser);
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Número WhatsApp não encontrado.',
+            ]);
+        }
+
+        try {
+            $voice = WhatsAppAccountVoice::syncStatus($account, (int)$obUser['id']);
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Status de voz sincronizado com a Meta.',
+                'voice' => $voice,
+                'data' => WhatsAppAccount::getById((int)$account['id']),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(424, [
+                'success' => false,
+                'message' => 'Falha ao consultar status de voz na Meta.',
+                'error' => $e->getMessage(),
+                'data' => WhatsAppAccount::getById((int)$account['id']) ?: $account,
             ]);
         }
     }
@@ -752,6 +938,7 @@ class WhatsApp extends ViewComponents
         return self::json(200, [
             'success' => true,
             'data' => WhatsAppTemplate::listForUser($obUser),
+            'can_manage_templates' => self::canManageTemplates((string)($obUser['tenancy_id'] ?? '')),
         ]);
     }
 
@@ -833,6 +1020,11 @@ class WhatsApp extends ViewComponents
         $obUser = self::requireUser();
         if ($obUser instanceof Response) {
             return $obUser;
+        }
+
+        $templateAccess = self::ensureTemplateManagementAccess($obUser);
+        if ($templateAccess instanceof Response) {
+            return $templateAccess;
         }
 
         $input = self::jsonInput();
@@ -1024,6 +1216,11 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        $templateAccess = self::ensureTemplateManagementAccess($obUser);
+        if ($templateAccess instanceof Response) {
+            return $templateAccess;
+        }
+
         $template = WhatsAppTemplate::getForUser((int)$id, $obUser);
         if (!$template) {
             return self::json(404, [
@@ -1052,6 +1249,8 @@ class WhatsApp extends ViewComponents
         if ($obUser instanceof Response) {
             return $obUser;
         }
+
+        self::releaseSessionLock();
 
         $query = $request->getQueryParams();
         $accountId = isset($query['account_id']) ? (int)$query['account_id'] : null;
@@ -1107,6 +1306,8 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        self::releaseSessionLock();
+
         $conversation = WhatsAppConversation::getForUser((int)$id, $obUser);
         if (!$conversation) {
             self::logSupportAccess('messages.denied', $obUser, [
@@ -1118,10 +1319,12 @@ class WhatsApp extends ViewComponents
             ]);
         }
 
+        self::syncMetaReadReceiptForConversation($conversation);
+
         $query = $request->getQueryParams();
         $limit = max(1, min(500, (int)($query['limit'] ?? self::DEFAULT_MESSAGE_LIMIT)));
         $beforeId = isset($query['before_id']) ? (int)$query['before_id'] : null;
-        $data = WhatsAppConversation::listMessagesForUser((int)$id, $obUser, $limit, $beforeId);
+        $data = WhatsAppConversation::listMessagesForUser((int)$id, $obUser, $limit, $beforeId, $conversation);
         self::logSupportAccess('messages.list', $obUser, [
             'conversation_id' => (int)$id,
             'returned' => count($data),
@@ -1149,6 +1352,16 @@ class WhatsApp extends ViewComponents
         if ($obUser instanceof Response) {
             return $obUser;
         }
+
+        $conversation = WhatsAppConversation::getForUser((int)$id, $obUser);
+        if (!$conversation) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Conversa não encontrada.',
+            ]);
+        }
+
+        self::syncMetaReadReceiptForConversation($conversation);
 
         $ok = WhatsAppConversation::markReadForUser((int)$id, $obUser);
 
@@ -2005,21 +2218,21 @@ class WhatsApp extends ViewComponents
         }
 
         $flush = self::flushOutboxNow($outboxIds);
-        $sentNow = (int)($flush['sent'] ?? 0) > 0;
+        $deliveryOutcome = self::immediateOutboxDeliveryOutcome($outboxIds, $flush);
 
         WhatsAppSupportDesk::appendTicketMessageForConversation($obUser, $conversationId, 'agent', $message);
 
-        return self::json($sentNow ? 200 : 202, [
-            'success' => true,
-            'message' => $sentNow
-                ? 'Mensagem enviada.'
-                : 'Mensagem recebida pelo sistema e colocada na fila de envio.',
+        return self::json($deliveryOutcome['http_status'], [
+            'success' => $deliveryOutcome['success'],
+            'delivery_status' => $deliveryOutcome['delivery_status'],
+            'message' => $deliveryOutcome['message'],
             'conversation_id' => $conversationId,
             'protocol_reference' => $protocolReference ?: null,
             'outbox_ids' => $outboxIds,
             'processed_now' => $flush,
             'parts' => $plannedMessages,
             'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
+            'outbox_errors' => $deliveryOutcome['outbox_errors'],
         ]);
     }
 
@@ -2080,22 +2293,43 @@ class WhatsApp extends ViewComponents
                         continue;
                     }
 
-                    $account = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
-                    if (!$account) {
-                        self::logWebhookDebug('receive.skip_unknown_phone_number_id', [
-                            'phone_number_id' => $phoneNumberId,
-                            'change_field' => $change['field'] ?? null,
-                        ]);
-                        continue;
-                    }
+                    $statuses = is_array($value['statuses'] ?? null) ? $value['statuses'] : [];
+                    $calls = is_array($value['calls'] ?? null) ? $value['calls'] : [];
+                    $messages = is_array($value['messages'] ?? null) ? $value['messages'] : [];
+                    $hasCallingStatuses = self::hasCallingStatuses($statuses);
+                    $account = null;
 
-                    foreach (($value['messages'] ?? []) as $message) {
-                        if (self::storeInboundWebhookMessage($account, $message, $value)) {
-                            $processed++;
+                    if ($messages !== [] || $calls !== [] || $hasCallingStatuses) {
+                        $account = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
+                        if (!$account) {
+                            self::logWebhookDebug('receive.skip_unknown_phone_number_id', [
+                                'phone_number_id' => $phoneNumberId,
+                                'change_field' => $change['field'] ?? null,
+                                'message_count' => count($messages),
+                                'call_count' => count($calls),
+                            ]);
                         }
                     }
 
-                    foreach (($value['statuses'] ?? []) as $status) {
+                    if ($account) {
+                        foreach (CallPermissionService::extractWebhookEntries($value) as $permissionEvent) {
+                            if (CallPermissionService::handleCallPermissionWebhook($account, $permissionEvent)) {
+                                $processed++;
+                            }
+                        }
+                    }
+
+                    foreach ($statuses as $status) {
+                        if (
+                            $account
+                            && WhatsAppCallingBridge::isEnabled()
+                            && WhatsAppCallingBridge::isCallingStatus($status)
+                            && WhatsAppCallingBridge::handleStatusWebhook($account, $status, $value)
+                        ) {
+                            $processed++;
+                            continue;
+                        }
+
                         if (self::storeWebhookMessageStatus($status)) {
                             $processed++;
                         }
@@ -2103,6 +2337,24 @@ class WhatsApp extends ViewComponents
 
                     if (self::storeWebhookNumberQuality($value)) {
                         $processed++;
+                    }
+
+                    if ($account && WhatsAppCallingBridge::isEnabled()) {
+                        foreach ($calls as $call) {
+                            if (WhatsAppCallingBridge::handleCallWebhook($account, $call, $value)) {
+                                $processed++;
+                            }
+                        }
+                    }
+
+                    if ($messages === [] || !$account) {
+                        continue;
+                    }
+
+                    foreach ($messages as $message) {
+                        if (self::storeInboundWebhookMessage($account, $message, $value)) {
+                            $processed++;
+                        }
                     }
                 }
             }
@@ -2134,6 +2386,11 @@ class WhatsApp extends ViewComponents
         $obUser = self::requireUser();
         if ($obUser instanceof Response) {
             return $obUser;
+        }
+
+        $templateAccess = self::ensureTemplateManagementAccess($obUser);
+        if ($templateAccess instanceof Response) {
+            return $templateAccess;
         }
 
         $accounts = WhatsAppAccount::listForUser($obUser);
@@ -2252,6 +2509,11 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        $templateAccess = self::ensureTemplateManagementAccess($obUser);
+        if ($templateAccess instanceof Response) {
+            return $templateAccess;
+        }
+
         $template = WhatsAppTemplate::getForUser((int)$id, $obUser);
         if (!$template) {
             return self::json(404, ['success' => false, 'message' => 'Template não encontrado.']);
@@ -2339,6 +2601,36 @@ class WhatsApp extends ViewComponents
 
         $expected = 'sha256=' . hash_hmac('sha256', $rawPayload, $secret);
         return hash_equals($expected, $signature);
+    }
+
+    private static function canManageTemplates(string $tenancyId): bool
+    {
+        $user = SessionUser::getLogged();
+        if (is_array($user) && strtolower((string)($user['function'] ?? '')) === 'super_admin') {
+            return true;
+        }
+
+        return $tenancyId !== '' && PlanRuntimeService::canUseFeature($tenancyId, 'templates');
+    }
+
+    private static function ensureTemplateManagementAccess(array $user): ?Response
+    {
+        if (strtolower((string)($user['function'] ?? '')) === 'super_admin') {
+            return null;
+        }
+
+        $tenancyId = trim((string)($user['tenancy_id'] ?? ''));
+        $access = PlanRuntimeService::assertCanUseFeature($tenancyId, 'templates');
+
+        if (!($access['allowed'] ?? false)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Seu plano atual permite usar templates aprovados do sistema, mas não permite criar ou sincronizar templates próprios.',
+                'feature' => 'templates',
+            ]);
+        }
+
+        return null;
     }
 
     private static function storeInboundWebhookMessage(array $account, array $message, array $value): bool
@@ -2453,6 +2745,24 @@ class WhatsApp extends ViewComponents
         }
 
         $updated = WhatsAppConversation::updateMessageStatusByWamid($wamid, $statusName, $errorMessage, $status);
+        self::logWebhookDebug($updated ? 'message.status_stored' : 'message.status_unmatched', [
+            'wamid' => $wamid,
+            'status' => $statusName,
+            'error' => $errorMessage,
+        ]);
+
+        if ($updated) {
+            $message = WhatsAppConversation::getMessageByWamid($wamid);
+            if ($message) {
+                WhatsAppSupportDesk::emitConversationMessageStatus(
+                    (string)($message['tenancy_id'] ?? ''),
+                    (int)($message['conversation_id'] ?? 0),
+                    (int)($message['id'] ?? 0),
+                    (string)$statusName,
+                    $wamid
+                );
+            }
+        }
 
         if ($updated && in_array(strtolower($statusName), ['delivered', 'read'], true)) {
             WhatsAppBilling::billDeliveredByWamid($wamid);
@@ -3260,9 +3570,35 @@ class WhatsApp extends ViewComponents
             return $obUser;
         }
 
+        self::releaseSessionLock();
+
         $query = $request->getQueryParams();
         $headers = $request->getHeaders();
-        $afterId = (int)($query['after_id'] ?? $query['lastEventId'] ?? $headers['Last-Event-ID'] ?? $headers['Last-Event-Id'] ?? 0);
+        $afterId = (int)($query['after_id']
+            ?? $query['lastEventId']
+            ?? $headers['Last-Event-ID']
+            ?? $headers['Last-Event-Id']
+            ?? $headers['last-event-id']
+            ?? 0);
+        if ($afterId <= 0) {
+            $latestId = WhatsAppSupportDesk::latestEventId($obUser);
+            $content = "retry: 2000\n";
+            $content .= 'id: ' . $latestId . "\n";
+            $content .= "event: heartbeat\n";
+            $content .= 'data: {"ok":true,"bootstrap":true}' . "\n\n";
+
+            $response = new Response(200, $content, 'text/event-stream');
+            $response->addHeader('Cache-Control', 'no-cache');
+            $response->addHeader('X-Accel-Buffering', 'no');
+
+            self::logSupportAccess('events.stream.bootstrap', $obUser, [
+                'after_id' => $afterId,
+                'latest_id' => $latestId,
+            ]);
+
+            return $response;
+        }
+
         $events = WhatsAppSupportDesk::events($obUser, $afterId);
         self::logSupportAccess('events.stream', $obUser, [
             'after_id' => $afterId,
@@ -3379,41 +3715,392 @@ class WhatsApp extends ViewComponents
         }
 
         $flush = self::flushOutboxNow($outboxIds);
-        $sentNow = (int)($flush['sent'] ?? 0) > 0;
+        $deliveryOutcome = self::immediateOutboxDeliveryOutcome($outboxIds, $flush);
 
-        return self::json($sentNow ? 200 : 202, [
-            'success' => true,
-            'message' => $sentNow
-                ? 'Mensagem enviada.'
-                : 'Mensagem recebida pelo sistema e colocada na fila de envio.',
+        return self::json($deliveryOutcome['http_status'], [
+            'success' => $deliveryOutcome['success'],
+            'delivery_status' => $deliveryOutcome['delivery_status'],
+            'message' => $deliveryOutcome['message'],
             'conversation_id' => $conversationId,
             'outbox_ids' => $outboxIds,
             'processed_now' => $flush,
             'parts' => $plannedMessages,
             'counters' => WhatsAppMessagePlanner::summarize($plannedMessages),
+            'outbox_errors' => $deliveryOutcome['outbox_errors'],
         ]);
+    }
+
+    public static function getCallPermissions(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!WhatsAppCallingBridge::isEnabled()) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'Integração WhatsApp Calling está desabilitada pelo ambiente.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $accountId = (int)(($_GET['account_id'] ?? $input['account_id'] ?? 0));
+        $conversationId = (int)(($_GET['conversation_id'] ?? $input['conversation_id'] ?? 0));
+        $userWaId = self::normalizePhone((string)($_GET['user_wa_id'] ?? $input['user_wa_id'] ?? $input['to'] ?? ''));
+
+        if ($accountId <= 0 || $userWaId === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe account_id e user_wa_id para consultar permissões de chamada.',
+            ]);
+        }
+
+        $account = self::resolveCallingAccountForUser($obUser, $accountId);
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Conta WhatsApp não encontrada para este usuário.',
+            ]);
+        }
+
+        $result = CallPermissionService::syncPermissionState($account, $conversationId, $userWaId);
+        $record = $conversationId > 0 ? CallPermissionService::getByContactId($conversationId) : null;
+
+        return self::json($result['ok'] ? 200 : 424, [
+            'success' => (bool)($result['ok'] ?? false),
+            'message' => $result['ok']
+                ? CallPermissionService::describeStatus((string)($record['permission_status'] ?? ''))
+                : ($result['error'] ?: 'Falha ao consultar permissões de chamada.'),
+            'data' => $result['data'] ?? [],
+            'permission' => $record,
+            'meta' => [
+                'status' => $result['status'] ?? 0,
+                'error_code' => $result['error_code'] ?? null,
+                'error_subcode' => $result['error_subcode'] ?? null,
+            ],
+        ]);
+    }
+
+    public static function requestCallPermission(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $input = self::jsonInput();
+        $accountId = (int)($input['account_id'] ?? 0);
+        $conversationId = (int)($input['conversation_id'] ?? 0);
+        $to = self::normalizePhone((string)($input['to'] ?? ''));
+        $body = trim((string)($input['body'] ?? 'Permita que nossa equipe ligue para agilizar seu atendimento no WhatsApp.'));
+
+        if ($accountId <= 0 || $conversationId <= 0 || $to === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe account_id, conversation_id e o telefone do contato para solicitar a permissão.',
+            ]);
+        }
+
+        $account = self::resolveCallingAccountForUser($obUser, $accountId);
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Conta WhatsApp não encontrada para este usuário.',
+            ]);
+        }
+
+        $lastInboundAt = WhatsAppConversation::getLastInboundAt((int)$account['id'], $to);
+        if (!WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt)) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'A solicitação livre de permissão de chamada exige janela de 24 horas aberta para este contato.',
+                'last_inbound_at' => $lastInboundAt,
+            ]);
+        }
+
+        $result = CallPermissionService::requestCallPermission($account, $conversationId, $to, $body);
+        $record = CallPermissionService::getByContactId($conversationId);
+
+        return self::json($result['ok'] ? 200 : 424, [
+            'success' => (bool)($result['ok'] ?? false),
+            'message' => $result['ok']
+                ? 'Solicitação de permissão enviada para o cliente.'
+                : ($result['error'] ?: 'Falha ao solicitar a permissão de chamada.'),
+            'data' => $result['data'] ?? [],
+            'permission' => $record,
+            'meta' => [
+                'status' => $result['status'] ?? 0,
+                'error_code' => $result['error_code'] ?? null,
+                'error_subcode' => $result['error_subcode'] ?? null,
+            ],
+        ]);
+    }
+
+    public static function listCallSessions($request): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $query = $request->getQueryParams();
+        $accountId = isset($query['account_id']) ? (int)$query['account_id'] : null;
+        $limit = max(1, min(200, (int)($query['limit'] ?? 100)));
+
+        return self::json(200, [
+            'success' => true,
+            'data' => WhatsAppCallingBridge::listSessions($accountId && $accountId > 0 ? $accountId : null, $limit),
+        ]);
+    }
+
+    public static function getCallSession($request, $callId): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        $session = WhatsAppCallingBridge::getSession(self::normalizeCallingRouteCallId((string)$callId));
+        if (!$session) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Sessão de chamada não encontrada.',
+            ]);
+        }
+
+        return self::json(200, [
+            'success' => true,
+            'data' => $session,
+        ]);
+    }
+
+    public static function initiateCall(): Response
+    {
+        return self::handleCallingAction('connect', null, true);
+    }
+
+    public static function preAcceptCall($request, $callId): Response
+    {
+        return self::handleCallingAction('pre_accept', (string)$callId, true);
+    }
+
+    public static function acceptCall($request, $callId): Response
+    {
+        return self::handleCallingAction('accept', (string)$callId, true);
+    }
+
+    public static function rejectCall($request, $callId): Response
+    {
+        return self::handleCallingAction('reject', (string)$callId, false);
+    }
+
+    public static function terminateCall($request, $callId): Response
+    {
+        return self::handleCallingAction('terminate', (string)$callId, false);
+    }
+
+    private static function handleCallingAction(string $action, ?string $routeCallId, bool $requiresSession): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!WhatsAppCallingBridge::isEnabled()) {
+            return self::json(409, [
+                'success' => false,
+                'message' => 'Integração WhatsApp Calling está desabilitada pelo ambiente.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $accountId = (int)($input['account_id'] ?? 0);
+        if ($accountId <= 0) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe account_id para controlar a chamada.',
+            ]);
+        }
+
+        $account = self::resolveCallingAccountForUser($obUser, $accountId);
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Conta WhatsApp não encontrada para este usuário.',
+            ]);
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'action' => $action,
+        ];
+
+        $callId = $routeCallId !== null
+            ? self::normalizeCallingRouteCallId((string)$routeCallId)
+            : trim((string)($input['call_id'] ?? ''));
+        if ($action === 'connect') {
+            $to = self::normalizePhone((string)($input['to'] ?? ''));
+            $conversationId = (int)($input['conversation_id'] ?? 0);
+            if ($to === '') {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Informe o destino da chamada em to.',
+                ]);
+            }
+
+            $permission = CallPermissionService::ensureValidPermissionForOutbound($account, $conversationId, $to);
+            if (empty($permission['allowed'])) {
+                self::logWebhookDebug('call.permission_blocked', [
+                    'account_id' => (int)($account['id'] ?? 0),
+                    'conversation_id' => $conversationId,
+                    'phone_number' => $to,
+                    'status' => $permission['status'] ?? null,
+                    'message' => $permission['message'] ?? null,
+                ]);
+                return self::json(409, [
+                    'success' => false,
+                    'message' => $permission['message'] ?? 'Este contato ainda não possui permissão válida para chamadas.',
+                    'permission' => $permission['record'] ?? null,
+                    'meta' => $permission['meta'] ?? null,
+                ]);
+            }
+
+            $payload['to'] = $to;
+        } else {
+            if ($callId === '') {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Informe o call_id da chamada.',
+                ]);
+            }
+            $payload['call_id'] = $callId;
+        }
+
+        if (!empty($input['biz_opaque_callback_data'])) {
+            $payload['biz_opaque_callback_data'] = (string)$input['biz_opaque_callback_data'];
+        }
+
+        if ($requiresSession) {
+            $session = self::normalizeCallingSessionInput($input['session'] ?? null);
+            if ($session === null) {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Informe session.sdp_type e session.sdp para esta ação de chamada.',
+                ]);
+            }
+            $payload['session'] = $session;
+        }
+
+        $result = (new MetaWhatsAppCloudApi())->manageCall(
+            (string)$account['access_token'],
+            (string)$account['phone_number_id'],
+            $payload
+        );
+
+        WhatsAppCallingBridge::registerControlAction($account, $action, $payload, $result, [
+            'user_id' => (int)($obUser['id'] ?? 0),
+            'tenancy_id' => (string)($obUser['tenancy_id'] ?? ''),
+        ]);
+
+        if (
+            $action === 'connect'
+            && (
+                (string)($result['error_subcode'] ?? '') === '2593090'
+                || stripos((string)($result['error'] ?? ''), 'No Approved Call Permission Found') !== false
+            )
+        ) {
+            CallPermissionService::markNoPermissionFromCallError(
+                $account,
+                (int)($input['conversation_id'] ?? 0),
+                (string)($payload['to'] ?? ''),
+                $result
+            );
+        }
+
+        return self::json($result['ok'] ? 200 : 424, [
+            'success' => (bool)($result['ok'] ?? false),
+            'message' => $result['ok']
+                ? 'Ação de chamada enviada para a Meta.'
+                : ($result['error'] ?: 'Falha ao enviar ação de chamada para a Meta.'),
+            'data' => $result['data'] ?? [],
+            'meta' => [
+                'status' => $result['status'] ?? 0,
+                'error_code' => $result['error_code'] ?? null,
+                'error_subcode' => $result['error_subcode'] ?? null,
+                'rate_limited' => (bool)($result['rate_limited'] ?? false),
+            ],
+        ]);
+    }
+
+    private static function resolveCallingAccountForUser(array $user, int $accountId): ?array
+    {
+        return self::canViewWhatsAppSupportAccounts($user)
+            ? WhatsAppAccount::getSupportVisibleForUser($accountId, $user)
+            : WhatsAppAccount::getForUser($accountId, $user);
+    }
+
+    private static function normalizeCallingSessionInput(mixed $session): ?array
+    {
+        if (!is_array($session)) {
+            return null;
+        }
+
+        $sdpType = strtolower(trim((string)($session['sdp_type'] ?? '')));
+        $sdp = trim((string)($session['sdp'] ?? ''));
+        if ($sdpType === '' || $sdp === '') {
+            return null;
+        }
+
+        return [
+            'sdp_type' => $sdpType,
+            'sdp' => $sdp,
+        ];
+    }
+
+    private static function normalizeCallingRouteCallId(string $callId): string
+    {
+        return trim(rawurldecode($callId));
+    }
+
+    private static function hasCallingStatuses(array $statuses): bool
+    {
+        foreach ($statuses as $status) {
+            if (is_array($status) && WhatsAppCallingBridge::isCallingStatus($status)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function requireUser(): array|Response
     {
-        $obUser = SessionUser::getLogged();
-        if (!$obUser) {
-            return self::json(401, [
-                'success' => false,
-                'message' => 'Usuário não autenticado.',
-            ]);
-        }
-
-        if (empty($obUser['user_function']) || empty($obUser['role_id'])) {
-            $freshUser = UserSearch::getUserById((string)($obUser['tenancy_id'] ?? ''), (int)($obUser['id'] ?? 0));
-            if ($freshUser) {
-                $obUser['user_function'] = $freshUser['user_function'] ?? ($obUser['function'] ?? '');
-                $obUser['function'] = $obUser['user_function'];
-                $obUser['role_id'] = (int)($freshUser['role_id'] ?? ($obUser['role_id'] ?? 0));
+        return RequestCache::remember('whatsapp.require_user', static function (): array|Response {
+            $obUser = SessionUser::getLogged();
+            if (!$obUser) {
+                return self::json(401, [
+                    'success' => false,
+                    'message' => 'Usuário não autenticado.',
+                ]);
             }
-        }
 
-        return $obUser;
+            if (empty($obUser['user_function']) || empty($obUser['role_id'])) {
+                $freshUser = UserSearch::getUserById((string)($obUser['tenancy_id'] ?? ''), (int)($obUser['id'] ?? 0));
+                if ($freshUser) {
+                    $obUser['user_function'] = $freshUser['user_function'] ?? ($obUser['function'] ?? '');
+                    $obUser['function'] = $obUser['user_function'];
+                    $obUser['role_id'] = (int)($freshUser['role_id'] ?? ($obUser['role_id'] ?? 0));
+                    $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], [
+                        'function' => $obUser['function'],
+                        'user_function' => $obUser['user_function'],
+                        'role_id' => $obUser['role_id'],
+                    ]);
+                }
+            }
+
+            return $obUser;
+        });
     }
 
     private static function canUseSupportAccount(array $user): bool
@@ -3459,6 +4146,51 @@ class WhatsApp extends ViewComponents
         ], $context);
 
         error_log('[whatsapp_access] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function syncMetaReadReceiptForConversation(array $conversation): void
+    {
+        $conversationId = (int)($conversation['id'] ?? 0);
+        if ($conversationId <= 0) {
+            return;
+        }
+
+        $message = WhatsAppConversation::latestUnreadInboundMessage($conversationId);
+        if (!$message || empty($message['wamid'])) {
+            return;
+        }
+
+        $accountId = (int)($conversation['account_id'] ?? $message['account_id'] ?? 0);
+        if ($accountId <= 0) {
+            return;
+        }
+
+        $account = WhatsAppAccount::getById($accountId);
+        if (!$account) {
+            return;
+        }
+
+        try {
+            $result = (new MetaWhatsAppCloudApi())->markMessageAsRead(
+                (string)$account['access_token'],
+                (string)$account['phone_number_id'],
+                (string)$message['wamid']
+            );
+
+            self::logWebhookDebug('message.read_receipt_sync', [
+                'conversation_id' => $conversationId,
+                'wamid' => (string)$message['wamid'],
+                'ok' => (bool)($result['ok'] ?? false),
+                'status' => $result['status'] ?? null,
+                'error' => $result['error'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            self::logWebhookDebug('message.read_receipt_sync_failed', [
+                'conversation_id' => $conversationId,
+                'wamid' => (string)$message['wamid'],
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public static function previewCampaignRecipientsUpload(): Response
@@ -3550,6 +4282,64 @@ class WhatsApp extends ViewComponents
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    private static function immediateOutboxDeliveryOutcome(array $outboxIds, array $flush): array
+    {
+        if ((int)($flush['sent'] ?? 0) > 0) {
+            return [
+                'http_status' => 200,
+                'success' => true,
+                'delivery_status' => 'sent',
+                'message' => 'Mensagem enviada.',
+                'outbox_errors' => [],
+            ];
+        }
+
+        $processed = (int)($flush['processed'] ?? 0);
+        $failed = (int)($flush['failed'] ?? 0);
+        if ($processed > 0 && $failed > 0) {
+            $rows = self::loadOutboxDeliveryRows($outboxIds);
+            $errors = array_values(array_filter(array_map(
+                static fn (array $row): string => trim((string)($row['error_message'] ?? '')),
+                $rows
+            )));
+            $firstError = $errors[0] ?? 'Falha ao enviar mensagem.';
+
+            return [
+                'http_status' => 422,
+                'success' => false,
+                'delivery_status' => 'failed',
+                'message' => 'Erro ao enviar mensagem: ' . $firstError,
+                'outbox_errors' => $errors,
+            ];
+        }
+
+        return [
+            'http_status' => 202,
+            'success' => true,
+            'delivery_status' => 'queued',
+            'message' => 'Mensagem recebida pelo sistema e colocada na fila de envio.',
+            'outbox_errors' => [],
+        ];
+    }
+
+    private static function loadOutboxDeliveryRows(array $outboxIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $outboxIds), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $sql = sprintf(
+            'SELECT id, status, error_message, available_at, attempts, max_attempts
+             FROM whatsapp_outbox
+             WHERE id IN (%s)
+             ORDER BY id ASC',
+            implode(', ', $ids)
+        );
+
+        return (new Database())->execute($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     private static function uploadOutboundMediaToMeta(
@@ -5142,6 +5932,17 @@ class WhatsApp extends ViewComponents
             } else {
                 self::persistBusinessProfile($user, (int)$account['id'], [], $result['error']);
             }
+        }
+    }
+
+    private static function releaseSessionLock(): void
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
         }
     }
 

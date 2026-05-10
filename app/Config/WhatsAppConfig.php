@@ -61,6 +61,21 @@ class WhatsAppConfig
         return trim((string) TelephonyConfig::env('WHATSAPP_DEFAULT_2FA_PIN', ''));
     }
 
+    public static function callingBridgeEnabled(): bool
+    {
+        $value = strtolower((string) TelephonyConfig::env('WHATSAPP_CALLING_BRIDGE_ENABLED', 'true'));
+
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    public static function callingLogFile(): string
+    {
+        return trim((string) TelephonyConfig::env(
+            'WHATSAPP_CALLING_LOG_FILE',
+            'C:/wamp64/logs/meta_whatsapp_calling.log'
+        ));
+    }
+
     public static function fakeSend(): bool
     {
         $value = strtolower((string) TelephonyConfig::env('WHATSAPP_FAKE_SEND', 'false'));

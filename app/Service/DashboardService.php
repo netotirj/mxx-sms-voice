@@ -9,6 +9,7 @@ class DashboardService
     public const CARDS_RETRY_MS = 15000;
     public const CHARTS_RETRY_MS = 30000;
     private const SMS_BALANCE_TTL = 45;
+    private const FILE_CACHE_DIR = __DIR__ . '/../../runtime/cache/dashboard';
 
     public static function sseRetryLine(int $milliseconds): void
     {
@@ -81,14 +82,19 @@ class DashboardService
         try {
             $raw = RedisConn::get()->get($key);
             if (!$raw) {
-                return null;
+                return self::fileCacheGet($key);
             }
 
             $decoded = json_decode((string)$raw, true);
-            return is_array($decoded) ? $decoded : null;
+            if (is_array($decoded)) {
+                self::fileCachePut($key, $decoded, self::fallbackTtlForKey($key));
+                return $decoded;
+            }
+
+            return self::fileCacheGet($key);
         } catch (\Throwable $e) {
             error_log('[dashboard] redis_get_failed key=' . $key . ' error=' . $e->getMessage());
-            return null;
+            return self::fileCacheGet($key);
         }
     }
 
@@ -99,5 +105,59 @@ class DashboardService
         } catch (\Throwable $e) {
             error_log('[dashboard] redis_set_failed key=' . $key . ' error=' . $e->getMessage());
         }
+
+        self::fileCachePut($key, $payload, $ttl);
+    }
+
+    private static function fileCacheGet(string $key): ?array
+    {
+        $path = self::fileCachePath($key);
+        if (!is_file($path)) {
+            return null;
+        }
+
+        $raw = @file_get_contents($path);
+        if ($raw === false || $raw === '') {
+            return null;
+        }
+
+        $payload = json_decode($raw, true);
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $expiresAt = (int)($payload['_expires_at'] ?? 0);
+        if ($expiresAt > 0 && $expiresAt < time()) {
+            @unlink($path);
+            return null;
+        }
+
+        return is_array($payload['data'] ?? null) ? $payload['data'] : null;
+    }
+
+    private static function fileCachePut(string $key, array $payload, int $ttl): void
+    {
+        $dir = dirname(self::fileCachePath($key));
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0777, true);
+        }
+
+        @file_put_contents(
+            self::fileCachePath($key),
+            json_encode([
+                '_expires_at' => time() + max(1, $ttl),
+                'data' => $payload,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    private static function fileCachePath(string $key): string
+    {
+        return self::FILE_CACHE_DIR . '/' . md5($key) . '.json';
+    }
+
+    private static function fallbackTtlForKey(string $key): int
+    {
+        return str_contains($key, 'sms_balance:') ? self::SMS_BALANCE_TTL : 300;
     }
 }

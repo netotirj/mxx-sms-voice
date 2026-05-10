@@ -183,8 +183,11 @@
             </div>
 
             <div class="group bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">WebRTC</label>
-                <label class="inline-flex relative items-center cursor-pointer">
+                <div>
+                    <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">WebRTC</label>
+                    <p id="webrtc_plan_hint" class="mt-1 text-[11px] text-slate-400"></p>
+                </div>
+                <label id="webrtc_toggle_wrap" class="inline-flex relative items-center cursor-pointer">
                     <input type="checkbox" name="webrtc" value="yes" class="sr-only peer" id="webrtc_toggle" checked>
                     <div class="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
                     <div class="absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-full"></div>
@@ -213,6 +216,7 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
+        const planAllowsWebrtc = {{plan_webrtc_enabled}};
         const baseUrl = document.querySelector('meta[name="base-url"]').getAttribute("content");
         const tbody = document.querySelector("table tbody");
         const selectAll = document.getElementById("selectAll");
@@ -227,6 +231,9 @@
         const form = document.getElementById("createSipForm");
         const modalTitle = modal.querySelector("h3");
         const submitButton = form.querySelector('button[type="submit"]');
+        const webrtcToggle = document.getElementById("webrtc_toggle");
+        const webrtcToggleWrap = document.getElementById("webrtc_toggle_wrap");
+        const webrtcPlanHint = document.getElementById("webrtc_plan_hint");
 
         let allRows = [];
         let filteredRows = [];
@@ -276,6 +283,31 @@
             username.value = gerarRamal();
             password.value = gerarSenha();
             caller.value = username.value;
+        }
+
+        function syncWebrtcPlanState(forceUnchecked = false) {
+            if (!webrtcToggle) {
+                return;
+            }
+
+            if (planAllowsWebrtc) {
+                webrtcToggle.disabled = false;
+                webrtcToggleWrap?.classList.remove("opacity-50", "cursor-not-allowed");
+                if (webrtcPlanHint) {
+                    webrtcPlanHint.textContent = "Liberado no plano atual.";
+                }
+                if (forceUnchecked) {
+                    webrtcToggle.checked = false;
+                }
+                return;
+            }
+
+            webrtcToggle.checked = false;
+            webrtcToggle.disabled = true;
+            webrtcToggleWrap?.classList.add("opacity-50", "cursor-not-allowed");
+            if (webrtcPlanHint) {
+                webrtcPlanHint.textContent = "Bloqueado no plano atual. Apenas SIP comum pode ser criado.";
+            }
         }
 
         prevBtn?.addEventListener("click", () => {
@@ -563,6 +595,7 @@
                             modalTitle.textContent = "✏️ Editar SIP Device";
                             submitButton.textContent = "Atualizar";
                             carregarUsuariosParaVinculo(sip.user_id);
+                            syncWebrtcPlanState();
                             modal.classList.remove("hidden");
 
                             const usernameInput = form.querySelector('[name="username"]');
@@ -657,6 +690,7 @@
             form.reset();
             preencherCamposAuto(); // <<<<< GERA AUTOMATICAMENTE
             carregarUsuariosParaVinculo();
+            syncWebrtcPlanState();
             modal.classList.remove("hidden");
         });
 
@@ -674,7 +708,12 @@
                 formData.account_status?.toLowerCase() === "inactive" ? "inactive" : "active";
 
             // Ajuste para o Checkbox do WebRTC (pois se não checado, o FormData não envia)
-            formData.webrtc = document.getElementById("webrtc_toggle").checked ? "yes" : "no";
+            formData.webrtc = webrtcToggle?.checked ? "yes" : "no";
+
+            if (formData.webrtc === "yes" && !planAllowsWebrtc) {
+                notyf.error("Seu plano atual não permite criar ramal WebRTC.");
+                return;
+            }
 
             formData.account_status =
                 formData.account_status?.toLowerCase() === "inactive" ? "inactive" : "active";
@@ -723,6 +762,8 @@
         document.getElementById("regenPass")?.addEventListener("click", () => {
             form.querySelector('[name="password"]').value = gerarSenha();
         });
+
+        syncWebrtcPlanState();
     });
 </script>
 

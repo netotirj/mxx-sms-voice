@@ -1,0 +1,896 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-violet-100 text-violet-600 text-lg">
+                            <i class="fas fa-layer-group"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Catálogo de Planos</h2>
+                            <p class="text-xs text-slate-400">Gerencie planos, limites, recursos e tarifas do runtime comercial</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="plansPage.openFormModal()"
+                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-slate-800 to-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02] active:opacity-85">
+                            <i class="ni ni-fat-add text-sm"></i> Novo Plano
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Planos</p>
+                                <h5 id="plansTotalCount" class="mb-0 font-bold text-slate-800">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-violet-500 to-indigo-500 flex items-center justify-center">
+                                <i class="fas fa-layer-group text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Ativos</p>
+                                <h5 id="plansActiveCount" class="mb-0 font-bold text-emerald-500">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-emerald-500 to-teal-400 flex items-center justify-center">
+                                <i class="ni ni-check-bold text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Inativos</p>
+                                <h5 id="plansInactiveCount" class="mb-0 font-bold text-amber-500">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-amber-500 to-orange-400 flex items-center justify-center">
+                                <i class="ni ni-button-power text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 break-words bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Módulos Liberados</p>
+                                <h5 id="plansModulesCount" class="mb-0 font-bold text-cyan-500">0</h5>
+                            </div>
+                            <div class="w-10 h-10 text-center rounded-lg bg-gradient-to-tl from-cyan-500 to-blue-500 flex items-center justify-center">
+                                <i class="ni ni-world-2 text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Mostrar</label>
+                            <select id="plansRowsPerPage" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" onchange="plansPage.setPerPage(this.value)">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="plansStatusFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" onchange="plansPage.applyFilters()">
+                                <option value="">Todos</option>
+                                <option value="active">Ativo</option>
+                                <option value="inactive">Inativo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Categoria</label>
+                            <select id="plansTypeFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" onchange="plansPage.applyFilters()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="lg:col-span-3">
+                            <div class="relative h-6 mb-1">
+                                <label class="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">Pesquisar Plano</label>
+                                <button type="button" onclick="plansPage.resetFilters()" class="absolute right-0 top-1/2 -translate-y-1/2 text-xxs font-bold text-red-500 uppercase flex items-center gap-1">
+                                    <i class="fa fa-eraser"></i> Limpar Filtros
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa fa-search text-xs"></i></span>
+                                <input id="plansSearchInput" class="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" placeholder="Procurar por nome, slug ou descrição..." oninput="plansPage.applyFilters()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Plano</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Preço/Ciclo</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Limites</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Módulos</th>
+                                <th class="px-4 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Status</th>
+                                <th class="px-4 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="plansTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 flex justify-between items-center border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+                    <p id="plansPageInfo" class="text-xxs font-bold text-slate-400 uppercase tracking-wider">Mostrando planos...</p>
+                    <div class="flex gap-1 items-center">
+                        <button id="plansPrevPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-50" onclick="plansPage.prevPage()">Anterior</button>
+                        <div id="plansPageNumbers" class="flex gap-1"></div>
+                        <button id="plansNextPage" class="px-3 py-1 text-xs font-bold border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-50" onclick="plansPage.nextPage()">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Container Principal do Modal -->
+<div id="planFormModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4 md:p-8">
+    
+    <!-- Caixa do Modal: Ajustada a largura máxima para não estourar em monitores grandes -->
+    <div class="relative z-[100051] bg-white rounded-2xl shadow-2xl w-full max-w-full lg:max-w-6xl 2xl:max-w-7xl max-h-[90vh] overflow-hidden border border-slate-100 flex flex-col transition-all">
+        
+        <!-- Cabeçalho: Fixo no topo -->
+        <div class="p-5 flex items-start justify-between border-b border-slate-100 bg-white shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-400 flex items-center justify-center text-white shadow-lg">
+                    <i class="fas fa-layer-group text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800" id="planFormTitle">Novo Plano</h3>
+                    <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wider italic">Catálogo global de planos e limites</p>
+                </div>
+            </div>
+            <button type="button" onclick="plansPage.closeFormModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100 transition-colors">
+                <i class="fa fa-times text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Formulário: Ocupa o espaço restante e controla o scroll interno -->
+        <form id="planForm" class="flex-1 flex flex-col overflow-hidden bg-slate-50/30">
+            <input type="hidden" name="id" id="plan_id">
+
+            <!-- Área de Scroll dos Campos -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    
+                    <!-- Card: Dados Comerciais -->
+                    <details open class="group rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit transition-all">
+                        <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4 hover:bg-slate-50">
+                            <div>
+                                <p class="text-sm font-bold text-slate-700">Dados comerciais</p>
+                                <p class="text-[11px] text-slate-400">Nome, código, valor, ciclo e situação do plano.</p>
+                            </div>
+                            <i class="fa fa-chevron-down text-[10px] text-slate-400 group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="border-t border-slate-100 p-5 space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="md:col-span-2">
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Nome</label>
+                                    <input type="text" name="name_plan" id="plan_name_plan" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Slug / Código</label>
+                                    <input type="text" name="slug" id="plan_slug" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Categoria</label>
+                                    <input type="text" name="type_plan" id="plan_type_plan" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="catalogo">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="md:col-span-2">
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Descrição</label>
+                                    <input type="text" name="description" id="plan_description" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Valor</label>
+                                    <input type="number" step="0.01" min="0" name="amount_plan" id="plan_amount_plan" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Ciclo</label>
+                                    <select name="billing_cycle" id="plan_billing_cycle" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                                        <option value="monthly">Mensal</option>
+                                        <option value="quarterly">Trimestral</option>
+                                        <option value="semiannual">Semestral</option>
+                                        <option value="annual">Anual</option>
+                                        <option value="custom">Personalizado</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Status</label>
+                                    <select name="status" id="plan_status" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                                        <option value="active">Ativo</option>
+                                        <option value="inactive">Inativo</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Tipo Pagamento</label>
+                                    <input type="text" name="payment_type" id="plan_payment_type" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" value="Pré-Pago">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Criar Usuários</label>
+                                    <select name="users_create" id="plan_users_create" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                                        <option value="y">Sim</option>
+                                        <option value="n">Não</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">WebRTC</label>
+                                    <select name="webrtc_enabled" id="plan_webrtc_enabled" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                                        <option value="1">Liberado</option>
+                                        <option value="0">Bloqueado</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Card: Limites -->
+                    <details open class="group rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit transition-all">
+                        <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4 hover:bg-slate-50">
+                            <div>
+                                <p class="text-sm font-bold text-slate-700">Limites e disponibilidade</p>
+                                <p class="text-[11px] text-slate-400">Quantidades, simultâneos, trunks e WhatsApp.</p>
+                            </div>
+                            <i class="fa fa-chevron-down text-[10px] text-slate-400 group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="border-t border-slate-100 p-5 space-y-4">
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3">
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Usuários</label><input type="number" name="users_limit" id="plan_users_limit" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-violet-400"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">SMS</label><input type="number" name="sms_limit" id="plan_sms_limit" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-violet-400"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Voz</label><input type="number" name="voice_limit" id="plan_voice_limit" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-violet-400"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">WhatsApp</label><input type="number" name="whatsapp_accounts" id="plan_whatsapp_accounts" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Campanhas</label><input type="number" name="campaigns_limit" id="plan_campaigns_limit" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Templates</label><input type="number" name="templates_limit" id="plan_templates_limit" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Trunks</label><input type="number" name="trunks" id="plan_trunks" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">Acessos simultâneos</label><input type="number" name="simultaneous_access" id="plan_simultaneous_access" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Card: Tarifas (Coloquei como fechado por padrão para economizar espaço inicial) -->
+                    <details class="group rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit">
+                        <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4 hover:bg-slate-50">
+                            <div>
+                                <p class="text-sm font-bold text-slate-700">Tarifas aplicadas</p>
+                                <p class="text-[11px] text-slate-400">Custo unitário por serviço.</p>
+                            </div>
+                            <i class="fa fa-chevron-down text-[10px] text-slate-400 group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="border-t border-slate-100 p-5 space-y-5">
+                            <div>
+                                <p class="text-[11px] font-black uppercase tracking-wide text-slate-400 mb-3">Tarifas base</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tarifa SMS</label><input type="number" step="0.0001" name="value_sms" id="plan_value_sms" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Taxa de Servico</label><input type="number" step="0.0001" name="service_fee" id="plan_service_fee" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">CLI Aberta</label><input type="number" step="0.0001" name="voice_open_rate" id="plan_voice_open_rate" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Bina Inteligente</label><input type="number" step="0.0001" name="voice_smart_rate" id="plan_voice_smart_rate" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Torpedo</label><input type="number" step="0.0001" name="value_torpedo" id="plan_value_torpedo" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-black uppercase tracking-wide text-emerald-500 mb-3">Tarifas WhatsApp</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">WA Marketing</label><input type="number" step="0.0001" name="value_whatsapp_marketing" id="plan_value_whatsapp_marketing" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">WA Utility</label><input type="number" step="0.0001" name="value_whatsapp_utility" id="plan_value_whatsapp_utility" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">WA Auth</label><input type="number" step="0.0001" name="value_whatsapp_authentication" id="plan_value_whatsapp_authentication" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                    <div class="min-w-0"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">WA Voz</label><input type="number" step="0.0001" name="whatsapp_voice_price_per_minute" id="plan_whatsapp_voice_price_per_minute" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"></div>
+                                </div>
+                            </div>
+                            <input type="hidden" name="value_voice" id="plan_value_voice">
+                            <input type="hidden" name="whatsapp_voice_markup_percent" id="plan_whatsapp_voice_markup_percent" value="0">
+                            <input type="hidden" name="whatsapp_voice_billing_pulse_seconds" id="plan_whatsapp_voice_billing_pulse_seconds" value="6">
+                        </div>
+                    </details>
+
+                    <!-- Card: Módulos -->
+                    <details class="group rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-fit">
+                        <summary class="flex cursor-pointer list-none items-center justify-between px-5 py-4 hover:bg-slate-50">
+                            <div>
+                                <p class="text-sm font-bold text-slate-700">Módulos e observações</p>
+                                <p class="text-[11px] text-slate-400">Recursos liberados e notas internas.</p>
+                            </div>
+                            <i class="fa fa-chevron-down text-[10px] text-slate-400 group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="border-t border-slate-100 p-5 space-y-4">
+                            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 rounded-xl border border-slate-100 p-4 bg-slate-50/50">
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[administrative]" value="0">
+                                    <input type="checkbox" name="modules[administrative]" value="1" class="rounded border-slate-300">
+                                    Administrativo
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[users]" value="0">
+                                    <input type="checkbox" name="modules[users]" value="1" class="rounded border-slate-300">
+                                    Usuários
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[permissions]" value="0">
+                                    <input type="checkbox" name="modules[permissions]" value="1" class="rounded border-slate-300">
+                                    Permissões
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[rates]" value="0">
+                                    <input type="checkbox" name="modules[rates]" value="1" class="rounded border-slate-300">
+                                    Tarifas
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[reports]" value="0">
+                                    <input type="checkbox" name="modules[reports]" value="1" class="rounded border-slate-300">
+                                    Relatórios
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[sms]" value="0">
+                                    <input type="checkbox" name="modules[sms]" value="1" class="rounded border-slate-300">
+                                    SMS
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[voice]" value="0">
+                                    <input type="checkbox" name="modules[voice]" value="1" class="rounded border-slate-300">
+                                    Voz
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[callcenter]" value="0">
+                                    <input type="checkbox" name="modules[callcenter]" value="1" class="rounded border-slate-300">
+                                    Call Center
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[whatsapp]" value="0">
+                                    <input type="checkbox" name="modules[whatsapp]" value="1" class="rounded border-slate-300">
+                                    WhatsApp
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[templates]" value="0">
+                                    <input type="checkbox" name="modules[templates]" value="1" class="rounded border-slate-300">
+                                    Templates
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-[12px] text-slate-600 cursor-pointer">
+                                    <input type="hidden" name="modules[trunks]" value="0">
+                                    <input type="checkbox" name="modules[trunks]" value="1" class="rounded border-slate-300">
+                                    Trunks
+                                </label>
+                            </div>
+                            <textarea name="internal_notes" id="plan_internal_notes" rows="2" placeholder="Observações..." class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400"></textarea>
+                        </div>
+                    </details>
+
+                </div>
+            </div>
+
+            <!-- Rodapé: Fixo na base -->
+            <div class="shrink-0 flex items-center justify-end gap-4 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+                <button type="button" onclick="plansPage.closeFormModal()" class="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">Cancelar</button>
+                <button type="submit" id="savePlanBtn" class="bg-gradient-to-tr from-violet-700 to-indigo-500 text-white text-xs font-bold px-8 py-3 rounded-xl shadow-lg hover:shadow-indigo-200 active:scale-95 uppercase flex items-center gap-2 transition-all">
+                    <i class="ni ni-check-bold text-[10px]"></i> Salvar Plano
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="planViewModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4">
+    <div class="relative z-[100051] bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-slate-100 flex flex-col">
+        <div class="p-6 pb-4 flex items-start justify-between border-b border-slate-100">
+            <div>
+                <h3 class="text-xl font-bold text-slate-800" id="planViewTitle">Detalhes do Plano</h3>
+                <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider italic">Conferência do catálogo, vínculos e limites aplicados</p>
+            </div>
+            <button type="button" onclick="plansPage.closeViewModal()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100"><i class="fa fa-times text-sm"></i></button>
+        </div>
+        <div id="planViewBody" class="flex-1 overflow-y-auto p-6 text-sm text-slate-600"></div>
+    </div>
+</div>
+
+<script>
+    window.plansPage = (() => {
+        const state = {
+            rows: [],
+            filtered: [],
+            currentPage: 1,
+            perPage: 10,
+            currentEditId: null,
+            types: []
+        };
+
+        const billingLabels = {
+            monthly: 'Mensal',
+            quarterly: 'Trimestral',
+            semiannual: 'Semestral',
+            annual: 'Anual',
+            custom: 'Personalizado'
+        };
+
+        const els = {};
+
+        function cacheElements() {
+            els.tableBody = document.getElementById('plansTableBody');
+            els.pageInfo = document.getElementById('plansPageInfo');
+            els.pageNumbers = document.getElementById('plansPageNumbers');
+            els.prevPage = document.getElementById('plansPrevPage');
+            els.nextPage = document.getElementById('plansNextPage');
+            els.search = document.getElementById('plansSearchInput');
+            els.status = document.getElementById('plansStatusFilter');
+            els.type = document.getElementById('plansTypeFilter');
+            els.formModal = document.getElementById('planFormModal');
+            els.form = document.getElementById('planForm');
+            els.formTitle = document.getElementById('planFormTitle');
+            els.viewModal = document.getElementById('planViewModal');
+            els.viewBody = document.getElementById('planViewBody');
+            els.viewTitle = document.getElementById('planViewTitle');
+            [els.formModal, els.viewModal].forEach(modal => {
+                if (modal && modal.parentElement !== document.body) {
+                    document.body.appendChild(modal);
+                }
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function formatLimit(value) {
+            const numeric = Number(value || 0);
+            return numeric === -1 ? 'Ilimitado' : String(numeric);
+        }
+
+        function statusBadge(status) {
+            if (status === 'active') {
+                return '<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xxs font-bold uppercase tracking-wider text-emerald-700">Ativo</span>';
+            }
+
+            return '<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xxs font-bold uppercase tracking-wider text-amber-700">Inativo</span>';
+        }
+
+        function usageBadge(usage) {
+            const active = Number(usage?.active_subscriptions || 0);
+            if (active > 0) {
+                return `<span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-1 text-xxs font-bold uppercase tracking-wider text-rose-700">${active} assinatura(s) ativa(s)</span>`;
+            }
+
+            return '<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xxs font-bold uppercase tracking-wider text-slate-500">Sem vínculo ativo</span>';
+        }
+
+        async function fetchRows() {
+            const params = new URLSearchParams({
+                search: els.search.value.trim(),
+                status: els.status.value,
+                type_plan: els.type.value
+            });
+
+            const response = await fetch(`${baseURL}/plans/search?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const result = await response.json();
+
+            if (!response.ok || result.status !== 'ok') {
+                throw new Error(result.message || 'Não foi possível carregar os planos.');
+            }
+
+            state.rows = Array.isArray(result.data) ? result.data : [];
+            state.filtered = [...state.rows];
+            state.types = Array.isArray(result.types) ? result.types : [];
+            renderTypeFilter();
+            renderStats(result.stats || {});
+            renderTable();
+        }
+
+        function renderTypeFilter() {
+            const current = els.type.value;
+            const options = ['<option value="">Todas</option>']
+                .concat(state.types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`));
+            els.type.innerHTML = options.join('');
+            els.type.value = current;
+        }
+
+        function renderStats(stats) {
+            document.getElementById('plansTotalCount').textContent = String(stats.total || 0);
+            document.getElementById('plansActiveCount').textContent = String(stats.active || 0);
+            document.getElementById('plansInactiveCount').textContent = String(stats.inactive || 0);
+            document.getElementById('plansModulesCount').textContent = String(stats.modules_enabled || 0);
+        }
+
+        function getPagedRows() {
+            const start = (state.currentPage - 1) * state.perPage;
+            return state.filtered.slice(start, start + state.perPage);
+        }
+
+        function renderTable() {
+            const rows = getPagedRows();
+
+            if (!rows.length) {
+                els.tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-400 font-semibold">
+                            Nenhum plano encontrado com os filtros atuais.
+                        </td>
+                    </tr>`;
+                renderPagination();
+                return;
+            }
+
+            els.tableBody.innerHTML = rows.map(plan => `
+                <tr class="border-b border-slate-100">
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-700">${escapeHtml(plan.name_plan)}</span>
+                            <span class="text-xxs uppercase tracking-wider font-bold text-slate-400 mt-1">#${plan.id} · ${escapeHtml(plan.slug)}</span>
+                            <span class="text-xs text-slate-500 mt-2">${escapeHtml(plan.description || 'Sem descrição resumida')}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-slate-700">${escapeHtml(plan.amount_label)}</span>
+                            <span class="text-xs text-slate-500">${escapeHtml(billingLabels[plan.billing_cycle] || plan.billing_cycle)}</span>
+                            <span class="text-xxs uppercase tracking-wider text-slate-400">${escapeHtml(plan.type_plan || 'custom')}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="grid grid-cols-2 gap-2 text-xxs font-semibold text-slate-500">
+                            <span>Usuários: <strong class="text-slate-700">${formatLimit(plan.users_limit)}</strong></span>
+                            <span>SMS: <strong class="text-slate-700">${formatLimit(plan.sms_limit)}</strong></span>
+                            <span>Voz: <strong class="text-slate-700">${formatLimit(plan.voice_limit)}</strong></span>
+                            <span>WA: <strong class="text-slate-700">${formatLimit(plan.whatsapp_accounts)}</strong></span>
+                            <span>Camp.: <strong class="text-slate-700">${formatLimit(plan.campaigns_limit)}</strong></span>
+                            <span>Trunks: <strong class="text-slate-700">${formatLimit(plan.trunks)}</strong></span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col gap-2">
+                            <span class="text-xs text-slate-600">${escapeHtml(plan.modules_label)}</span>
+                            ${usageBadge(plan.usage)}
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center align-top">${statusBadge(plan.status)}</td>
+                    <td class="px-4 py-4 text-center align-top">
+                        <div class="flex items-center justify-center gap-2 flex-wrap">
+                            <button type="button" onclick="plansPage.viewPlan(${plan.id})" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="Visualizar"><i class="fa fa-eye text-xs"></i></button>
+                            <button type="button" onclick="plansPage.editPlan(${plan.id})" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Editar"><i class="fa fa-pen text-xs"></i></button>
+                            <button type="button" onclick="plansPage.toggleStatus(${plan.id}, '${plan.status === 'active' ? 'inactive' : 'active'}')" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100" title="Ativar/Desativar"><i class="fa fa-power-off text-xs"></i></button>
+                            <button type="button" onclick="plansPage.deletePlan(${plan.id})" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100" title="Excluir"><i class="fa fa-trash text-xs"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const total = state.filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / state.perPage));
+            if (state.currentPage > totalPages) {
+                state.currentPage = totalPages;
+            }
+
+            const start = total === 0 ? 0 : ((state.currentPage - 1) * state.perPage) + 1;
+            const end = Math.min(total, state.currentPage * state.perPage);
+            els.pageInfo.textContent = `Mostrando ${start} a ${end} de ${total} plano(s)`;
+            els.prevPage.disabled = state.currentPage <= 1;
+            els.nextPage.disabled = state.currentPage >= totalPages;
+
+            const buttons = [];
+            for (let page = 1; page <= totalPages; page++) {
+                buttons.push(`
+                    <button type="button"
+                            onclick="plansPage.goToPage(${page})"
+                            class="px-3 py-1 text-xs font-bold border rounded-lg ${page === state.currentPage ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}">
+                        ${page}
+                    </button>`);
+            }
+            els.pageNumbers.innerHTML = buttons.join('');
+        }
+
+        function setFieldValue(id, value) {
+            const field = document.getElementById(id);
+            if (!field) {
+                return;
+            }
+
+            field.value = value;
+        }
+
+        function resetForm() {
+            state.currentEditId = null;
+            els.form.reset();
+            setFieldValue('plan_id', '');
+            setFieldValue('plan_payment_type', 'Pré-Pago');
+            setFieldValue('plan_status', 'active');
+            setFieldValue('plan_users_create', 'y');
+            setFieldValue('plan_webrtc_enabled', '0');
+            setFieldValue('plan_reports_label', 'Relatórios em Tempo Real');
+            const defaultModules = ['administrative', 'reports', 'sms', 'voice', 'callcenter', 'whatsapp'];
+            els.form.querySelectorAll('input[type="checkbox"][name^="modules["]').forEach(input => {
+                const key = input.name.replace('modules[', '').replace(']', '');
+                input.checked = defaultModules.includes(key);
+            });
+        }
+
+        function populateForm(plan) {
+            state.currentEditId = Number(plan.id);
+            Object.entries(plan).forEach(([key, value]) => {
+                const field = document.getElementById(`plan_${key}`);
+                if (!field) {
+                    return;
+                }
+
+                if (field.tagName === 'SELECT') {
+                    if (key === 'webrtc_enabled') {
+                        field.value = value ? '1' : '0';
+                    } else {
+                        field.value = value ?? '';
+                    }
+                    return;
+                }
+
+                field.value = value ?? '';
+            });
+
+            setFieldValue('plan_id', plan.id);
+            els.form.querySelectorAll('input[type="checkbox"][name^="modules["]').forEach(input => {
+                const key = input.name.replace('modules[', '').replace(']', '');
+                input.checked = !!plan.modules?.[key];
+            });
+        }
+
+        async function request(url, options = {}) {
+            const response = await fetch(url, options);
+            const result = await response.json();
+            if (!response.ok || result.status === 'error') {
+                throw new Error(result.message || 'A operação falhou.');
+            }
+            return result;
+        }
+
+        async function submitForm(event) {
+            event.preventDefault();
+            const formData = new FormData(els.form);
+            const voiceOpenRate = formData.get('voice_open_rate');
+            const voiceSmartRate = formData.get('voice_smart_rate');
+            const normalizedVoiceRate = String(voiceSmartRate || voiceOpenRate || '').trim();
+            formData.set('value_voice', normalizedVoiceRate);
+
+            try {
+                const result = await request(`${baseURL}/plans/save`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                notyf.success(result.message || 'Plano salvo com sucesso.');
+                closeFormModal();
+                await fetchRows();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível salvar o plano.');
+            }
+        }
+
+        async function openAndFill(id, mode) {
+            try {
+                const result = await request(`${baseURL}/plans/${id}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (mode === 'edit') {
+                    els.formTitle.textContent = `Editar Plano #${result.data.id}`;
+                    populateForm(result.data);
+                    openFormModal();
+                    return;
+                }
+
+                els.viewTitle.textContent = `Plano #${result.data.id} · ${result.data.name_plan}`;
+                const usage = result.usage || {};
+                els.viewBody.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Catálogo</p>
+                            <div class="mt-3 space-y-2 text-sm">
+                                <p><strong>Slug:</strong> ${escapeHtml(result.data.slug)}</p>
+                                <p><strong>Categoria:</strong> ${escapeHtml(result.data.type_plan)}</p>
+                                <p><strong>Ciclo:</strong> ${escapeHtml(billingLabels[result.data.billing_cycle] || result.data.billing_cycle)}</p>
+                                <p><strong>Status:</strong> ${result.data.status === 'active' ? 'Ativo' : 'Inativo'}</p>
+                                <p><strong>Valor:</strong> ${escapeHtml(result.data.amount_label)}</p>
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Vínculos e segurança</p>
+                            <div class="mt-3 space-y-2 text-sm">
+                                <p><strong>Assinaturas:</strong> ${usage.subscriptions || 0}</p>
+                                <p><strong>Assinaturas ativas:</strong> ${usage.active_subscriptions || 0}</p>
+                                <p><strong>Tenancies usando:</strong> ${usage.tenancies || 0}</p>
+                                <p><strong>Pagamentos relacionados:</strong> ${usage.payments || 0}</p>
+                                <p><strong>Snapshots aplicados:</strong> ${usage.snapshots || 0}</p>
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4 md:col-span-2">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recursos e limites</p>
+                            <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                <p><strong>Usuários:</strong> ${formatLimit(result.data.users_limit)}</p>
+                                <p><strong>SMS:</strong> ${formatLimit(result.data.sms_limit)}</p>
+                                <p><strong>Voz:</strong> ${formatLimit(result.data.voice_limit)}</p>
+                                <p><strong>WhatsApp:</strong> ${formatLimit(result.data.whatsapp_accounts)}</p>
+                                <p><strong>Campanhas:</strong> ${formatLimit(result.data.campaigns_limit)}</p>
+                                <p><strong>Templates:</strong> ${formatLimit(result.data.templates_limit)}</p>
+                                <p><strong>Trunks:</strong> ${formatLimit(result.data.trunks)}</p>
+                                <p><strong>Acessos simultâneos:</strong> ${formatLimit(result.data.simultaneous_access)}</p>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Módulos</p>
+                                <p class="mt-2 text-sm text-slate-600">${escapeHtml(result.data.modules_label)}</p>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tarifas WhatsApp</p>
+                                <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                    <p><strong>Marketing:</strong> R$ ${escapeHtml(Number(result.data.value_whatsapp_marketing || 0).toFixed(4).replace('.', ','))}</p>
+                                    <p><strong>Utility:</strong> R$ ${escapeHtml(Number(result.data.value_whatsapp_utility || 0).toFixed(4).replace('.', ','))}</p>
+                                    <p><strong>Auth:</strong> R$ ${escapeHtml(Number(result.data.value_whatsapp_authentication || 0).toFixed(4).replace('.', ','))}</p>
+                                    <p><strong>Voz:</strong> R$ ${escapeHtml(Number(result.data.whatsapp_voice_price_per_minute || 0).toFixed(4).replace('.', ','))}</p>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Observações internas</p>
+                                <p class="mt-2 text-sm text-slate-600">${escapeHtml(result.data.internal_notes || 'Sem observações')}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                openViewModal();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível carregar os detalhes do plano.');
+            }
+        }
+
+        function openFormModal() {
+            els.formModal.classList.remove('hidden');
+            els.formModal.classList.add('flex');
+        }
+
+        function closeFormModal() {
+            els.formModal.classList.add('hidden');
+            els.formModal.classList.remove('flex');
+            resetForm();
+            els.formTitle.textContent = 'Novo Plano';
+        }
+
+        function openViewModal() {
+            els.viewModal.classList.remove('hidden');
+            els.viewModal.classList.add('flex');
+        }
+
+        function closeViewModal() {
+            els.viewModal.classList.add('hidden');
+            els.viewModal.classList.remove('flex');
+            els.viewBody.innerHTML = '';
+        }
+
+        async function toggleStatus(id, status) {
+            if (!confirm(`Deseja ${status === 'active' ? 'ativar' : 'desativar'} este plano?`)) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('status', status);
+
+            try {
+                const result = await request(`${baseURL}/plans/${id}/status`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                notyf.success(result.message || 'Status atualizado.');
+                await fetchRows();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível atualizar o status.');
+            }
+        }
+
+        async function deletePlan(id) {
+            if (!confirm('Deseja desativar e remover com segurança este plano do catálogo?')) {
+                return;
+            }
+
+            try {
+                const result = await request(`${baseURL}/plans/${id}/delete`, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                notyf.success(result.message || 'Plano removido com segurança.');
+                await fetchRows();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível remover o plano.');
+            }
+        }
+
+        function applyFilters() {
+            state.currentPage = 1;
+            fetchRows().catch(error => notyf.error(error.message || 'Falha ao filtrar os planos.'));
+        }
+
+        function resetFilters() {
+            els.search.value = '';
+            els.status.value = '';
+            els.type.value = '';
+            state.currentPage = 1;
+            fetchRows().catch(error => notyf.error(error.message || 'Falha ao recarregar os planos.'));
+        }
+
+        function setPerPage(value) {
+            state.perPage = Math.max(1, Number(value || 10));
+            state.currentPage = 1;
+            renderTable();
+        }
+
+        function goToPage(page) {
+            state.currentPage = page;
+            renderTable();
+        }
+
+        function prevPage() {
+            if (state.currentPage > 1) {
+                state.currentPage--;
+                renderTable();
+            }
+        }
+
+        function nextPage() {
+            const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.perPage));
+            if (state.currentPage < totalPages) {
+                state.currentPage++;
+                renderTable();
+            }
+        }
+
+        function init() {
+            cacheElements();
+            resetForm();
+            els.form.addEventListener('submit', submitForm);
+            fetchRows().catch(error => notyf.error(error.message || 'Falha ao carregar o catálogo de planos.'));
+        }
+
+        return {
+            init,
+            applyFilters,
+            resetFilters,
+            setPerPage,
+            prevPage,
+            nextPage,
+            goToPage,
+            openFormModal,
+            closeFormModal,
+            closeViewModal,
+            editPlan(id) { openAndFill(id, 'edit'); },
+            viewPlan(id) { openAndFill(id, 'view'); },
+            async deletePlan(id) { await deletePlan(id); },
+            async toggleStatus(id, status) { await toggleStatus(id, status); }
+        };
+    })();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.plansPage.init();
+    });
+</script>

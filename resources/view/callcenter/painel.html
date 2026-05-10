@@ -524,6 +524,8 @@
     let previewAudioLocal = null;
     let localMediaStream = null;
     let cachePrefixo = null;
+    let pendingOutboundCallerId = null;
+    const WHATSAPP_WEBRTC_PENDING_CALL_KEY = 'wa_webrtc_pending_call_v1';
     const servidor = '{{ASTERISK_WS_HOST}}';
     const portaWebrtc = '{{ASTERISK_WS_PORT}}';
     const rtcConfig = {
@@ -556,6 +558,87 @@
         if (DEBUG_WEBRTC) console.warn(...args);
     }
 
+    function carregarChamadaPendenteWhatsApp() {
+        try {
+            const raw = localStorage.getItem(WHATSAPP_WEBRTC_PENDING_CALL_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function limparChamadaPendenteWhatsApp() {
+        localStorage.removeItem(WHATSAPP_WEBRTC_PENDING_CALL_KEY);
+    }
+
+    function preencherDestinoPendenteWhatsApp(payload) {
+        const numero = String(payload?.destination_phone || '').replace(/\D/g, '');
+        if (!numero) return;
+
+        const input = document.getElementById('numDiscar');
+        if (input) {
+            input.value = numero;
+            if (typeof atualizarEscalaFonte === 'function') {
+                atualizarEscalaFonte(input);
+            }
+        }
+    }
+
+    async function consumirChamadaPendenteWhatsApp(origem = 'unknown') {
+        const pending = carregarChamadaPendenteWhatsApp();
+        if (!pending) return false;
+
+        const numero = String(pending.destination_phone || '').replace(/\D/g, '');
+        if (!numero) {
+            limparChamadaPendenteWhatsApp();
+            return false;
+        }
+
+        const requestedAt = Number(pending.requested_at || 0);
+        if (requestedAt > 0 && (Date.now() - requestedAt) > 15 * 60 * 1000) {
+            limparChamadaPendenteWhatsApp();
+            return false;
+        }
+
+        preencherDestinoPendenteWhatsApp(pending);
+
+        if (!localStorage.getItem('agente_sessao')) {
+            if (typeof notyf !== 'undefined') {
+                notyf.success(`Destino recebido do WhatsApp para ${pending.contact_name || numero}. Faça o check-in para iniciar.`);
+            }
+            return false;
+        }
+
+        if (!(ua && ua.isConnected())) {
+            return false;
+        }
+
+        limparChamadaPendenteWhatsApp();
+
+        if (pending.mode === 'video' && typeof notyf !== 'undefined') {
+            notyf.success('Fluxo de video preparado. Enquanto o servidor nao estiver pronto, a chamada sera aberta em voz.');
+        }
+
+        if (pending.caller_id && typeof notyf !== 'undefined') {
+            notyf.success(`Origem prevista da empresa: ${pending.caller_id}`);
+        }
+
+        pendingOutboundCallerId = pending.caller_id || null;
+
+        logWebRTC('[WebRTC] Consumindo chamada pendente do WhatsApp', {
+            origem,
+            destino: numero,
+            callerId: pending.caller_id || null,
+            accountId: pending.account_id || null,
+            conversationId: pending.conversation_id || null
+        });
+
+        await discarHistorico(numero);
+        return true;
+    }
+
     function obterOpcoesMidia(stream = null) {
         const options = {
             mediaConstraints: { audio: true, video: false },
@@ -564,6 +647,13 @@
 
         if (stream) {
             options.mediaStream = stream;
+        }
+
+        if (pendingOutboundCallerId) {
+            options.extraHeaders = [
+                `X-Company-CallerId: ${pendingOutboundCallerId}`,
+                'X-Call-Source: whatsapp-support'
+            ];
         }
 
         return options;
@@ -925,6 +1015,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         verificarSessaoExistente();
         travarScrollInternoAudios();
+        consumirChamadaPendenteWhatsApp('dom-ready');
 
         const remoteAudio = document.getElementById('remoteAudio');
         if (remoteAudio) {
@@ -974,6 +1065,7 @@
             });
             atualizarBadgeStatus(true);
             sincronizarAgenteLivreSilencioso();
+            consumirChamadaPendenteWhatsApp('ua-registered');
         });
 
         ua.on('unregistered', () => atualizarBadgeStatus(false));
@@ -1510,6 +1602,7 @@
             const localStream = await obterStreamLocal();
 
             ua.call(`sip:${numeroFinal}@${servidor}`, obterOpcoesMidia(localStream));
+            pendingOutboundCallerId = null;
 
             // 🟢 AQUI ESTÁ O QUE FALTAVA: ABRE O DRAWER DO TECLADO
             const drawer = document.getElementById('drawer-teclado');

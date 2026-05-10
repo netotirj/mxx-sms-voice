@@ -391,10 +391,15 @@
         // Admin pode tudo
         // Reseller: não pode excluir a própria conta, mas pode excluir usuários criados por ele
         window.canDeleteUser = (user) => {
+            const role = window.getAuthRole();
+
+            if (window.isOwnUser(user) && role !== 'super_admin' && role !== 'superadmin') {
+                return false;
+            }
+
             if (window.isAdmin()) return true;
 
             if (window.isReseller()) {
-                if (window.isOwnUser(user)) return false;
                 return window.isMyUser(user);
             }
 

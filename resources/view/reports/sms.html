@@ -696,7 +696,9 @@
             const interval = parseInt(reloadIntervalSelect?.value, 10) || 10000;
 
             autoReloadTimer = setInterval(() => {
-                fetchData();
+                if (!document.hidden) {
+                    fetchData();
+                }
             }, interval);
         }
 
@@ -758,6 +760,19 @@
         if (autoReloadCheckbox) {
             autoReloadCheckbox.addEventListener('change', startAutoReload);
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoReload();
+                return;
+            }
+
+            if (autoReloadCheckbox?.checked) {
+                fetchData();
+                startAutoReload();
+            }
+        });
+        window.addEventListener('beforeunload', stopAutoReload);
 
         if (reloadIntervalSelect) {
             reloadIntervalSelect.addEventListener('change', startAutoReload);

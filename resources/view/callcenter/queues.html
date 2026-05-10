@@ -715,6 +715,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         iniciarMonitoramentoCards();
         renderQueues();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopQueueCardsSse();
+                return;
+            }
+
+            if (queueCardsCooldownUntil > 0 && queueCardsCooldownUntil <= Date.now()) {
+                queueCardsCooldownUntil = 0;
+                resetQueueCardsSseFailures();
+            }
+
+            iniciarMonitoramentoCards();
+        });
+        window.addEventListener('beforeunload', stopQueueCardsSse);
 
         // Limpeza visual do Nome ao focar ou digitar
         const inputNome = document.getElementById('inputQueueName');
@@ -751,12 +765,68 @@
         }
     });
 
-    function iniciarMonitoramentoCards() {
-        const sseUrl = `${baseUrl}/callcenter/monitoring-calls`;
-        const evtSource = new EventSource(sseUrl);
+    let queueCardsEventSource = null;
+    let queueCardsReconnectTimer = null;
+    let queueCardsFailureCount = 0;
+    let queueCardsCooldownUntil = 0;
+    const QUEUE_CARDS_SSE_RETRY_MS = 3000;
+    const QUEUE_CARDS_SSE_RETRY_MAX_MS = 60000;
+    const QUEUE_CARDS_SSE_FAILURE_THRESHOLD = 4;
+    const QUEUE_CARDS_SSE_COOLDOWN_MS = 180000;
 
-        evtSource.addEventListener('update', function(event) {
+    function resetQueueCardsSseFailures() {
+        queueCardsFailureCount = 0;
+    }
+
+    function nextQueueCardsSseRetryDelay() {
+        queueCardsFailureCount += 1;
+        return Math.min(
+            QUEUE_CARDS_SSE_RETRY_MS * Math.max(1, Math.pow(2, queueCardsFailureCount - 1)),
+            QUEUE_CARDS_SSE_RETRY_MAX_MS
+        );
+    }
+
+    function stopQueueCardsSse() {
+        if (queueCardsReconnectTimer) {
+            clearTimeout(queueCardsReconnectTimer);
+            queueCardsReconnectTimer = null;
+        }
+        if (queueCardsEventSource) {
+            queueCardsEventSource.close();
+            queueCardsEventSource = null;
+        }
+    }
+
+    function tripQueueCardsSseCircuitBreaker() {
+        queueCardsCooldownUntil = Date.now() + QUEUE_CARDS_SSE_COOLDOWN_MS;
+        stopQueueCardsSse();
+        console.warn('Callcenter queues cards SSE em cooldown temporario.', {
+            retryAfterMs: QUEUE_CARDS_SSE_COOLDOWN_MS,
+            failures: queueCardsFailureCount
+        });
+
+        queueCardsReconnectTimer = setTimeout(() => {
+            queueCardsReconnectTimer = null;
+            if (!document.hidden) {
+                if (queueCardsCooldownUntil <= Date.now()) {
+                    queueCardsCooldownUntil = 0;
+                    resetQueueCardsSseFailures();
+                }
+                iniciarMonitoramentoCards();
+            }
+        }, QUEUE_CARDS_SSE_COOLDOWN_MS);
+    }
+
+    function iniciarMonitoramentoCards() {
+        if (document.hidden || queueCardsEventSource) return;
+        if (queueCardsCooldownUntil > Date.now()) return;
+
+        const sseUrl = `${baseUrl}/callcenter/monitoring-calls`;
+        queueCardsEventSource = new EventSource(sseUrl);
+
+        queueCardsEventSource.addEventListener('update', function(event) {
             try {
+                resetQueueCardsSseFailures();
                 const data = JSON.parse(event.data);
                 listaAgentesGlobal = data.agentes || [];
 
@@ -793,10 +863,23 @@
             }
         });
 
-        evtSource.onerror = function() {
-            evtSource.close();
-            // Tenta reconectar após 5 segundos se cair
-            setTimeout(iniciarMonitoramentoCards, 5000);
+        queueCardsEventSource.onerror = function() {
+            const connectionState = queueCardsEventSource?.readyState;
+            stopQueueCardsSse();
+            if (document.hidden || connectionState === EventSource.CONNECTING) {
+                return;
+            }
+
+            const delay = nextQueueCardsSseRetryDelay();
+            if (queueCardsFailureCount >= QUEUE_CARDS_SSE_FAILURE_THRESHOLD) {
+                tripQueueCardsSseCircuitBreaker();
+                return;
+            }
+
+            queueCardsReconnectTimer = setTimeout(() => {
+                queueCardsReconnectTimer = null;
+                iniciarMonitoramentoCards();
+            }, delay);
         };
     }
 

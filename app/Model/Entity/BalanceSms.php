@@ -18,9 +18,12 @@ class BalanceSms
     public float $value_torpedo = 0.0;
     public float $value_whatsapp = 0.0;
     public float $service_fee = 0.0;
+    public ?string $snapshot_json = null;
+    public ?string $applied_plan_name = null;
+    public ?string $applied_billing_cycle = null;
+    public ?float $applied_amount_plan = null;
     public ?string $payment_invoice = null;
     public ?string $created_at = null;
-
     public ?string $updated_at = null;
 
 
@@ -170,7 +173,12 @@ class BalanceSms
         ?string $paymentInvoice = null,
         ?float $voiceOpenRate = null,
         ?float $voiceSmartRate = null,
-        ?float $valueWhatsapp = null
+        ?float $valueWhatsapp = null,
+        ?float $serviceFee = null,
+        ?string $snapshotJson = null,
+        ?string $appliedPlanName = null,
+        ?string $appliedBillingCycle = null,
+        ?float $appliedAmountPlan = null
     ): bool {
         // Se tiver invoice, verificar se já foi inserido
         if (!empty($paymentInvoice)) {
@@ -206,6 +214,26 @@ class BalanceSms
 
         if (self::columnExists('tenancy_balance', 'voice_smart_rate')) {
             $data['voice_smart_rate'] = $voiceSmartRate ?? $valueVoice;
+        }
+
+        if (self::columnExists('tenancy_balance', 'service_fee')) {
+            $data['service_fee'] = $serviceFee ?? 0.0;
+        }
+
+        if (self::columnExists('tenancy_balance', 'snapshot_json')) {
+            $data['snapshot_json'] = $snapshotJson;
+        }
+
+        if (self::columnExists('tenancy_balance', 'applied_plan_name')) {
+            $data['applied_plan_name'] = $appliedPlanName;
+        }
+
+        if (self::columnExists('tenancy_balance', 'applied_billing_cycle')) {
+            $data['applied_billing_cycle'] = $appliedBillingCycle;
+        }
+
+        if (self::columnExists('tenancy_balance', 'applied_amount_plan')) {
+            $data['applied_amount_plan'] = $appliedAmountPlan;
         }
 
         return (new Database('tenancy_balance'))->insert($data);

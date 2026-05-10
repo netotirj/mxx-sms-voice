@@ -29,37 +29,8 @@ class WhatsAppBilling
             return 0.0;
         }
 
-        $resellerPrice = self::priceFromResellerCategoryRate($userId, $tenancyId, $category);
-        if ($resellerPrice !== null) {
-            return $resellerPrice;
-        }
-
-        $dynamicPrice = null;
-        try {
-            WhatsAppDynamicPricing::refreshUsdRateIfStale();
-            $dynamicPrice = WhatsAppDynamicPricing::salePriceBrl(
-                strtolower($category),
-                $countryCode ?: (string)TelephonyConfig::env('WHATSAPP_DEFAULT_COUNTRY_CODE', 'BR'),
-                $userId
-            );
-        } catch (\Throwable $e) {
-            error_log('[whatsapp_dynamic_pricing_fallback] ' . $e->getMessage());
-        }
-
-        if ($dynamicPrice !== null) {
-            return round((float)$dynamicPrice, 4);
-        }
-
-        $planId = self::resolvePlanId($userId, $tenancyId);
-        if ($planId) {
-            self::syncPlanWhatsappPricingFromMxxPlan($planId);
-        }
-
-        if (!$planId) {
-            return WhatsAppCostPolicy::defaultPriceBrl($category);
-        }
-
-        return self::priceFromPlan($planId, $category) ?? WhatsAppCostPolicy::defaultPriceBrl($category);
+        $context = self::commercialPricingContextForUser($userId, $tenancyId, $category, $countryCode);
+        return round((float)($context['final_commercial_price_brl'] ?? 0), 4);
     }
 
     public static function pricingSnapshot(int $userId, string $tenancyId, string $category, string $phone, ?float $chargedPriceBrl = null): array
@@ -75,20 +46,24 @@ class WhatsAppBilling
         }
 
         $countryCode = WhatsAppDynamicPricing::countryCodeFromPhone($phone);
-        $refresh = WhatsAppDynamicPricing::refreshUsdRateIfStale();
-        $pricing = WhatsAppDynamicPricing::calculatePrice(strtolower($category), $countryCode, $userId);
-        $planId = self::resolvePlanId($userId, $tenancyId);
-        $planPrice = $planId ? self::priceFromPlan($planId, $category) : null;
+        $context = self::commercialPricingContextForUser($userId, $tenancyId, $category, $countryCode);
+        $refresh = $context['exchange_refresh'] ?? null;
+        $pricing = is_array($context['dynamic_pricing_payload'] ?? null)
+            ? $context['dynamic_pricing_payload']
+            : [];
         $finalPrice = $chargedPriceBrl !== null
             ? round(max(0, $chargedPriceBrl), 4)
-            : round((float)($pricing['final_price_brl'] ?? 0), 4);
+            : round((float)($context['final_commercial_price_brl'] ?? 0), 4);
         $pricing['final_price_brl'] = $finalPrice;
         $pricing['charged_price_brl'] = $finalPrice;
         $pricing['profit_brl'] = round($finalPrice - (float)($pricing['cost_brl'] ?? 0), 6);
 
         return array_merge($pricing, [
-            'plan_id' => $planId,
-            'plan_price_brl' => $planPrice,
+            'plan_id' => $context['plan_id'] ?? null,
+            'plan_price_brl' => $context['plan_price_brl'] ?? null,
+            'dynamic_price_brl' => $context['dynamic_price_brl'] ?? null,
+            'final_commercial_price_brl' => $finalPrice,
+            'pricing_rule' => 'max(dynamic,plan)',
             'charged_price_brl' => $finalPrice,
             'final_price_brl' => $finalPrice,
             'exchange_refresh' => $refresh,
@@ -134,6 +109,58 @@ class WhatsAppBilling
         }
 
         return $prices;
+    }
+
+    public static function categoryDisplayPricesForUser(int $userId, string $tenancyId, ?string $countryCode = null): array
+    {
+        $prices = [];
+        foreach ([
+            'marketing' => WhatsAppCostPolicy::CATEGORY_MARKETING,
+            'utility' => WhatsAppCostPolicy::CATEGORY_UTILITY,
+            'authentication' => WhatsAppCostPolicy::CATEGORY_AUTHENTICATION,
+            'service' => WhatsAppCostPolicy::CATEGORY_SERVICE,
+        ] as $key => $category) {
+            if ($category === WhatsAppCostPolicy::CATEGORY_SERVICE) {
+                $prices[$key] = 0.0;
+                continue;
+            }
+
+            $context = self::commercialPricingContextForUser($userId, $tenancyId, $category, $countryCode, false);
+            $prices[$key] = round((float)($context['final_commercial_price_brl'] ?? 0), 4);
+        }
+
+        return $prices;
+    }
+
+    public static function planFloorPriceForUser(int $userId, string $tenancyId, string $category): ?float
+    {
+        $rawCategory = strtolower(trim($category));
+        if ($rawCategory === 'voice') {
+            $snapshotVoicePrice = self::snapshotPlanCategoryPrice($userId, $tenancyId, 'voice');
+            if ($snapshotVoicePrice !== null && $snapshotVoicePrice > 0) {
+                return $snapshotVoicePrice;
+            }
+
+            return self::currentVoicePlanPrice($userId, $tenancyId);
+        }
+
+        $category = WhatsAppCostPolicy::normalizeCategory($category);
+        if ($category === WhatsAppCostPolicy::CATEGORY_SERVICE) {
+            return 0.0;
+        }
+
+        $snapshotPrice = self::snapshotPlanCategoryPrice($userId, $tenancyId, $category);
+        if ($snapshotPrice !== null && $snapshotPrice > 0) {
+            return $snapshotPrice;
+        }
+
+        $planId = self::resolvePlanId($userId, $tenancyId);
+        if (!$planId) {
+            return null;
+        }
+
+        self::syncPlanWhatsappPricingFromMxxPlan($planId);
+        return self::priceFromPlan($planId, $category);
     }
 
     public static function assertCanSend(int $userId, string $tenancyId, string $category, float $priceBrl): void
@@ -468,6 +495,147 @@ class WhatsAppBilling
             ->fetch(\PDO::FETCH_ASSOC);
 
         return $row ? round((float)$row['price_brl'], 4) : null;
+    }
+
+    private static function commercialPricingContextForUser(int $userId, string $tenancyId, string $category, ?string $countryCode = null, bool $refreshExchange = true): array
+    {
+        $category = WhatsAppCostPolicy::normalizeCategory($category);
+        $planId = self::resolvePlanId($userId, $tenancyId);
+        $planPrice = self::planFloorPriceForUser($userId, $tenancyId, $category);
+        $fallbackPrice = $planPrice;
+
+        $dynamicPrice = null;
+        $dynamicPricingPayload = [];
+        $exchangeRefresh = null;
+
+        try {
+            $exchangeRefresh = $refreshExchange
+                ? WhatsAppDynamicPricing::refreshUsdRateIfStale()
+                : [
+                    'success' => true,
+                    'message' => 'Header/display pricing using persisted exchange snapshot.',
+                    'cache' => 'display_only',
+                ];
+            $dynamicPricingPayload = WhatsAppDynamicPricing::calculatePrice(
+                strtolower($category),
+                $countryCode ?: (string)TelephonyConfig::env('WHATSAPP_DEFAULT_COUNTRY_CODE', 'BR'),
+                $userId
+            );
+            $dynamicPrice = round((float)($dynamicPricingPayload['final_price_brl'] ?? 0), 4);
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_dynamic_pricing_fallback] ' . $e->getMessage());
+        }
+
+        if ($fallbackPrice === null || $fallbackPrice <= 0) {
+            $resellerFallbackPrice = self::priceFromResellerCategoryRate($userId, $tenancyId, $category);
+            if ($resellerFallbackPrice !== null && $resellerFallbackPrice > 0) {
+                $fallbackPrice = round((float)$resellerFallbackPrice, 4);
+            }
+        }
+
+        $finalCommercialPrice = 0.0;
+        $pricingSource = 'default_fallback';
+
+        if ($dynamicPrice !== null && $dynamicPrice > 0) {
+            $finalCommercialPrice = $fallbackPrice !== null && $fallbackPrice > 0
+                ? max($dynamicPrice, round((float)$fallbackPrice, 4))
+                : $dynamicPrice;
+            $pricingSource = $fallbackPrice !== null && $fallbackPrice > $dynamicPrice
+                ? 'plan_floor'
+                : 'dynamic_price';
+        } elseif ($fallbackPrice !== null && $fallbackPrice > 0) {
+            $finalCommercialPrice = round((float)$fallbackPrice, 4);
+            $pricingSource = 'plan_fallback';
+        } else {
+            $finalCommercialPrice = WhatsAppCostPolicy::defaultPriceBrl($category);
+        }
+
+        return [
+            'plan_id' => $planId,
+            'plan_price_brl' => $planPrice !== null ? round((float)$planPrice, 4) : null,
+            'dynamic_price_brl' => $dynamicPrice !== null ? round((float)$dynamicPrice, 4) : null,
+            'final_commercial_price_brl' => round((float)$finalCommercialPrice, 4),
+            'pricing_rule' => 'max(dynamic,plan)',
+            'pricing_source' => $pricingSource,
+            'exchange_refresh' => $exchangeRefresh,
+            'dynamic_pricing_payload' => $dynamicPricingPayload,
+        ];
+    }
+
+    private static function snapshotPlanCategoryPrice(int $userId, string $tenancyId, string $category): ?float
+    {
+        try {
+            $row = (new Database())->execute(
+                "SELECT snapshot_json
+                 FROM tenancy_balance
+                 WHERE user_id = :user_id
+                   AND tenancy_id = :tenancy_id
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT 1",
+                [
+                    ':user_id' => $userId,
+                    ':tenancy_id' => $tenancyId,
+                ]
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                return null;
+            }
+
+            $snapshot = json_decode((string)($row['snapshot_json'] ?? ''), true);
+            if (!is_array($snapshot)) {
+                return null;
+            }
+
+            $pricing = is_array($snapshot['pricing'] ?? null) ? $snapshot['pricing'] : [];
+            $key = match (strtolower($category)) {
+                'marketing' => 'value_whatsapp_marketing',
+                'utility' => 'value_whatsapp_utility',
+                'authentication' => 'value_whatsapp_authentication',
+                'voice' => 'whatsapp_voice_price_per_minute',
+                default => null,
+            };
+
+            if ($key === null || !isset($pricing[$key])) {
+                return null;
+            }
+
+            $price = round((float)$pricing[$key], 4);
+            return $price > 0 ? $price : null;
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_snapshot_plan_price] ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private static function currentVoicePlanPrice(int $userId, string $tenancyId): ?float
+    {
+        $planId = self::resolvePlanId($userId, $tenancyId);
+        if (!$planId) {
+            return null;
+        }
+
+        try {
+            $row = (new Database('mxx_plans'))
+                ->select(
+                    'id = :id',
+                    [':id' => $planId],
+                    '',
+                    '1',
+                    ['whatsapp_voice_price_per_minute']
+                )
+                ->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                return null;
+            }
+
+            $price = round((float)($row['whatsapp_voice_price_per_minute'] ?? 0), 4);
+            return $price > 0 ? $price : null;
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_current_voice_plan_price] ' . $e->getMessage());
+            return null;
+        }
     }
 
     private static function syncPlanWhatsappPricingFromMxxPlan(int $planId): void

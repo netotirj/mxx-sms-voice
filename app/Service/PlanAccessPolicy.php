@@ -10,45 +10,38 @@ class PlanAccessPolicy
 
     public static function currentPlan(string $tenancyId): ?array
     {
-        $query = "
-            SELECT p.*
-            FROM mxx_user_plans up
-            INNER JOIN mxx_plans p ON p.id = up.plan_id
-            WHERE up.tenancy_id = :tenancy_id
-              AND up.status_payment = 'confirmed'
-              AND up.status = 'active'
-              AND p.status = 'active'
-            ORDER BY up.updated_at DESC, up.created_at DESC, up.id DESC
-            LIMIT 1
-        ";
-
-        $row = (new Database())->execute($query, [
-            ':tenancy_id' => $tenancyId,
-        ])->fetch(\PDO::FETCH_ASSOC);
-
-        return $row ?: null;
+        return PlanRuntimeService::getActivePlanByTenancy($tenancyId);
     }
 
     public static function canCreateUsers(string $tenancyId): bool
     {
-        $plan = self::currentPlan($tenancyId);
+        return PlanRuntimeService::canUseFeature($tenancyId, 'create_users');
+    }
 
-        if (!$plan) {
-            return false;
-        }
+    public static function trunkLimit(string $tenancyId): ?int
+    {
+        $limits = PlanRuntimeService::getEffectiveLimits($tenancyId);
+        return array_key_exists('trunks', $limits)
+            ? self::normalizeCapabilityLimit($limits['trunks'])
+            : null;
+    }
 
-        return strtolower((string)($plan['users_create'] ?? 'n')) === 'y';
+    public static function whatsAppAccountLimit(string $tenancyId): ?int
+    {
+        $limits = PlanRuntimeService::getEffectiveLimits($tenancyId);
+        return array_key_exists('whatsapp_accounts', $limits)
+            ? self::normalizeCapabilityLimit($limits['whatsapp_accounts'])
+            : null;
     }
 
     public static function concurrentLimit(string $tenancyId): ?int
     {
-        $plan = self::currentPlan($tenancyId);
-
-        if (!$plan) {
+        $limits = PlanRuntimeService::getEffectiveLimits($tenancyId);
+        if (!array_key_exists('simultaneous_access', $limits)) {
             return null;
         }
 
-        $limit = (int)($plan['simultaneous_access'] ?? 1);
+        $limit = (int)$limits['simultaneous_access'];
 
         return $limit > 0 ? $limit : null;
     }
@@ -109,5 +102,131 @@ class PlanAccessPolicy
             'limit' => $limit,
             'active' => $active,
         ];
+    }
+
+    public static function assertCanCreateTrunk(string $tenancyId, int $currentCount): array
+    {
+        $limit = self::trunkLimit($tenancyId);
+
+        if ($limit === null) {
+            return [
+                'allowed' => false,
+                'message' => 'Nenhum plano ativo foi encontrado para esta conta.',
+            ];
+        }
+
+        if ($limit < 0) {
+            return [
+                'allowed' => true,
+                'limit' => $limit,
+                'current' => $currentCount,
+            ];
+        }
+
+        if ($currentCount >= $limit) {
+            return [
+                'allowed' => false,
+                'message' => 'Limite de trunks do plano atingido. Por favor, contate o administrador da conta.',
+                'limit' => $limit,
+                'current' => $currentCount,
+            ];
+        }
+
+        return [
+            'allowed' => true,
+            'limit' => $limit,
+            'current' => $currentCount,
+        ];
+    }
+
+    public static function assertCanCreateWhatsAppAccount(string $tenancyId, int $currentCount): array
+    {
+        $limit = self::whatsAppAccountLimit($tenancyId);
+
+        if ($limit === null) {
+            return [
+                'allowed' => false,
+                'message' => 'Nenhum plano ativo foi encontrado para esta conta.',
+            ];
+        }
+
+        if ($limit < 0) {
+            return [
+                'allowed' => true,
+                'limit' => $limit,
+                'current' => $currentCount,
+            ];
+        }
+
+        if ($currentCount >= $limit) {
+            return [
+                'allowed' => false,
+                'message' => 'Limite de contas WhatsApp atingido. Por favor, contate o administrador da conta.',
+                'limit' => $limit,
+                'current' => $currentCount,
+            ];
+        }
+
+        return [
+            'allowed' => true,
+            'limit' => $limit,
+            'current' => $currentCount,
+        ];
+    }
+
+    public static function currentWhatsAppAccountsCount(string $tenancyId, ?int $ignoreNumberId = null): int
+    {
+        $params = [
+            ':tenancy_id' => $tenancyId,
+            ':removed_status' => 'removed',
+            ':rejected_status' => 'rejected',
+            ':deleted_status' => 'deleted',
+            ':cancelled_status' => 'cancelled',
+            ':active_status' => 'active',
+        ];
+        $ignoreSql = '';
+
+        if ($ignoreNumberId !== null && $ignoreNumberId > 0) {
+            $ignoreSql = ' AND wn.id <> :ignore_number_id';
+            $params[':ignore_number_id'] = $ignoreNumberId;
+        }
+
+        $sql = "
+            SELECT COUNT(*) AS total
+            FROM (
+                SELECT wn.id
+                FROM whatsapp_numbers wn
+                WHERE wn.company_id = :tenancy_id
+                  AND wn.removed_at IS NULL
+                  AND wn.status NOT IN (:removed_status, :rejected_status, :deleted_status, :cancelled_status)
+                  {$ignoreSql}
+
+                UNION
+
+                SELECT wa.id
+                FROM whatsapp_accounts wa
+                LEFT JOIN whatsapp_numbers wn
+                  ON wn.whatsapp_account_id = wa.id
+                 AND wn.company_id = wa.tenancy_id
+                 AND wn.removed_at IS NULL
+                 AND wn.status NOT IN (:removed_status, :rejected_status, :deleted_status, :cancelled_status)
+                WHERE wa.tenancy_id = :tenancy_id
+                  AND wa.status = :active_status
+                  AND wn.id IS NULL
+            ) AS wa_capability_count
+        ";
+
+        $row = (new Database())->execute($sql, $params)->fetch(\PDO::FETCH_ASSOC);
+        return (int)($row['total'] ?? 0);
+    }
+
+    private static function normalizeCapabilityLimit(mixed $value): int
+    {
+        $limit = (int)$value;
+        if ($limit < 0) {
+            return -1;
+        }
+
+        return max(0, $limit);
     }
 }

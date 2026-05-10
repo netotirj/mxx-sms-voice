@@ -3,11 +3,17 @@
 namespace App\Controller\Pages;
 
 use App\Model\Entity\PermissionsRules;
+use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
-use App\Model\Entity\RegisterTenancies;
-use App\Utils\View;
+use App\Service\DashboardService;
+use App\Service\PlanRuntimeService;
+use App\Service\WhatsAppBilling;
+use App\Service\WhatsAppVoiceBilling;
 use App\Session\User as SessionUser;
+use App\Support\RequestCache;
+use App\Utils\View;
+use WilliamCosta\DatabaseManager\Database;
 
 /**
  * Classe ViewComponents
@@ -48,25 +54,63 @@ class ViewComponents
 
     private static function hasPerm(array $userPerms, array $needles): bool
     {
-        // 1. Se for SUPERADMIN, ignora qualquer outra checagem e libera
-        if (in_array('SUPERADMIN', $userPerms, true)) {
+        $lookup = self::permissionLookup($userPerms);
+        if (isset($lookup['SUPERADMIN'])) {
             return true;
         }
 
-        // 2. Garantimos que os dados estão limpos antes de comparar.
-        // Fazemos isso apenas uma vez fora do loop para ganhar performance.
-        $userPerms = array_map(fn($p) => trim((string)$p), $userPerms);
-
         foreach ($needles as $needle) {
             $cleanNeedle = trim((string)$needle);
-
-            // 3. Comparação direta: se a rota solicitada está no array de permissões do banco
-            if (in_array($cleanNeedle, $userPerms, true)) {
+            if ($cleanNeedle !== '' && isset($lookup[$cleanNeedle])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static function hasAllPerms(array $userPerms, array $needles): bool
+    {
+        $lookup = self::permissionLookup($userPerms);
+        if (isset($lookup['SUPERADMIN'])) {
+            return true;
+        }
+
+        foreach ($needles as $needle) {
+            $cleanNeedle = trim((string)$needle);
+            if ($cleanNeedle === '' || !isset($lookup[$cleanNeedle])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function hasPlanFeature(?string $featureKey): bool
+    {
+        // O menu lateral deve refletir apenas ACL por rota.
+        // O bloqueio por plano acontece no middleware para exibir a mensagem ao acessar.
+        return true;
+    }
+
+    private static function permissionLookup(array $userPerms): array
+    {
+        $cacheKey = 'view_components.permission_lookup.' . md5(json_encode($userPerms, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return RequestCache::remember($cacheKey, static function () use ($userPerms): array {
+            $normalized = [];
+
+            foreach ($userPerms as $perm) {
+                $value = trim((string)$perm);
+                if ($value === '') {
+                    continue;
+                }
+
+                $normalized[$value] = true;
+            }
+
+            return $normalized;
+        });
     }
 
     private static function buildMenuItem(
@@ -142,13 +186,15 @@ class ViewComponents
     {
         $items = '';
 
-        // Verifica pela ROTA física
-        if (self::hasPerm($userPerms, ['/campaign'])) {
+        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign'])) {
             $items .= self::buildMenuItem('/campaign', 'Listar Campanhas', 'ni ni-bullet-list-67', 'text-blue-500');
+        }
+
+        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign/new'])) {
             $items .= self::buildMenuItem('/campaign/new', 'Criar Campanha', 'ni ni-fat-add', 'text-emerald-500');
         }
 
-        if (self::hasPerm($userPerms, ['/campaign/single-shot'])) {
+        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign/single-shot'])) {
             $items .= self::buildMenuItem('/campaign/single-shot', 'Disparo Simples', 'ni ni-send', 'text-indigo-900');
         }
 
@@ -157,16 +203,56 @@ class ViewComponents
 
     private static function getWhatsAppHtml(array $userPerms): string
     {
-        if (!self::hasPerm($userPerms, ['/campaign/whatsapp'])) {
+        if (!self::hasPlanFeature('whatsapp')) {
             return '';
         }
 
         $items = '';
-        $items .= self::buildMenuItem('/campaign/whatsapp?wa=central', 'Central', 'ni ni-chat-round', 'text-emerald-500');
-        $items .= self::buildMenuItem('/campaign/whatsapp?wa=conversations', 'Atendimento', 'ni ni-chat-round', 'text-cyan-500');
-        $items .= self::buildMenuItem('/campaign/whatsapp?wa=campaigns', 'Campanhas', 'ni ni-send', 'text-orange-500');
-        $items .= self::buildMenuItem('/campaign/whatsapp?wa=templates', 'Templates', 'ni ni-single-copy-04', 'text-violet-500');
-        $items .= self::buildMenuItem('/campaign/whatsapp?wa=accounts', 'Contas Meta', 'ni ni-settings-gear-65', 'text-slate-500');
+        if (self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/dashboard'])) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=central', 'Central', 'fa fa-house', 'text-emerald-500');
+        }
+
+        if (self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/conversations'])) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=conversations', 'Atendimento', 'fa fa-comments', 'text-cyan-500');
+        }
+
+        if (
+            self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/queues/create'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/queues/{id}/update'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/queues/{id}/delete'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/queues/{id}/agents'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/queues/{id}/agents/remove'])
+        ) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=queues', 'Filas', 'fa fa-layer-group', 'text-blue-500');
+        }
+
+        if (self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/campaigns'])) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=campaigns', 'Campanhas', 'fa fa-paper-plane', 'text-orange-500');
+        }
+
+        if (
+            self::hasPlanFeature('templates')
+            && self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates'])
+            && (
+                self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates/sync'])
+                || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates/{id}/delete'])
+            )
+        ) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=templates', 'Templates', 'fa fa-file-lines', 'text-violet-500');
+        }
+
+        if (
+            self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/numbers'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/number-requests'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/accounts/{id}/settings'])
+            || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/accounts/create'])
+        ) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=accounts', 'Números', 'fa fa-sliders', 'text-slate-500');
+        }
+
+        if (self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/numbers/health'])) {
+            $items .= self::buildMenuItem('/campaign/whatsapp?wa=safety', 'Proteção', 'fa fa-shield-halved', 'text-rose-500');
+        }
 
         return self::renderSubmenu('WhatsApp', 'fa-brands fa-whatsapp', 'text-green-500', $items);
     }
@@ -178,47 +264,50 @@ class ViewComponents
         $config   = '';
 
         // Operação - Rotas de voice.php e callcenter.php
-        if (self::hasPerm($userPerms, ['/campaign/voice'])) {
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice'])) {
             $operacao .= self::buildMenuItem('/campaign/voice', 'Disparo de Voz', 'ni ni-send', 'text-fuchsia-700');
         }
 
-        if (self::hasPerm($userPerms, ['/callcenter/monitoring'])) {
+        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/monitoring'])) {
             $operacao .= self::buildMenuItem('/callcenter/monitoring', 'Monitoramento', 'ni ni-tv-2', 'text-emerald-500');
+        }
+
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/calls-view'])) {
             $operacao .= self::buildMenuItem('/campaign/voice/calls-view', 'Live Calls', 'ni ni-headphones', 'text-cyan-500');
         }
 
-        if (self::hasPerm($userPerms, ['/callcenter/agent-panel'])) {
+        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/agent-panel'])) {
             $operacao .= self::buildMenuItem('/callcenter/agent-panel', 'Meu Painel', 'ni ni-button-play', 'text-blue-500', 'font-bold text-slate-700 dark:text-white');
         }
 
         // Recursos
-        if (self::hasPerm($userPerms, ['/campaign/voice/list'])) {
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/list'])) {
             $recursos .= self::buildMenuItem('/campaign/voice/list', 'Listas', 'ni ni-bullet-list-67', 'text-blue-500', 'font-semibold');
         }
 
-        if (self::hasPerm($userPerms, ['/campaign/voice/audios'])) {
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/audios'])) {
             $recursos .= self::buildMenuItem('/campaign/voice/audios', 'Áudios', 'ni ni-note-03', 'text-emerald-500');
         }
 
         // Configuração
-        if (self::hasPerm($userPerms, ['/callcenter/agents'])) {
+        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/agents'])) {
             $config .= self::buildMenuItem('/callcenter/agents', 'Agentes', 'ni ni-single-02', 'text-cyan-500');
         }
 
-        if (self::hasPerm($userPerms, ['/callcenter/queues'])) {
+        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/queues'])) {
             $config .= self::buildMenuItem('/callcenter/queues', 'Filas de Espera', 'ni ni-bullet-list-67', 'text-orange-500');
         }
 
-        if (self::hasPerm($userPerms, ['/callcenter/breaks'])) {
+        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/breaks'])) {
             $config .= self::buildMenuItem('/callcenter/breaks', 'Gerenciar Pausas', 'ni ni-button-pause', 'text-red-500');
         }
 
-        if (self::hasPerm($userPerms, ['/campaign/voice/trunks'])) {
+        if (self::hasPlanFeature('trunks') && self::hasPerm($userPerms, ['/campaign/voice/trunks'])) {
             $config .= self::buildMenuItem('/campaign/voice/trunks', 'Trunks', 'ni ni-world', 'text-purple-500');
         }
 
-        if (self::hasPerm($userPerms, ['/campaign/voice/sip'])) {
-            $config .= self::buildMenuItem('/campaign/voice/sip', 'SIP Devices', 'ni ni-mobile-button', 'text-orange-500');
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/sip-devices'])) {
+            $config .= self::buildMenuItem('/campaign/voice/sip-devices', 'SIP Devices', 'ni ni-mobile-button', 'text-orange-500');
         }
 
         $content = '';
@@ -235,24 +324,28 @@ class ViewComponents
         $comunicacao = '';
         $config = '';
 
-        if (self::hasPerm($userPerms, ['/users'])) {
+        if (self::hasPlanFeature('users') && self::hasPerm($userPerms, ['/users'])) {
             $gestao .= self::buildMenuItem('/users', 'Lista de Usuários', 'ni ni-circle-08', 'text-blue-500');
         }
 
-        if (self::hasPerm($userPerms, ['/support'])) {
+        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/support'])) {
             $gestao .= self::buildMenuItem('/support', 'Tickets de Suporte', 'ni ni-support-16', 'text-emerald-500');
         }
 
-        if (in_array('SUPERADMIN', $userPerms, true) || self::hasPerm($userPerms, ['/system-updates'])) {
+        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/system-updates'])) {
             $comunicacao .= self::buildMenuItem('/system-updates', 'Atualizações', 'fa fa-bullhorn', 'text-cyan-500');
         }
 
-        if (self::hasPerm($userPerms, ['/reports/notifications'])) {
+        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/reports/notifications'])) {
             $comunicacao .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
         }
 
-        if (self::hasPerm($userPerms, ['/permissions'])) {
+        if (self::hasPlanFeature('permissions') && self::hasPerm($userPerms, ['/permissions'])) {
             $config .= self::buildMenuItem('/permissions', 'Permissões', 'ni ni-key-25', 'text-cyan-500');
+        }
+
+        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/plans'])) {
+            $config .= self::buildMenuItem('/plans', 'Planos', 'fas fa-layer-group', 'text-violet-500');
         }
 
         $content = '';
@@ -266,7 +359,7 @@ class ViewComponents
     private static function getRecargasHtml(array $userPerms): string
     {
         // Agora verificamos pela ROTA física '/refills'
-        if (!self::hasPerm($userPerms, ['/refills'])) {
+        if (!self::hasPlanFeature('administrative') || !self::hasPerm($userPerms, ['/refills'])) {
             return '';
         }
 
@@ -285,32 +378,32 @@ class ViewComponents
     {
         $items = '';
 
-        // Verificação pela rota pai ou rotas específicas
-        if (self::hasPerm($userPerms, ['/reports'])) {
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/sms-view'])) {
             $items .= self::buildMenuItem('/reports/sms-view', 'Sms', 'ni ni-archive-2', 'text-pink-600');
-            $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
-            $items .= self::buildMenuItem('/reports/whatsapp?tab=queues', 'WhatsApp Filas', 'ni ni-headphones', 'text-cyan-500');
-            $items .= self::buildMenuItem('/reports/recharge-transactions', 'Recargas', 'ni ni-credit-card', 'text-violet-600');
         }
 
-        if (!self::hasPerm($userPerms, ['/reports']) && self::hasPerm($userPerms, ['/reports/whatsapp'])) {
-            $items .= self::buildMenuItem('/reports/whatsapp', 'WhatsApp', 'fa-brands fa-whatsapp', 'text-emerald-500');
-            $items .= self::buildMenuItem('/reports/whatsapp?tab=queues', 'WhatsApp Filas', 'ni ni-headphones', 'text-cyan-500');
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/whatsapp', '/reports/whatsapp-realtime'])) {
+            $items .= self::buildMenuItem('/reports/whatsapp?report=message', 'WhatsApp Mensagem', 'fa-brands fa-whatsapp', 'text-emerald-500');
+            $items .= self::buildMenuItem('/reports/whatsapp?report=voice', 'WhatsApp Voz', 'ni ni-headphones', 'text-cyan-500');
+        }
+
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/recharge-transactions'])) {
+            $items .= self::buildMenuItem('/reports/recharge-transactions', 'Recargas', 'ni ni-credit-card', 'text-violet-600');
         }
 
         // --- AQUI ESTAVA FALTANDO ---
         // Relatório de Call Center
-        if (self::hasPerm($userPerms, ['/callcenter/reports'])) {
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/callcenter/reports'])) {
             $items .= self::buildMenuItem('/callcenter/reports', 'Call Center', 'ni ni-folder-17', 'text-purple-500');
         }
 
         // CDR (Voz)
-        if (self::hasPerm($userPerms, ['/reports/cdr'])) {
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/cdr'])) {
             $items .= self::buildMenuItem('/reports/cdr', 'CDR (Voz)', 'ni ni-collection', 'text-cyan-500');
         }
 
         // Pix
-        if (self::hasPerm($userPerms, ['/reports/transactions'])) {
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/transactions'])) {
             $items .= self::buildMenuItem('/reports/transactions', 'Pix', 'fa-brands fa-pix', 'text-emerald-500');
         }
 
@@ -325,7 +418,7 @@ class ViewComponents
     {
         $items = '';
 
-        if (self::hasPerm($userPerms, ['/rates'])) {
+        if (self::hasPlanFeature('rates') && self::hasPerm($userPerms, ['/rates'])) {
             $items .= self::buildMenuItem('/rates', 'Tarifas', 'ni ni-money-coins', 'text-yellow-500');
         }
 
@@ -363,14 +456,18 @@ class ViewComponents
         return self::getUserFunction($user) === 'reseller';
     }
 
-    private static function canSeeSupportTicketsHeader(array $user): bool
+    private static function canSeeSupportTicketsHeader(array $user, array $userPerms = []): bool
     {
-        return self::isSuperAdmin($user) || self::isAdmin($user) || self::isReseller($user);
+        if (self::isSuperAdmin($user)) {
+            return true;
+        }
+
+        return self::hasPerm($userPerms, ['/support', '/support/tickets']);
     }
 
-    private static function getSupportTicketsHeaderHtml(array $user): string
+    private static function getSupportTicketsHeaderHtml(array $user, array $userPerms = []): string
     {
-        if (!self::canSeeSupportTicketsHeader($user)) {
+        if (!self::canSeeSupportTicketsHeader($user, $userPerms)) {
             return '';
         }
 
@@ -474,7 +571,59 @@ class ViewComponents
         return UserPlans::getLatestBalancePlanServiceSummary($userId, $tenancyId);
     }
 
-    private static function getPlanRatesCardHtml(?object $summary): string
+    private static function resolveHeaderWhatsappRates(?object $summary, array $loggedUser, array $profile = [], array $userBase = []): array
+    {
+        $fallback = [
+            'marketing' => (float)($summary->value_whatsapp_marketing ?? 0),
+            'utility' => (float)($summary->value_whatsapp_utility ?? 0),
+            'authentication' => (float)($summary->value_whatsapp_authentication ?? 0),
+            'voice' => (float)($summary->whatsapp_voice_price_per_minute ?? 0),
+        ];
+
+        $planId = (int)($summary->plan_id ?? 0);
+        if ($planId <= 0) {
+            return $fallback;
+        }
+
+        $userId = (int)($loggedUser['id'] ?? 0);
+        $tenancyId = trim((string)($loggedUser['tenancy_id'] ?? ''));
+        if ($userId <= 0 || $tenancyId === '') {
+            return $fallback;
+        }
+
+        $cacheKey = 'header:whatsapp_rates:plan.'
+            . $planId
+            . '.user.' . $userId
+            . '.tenancy.' . $tenancyId;
+
+        return RequestCache::remember($cacheKey, static function () use ($cacheKey, $userId, $tenancyId, $fallback): array {
+            return DashboardService::remember($cacheKey, 300, static function () use ($userId, $tenancyId, $fallback): array {
+                try {
+                    $rates = $fallback;
+                    $displayPrices = WhatsAppBilling::categoryDisplayPricesForUser($userId, $tenancyId);
+
+                    foreach (['marketing', 'utility', 'authentication'] as $category) {
+                        $price = round((float)($displayPrices[$category] ?? 0), 4);
+                        if ($price > 0) {
+                            $rates[$category] = $price;
+                        }
+                    }
+
+                    $voicePrice = WhatsAppVoiceBilling::commercialPricePerMinuteForUser($userId, $tenancyId, null, false);
+                    if ($voicePrice > 0) {
+                        $rates['voice'] = round($voicePrice, 4);
+                    }
+
+                    return $rates;
+                } catch (\Throwable $e) {
+                    error_log('[header_whatsapp_rates] ' . $e->getMessage());
+                    return $fallback;
+                }
+            });
+        });
+    }
+
+    private static function getPlanRatesCardHtml(?object $summary, array $loggedUser = [], array $profile = [], array $userBase = []): string
     {
         if (!$summary) {
             return '';
@@ -488,9 +637,11 @@ class ViewComponents
         $voiceSmart = self::formatPlanRate($summary->voice_smart_rate ?? $summary->value_voice ?? 0);
         $torpedo = self::formatPlanRate($summary->value_torpedo ?? 0);
         $serviceFee = self::formatPlanRate($summary->service_fee ?? 0);
-        $waMarketing = self::formatPlanRate($summary->value_whatsapp_marketing ?? 0);
-        $waUtility = self::formatPlanRate($summary->value_whatsapp_utility ?? 0);
-        $waAuthentication = self::formatPlanRate($summary->value_whatsapp_authentication ?? 0);
+        $whatsAppRates = self::resolveHeaderWhatsappRates($summary, $loggedUser, $profile, $userBase);
+        $waMarketing = self::formatPlanRate($whatsAppRates['marketing'] ?? 0);
+        $waUtility = self::formatPlanRate($whatsAppRates['utility'] ?? 0);
+        $waAuthentication = self::formatPlanRate($whatsAppRates['authentication'] ?? 0);
+        $waVoice = self::formatPlanRate($whatsAppRates['voice'] ?? 0);
 
         return '
                         <div class="relative group">
@@ -537,7 +688,7 @@ class ViewComponents
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-3 gap-2 text-center mt-2">
+                                <div class="grid grid-cols-2 gap-2 text-center mt-2">
                                     <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
                                         <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Marketing</p>
                                         <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waMarketing . '</p>
@@ -549,6 +700,10 @@ class ViewComponents
                                     <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
                                         <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Auth</p>
                                         <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waAuthentication . '</p>
+                                    </div>
+                                    <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                                        <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Voz</p>
+                                        <p class="text-[10px] font-black text-emerald-600 italic">R$ ' . $waVoice . '</p>
                                     </div>
                                 </div>
 
@@ -568,8 +723,11 @@ class ViewComponents
     {
         $obUser = SessionUser::getLogged();
         $user = UserSearch::getUserById($obUser['tenancy_id'], (int)$obUser['id']) ?? [];
-
         $userBase = !empty($user) ? $user : $obUser;
+        $roleId = (int)($obUser['role_id'] ?? 0);
+        $userPerms = self::isSuperAdmin($obUser)
+            ? ['SUPERADMIN']
+            : PermissionsRules::getRolePermissionsNames($roleId);
 
         $userAvatar = !empty($user['image'])
             ? URL . '/resources/assets/img/' . $user['image']
@@ -580,9 +738,9 @@ class ViewComponents
         $planSwitcherHtml = '';
 
         if ($canSwitchPlan) {
-            $userPlans   = UserPlans::getAllActivePlansByUser($obUser['id'], $obUser['tenancy_id']);
-            $currentPlan = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
-            $planRatesCardHtml = self::getPlanRatesCardHtml(self::getCurrentPlanServiceSummary($obUser, $currentPlan));
+            $userPlans   = UserPlans::getAllActivePlansByUser((int)$obUser['id'], (string)$obUser['tenancy_id']);
+            $currentPlan = RegisterTenancies::getActivePlanId((string)$obUser['tenancy_id']);
+            $planRatesCardHtml = self::getPlanRatesCardHtml(self::getCurrentPlanServiceSummary($obUser, $currentPlan), $obUser, (array)$user, (array)$userBase);
 
             $optionsHTML = '';
 
@@ -626,12 +784,47 @@ class ViewComponents
                 </div>';
         }
 
+        $canSupportTicketsHeader = self::canSeeSupportTicketsHeader($userBase, $userPerms);
+        $canProductUpdatesHeader = self::hasPerm($userPerms, ['/system-updates', '/system-updates/header']);
+        $canNotificationsCenter = self::hasPerm($userPerms, ['/notifications']);
+        $canNotificationsMarkAllRead = self::hasPerm($userPerms, ['/notifications/mark-all-read']);
+        $canNotificationsDeleteAll = self::hasPerm($userPerms, ['/notifications/delete-all']);
+        $canNotificationsPage = self::hasPerm($userPerms, ['/reports/notifications']);
+
+        $notificationCenterHtml = $canNotificationsCenter
+            ? '
+                <a href="javascript:void(0);" id="notificationBell" class="relative flex items-center justify-center cursor-pointer mr-6">
+                    <i class="fa fa-bell text-xl text-white"></i>
+                    <svg id="badgeT" class="absolute -top-1 -right-1 h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
+                        <circle id="badgePulse" cx="12" cy="12" r="12" fill="red" fill-opacity="0.5" style="display:none">
+                            <animate attributeName="r" values="12;14;12" dur="1s" repeatCount="indefinite"/>
+                            <animate attributeName="fill-opacity" values="0.5;0.2;0.5" dur="1s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle cx="12" cy="12" r="10" fill="red"/>
+                        <text id="badgeCount" x="12" y="16" text-anchor="middle" font-size="12" font-weight="bold"
+                              fill="white" font-family="sans-serif">0</text>
+                    </svg>
+                </a>
+
+                <div id="dropdownMenu"
+                     class="absolute right-0 mt-2 w-100 max-h-100 overflow-y-auto rounded-lg bg-white shadow-lg opacity-0 pointer-events-none transition-all duration-200"
+                     style="z-index:9999; top: 100%;">
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+                        ' . ($canNotificationsDeleteAll ? '<p id="clearAll" class="text-xs text-blue-600 font-medium cursor-pointer">Apagar Todas</p>' : '<span></span>') . '
+                        ' . ($canNotificationsMarkAllRead ? '<p id="markAllRead" class="text-xs text-blue-600 font-medium cursor-pointer">Marcar todas como Lidas</p>' : '') . '
+                    </div>
+                </div>'
+            : '';
+
         return View::render('pages/header', [
             'name'             => $obUser['name'] ?? 'User',
             'avatar'           => $userAvatar,
             'planSwitcherHtml' => $planSwitcherHtml,
-            'productUpdatesHeader' => self::getProductUpdatesHeaderHtml(),
-            'supportTicketsHeader' => self::getSupportTicketsHeaderHtml($userBase)
+            'productUpdatesHeader' => $canProductUpdatesHeader ? self::getProductUpdatesHeaderHtml() : '',
+            'supportTicketsHeader' => $canSupportTicketsHeader ? self::getSupportTicketsHeaderHtml($userBase, $userPerms) : '',
+            'notificationCenter' => $notificationCenterHtml,
+            'notificationsEnabled' => $canNotificationsCenter ? '1' : '0',
+            'notificationsPageEnabled' => $canNotificationsPage ? '1' : '0',
         ]);
     }
 
@@ -683,7 +876,7 @@ class ViewComponents
         $captcha = self::getTurnstileViewVars();
 
         return View::render('login/index', [
-            'title'              => $title,
+            'title'              => self::normalizePageTitle($title),
             'content'            => $content,
             'captchaEnabled'     => $captcha['enabled'],
             'captchaScriptUrl'   => $captcha['scriptUrl'],
@@ -695,7 +888,7 @@ class ViewComponents
     public static function getComponentsResetPass(string $title, string|array|bool $content): string
     {
         return View::render('login/reset-pass', [
-            'title'   => $title,
+            'title'   => self::normalizePageTitle($title),
             'content' => $content,
         ]);
     }
@@ -704,7 +897,7 @@ class ViewComponents
     {
 
         return View::render('login/code-pass', [
-            'title'   => $title,
+            'title'   => self::normalizePageTitle($title),
             'content' => $content,
 
         ]);
@@ -714,7 +907,7 @@ class ViewComponents
     {
 
         return View::render('login/confirmed-pass', [
-            'title'   => $title,
+            'title'   => self::normalizePageTitle($title),
             'content' => $content,
 
         ]);
@@ -731,7 +924,7 @@ class ViewComponents
             && (time() - (int)$socialProfile['created_at']) <= 900;
 
         return View::render('register/index', [
-            'title'                 => $title,
+            'title'                 => self::normalizePageTitle($title),
             'content'               => $content,
             'captchaEnabled'        => $captcha['enabled'],
             'captchaScriptUrl'      => $captcha['scriptUrl'],
@@ -806,58 +999,50 @@ class ViewComponents
 
     public static function getComponentsDashboard(string $title, string|array|bool $content): string
     {
-        return View::render('pages/page', [
-            'title'   => $title,
-            'menu'    => self::getMenu(),
-            'header'  => self::getHeader(),
-            'content' => $content,
-            'footer'  => self::getFooter(),
-        ]);
+        return self::renderAuthenticatedPage($title, $content);
     }
 
     public static function getComponentsCampaign(string $title, string|array|bool $content): string
     {
-        return View::render('pages/page', [
-            'title'   => $title,
-            'menu'    => self::getMenu(),
-            'header'  => self::getHeader(),
-            'content' => $content,
-            'footer'  => self::getFooter(),
-        ]);
+        return self::renderAuthenticatedPage($title, $content);
     }
 
 
     public static function getComponentsRefills(string $title, string|array|bool $content): string
     {
-        return View::render('pages/page', [
-            'title'   => $title,
-            'menu'    => self::getMenu(),
-            'header'  => self::getHeader(),
-            'content' => $content,
-            'footer'  => self::getFooter(),
-        ]);
+        return self::renderAuthenticatedPage($title, $content);
     }
 
     public static function getComponentsReports(string $title, string|array|bool $content): string
     {
-        return View::render('pages/page', [
-            'title'   => $title,
-            'menu'    => self::getMenu(),
-            'header'  => self::getHeader(),
-            'content' => $content,
-            'footer'  => self::getFooter(),
-        ]);
+        return self::renderAuthenticatedPage($title, $content);
     }
 
     public static function getComponentsUsers(string $title, string|array|bool $content): string
     {
+        return self::renderAuthenticatedPage($title, $content);
+    }
+
+    private static function renderAuthenticatedPage(string $title, string|array|bool $content): string
+    {
         return View::render('pages/page', [
-            'title'   => $title,
+            'title'   => self::normalizePageTitle($title),
             'menu'    => self::getMenu(),
             'header'  => self::getHeader(),
             'content' => $content,
             'footer'  => self::getFooter(),
+            'permissionsSyncUrl' => URL . '/me/permissions',
+            'permissionsVersionKey' => '1:1',
         ]);
+    }
+
+    private static function normalizePageTitle(string $title): string
+    {
+        $normalized = trim($title);
+        $normalized = str_replace('Maxx Solutions - SMS |', 'Maxx Solutions |', $normalized);
+        $normalized = preg_replace('/\s+\|\s+/', ' | ', $normalized) ?: $normalized;
+
+        return $normalized;
     }
     
 }

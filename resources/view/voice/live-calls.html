@@ -310,6 +310,7 @@
             if (listenTimerInterval) clearInterval(listenTimerInterval);
 
             listenTimerInterval = setInterval(() => {
+                if (document.hidden) return;
                 const now = Date.now();
                 const elapsed = Math.floor((now - listenStartTime) / 1000);
 
@@ -854,11 +855,13 @@
 
 
         function startCallStream() {
-            if (callSource) return;
+            if (callSource || document.hidden) return;
+            if (callStreamCooldownUntil > Date.now()) return;
             const sseUrl = `${baseUrl}/campaign/voice/live-calls`;
             callSource = new EventSource(sseUrl);
 
             callSource.addEventListener("open", () => {
+                resetCallStreamFailures();
                 document.getElementById('call-status-text').textContent = "Conectado...";
             });
 
@@ -872,9 +875,23 @@
             });
 
             callSource.addEventListener("error", () => {
+                const connectionState = callSource?.readyState;
                 document.getElementById('call-status-text').textContent = "Reconectando...";
                 stopCallStream();
-                setTimeout(startCallStream, 3000);
+                if (document.hidden || connectionState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextCallStreamRetryDelay();
+                if (callStreamFailureCount >= CALL_STREAM_FAILURE_THRESHOLD) {
+                    tripCallStreamCircuitBreaker();
+                    return;
+                }
+
+                callStreamReconnectTimer = setTimeout(() => {
+                    callStreamReconnectTimer = null;
+                    startCallStream();
+                }, delay);
             });
 
             callSource.addEventListener("auth", (event) => {
@@ -885,10 +902,54 @@
         }
 
         function stopCallStream() {
+            if (callStreamReconnectTimer) {
+                clearTimeout(callStreamReconnectTimer);
+                callStreamReconnectTimer = null;
+            }
             if (callSource) {
                 callSource.close();
                 callSource = null;
             }
+        }
+
+        let callStreamReconnectTimer = null;
+        let callStreamFailureCount = 0;
+        let callStreamCooldownUntil = 0;
+        const CALL_STREAM_RETRY_MS = 3000;
+        const CALL_STREAM_RETRY_MAX_MS = 60000;
+        const CALL_STREAM_FAILURE_THRESHOLD = 4;
+        const CALL_STREAM_COOLDOWN_MS = 180000;
+
+        function resetCallStreamFailures() {
+            callStreamFailureCount = 0;
+        }
+
+        function nextCallStreamRetryDelay() {
+            callStreamFailureCount += 1;
+            return Math.min(
+                CALL_STREAM_RETRY_MS * Math.max(1, Math.pow(2, callStreamFailureCount - 1)),
+                CALL_STREAM_RETRY_MAX_MS
+            );
+        }
+
+        function tripCallStreamCircuitBreaker() {
+            callStreamCooldownUntil = Date.now() + CALL_STREAM_COOLDOWN_MS;
+            stopCallStream();
+            console.warn('Voice live calls SSE em cooldown temporario.', {
+                retryAfterMs: CALL_STREAM_COOLDOWN_MS,
+                failures: callStreamFailureCount
+            });
+
+            callStreamReconnectTimer = setTimeout(() => {
+                callStreamReconnectTimer = null;
+                if (!document.hidden) {
+                    if (callStreamCooldownUntil <= Date.now()) {
+                        callStreamCooldownUntil = 0;
+                        resetCallStreamFailures();
+                    }
+                    startCallStream();
+                }
+            }, CALL_STREAM_COOLDOWN_MS);
         }
 
         refreshButton?.addEventListener('click', () => {
@@ -940,6 +1001,21 @@
 
         const path = window.location.pathname;
         if (path.includes("calls-view")) startCallStream();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopCallStream();
+                return;
+            }
+
+            if (callStreamCooldownUntil > 0 && callStreamCooldownUntil <= Date.now()) {
+                callStreamCooldownUntil = 0;
+                resetCallStreamFailures();
+            }
+
+            if (window.location.pathname.includes("calls-view")) {
+                startCallStream();
+            }
+        });
         window.addEventListener('beforeunload', stopCallStream);
     });
 </script>

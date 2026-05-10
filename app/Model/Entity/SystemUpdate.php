@@ -59,13 +59,20 @@ class SystemUpdate
     {
         self::ensureTable();
 
+        $params = [
+            ':target_user_id' => (int)($user['id'] ?? 0),
+        ];
+        $where = "visibility = 'public'
+            AND status <> 'cancelled'
+            AND (target_user_id IS NULL OR target_user_id = :target_user_id)";
+
+        if (self::normalizedRole($user) !== 'super_admin') {
+            $where .= " AND (tenancy_id = 'global' OR tenancy_id = :tenancy_id)";
+            $params[':tenancy_id'] = (string)($user['tenancy_id'] ?? '');
+        }
+
         return (new Database('system_updates'))
-            ->select(
-                "visibility = 'public' AND status <> 'cancelled' AND (target_user_id IS NULL OR target_user_id = :target_user_id)",
-                [':target_user_id' => (int)($user['id'] ?? 0)],
-                'FIELD(status, "in_progress", "planned", "done"), updated_at DESC, id DESC',
-                '6'
-            )
+            ->select($where, $params, 'FIELD(status, "in_progress", "planned", "done"), updated_at DESC, id DESC', '6')
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -73,7 +80,7 @@ class SystemUpdate
     {
         self::ensureTable();
 
-        $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
+        $role = self::normalizedRole($user);
         $where = '1=1';
         $params = [];
 
@@ -98,6 +105,7 @@ class SystemUpdate
     public static function update(array $user, int $id, array $data): bool
     {
         self::ensureTable();
+
         [$where, $params] = self::scope($user);
         $params[':id'] = $id;
 
@@ -173,7 +181,14 @@ class SystemUpdate
 
     private static function normalizeScope(string $scope, array $user): string
     {
-        return 'global';
+        $scope = strtolower(trim($scope));
+        $tenancyId = (string)($user['tenancy_id'] ?? '');
+
+        if ($scope === 'global' && self::normalizedRole($user) === 'super_admin') {
+            return 'global';
+        }
+
+        return $tenancyId !== '' ? $tenancyId : 'global';
     }
 
     private static function normalizeTargetUserId(string $scope, mixed $targetUserId): ?int
@@ -184,12 +199,17 @@ class SystemUpdate
 
     private static function scope(array $user): array
     {
-        $role = strtolower((string)($user['user_function'] ?? $user['function'] ?? ''));
+        $role = self::normalizedRole($user);
         if ($role === 'super_admin') {
             return ['1=1', []];
         }
 
         return ['tenancy_id = :tenancy_id', [':tenancy_id' => (string)($user['tenancy_id'] ?? '')]];
+    }
+
+    private static function normalizedRole(array $user): string
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
     }
 
     private static function ensureTable(): void
@@ -231,6 +251,11 @@ class SystemUpdate
         self::ensureCancellationColumns();
 
         $checked = true;
+    }
+
+    public static function syncSchema(): void
+    {
+        self::ensureTable();
     }
 
     private static function ensureTargetUserColumn(): void

@@ -167,8 +167,8 @@
                 </h6>
                 <hr class="my-3 opacity-10">
                 <div class="flex justify-between items-center mb-2">
-                    <span id="card-whatsapp-label" class="text-xs font-semibold opacity-70">Conversas / Não lidas</span>
-                    <span class="text-sm font-bold text-emerald-500"><span id="card-whatsapp-primary" data-count-value="0" data-decimals="int">0</span> | <span id="card-whatsapp-secondary">0 não lidas</span></span>
+                    <span id="card-whatsapp-label" class="text-xs font-semibold opacity-70">Lidas / Voz</span>
+                    <span class="text-sm font-bold text-emerald-500"><span id="card-whatsapp-primary" data-count-value="0" data-decimals="int">0</span> | <span id="card-whatsapp-secondary">0 voz | E 0 / S 0</span></span>
                 </div>
                 <div class="w-full bg-gray-100 rounded-full h-1.5 dark:bg-gray-700">
                     <div id="card-whatsapp-bar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 8%"></div>
@@ -222,10 +222,14 @@
                         <div class="metric-icon bg-slate-500"><i class="fa fa-clock-rotate-left"></i></div>
                     </div>
                 </div>
-                <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 340px;">
+                <div id="service-main-chart-wrap" class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 340px;">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h6 id="service-main-title" class="text-xs font-bold uppercase text-slate-500 dark:text-white dark:opacity-70">Tendencia principal</h6>
+                        <span id="service-main-tag" class="text-xxs font-bold uppercase text-slate-400">Linha</span>
+                    </div>
                     <canvas id="service-main-chart"></canvas>
                 </div>
-                <div class="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 260px;">
+                <div id="service-secondary-chart-wrap" class="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60" style="height: 260px;">
                     <div class="mb-3 flex items-center justify-between">
                         <h6 id="service-secondary-title" class="text-xs font-bold uppercase text-slate-500 dark:text-white dark:opacity-70">Visao complementar</h6>
                         <span id="service-secondary-tag" class="text-xxs font-bold uppercase text-slate-400">Bar</span>
@@ -938,6 +942,10 @@
             };
         }
 
+        function getWhatsVoicePeriod() {
+            return getPeriodPayload('', 'WhatsVoice');
+        }
+
         function getCostForPeriod(suffix = '') {
             const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
             return {
@@ -1114,49 +1122,62 @@
                 const companyLabels = companyEntries.map(([label]) => label);
                 const companyQuantities = companyEntries.map(([, item]) => Number(item?.quantity || 0));
                 const companyCosts = companyEntries.map(([, item]) => Number(item?.cost || 0));
+                const whatsVoicePeriod = getWhatsVoicePeriod();
+                const voiceEntries = Object.entries(whatsVoicePeriod.status?.labels?.length
+                    ? whatsVoicePeriod.status.labels.reduce((acc, label, index) => {
+                        acc[label] = whatsVoicePeriod.status.totals?.[index] || 0;
+                        return acc;
+                    }, {})
+                    : {});
+                const voiceLabels = voiceEntries.length ? voiceEntries.map(([label]) => label) : ['Entrada', 'Saida'];
+                const voiceValues = voiceEntries.length ? voiceEntries.map(([, value]) => Number(value || 0)) : [0, 0];
 
                 return {
                     title: 'Resumo WhatsApp',
-                    subtitle: `Status de entrega, quantidade e custo por empresa no filtro de ${whatsPeriod.labels.title.toLowerCase()}.`,
+                    subtitle: `Mensagens, voz de entrada e saida, alem do resumo por empresa no filtro de ${whatsPeriod.labels.title.toLowerCase()}.`,
                     tag: 'WHATSAPP',
                     color: '#10b981',
                     today: whatsPeriod.current,
-                    todayLabel: `Quantidade - ${whatsPeriod.labels.current}`,
-                    month: whatsPeriod.previous,
-                    monthLabel: `Quantidade - ${whatsPeriod.labels.previous}`,
+                    todayLabel: `Mensagens - ${whatsPeriod.labels.current}`,
+                    month: whatsVoicePeriod.current,
+                    monthLabel: `Voz - ${whatsVoicePeriod.labels[whatsVoicePeriod.statusPeriod === 'previous' ? 'previous' : 'current']}`,
                     previous: whatsCost.current,
                     previousTitle: 'Custo total',
                     previousPrefix: 'R$ ',
                     previousDecimals: 'smart',
                     previousLabel: whatsPeriod.labels.current,
                     line: whatsPeriod.status,
-                    doughnut: whatsPeriod.status,
-                    secondary: {
-                        title: companyLabels.length ? 'Quantidade e custo por empresa' : 'Quantidade e custo',
-                        tag: whatsPeriod.labels.title,
-                        type: 'bar',
-                        labels: companyLabels.length ? companyLabels : ['Quantidade', 'Custo'],
-                        values: companyLabels.length ? companyQuantities : [whatsPeriod.current, whatsappCostValue],
-                        color: companyLabels.length
-                            ? companyLabels.map((_, index) => chartPalette[index % chartPalette.length])
-                            : ['#10b981', '#6366f1'],
+                    doughnut: {
+                        labels: companyLabels.length ? companyLabels : ['Sem dados'],
+                        totals: companyLabels.length ? companyQuantities : [0],
+                        displayLabels: companyLabels.length ? companyLabels : ['Sem dados'],
                         meta: companyLabels.length
                             ? companyLabels.map((label, index) => ({
                                 label,
-                                value: companyQuantities[index] || 0,
+                                quantity: companyQuantities[index] || 0,
                                 cost: companyCosts[index] || 0,
                                 companyCost: true
                             }))
-                            : [
-                                { label: 'Quantidade', value: whatsPeriod.current },
-                                { label: 'Custo total', value: whatsCost.current, currency: true }
-                            ]
+                            : []
+                    },
+                    secondary: {
+                        title: 'Voz WhatsApp',
+                        tag: whatsVoicePeriod.labels.title,
+                        type: 'bar',
+                        labels: voiceLabels,
+                        values: voiceValues,
+                        color: ['#14b8a6', '#10b981'],
+                        meta: voiceLabels.map((label, index) => ({
+                            label,
+                            count: voiceValues[index] || 0
+                        }))
                     },
                     details: [
-                        ['Quantidade', String(whatsPeriod.current)],
+                        ['Mensagens', String(whatsPeriod.current)],
+                        ['Voz', String(whatsVoicePeriod.current)],
+                        ['Entrada / Saida', `${voiceValues[0] || 0} / ${voiceValues[1] || 0}`],
                         ['Custo total', formatCurrencyBR(whatsCost.current)],
-                        ['Campanhas', String(whatsappCampaigns)],
-                        ['Ultima atualizacao', health.last_check || '--:--:--']
+                        ['Campanhas', String(whatsappCampaigns)]
                     ].slice(0, 4)
                 };
             }
@@ -1251,6 +1272,8 @@
             }
 
             mainChartSignature = signature;
+            setValue('service-main-title', selectedService === 'whatsapp' ? 'Mensagens WhatsApp' : 'Tendencia principal');
+            setValue('service-main-tag', selectedService === 'whatsapp' ? getPeriodLabel().title : 'Linha');
             mainChart.data.labels = labels;
             mainChart.data.datasets[0].label = config.tag;
             mainChart.data.datasets[0].data = values;
@@ -1334,7 +1357,8 @@
                 service: selectedService,
                 labels: finalLabels,
                 values: finalValues,
-                displayLabels: config.doughnut.displayLabels || []
+                displayLabels: config.doughnut.displayLabels || [],
+                meta: config.doughnut.meta || []
             });
 
             if (signature === statusChartSignature) {
@@ -1347,6 +1371,25 @@
                 : finalLabels;
             statusChart.data.datasets[0].data = finalValues;
             statusChart.data.datasets[0].backgroundColor = colors;
+            if (selectedService === 'whatsapp') {
+                statusChart.data.datasets[0].meta = config.doughnut.meta || [];
+                statusChart.options.plugins.tooltip = {
+                    callbacks: {
+                        label: (context) => {
+                            const item = context.dataset.meta?.[context.dataIndex] || {};
+                            if (item.companyCost) {
+                                return `${item.label || context.label}: ${item.quantity ?? context.raw} eventos • ${formatCurrencyBR(item.cost || 0)}`;
+                            }
+
+                            return `${context.label}: ${context.raw}`;
+                        }
+                    }
+                };
+            } else {
+                statusChart.options.plugins.tooltip = {
+                    callbacks: undefined
+                };
+            }
             statusChart.update('none');
         }
 
@@ -1407,15 +1450,7 @@
                     callbacks: {
                         label: (context) => {
                             const item = secondary.meta?.[context.dataIndex] || {};
-                            if (item.companyCost) {
-                                return `${item.label || context.label}: ${item.value ?? context.raw} msg • ${formatCurrencyBR(item.cost || 0)}`;
-                            }
-
-                            if (item.currency) {
-                                return `${item.label || context.label}: ${formatCurrencyBR(item.value ?? context.raw)}`;
-                            }
-
-                            return `${item.label || context.label}: ${context.raw}`;
+                            return `${item.label || context.label}: ${item.count ?? context.raw}`;
                         }
                     }
                 };
@@ -1526,6 +1561,7 @@
             setValue('dynamic-title', config.title);
             setValue('dynamic-subtitle', config.subtitle);
             setValue('service-tag', config.tag);
+            setValue('logs-title', selectedService === 'whatsapp' ? 'Empresas / Custos' : 'Resumo do Servico');
             const periodLabels = getPeriodLabel();
             setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
             setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
@@ -1551,6 +1587,15 @@
                 card.classList.remove('service-card-active');
             });
             document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
+
+            const mainWrap = document.getElementById('service-main-chart-wrap');
+            const secondaryWrap = document.getElementById('service-secondary-chart-wrap');
+            if (mainWrap) {
+                mainWrap.style.height = selectedService === 'whatsapp' ? '240px' : '340px';
+            }
+            if (secondaryWrap) {
+                secondaryWrap.style.height = selectedService === 'whatsapp' ? '240px' : '260px';
+            }
 
             buildMainChart(config);
             buildStatusChart(config);
@@ -1589,88 +1634,238 @@
             }
         });
 
-        if (window.__dashboardSseConnections) {
-            window.__dashboardSseConnections.cards?.close?.();
-            window.__dashboardSseConnections.charts?.close?.();
-        }
+        let dashboardReconnectTimer = null;
+        let dashboardCardsLastMessageAt = 0;
+        let dashboardChartsLastMessageAt = 0;
+        let dashboardCardsFailureCount = 0;
+        let dashboardChartsFailureCount = 0;
+        const DASHBOARD_CARDS_RETRY_MS = 15000;
+        const DASHBOARD_CHARTS_RETRY_MS = 30000;
+        const DASHBOARD_CARDS_RETRY_MAX_MS = 120000;
+        const DASHBOARD_CHARTS_RETRY_MAX_MS = 180000;
+        const DASHBOARD_SSE_FAILURE_THRESHOLD = 3;
+        const DASHBOARD_SSE_COOLDOWN_MS = 300000;
+        let dashboardSseCooldownUntil = 0;
 
-        const cardsSource = new EventSource(`${baseUrl}/dashboard/cards`);
-        const chartsSource = new EventSource(`${baseUrl}/dashboard/charts`);
-        window.__dashboardSseConnections = {
-            cards: cardsSource,
-            charts: chartsSource
-        };
-
-        bootstrapStaticCounts();
-
-        cardsSource.onmessage = function (event) {
-            try {
-                cardsPayload = JSON.parse(event.data);
-            } catch {
+        function scheduleDashboardReconnect(delay) {
+            if (document.hidden || dashboardReconnectTimer) {
                 return;
             }
 
-            const data = cardsPayload;
-            const health = data.health || {};
-            const metrics = health.metrics || {};
-            const operationalCards = data.operational_cards || {};
-            const campanhas = data.campanhas || {};
-            const totalAtiva = Number(campanhas.ativa || 0);
-            const totalFinalizada = Number(campanhas.finalizada || 0);
-            const totalInativa = Number(campanhas.inativa || 0);
-            const totalProcessando = Number(campanhas.processando || 0);
-            const totalPausada = Number(campanhas.pausada || 0);
-            const totalCancelada = Number(campanhas.cancelada || 0);
-            const totalAgendada = Number(campanhas.agendada || 0);
-            const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
+            const now = Date.now();
+            if (dashboardSseCooldownUntil > now) {
+                return;
+            }
 
-            animateCountUp(document.getElementById('saldo-atual'), data.saldoAtual ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('saldo-taxa'), data.cdrTaxa ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('sms-custo'), data.totalConsumo ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('sms-enviados'), data.smsEnviados ?? 0);
-            animateCountUp(document.getElementById('voz-enviados'), data.disposition ?? 0);
-            animateCountUp(document.getElementById('whatsapp-enviados'), data.whatsappEnviados ?? 0);
-            animateCountUp(document.getElementById('ultimo-pix'), data.ultimoPixValor ?? 0, 'R$ ');
-            setValue('pix-data', data.ultimoPixData || '--/--/----');
-            animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
-            animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
-            animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
-            animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
-            animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
-            animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
-            animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
-            animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
+            dashboardReconnectTimer = window.setTimeout(() => {
+                dashboardReconnectTimer = null;
+                disconnectDashboardStreams();
+                connectDashboardStreams();
+            }, delay);
+        }
 
-            setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
-            setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
-            setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
-            setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
-            animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
+        function resetDashboardSseFailures(kind) {
+            if (kind === 'cards') {
+                dashboardCardsFailureCount = 0;
+                return;
+            }
 
-            setOperationalCard('voip', operationalCards.voip);
-            setOperationalCard('sms', operationalCards.sms);
-            setOperationalCard('whatsapp', operationalCards.whatsapp);
+            if (kind === 'charts') {
+                dashboardChartsFailureCount = 0;
+            }
+        }
 
-            renderSelectedService();
-        };
+        function nextDashboardRetryDelay(kind) {
+            if (kind === 'cards') {
+                dashboardCardsFailureCount += 1;
+                return Math.min(
+                    DASHBOARD_CARDS_RETRY_MS * Math.max(1, Math.pow(2, dashboardCardsFailureCount - 1)),
+                    DASHBOARD_CARDS_RETRY_MAX_MS
+                );
+            }
 
-        chartsSource.onmessage = function (event) {
-            try {
-                if (event.data === chartsPayloadSignature) {
+            dashboardChartsFailureCount += 1;
+            return Math.min(
+                DASHBOARD_CHARTS_RETRY_MS * Math.max(1, Math.pow(2, dashboardChartsFailureCount - 1)),
+                DASHBOARD_CHARTS_RETRY_MAX_MS
+            );
+        }
+
+        function shouldTripDashboardCircuitBreaker() {
+            return dashboardCardsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD
+                || dashboardChartsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD;
+        }
+
+        function tripDashboardCircuitBreaker() {
+            dashboardSseCooldownUntil = Date.now() + DASHBOARD_SSE_COOLDOWN_MS;
+            disconnectDashboardStreams();
+            console.warn('Dashboard SSE em cooldown temporario.', {
+                retryAfterMs: DASHBOARD_SSE_COOLDOWN_MS,
+                cardsFailures: dashboardCardsFailureCount,
+                chartsFailures: dashboardChartsFailureCount
+            });
+        }
+
+        function disconnectDashboardStreams() {
+            if (dashboardReconnectTimer) {
+                window.clearTimeout(dashboardReconnectTimer);
+                dashboardReconnectTimer = null;
+            }
+
+            if (window.__dashboardSseConnections) {
+                window.__dashboardSseConnections.cards?.close?.();
+                window.__dashboardSseConnections.charts?.close?.();
+                window.__dashboardSseConnections = null;
+            }
+        }
+
+        function connectDashboardStreams() {
+            if (document.hidden || window.__dashboardSseConnections) {
+                return window.__dashboardSseConnections;
+            }
+
+            if (dashboardSseCooldownUntil > Date.now()) {
+                return window.__dashboardSseConnections;
+            }
+
+            const cardsSource = new EventSource(`${baseUrl}/dashboard/cards`);
+            const chartsSource = new EventSource(`${baseUrl}/dashboard/charts`);
+            window.__dashboardSseConnections = {
+                cards: cardsSource,
+                charts: chartsSource
+            };
+
+            cardsSource.onmessage = function (event) {
+                dashboardCardsLastMessageAt = Date.now();
+                resetDashboardSseFailures('cards');
+                try {
+                    cardsPayload = JSON.parse(event.data);
+                } catch {
                     return;
                 }
 
-                chartsPayloadSignature = event.data;
-                chartsPayload = JSON.parse(event.data);
+                const data = cardsPayload;
+                const health = data.health || {};
+                const metrics = health.metrics || {};
+                const operationalCards = data.operational_cards || {};
+                const campanhas = data.campanhas || {};
+                const totalAtiva = Number(campanhas.ativa || 0);
+                const totalFinalizada = Number(campanhas.finalizada || 0);
+                const totalInativa = Number(campanhas.inativa || 0);
+                const totalProcessando = Number(campanhas.processando || 0);
+                const totalPausada = Number(campanhas.pausada || 0);
+                const totalCancelada = Number(campanhas.cancelada || 0);
+                const totalAgendada = Number(campanhas.agendada || 0);
+                const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
+
+                animateCountUp(document.getElementById('saldo-atual'), data.saldoAtual ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('saldo-taxa'), data.cdrTaxa ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('sms-custo'), data.totalConsumo ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('sms-enviados'), data.smsEnviados ?? 0);
+                animateCountUp(document.getElementById('voz-enviados'), data.disposition ?? 0);
+                animateCountUp(document.getElementById('whatsapp-enviados'), data.whatsappEnviados ?? 0);
+                animateCountUp(document.getElementById('ultimo-pix'), data.ultimoPixValor ?? 0, 'R$ ');
+                setValue('pix-data', data.ultimoPixData || '--/--/----');
+                animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
+                animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
+                animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
+                animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
+                animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
+                animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
+                animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
+                animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
+
+                setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
+                setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
+                setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
+                setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
+                animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
+
+                setOperationalCard('voip', operationalCards.voip);
+                setOperationalCard('sms', operationalCards.sms);
+                setOperationalCard('whatsapp', operationalCards.whatsapp);
+
                 renderSelectedService();
-            } catch (error) {
-                console.error('Erro ao processar graficos do dashboard:', error, event.data);
+            };
+
+            chartsSource.onmessage = function (event) {
+                dashboardChartsLastMessageAt = Date.now();
+                resetDashboardSseFailures('charts');
+                try {
+                    if (event.data === chartsPayloadSignature) {
+                        return;
+                    }
+
+                    chartsPayloadSignature = event.data;
+                    chartsPayload = JSON.parse(event.data);
+                    renderSelectedService();
+                } catch (error) {
+                    console.error('Erro ao processar graficos do dashboard:', error, event.data);
+                    return;
+                }
+            };
+
+            cardsSource.onerror = function () {
+                if (document.hidden || cardsSource.readyState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextDashboardRetryDelay('cards');
+                if (shouldTripDashboardCircuitBreaker()) {
+                    tripDashboardCircuitBreaker();
+                    return;
+                }
+
+                scheduleDashboardReconnect(delay);
+            };
+
+            chartsSource.onerror = function (event) {
+                const now = Date.now();
+                const lastMessageAge = dashboardChartsLastMessageAt > 0 ? (now - dashboardChartsLastMessageAt) : null;
+                const connectionState = chartsSource.readyState;
+
+                if (document.hidden) {
+                    return;
+                }
+
+                if (connectionState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextDashboardRetryDelay('charts');
+                console.warn('Reconectando stream dos graficos do dashboard.', {
+                    readyState: connectionState,
+                    lastMessageAge,
+                    retryDelay: delay
+                });
+
+                if (shouldTripDashboardCircuitBreaker()) {
+                    tripDashboardCircuitBreaker();
+                    return;
+                }
+
+                scheduleDashboardReconnect(delay);
+            };
+
+            return window.__dashboardSseConnections;
+        }
+
+        bootstrapStaticCounts();
+        connectDashboardStreams();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                disconnectDashboardStreams();
                 return;
             }
-        };
 
-        chartsSource.onerror = function (event) {
-            console.error('Conexao dos graficos do dashboard falhou.', event);
-        };
+            if (dashboardSseCooldownUntil > 0 && dashboardSseCooldownUntil <= Date.now()) {
+                dashboardSseCooldownUntil = 0;
+                resetDashboardSseFailures('cards');
+                resetDashboardSseFailures('charts');
+            }
+
+            connectDashboardStreams();
+        });
+        window.addEventListener('beforeunload', disconnectDashboardStreams);
     });
 </script>

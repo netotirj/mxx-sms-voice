@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Config\TelephonyConfig;
 use App\Model\Entity\CampaignVoice;
 use App\RedisConn;
+use App\Service\PerformanceTelemetry;
 use Exception;
 use GuzzleHttp\Client;
 use Random\RandomException;
@@ -12,11 +13,16 @@ use Throwable;
 
 class VoiceWorker
 {
+    private const int MAX_WORKER_REQUEUE_ATTEMPTS = 8;
+    private const int MAX_ORIGINATE_RETRY_ATTEMPTS = 5;
+    private const int AGENT_SYNC_INTERVAL_MS = 1500;
+
     private $redis;
     private Client $http;
     private string $ariHost;
     private array $ariAuth;
     private string $stasisApp;
+    private float $lastAgentSyncAt = 0.0;
 
     private const int MIN_CPS = 1;
     private const int MAX_CPS = 20;
@@ -52,15 +58,14 @@ class VoiceWorker
         $orig = new VoiceOriginate();
         $bucket = new TokenBucket($this->redis);
         $monitor = new AsteriskErrorMonitor($this->redis);
+        $agentManager = new AgentManager([
+            'ari_host' => $this->ariHost,
+            'ari_auth' => $this->ariAuth,
+        ]);
 
         echo "🚀 Worker Voice iniciado (PID " . getmypid() . ")\n";
 
         while (true) {
-
-            $agentManager = new AgentManager([
-                'ari_host' => $this->ariHost,
-                'ari_auth' => $this->ariAuth,
-            ]);
 
             // =====================================================
             // 🛑 STASIS GATE — aguarda listener voltar
@@ -75,7 +80,9 @@ class VoiceWorker
             // 🔄 SYNC agentes / chamadas
             // =====================================================
             try {
-                $this->syncAgentsFromActiveCalls();
+                if ($this->shouldSyncAgents()) {
+                    $this->syncAgentsFromActiveCalls();
+                }
             } catch (Throwable $e) {
                 echo "[SYNC] ERRO: {$e->getMessage()}\n";
             }
@@ -239,8 +246,7 @@ class VoiceWorker
                     'rate' => $rate,
                 ]);
 
-                $this->redis->rpush('voice:queue', $raw);
-                usleep(200_000);
+                $this->requeueVoicePayload($raw, $data, 'cps_blocked', $jobId, $callId);
                 continue;
             }
 
@@ -338,8 +344,7 @@ class VoiceWorker
                     // Ela pega a mensagem que você já montou ($msgFinal) e manda pro monitor da tela.
                     $this->notifyJob($jobId, 'no_agents_available', $msgFinal);
 
-                    usleep(800000);
-                    $this->redis->rpush('voice:queue', $raw);
+                    $this->requeueVoicePayload($raw, $data, 'no_agents_online', $jobId, $callId);
                     continue;
                 }
 
@@ -378,8 +383,7 @@ class VoiceWorker
                             'vip' => (bool)($data['vip'] ?? false),
                         ]);
 
-                        usleep(500_000);
-                        $this->redis->rpush('voice:queue', $raw);
+                        $this->requeueVoicePayload($raw, $data, 'reserve_agent_failed', $jobId, $callId);
                         continue;
                     }
 
@@ -465,15 +469,15 @@ class VoiceWorker
                     $attempt = (int)$this->redis->incr($attemptKey);
                     $this->redis->expire($attemptKey, 3600);
 
-                    if ($attempt <= 5) {
+                    if ($attempt <= self::MAX_ORIGINATE_RETRY_ATTEMPTS) {
                         $baseMs = min(5000, 200 * (2 ** ($attempt - 1)));
                         $jitter = random_int(0, 150);
                         $delayMs = $baseMs + $jitter;
 
-                        echo "🔁 ORIGINATE falhou ({$cls}) retry {$attempt}/5 em {$delayMs}ms\n";
+                        echo "🔁 ORIGINATE falhou ({$cls}) retry {$attempt}/" . self::MAX_ORIGINATE_RETRY_ATTEMPTS . " em {$delayMs}ms\n";
 
                         usleep($delayMs * 1000);
-                        $this->redis->rpush('voice:queue', $raw);
+                        $this->requeueVoicePayload($raw, $data, 'originate_retry:' . $cls, $jobId, $callId, $attempt, $delayMs);
                         continue;
                     }
 
@@ -1112,6 +1116,8 @@ class VoiceWorker
 
     private function syncAgentsFromActiveCalls(): void
     {
+        $this->lastAgentSyncAt = microtime(true);
+
         // =========================
         // 1) SNAPSHOT REAL
         // =========================
@@ -1147,7 +1153,7 @@ class VoiceWorker
         // =========================
         // 3) EXECUTA TRANSFERS PENDENTES
         // =========================
-        foreach ($this->redis->keys('voice:pending_transfer:*') as $key) {
+        foreach ($this->scanKeys('voice:pending_transfer:*') as $key) {
 
             $data = json_decode((string)$this->redis->get($key), true);
             if (!is_array($data)) {
@@ -1338,6 +1344,81 @@ class VoiceWorker
                 echo "🟢 Agente {$ramal} ficou LIVRE\n";
             }
         }
+    }
+
+    private function shouldSyncAgents(): bool
+    {
+        $now = microtime(true);
+        return (($now - $this->lastAgentSyncAt) * 1000) >= self::AGENT_SYNC_INTERVAL_MS;
+    }
+
+    private function requeueVoicePayload(
+        string $raw,
+        array $data,
+        string $reason,
+        mixed $jobId,
+        ?string $callId,
+        ?int $attemptOverride = null,
+        ?int $delayOverrideMs = null
+    ): void {
+        $callId = $callId ?: trim((string)($data['call_id'] ?? ''));
+        $attempt = $attemptOverride ?? ((int)($data['_worker_requeue_attempt'] ?? 0) + 1);
+
+        if ($attempt > self::MAX_WORKER_REQUEUE_ATTEMPTS) {
+            $this->pushDlq($jobId, $callId, $raw, 'worker_requeue_exhausted:' . $reason, [
+                'attempts' => $attempt,
+                'reason' => $reason,
+            ]);
+            $this->notifyJob($jobId, 'worker_requeue_exhausted', 'Payload movido para DLQ após excesso de reenfileiramentos.', [
+                'reason' => $reason,
+                'attempts' => $attempt,
+                'call_id' => $callId,
+            ]);
+            PerformanceTelemetry::log('voice.requeue_exhausted', [
+                'job_id' => $jobId,
+                'call_id' => $callId,
+                'reason' => $reason,
+                'attempts' => $attempt,
+            ]);
+            return;
+        }
+
+        $delayMs = $delayOverrideMs ?? min(10000, 250 * (2 ** max(0, $attempt - 1)));
+        $payload = $data;
+        $payload['_worker_requeue_attempt'] = $attempt;
+        $payload['_worker_requeue_reason'] = $reason;
+        $payload['_worker_requeue_at'] = time();
+
+        usleep($delayMs * 1000);
+        $this->redis->rpush('voice:queue', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        PerformanceTelemetry::log('voice.requeue', [
+            'job_id' => $jobId,
+            'call_id' => $callId,
+            'reason' => $reason,
+            'attempts' => $attempt,
+            'delay_ms' => $delayMs,
+        ]);
+    }
+
+    private function scanKeys(string $pattern): array
+    {
+        $keys = [];
+        $cursor = '0';
+
+        do {
+            $result = $this->redis->scan($cursor, 'MATCH', $pattern, 'COUNT', 100);
+            if (!is_array($result) || count($result) !== 2) {
+                break;
+            }
+
+            $cursor = (string)$result[0];
+            foreach ((array)$result[1] as $key) {
+                $keys[] = (string)$key;
+            }
+        } while ($cursor !== '0');
+
+        return $keys;
     }
 
 

@@ -63,11 +63,12 @@ class WhatsAppMetaRateLimitGuard
     {
         self::ensureHealth($account);
 
-        (new Database('whatsapp_number_health'))->update('account_id = :account_id', [
+        [$where, $params] = self::healthLookupWhere($account);
+        (new Database('whatsapp_number_health'))->update($where, [
             'blocked_until' => $blockedUntil,
             'recommendation' => $reason,
             'updated_at' => date('Y-m-d H:i:s'),
-        ], [':account_id' => (int)$account['id']]);
+        ], $params);
 
         (new Database('whatsapp_numbers'))->update('meta_id = :meta_id', [
             'send_blocked_until' => $blockedUntil,
@@ -102,23 +103,24 @@ class WhatsAppMetaRateLimitGuard
     {
         self::ensureHealth($account);
 
+        [$where, $params] = self::healthLookupWhere($account);
         return (new Database('whatsapp_number_health'))
-            ->select('account_id = :account_id', [':account_id' => (int)$account['id']], '', '1')
+            ->select($where, $params, '', '1')
             ->fetch(\PDO::FETCH_ASSOC) ?: [];
     }
 
     private static function ensureHealth(array $account): void
     {
+        [$where, $params] = self::healthLookupWhere($account);
         $exists = (new Database('whatsapp_number_health'))
-            ->select('account_id = :account_id', [':account_id' => (int)$account['id']], '', '1', 'account_id')
+            ->select($where, $params, '', '1', self::healthTableHasColumn('account_id') ? 'account_id' : 'phone_number_id')
             ->fetchColumn();
 
         if ($exists) {
             return;
         }
 
-        (new Database('whatsapp_number_health'))->insert([
-            'account_id' => (int)$account['id'],
+        $values = [
             'phone_number_id' => (string)$account['phone_number_id'],
             'tenancy_id' => (string)$account['tenancy_id'],
             'quality_status' => 'unknown',
@@ -131,7 +133,56 @@ class WhatsAppMetaRateLimitGuard
             'last_meta_sync_at' => null,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+
+        if (self::healthTableHasColumn('account_id')) {
+            $values['account_id'] = (int)$account['id'];
+        }
+
+        (new Database('whatsapp_number_health'))->insert($values);
+    }
+
+    private static function healthLookupWhere(array $account): array
+    {
+        if (self::healthTableHasColumn('account_id')) {
+            return [
+                'account_id = :account_id',
+                [':account_id' => (int)($account['id'] ?? 0)],
+            ];
+        }
+
+        return [
+            'phone_number_id = :phone_number_id AND tenancy_id = :tenancy_id',
+            [
+                ':phone_number_id' => (string)($account['phone_number_id'] ?? ''),
+                ':tenancy_id' => (string)($account['tenancy_id'] ?? ''),
+            ],
+        ];
+    }
+
+    private static function healthTableHasColumn(string $column): bool
+    {
+        static $cache = [];
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        try {
+            $result = (new Database())->execute(
+                "SELECT COUNT(*) AS total
+                 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'whatsapp_number_health'
+                   AND COLUMN_NAME = :column",
+                [':column' => $column]
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            $cache[$column] = (int)($result['total'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            $cache[$column] = $column !== 'account_id';
+        }
+
+        return $cache[$column];
     }
 
     private static function ensureLogTable(): void

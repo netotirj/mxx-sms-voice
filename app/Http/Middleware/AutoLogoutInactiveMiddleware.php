@@ -10,9 +10,10 @@ class AutoLogoutInactiveMiddleware
 {
     /**
      * Tempo máximo de inatividade permitido em segundos.
-     * Ajuste conforme desejado (ex: 3600 = 1 hora).
+     * Mantido em sincronia com o heartbeat do frontend.
      */
-    private const int SESSION_EXPIRATION = 3600;
+    private const int SESSION_EXPIRATION = 1800;
+    private const int LAST_ACTIVITY_FLUSH_INTERVAL = 60;
 
     /**
      * Executa o middleware.
@@ -27,21 +28,19 @@ class AutoLogoutInactiveMiddleware
             $userData = SessionLogin::getLogged();
 
             if ($userData) {
-                $obUser = UserAuthentication::getUserByEmail($userData['email']);
+                $now = time();
+                $lastSeenAt = (int)($userData['timeSession'] ?? 0);
 
-                if ($obUser && $obUser->last_activity) {
-                    $lastActivity = strtotime($obUser->last_activity);
-                    $now = time();
+                if ($lastSeenAt > 0 && ($now - $lastSeenAt) > self::SESSION_EXPIRATION) {
+                    UserAuthentication::setStatus((string)$userData['email'], 'n');
+                    SessionLogin::logout();
+                    $request->getRouter()->redirect('/login');
+                }
 
-                    if ($now - $lastActivity > self::SESSION_EXPIRATION) {
-                        // Tempo excedido: logout seguro
-                        UserAuthentication::setStatus($obUser->email, 'n');
-                        SessionLogin::logout();
-                        $request->getRouter()->redirect('/login');
-                    } else {
-                        // Atualiza last_activity no banco para manter ativo
-                        UserAuthentication::updateLastActivity($obUser->email, date('Y-m-d H:i:s'));
-                    }
+                $lastDbFlush = (int)($_SESSION['user']['last_activity_flush_at'] ?? 0);
+                if (($now - $lastDbFlush) >= self::LAST_ACTIVITY_FLUSH_INTERVAL) {
+                    UserAuthentication::updateLastActivity((string)$userData['email'], date('Y-m-d H:i:s', $now));
+                    $_SESSION['user']['last_activity_flush_at'] = $now;
                 }
             }
         }

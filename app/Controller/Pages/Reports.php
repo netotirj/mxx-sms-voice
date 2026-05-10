@@ -23,6 +23,10 @@ use WilliamCosta\DatabaseManager\Database;
 
 class Reports extends ViewComponents
 {
+    private static function resolveUserRole(array $user): string
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+    }
 
     // ======================= Views =======================
 
@@ -58,8 +62,14 @@ class Reports extends ViewComponents
 
     public static function getWhatsAppReportView($request): array|bool|string
     {
+        $queryParams = $request->getQueryParams();
+        $reportType = strtolower(trim((string)($queryParams['report'] ?? 'message')));
+        $pageTitle = $reportType === 'voice'
+            ? 'Maxx Solutions - WhatsApp Voz | Reports'
+            : 'Maxx Solutions - WhatsApp Mensagem | Reports';
+
         $content = View::render('/reports/whatsapp', []);
-        return parent::getComponentsReports('Maxx Solutions - WhatsApp | Reports', $content);
+        return parent::getComponentsReports($pageTitle, $content);
     }
 
     public static function getCdrComponents($request): array|bool|string
@@ -78,7 +88,7 @@ class Reports extends ViewComponents
         }
 
         $userId    = $obUser['id'];
-        $role      = strtolower($obUser['function']);
+        $role      = self::resolveUserRole($obUser);
         $tenancyId = $obUser['tenancy_id'];
 
         // ==============================
@@ -164,7 +174,7 @@ class Reports extends ViewComponents
         }
 
         $userId    = $obUser['id'];
-        $role      = strtolower(trim($obUser['user_function'] ?? ''));
+        $role      = self::resolveUserRole($obUser);
         $tenancyId = $obUser['tenancy_id'];
 
         // ==========================================
@@ -455,6 +465,18 @@ class Reports extends ViewComponents
         }
 
         $queryParams = $request->getQueryParams();
+        $reportType = strtolower(trim((string)($queryParams['report'] ?? 'message')));
+
+        if ($reportType === 'voice') {
+            Voice::processCdrFromRedis(false);
+
+            if (strtolower(trim((string)($queryParams['mode'] ?? ''))) === 'queues') {
+                return self::getWhatsAppVoiceQueueReportRealtime($obUser, $queryParams);
+            }
+
+            return self::getWhatsAppVoiceReportRealtime($obUser, $queryParams);
+        }
+
         if (strtolower(trim((string)($queryParams['mode'] ?? ''))) === 'queues') {
             return self::getWhatsAppQueueReportRealtime($obUser, $queryParams);
         }
@@ -832,6 +854,848 @@ class Reports extends ViewComponents
         ], 'application/json');
     }
 
+    private static function getWhatsAppVoiceReportRealtime(array $obUser, array $queryParams): Response
+    {
+        $role = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+        $status = strtolower(trim((string)($queryParams['status'] ?? '')));
+
+        [$metaWhere, $metaParams] = self::buildWhatsAppMetaVoiceWhere($obUser, $queryParams);
+        self::applyVoiceStatusFilter($status, $metaWhere, $metaParams, 'meta');
+
+        try {
+            $sourceMode = 'whatsapp_meta';
+            $rows = self::queryWhatsAppMetaVoiceRows($metaWhere, $metaParams);
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'message' => 'Erro ao consultar relatório de voz do WhatsApp',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $formatted = array_map(static function (array $row): array {
+            $direction = self::normalizeVoiceReportDirection((string)($row['direction'] ?? 'outbound'));
+            $dialstatus = self::normalizeVoiceReportStatus((string)($row['dialstatus'] ?? 'UNKNOWN'));
+            $price = self::resolveVoiceReportPrice($row);
+            $billed = $price > 0;
+            $startedAt = self::formatReportDateTime($row['started'] ?? null);
+            $answeredAt = self::formatReportDateTime($row['answered'] ?? null);
+            $endedAt = self::formatReportDateTime($row['ended'] ?? null);
+            $sourceKey = 'whatsapp';
+
+            return [
+                'id' => (int)($row['id'] ?? 0),
+                'call_id' => trim((string)($row['call_id'] ?? '')) ?: null,
+                'client_id' => !empty($row['user_id']) ? (int)$row['user_id'] : null,
+                'client_name' => trim((string)($row['user_name'] ?? '')) ?: '-',
+                'client_account_code' => trim((string)($row['user_account_code'] ?? '')) ?: '-',
+                'source_number' => trim((string)($row['number'] ?? $row['channel_number'] ?? '')) ?: '-',
+                'destination' => trim((string)($row['destination'] ?? '')) ?: '-',
+                'source_origin' => $sourceKey,
+                'source_origin_label' => self::voiceSourceLabel($sourceKey),
+                'direction' => $direction,
+                'category' => $direction,
+                'template_name' => $dialstatus,
+                'campaign_name' => trim((string)($row['queue_name'] ?? '')) ?: '-',
+                'message_preview' => trim((string)($row['cause_txt'] ?? '')) ?: '',
+                'status' => strtolower($dialstatus),
+                'dialstatus' => $dialstatus,
+                'billed' => $billed,
+                'price_brl' => $price,
+                'charged_value' => $billed ? $price : 0.0,
+                'taxa_of_service' => (float)($row['taxa_of_service'] ?? 0),
+                'duration_seconds' => max(0, (int)($row['duration_seconds'] ?? $row['duration'] ?? 0)),
+                'queue_id' => trim((string)($row['queue_id'] ?? '')) ?: null,
+                'queue_name' => trim((string)($row['queue_name'] ?? '')) ?: 'Sem fila',
+                'application' => trim((string)($row['application'] ?? '')) ?: null,
+                'sent_at' => $startedAt,
+                'answered_at' => $answeredAt,
+                'delivered_at' => $endedAt,
+            ];
+        }, $rows);
+
+        $directionSummary = [
+            'inbound' => ['category' => 'inbound', 'quantity' => 0, 'charged_count' => 0, 'charged_total' => 0.0],
+            'outbound' => ['category' => 'outbound', 'quantity' => 0, 'charged_count' => 0, 'charged_total' => 0.0],
+            'answered' => ['category' => 'answered', 'quantity' => 0, 'charged_count' => 0, 'charged_total' => 0.0],
+            'unanswered' => ['category' => 'unanswered', 'quantity' => 0, 'charged_count' => 0, 'charged_total' => 0.0],
+        ];
+
+        foreach ($formatted as $row) {
+            $direction = in_array($row['direction'], ['inbound', 'outbound'], true) ? $row['direction'] : 'outbound';
+            $directionSummary[$direction]['quantity']++;
+            if (!empty($row['billed'])) {
+                $directionSummary[$direction]['charged_count']++;
+                $directionSummary[$direction]['charged_total'] += (float)($row['charged_value'] ?? 0);
+            }
+
+            $qualityKey = self::isVoiceAnsweredStatus((string)($row['dialstatus'] ?? '')) ? 'answered' : 'unanswered';
+            $directionSummary[$qualityKey]['quantity']++;
+            if (!empty($row['billed'])) {
+                $directionSummary[$qualityKey]['charged_count']++;
+                $directionSummary[$qualityKey]['charged_total'] += (float)($row['charged_value'] ?? 0);
+            }
+        }
+
+        return new Response(200, [
+            'success' => true,
+            'report_type' => 'voice',
+            'source_mode' => $sourceMode,
+            'user_type' => $role,
+            'period' => $period,
+            'total' => count($formatted),
+            'charged_total' => array_sum(array_column($formatted, 'charged_value')),
+            'charged_count' => count(array_filter($formatted, static fn(array $row) => !empty($row['billed']))),
+            'category_summary' => array_values($directionSummary),
+            'data' => $formatted,
+        ], 'application/json');
+    }
+
+    private static function getWhatsAppVoiceQueueReportRealtime(array $obUser, array $queryParams): Response
+    {
+        $role = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+
+        [$metaWhere, $metaParams] = self::buildWhatsAppMetaVoiceWhere($obUser, $queryParams);
+
+        try {
+            $sourceMode = 'whatsapp_meta';
+            $rows = self::queryWhatsAppMetaVoiceQueueRows($metaWhere, $metaParams);
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'message' => 'Erro ao consultar relatório por fila da voz do WhatsApp',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
+
+        $formatted = array_map(static function (array $row): array {
+            $dialstatus = self::normalizeVoiceReportStatus((string)($row['dialstatus'] ?? 'UNKNOWN'));
+            $started = self::formatReportDateTime($row['started'] ?? null);
+            $answered = self::formatReportDateTime($row['answered'] ?? null);
+            $ended = self::formatReportDateTime($row['ended'] ?? null);
+            $isAnswered = self::isVoiceAnsweredStatus($dialstatus);
+            $statusKey = strtolower($dialstatus ?: 'unknown');
+            $sourceKey = 'whatsapp';
+
+            return [
+                'id' => (int)($row['id'] ?? 0),
+                'call_id' => trim((string)($row['call_id'] ?? '')) ?: null,
+                'queue_id' => trim((string)($row['queue_id'] ?? '')) ?: null,
+                'queue_name' => trim((string)($row['queue_name'] ?? '')) ?: 'Sem fila',
+                'account_label' => trim((string)($row['channel_number'] ?? $row['number'] ?? '')) ?: '-',
+                'assigned_agent_user_id' => !empty($row['user_id']) ? (int)$row['user_id'] : null,
+                'agent_name' => trim((string)($row['user_name'] ?? '')) ?: 'Sem atendente',
+                'contact_name' => trim((string)($row['number'] ?? '')) ?: trim((string)($row['destination'] ?? '')) ?: '-',
+                'contact_phone' => trim((string)($row['destination'] ?? '')) ?: '-',
+                'last_message' => trim((string)($row['cause_txt'] ?? '')) ?: '',
+                'state' => $isAnswered ? 'finished' : 'waiting',
+                'call_status_key' => $statusKey,
+                'call_status_label' => self::voiceDialStatusLabel($dialstatus),
+                'source_origin' => $sourceKey,
+                'source_origin_label' => self::voiceSourceLabel($sourceKey),
+                'direction' => self::normalizeVoiceReportDirection((string)($row['direction'] ?? 'outbound')),
+                'is_vip' => false,
+                'wait_seconds' => max(0, (int)($row['wait_seconds'] ?? 0)),
+                'service_seconds' => max(0, (int)($row['service_seconds'] ?? 0)),
+                'queued_at' => $started,
+                'started_at' => $answered,
+                'finished_at' => $ended,
+                'last_customer_message_at' => $ended,
+            ];
+        }, $rows);
+
+        $waitSamples = array_values(array_filter(array_map(static fn(array $row) => (int)($row['wait_seconds'] ?? 0), $formatted), static fn(int $value) => $value > 0));
+        $serviceSamples = array_values(array_filter(array_map(static fn(array $row) => (int)($row['service_seconds'] ?? 0), $formatted), static fn(int $value) => $value > 0));
+
+        return new Response(200, [
+            'success' => true,
+            'report_type' => 'voice',
+            'source_mode' => $sourceMode,
+            'mode' => 'queues',
+            'user_type' => $role,
+            'period' => $period,
+            'total' => count($formatted),
+            'stats' => [
+                'waiting' => count(array_filter($formatted, static fn(array $row) => ($row['call_status_key'] ?? '') !== 'answer')),
+                'active' => 0,
+                'finished' => count(array_filter($formatted, static fn(array $row) => ($row['call_status_key'] ?? '') === 'answer')),
+                'avg_wait_seconds' => $waitSamples ? (int)round(array_sum($waitSamples) / count($waitSamples)) : 0,
+                'avg_service_seconds' => $serviceSamples ? (int)round(array_sum($serviceSamples) / count($serviceSamples)) : 0,
+            ],
+            'data' => $formatted,
+        ], 'application/json');
+    }
+
+    private static function buildWhatsAppVoiceWhere(array $obUser, array $queryParams): array
+    {
+        $role = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+
+        $where = [
+            "COALESCE(c.destination, '') <> ''",
+            "COALESCE(c.number, c.channel_number, '') <> ''",
+        ];
+        $params = [];
+
+        if ($role !== 'super_admin') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+        }
+
+        if (in_array($role, ['agent', 'support_l1'], true)) {
+            $where[] = 'c.user_id = :user_id';
+            $params[':user_id'] = (int)($obUser['id'] ?? 0);
+        } elseif ($role === 'reseller') {
+            $where[] = "(
+                c.user_id = :reseller_id
+                OR c.user_id IN (
+                    SELECT u.id
+                    FROM users u
+                    WHERE u.user_id = :reseller_id
+                      AND u.tenancy_id = :reseller_tenancy_id
+                )
+            )";
+            $params[':reseller_id'] = (int)($obUser['id'] ?? 0);
+            $params[':reseller_tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+        }
+
+        $dateColumn = "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.answered, '0000-00-00 00:00:00'), c.created_at)";
+        if (!empty($queryParams['date_from'])) {
+            $where[] = "{$dateColumn} >= :date_from";
+            $params[':date_from'] = (string)$queryParams['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($queryParams['date_to'])) {
+            $where[] = "{$dateColumn} <= :date_to";
+            $params[':date_to'] = (string)$queryParams['date_to'] . ' 23:59:59';
+        }
+
+        if (empty($queryParams['date_from']) && empty($queryParams['date_to'])) {
+            if ($period === 'day') {
+                $where[] = "DATE({$dateColumn}) = CURDATE()";
+            } elseif ($period === 'week') {
+                $where[] = "{$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                    AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+            } elseif ($period === 'month') {
+                $where[] = "YEAR({$dateColumn}) = YEAR(CURDATE()) AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+            }
+        }
+
+        return [$where, $params];
+    }
+
+    private static function buildWhatsAppMetaVoiceWhere(array $obUser, array $queryParams): array
+    {
+        $role = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
+        $period = strtolower(trim((string)($queryParams['period'] ?? 'day')));
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($role !== 'super_admin') {
+            $where[] = 'wc.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+        }
+
+        if (in_array($role, ['agent', 'support_l1'], true)) {
+            $where[] = 'wa.user_id = :user_id';
+            $params[':user_id'] = (int)($obUser['id'] ?? 0);
+        } elseif ($role === 'reseller') {
+            $where[] = "(
+                wa.user_id = :reseller_id
+                OR wa.user_id IN (
+                    SELECT u.id
+                    FROM users u
+                    WHERE u.user_id = :reseller_id
+                      AND u.tenancy_id = :reseller_tenancy_id
+                )
+            )";
+            $params[':reseller_id'] = (int)($obUser['id'] ?? 0);
+            $params[':reseller_tenancy_id'] = (string)($obUser['tenancy_id'] ?? '');
+        }
+
+        $dateColumn = "COALESCE(wc.started_at, wc.answered_at, wc.created_at)";
+        if (!empty($queryParams['date_from'])) {
+            $where[] = "{$dateColumn} >= :date_from";
+            $params[':date_from'] = (string)$queryParams['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($queryParams['date_to'])) {
+            $where[] = "{$dateColumn} <= :date_to";
+            $params[':date_to'] = (string)$queryParams['date_to'] . ' 23:59:59';
+        }
+
+        if (empty($queryParams['date_from']) && empty($queryParams['date_to'])) {
+            if ($period === 'day') {
+                $where[] = "DATE({$dateColumn}) = CURDATE()";
+            } elseif ($period === 'week') {
+                $where[] = "{$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                    AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+            } elseif ($period === 'month') {
+                $where[] = "YEAR({$dateColumn}) = YEAR(CURDATE()) AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+            }
+        }
+
+        return [$where, $params];
+    }
+
+    private static function applyVoiceStatusFilter(string $status, array &$where, array &$params, string $source): void
+    {
+        if ($status === '') {
+            return;
+        }
+
+        if ($source === 'meta') {
+            if ($status === 'charged') {
+                $where[] = '(COALESCE(wc.final_price, 0) > 0)';
+            } elseif ($status === 'answered') {
+                $where[] = "UPPER(COALESCE(wc.status, '')) IN ('COMPLETED', 'ANSWER', 'ACCEPTED')";
+            } elseif ($status === 'noanswer') {
+                $where[] = "UPPER(COALESCE(wc.status, '')) IN ('NOANSWER', 'NOT_ANSWERED')";
+            } elseif ($status === 'busy') {
+                $where[] = "UPPER(COALESCE(wc.status, '')) = 'BUSY'";
+            } elseif ($status === 'failed') {
+                $where[] = "UPPER(COALESCE(wc.status, '')) IN ('FAILED', 'FAILURE')";
+            } elseif ($status === 'cancel') {
+                $where[] = "UPPER(COALESCE(wc.status, '')) IN ('CANCEL', 'CANCELLED', 'REJECTED')";
+            } elseif ($status === 'inbound') {
+                $where[] = "LOWER(COALESCE(wc.direction, '')) = 'inbound'";
+            } elseif ($status === 'outbound') {
+                $where[] = "LOWER(COALESCE(wc.direction, '')) = 'outbound'";
+            }
+            return;
+        }
+
+        if ($status === 'charged') {
+            $where[] = '(COALESCE(c.final_price, 0) > 0 OR COALESCE(c.value, 0) > 0)';
+        } elseif ($status === 'answered') {
+            $where[] = "UPPER(COALESCE(c.dialstatus, '')) = 'ANSWER'";
+        } elseif ($status === 'noanswer') {
+            $where[] = "UPPER(COALESCE(c.dialstatus, '')) = 'NOANSWER'";
+        } elseif ($status === 'busy') {
+            $where[] = "UPPER(COALESCE(c.dialstatus, '')) = 'BUSY'";
+        } elseif ($status === 'failed') {
+            $where[] = "UPPER(COALESCE(c.dialstatus, '')) = 'FAILED'";
+        } elseif ($status === 'cancel') {
+            $where[] = "UPPER(COALESCE(c.dialstatus, '')) = 'CANCEL'";
+        } elseif (in_array($status, ['inbound', 'outbound'], true)) {
+            $where[] = "LOWER(COALESCE(c.direction, '')) = :direction_status";
+            $params[':direction_status'] = $status;
+        }
+    }
+
+    private static function queryWhatsAppVoiceCdrRows(array $where, array $params, bool $strictSource): array
+    {
+        $queryWhere = $where;
+        if ($strictSource) {
+            $queryWhere[] = self::whatsAppVoiceSourceClause('c');
+        }
+
+        $sql = "SELECT
+                c.id,
+                c.call_id,
+                c.user_id,
+                c.user_name,
+                c.user_account_code,
+                c.channel_number,
+                c.number,
+                c.destination,
+                c.direction,
+                c.type,
+                c.dialstatus,
+                c.cause_txt,
+                c.duration,
+                c.duration_seconds,
+                c.value,
+                c.final_price,
+                c.taxa_of_service,
+                c.started,
+                c.answered,
+                c.ended,
+                c.campaign_type,
+                c.application,
+                cv.queue_id,
+                COALESCE(NULLIF(q.name, ''), NULLIF(qa.queue_name, ''), NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_name
+            FROM cdr c
+            LEFT JOIN campaign_voice cv ON cv.id = c.campaign_id AND cv.tenancy_id = c.tenancy_id
+            LEFT JOIN queues_config q ON q.queue_id = cv.queue_id AND q.tenancy_id = c.tenancy_id
+            LEFT JOIN (
+                SELECT
+                    qm.tenancy_id,
+                    qm.agent_ramal,
+                    MIN(qm.queue_id) AS queue_id,
+                    MIN(qc.name) AS queue_name
+                FROM queue_members qm
+                LEFT JOIN queues_config qc ON qc.queue_id = qm.queue_id AND qc.tenancy_id = qm.tenancy_id
+                GROUP BY qm.tenancy_id, qm.agent_ramal
+            ) qa ON qa.tenancy_id = c.tenancy_id AND qa.agent_ramal = c.channel_number
+            WHERE " . implode(' AND ', $queryWhere) . "
+            ORDER BY COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), c.created_at) DESC, c.id DESC
+            LIMIT 5000";
+
+        return (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function buildWhatsAppVoiceCdrSelect(array $where, bool $strictSource): string
+    {
+        $queryWhere = $where;
+        if ($strictSource) {
+            $queryWhere[] = self::whatsAppVoiceSourceClause('c');
+        }
+
+        return "SELECT
+                c.id,
+                c.call_id,
+                c.user_id,
+                c.user_name,
+                c.user_account_code,
+                c.channel_number,
+                c.number,
+                c.destination,
+                c.direction,
+                c.type,
+                c.dialstatus,
+                c.cause_txt,
+                c.duration,
+                c.duration_seconds,
+                c.value,
+                c.final_price,
+                c.taxa_of_service,
+                c.started,
+                c.answered,
+                c.ended,
+                c.campaign_type,
+                c.application,
+                cv.queue_id,
+                COALESCE(NULLIF(q.name, ''), NULLIF(qa.queue_name, ''), NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_name,
+                COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), c.created_at) AS sort_at
+            FROM cdr c
+            LEFT JOIN campaign_voice cv ON cv.id = c.campaign_id AND cv.tenancy_id = c.tenancy_id
+            LEFT JOIN queues_config q ON q.queue_id = cv.queue_id AND q.tenancy_id = c.tenancy_id
+            LEFT JOIN (
+                SELECT
+                    qm.tenancy_id,
+                    qm.agent_ramal,
+                    MIN(qm.queue_id) AS queue_id,
+                    MIN(qc.name) AS queue_name
+                FROM queue_members qm
+                LEFT JOIN queues_config qc ON qc.queue_id = qm.queue_id AND qc.tenancy_id = qm.tenancy_id
+                GROUP BY qm.tenancy_id, qm.agent_ramal
+            ) qa ON qa.tenancy_id = c.tenancy_id AND qa.agent_ramal = c.channel_number
+            WHERE " . implode(' AND ', $queryWhere);
+    }
+
+    private static function queryWhatsAppVoiceQueueRows(array $where, array $params, bool $strictSource): array
+    {
+        $queryWhere = $where;
+        if ($strictSource) {
+            $queryWhere[] = self::whatsAppVoiceSourceClause('c');
+        }
+
+        $sql = "SELECT
+                c.id,
+                c.call_id,
+                c.user_id,
+                c.user_name,
+                c.channel_number,
+                c.number,
+                c.destination,
+                c.direction,
+                c.dialstatus,
+                c.cause_txt,
+                c.started,
+                c.answered,
+                c.ended,
+                COALESCE(NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_id,
+                COALESCE(NULLIF(q.name, ''), NULLIF(qa.queue_name, ''), NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_name,
+                CASE
+                    WHEN c.started IS NULL OR c.answered IS NULL THEN 0
+                    ELSE GREATEST(TIMESTAMPDIFF(SECOND, c.started, c.answered), 0)
+                END AS wait_seconds,
+                CASE
+                    WHEN c.answered IS NULL OR c.ended IS NULL THEN 0
+                    ELSE GREATEST(TIMESTAMPDIFF(SECOND, c.answered, c.ended), 0)
+                END AS service_seconds
+            FROM cdr c
+            LEFT JOIN campaign_voice cv ON cv.id = c.campaign_id AND cv.tenancy_id = c.tenancy_id
+            LEFT JOIN queues_config q ON q.queue_id = cv.queue_id AND q.tenancy_id = c.tenancy_id
+            LEFT JOIN (
+                SELECT
+                    qm.tenancy_id,
+                    qm.agent_ramal,
+                    MIN(qm.queue_id) AS queue_id,
+                    MIN(qc.name) AS queue_name
+                FROM queue_members qm
+                LEFT JOIN queues_config qc ON qc.queue_id = qm.queue_id AND qc.tenancy_id = qm.tenancy_id
+                GROUP BY qm.tenancy_id, qm.agent_ramal
+            ) qa ON qa.tenancy_id = c.tenancy_id AND qa.agent_ramal = c.channel_number
+            WHERE " . implode(' AND ', $queryWhere) . "
+            ORDER BY COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), c.created_at) DESC, c.id DESC
+            LIMIT 5000";
+
+        return (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function buildWhatsAppVoiceQueueCdrSelect(array $where, bool $strictSource): string
+    {
+        $queryWhere = $where;
+        if ($strictSource) {
+            $queryWhere[] = self::whatsAppVoiceSourceClause('c');
+        }
+
+        return "SELECT
+                c.id,
+                c.call_id,
+                c.user_id,
+                c.user_name,
+                c.channel_number,
+                c.number,
+                c.destination,
+                c.direction,
+                c.dialstatus,
+                c.cause_txt,
+                c.started,
+                c.answered,
+                c.ended,
+                COALESCE(NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_id,
+                COALESCE(NULLIF(q.name, ''), NULLIF(qa.queue_name, ''), NULLIF(cv.queue_id, ''), NULLIF(qa.queue_id, '')) AS queue_name,
+                CASE
+                    WHEN c.started IS NULL OR c.answered IS NULL THEN 0
+                    ELSE GREATEST(TIMESTAMPDIFF(SECOND, c.started, c.answered), 0)
+                END AS wait_seconds,
+                CASE
+                    WHEN c.answered IS NULL OR c.ended IS NULL THEN 0
+                    ELSE GREATEST(TIMESTAMPDIFF(SECOND, c.answered, c.ended), 0)
+                END AS service_seconds,
+                c.campaign_type,
+                c.application,
+                c.type,
+                COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), c.created_at) AS sort_at
+            FROM cdr c
+            LEFT JOIN campaign_voice cv ON cv.id = c.campaign_id AND cv.tenancy_id = c.tenancy_id
+            LEFT JOIN queues_config q ON q.queue_id = cv.queue_id AND q.tenancy_id = c.tenancy_id
+            LEFT JOIN (
+                SELECT
+                    qm.tenancy_id,
+                    qm.agent_ramal,
+                    MIN(qm.queue_id) AS queue_id,
+                    MIN(qc.name) AS queue_name
+                FROM queue_members qm
+                LEFT JOIN queues_config qc ON qc.queue_id = qm.queue_id AND qc.tenancy_id = qm.tenancy_id
+                GROUP BY qm.tenancy_id, qm.agent_ramal
+            ) qa ON qa.tenancy_id = c.tenancy_id AND qa.agent_ramal = c.channel_number
+            WHERE " . implode(' AND ', $queryWhere);
+    }
+
+    private static function queryWhatsAppMetaVoiceRows(array $where, array $params): array
+    {
+        $sql = "SELECT
+                wc.id,
+                wc.call_id,
+                wa.user_id,
+                u.name AS user_name,
+                u.account_code AS user_account_code,
+                wa.display_phone_number AS channel_number,
+                wc.from_number AS number,
+                wc.to_number AS destination,
+                wc.direction,
+                'whatsapp_meta' AS type,
+                wc.status AS dialstatus,
+                '' AS cause_txt,
+                wc.duration_seconds AS duration,
+                wc.duration_seconds,
+                wc.final_price AS value,
+                wc.final_price AS final_price,
+                0 AS taxa_of_service,
+                wc.started_at AS started,
+                wc.answered_at AS answered,
+                wc.ended_at AS ended,
+                'whatsapp_meta' AS campaign_type,
+                'whatsapp_meta_calling' AS application,
+                NULL AS queue_id,
+                'Sem fila' AS queue_name
+            FROM whatsapp_call_cdr wc
+            LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+            LEFT JOIN users u ON u.id = wa.user_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY COALESCE(wc.started_at, wc.answered_at, wc.created_at) DESC, wc.id DESC
+            LIMIT 5000";
+
+        return (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function buildWhatsAppMetaVoiceSelect(array $where): string
+    {
+        return "SELECT
+                wc.id,
+                wc.call_id,
+                wa.user_id,
+                u.name AS user_name,
+                u.account_code AS user_account_code,
+                wa.display_phone_number AS channel_number,
+                wc.from_number AS number,
+                wc.to_number AS destination,
+                wc.direction,
+                'whatsapp_meta' AS type,
+                wc.status AS dialstatus,
+                '' AS cause_txt,
+                wc.duration_seconds AS duration,
+                wc.duration_seconds,
+                wc.final_price AS value,
+                wc.final_price AS final_price,
+                0 AS taxa_of_service,
+                wc.started_at AS started,
+                wc.answered_at AS answered,
+                wc.ended_at AS ended,
+                'whatsapp_meta' AS campaign_type,
+                'whatsapp_meta_calling' AS application,
+                NULL AS queue_id,
+                'Sem fila' AS queue_name,
+                COALESCE(wc.started_at, wc.answered_at, wc.created_at) AS sort_at
+            FROM whatsapp_call_cdr wc
+            LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+            LEFT JOIN users u ON u.id = wa.user_id
+            WHERE " . implode(' AND ', $where);
+    }
+
+    private static function queryWhatsAppMetaVoiceQueueRows(array $where, array $params): array
+    {
+        $sql = "SELECT
+                wc.id,
+                wc.call_id,
+                wa.user_id,
+                u.name AS user_name,
+                wa.display_phone_number AS channel_number,
+                wc.from_number AS number,
+                wc.to_number AS destination,
+                wc.direction,
+                wc.status AS dialstatus,
+                '' AS cause_txt,
+                wc.started_at AS started,
+                wc.answered_at AS answered,
+                wc.ended_at AS ended,
+                NULL AS queue_id,
+                'Sem fila' AS queue_name,
+                0 AS wait_seconds,
+                COALESCE(wc.duration_seconds, 0) AS service_seconds,
+                'whatsapp_meta' AS campaign_type,
+                'whatsapp_meta_calling' AS application,
+                'whatsapp_meta' AS type
+            FROM whatsapp_call_cdr wc
+            LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+            LEFT JOIN users u ON u.id = wa.user_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY COALESCE(wc.started_at, wc.answered_at, wc.created_at) DESC, wc.id DESC
+            LIMIT 5000";
+
+        return (new Database())->execute($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function buildWhatsAppMetaVoiceQueueSelect(array $where): string
+    {
+        return "SELECT
+                wc.id,
+                wc.call_id,
+                wa.user_id,
+                u.name AS user_name,
+                wa.display_phone_number AS channel_number,
+                wc.from_number AS number,
+                wc.to_number AS destination,
+                wc.direction,
+                wc.status AS dialstatus,
+                '' AS cause_txt,
+                wc.started_at AS started,
+                wc.answered_at AS answered,
+                wc.ended_at AS ended,
+                NULL AS queue_id,
+                'Sem fila' AS queue_name,
+                0 AS wait_seconds,
+                COALESCE(wc.duration_seconds, 0) AS service_seconds,
+                'whatsapp_meta' AS campaign_type,
+                'whatsapp_meta_calling' AS application,
+                'whatsapp_meta' AS type,
+                COALESCE(wc.started_at, wc.answered_at, wc.created_at) AS sort_at
+            FROM whatsapp_call_cdr wc
+            LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+            LEFT JOIN users u ON u.id = wa.user_id
+            WHERE " . implode(' AND ', $where);
+    }
+
+    private static function queryUnifiedWhatsAppVoiceRows(array $cdrWhere, array $cdrParams, array $metaWhere, array $metaParams, bool $strictSource): array
+    {
+        [$cdrSql, $prefixedCdrParams] = self::prefixSqlParams(self::buildWhatsAppVoiceCdrSelect($cdrWhere, $strictSource), $cdrParams, 'cdr_');
+        [$metaSql, $prefixedMetaParams] = self::prefixSqlParams(self::buildWhatsAppMetaVoiceSelect($metaWhere), $metaParams, 'meta_');
+
+        $sql = "SELECT * FROM (
+                    {$cdrSql}
+                    UNION ALL
+                    {$metaSql}
+                ) voice_rows
+                ORDER BY voice_rows.sort_at DESC, voice_rows.id DESC
+                LIMIT 5000";
+
+        return (new Database())->execute($sql, array_merge($prefixedCdrParams, $prefixedMetaParams))->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function queryUnifiedWhatsAppVoiceQueueRows(array $cdrWhere, array $cdrParams, array $metaWhere, array $metaParams, bool $strictSource): array
+    {
+        [$cdrSql, $prefixedCdrParams] = self::prefixSqlParams(self::buildWhatsAppVoiceQueueCdrSelect($cdrWhere, $strictSource), $cdrParams, 'cdrq_');
+        [$metaSql, $prefixedMetaParams] = self::prefixSqlParams(self::buildWhatsAppMetaVoiceQueueSelect($metaWhere), $metaParams, 'metaq_');
+
+        $sql = "SELECT * FROM (
+                    {$cdrSql}
+                    UNION ALL
+                    {$metaSql}
+                ) voice_queue_rows
+                ORDER BY voice_queue_rows.sort_at DESC, voice_queue_rows.id DESC
+                LIMIT 5000";
+
+        return (new Database())->execute($sql, array_merge($prefixedCdrParams, $prefixedMetaParams))->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function prefixSqlParams(string $sql, array $params, string $prefix): array
+    {
+        if ($params === []) {
+            return [$sql, []];
+        }
+
+        $prefixed = [];
+        foreach ($params as $name => $value) {
+            $cleanName = ltrim((string)$name, ':');
+            $newName = ':' . $prefix . $cleanName;
+            $sql = str_replace($name, $newName, $sql);
+            $prefixed[$newName] = $value;
+        }
+
+        return [$sql, $prefixed];
+    }
+
+    private static function whatsAppVoiceSourceClause(string $alias): string
+    {
+        return "(
+            LOWER(COALESCE({$alias}.application, '')) LIKE '%whatsapp%'
+            OR LOWER(COALESCE({$alias}.campaign_type, '')) LIKE '%whatsapp%'
+            OR LOWER(COALESCE({$alias}.type, '')) LIKE '%whatsapp%'
+        )";
+    }
+
+    private static function detectVoiceSource(array $row): string
+    {
+        $application = strtolower(trim((string)($row['application'] ?? '')));
+        $campaignType = strtolower(trim((string)($row['campaign_type'] ?? '')));
+        $type = strtolower(trim((string)($row['type'] ?? '')));
+        $callId = trim((string)($row['call_id'] ?? ''));
+
+        if (
+            str_contains($application, 'whatsapp')
+            || str_contains($campaignType, 'whatsapp')
+            || str_contains($type, 'whatsapp')
+        ) {
+            return 'whatsapp';
+        }
+
+        if ($application === 'app-asterisk' || in_array($type, ['normal', 'outbound', 'inbound'], true)) {
+            return 'webrtc';
+        }
+
+        if ($callId !== '' && $callId !== '-') {
+            return 'whatsapp';
+        }
+
+        return 'webrtc';
+    }
+
+    private static function voiceSourceLabel(string $source): string
+    {
+        return match (strtolower(trim($source))) {
+            'whatsapp' => 'WhatsApp',
+            'webrtc' => 'WebRTC',
+            default => 'Indefinido',
+        };
+    }
+
+    private static function normalizeVoiceReportDirection(string $direction): string
+    {
+        return match (strtoupper(trim($direction))) {
+            'USER_INITIATED', 'INBOUND' => 'inbound',
+            'BUSINESS_INITIATED', 'OUTBOUND' => 'outbound',
+            default => strtolower(trim($direction)) ?: 'outbound',
+        };
+    }
+
+    private static function normalizeVoiceReportStatus(string $status): string
+    {
+        return match (strtoupper(trim($status))) {
+            'COMPLETED' => 'ANSWER',
+            'ACCEPTED' => 'ANSWER',
+            'REJECTED' => 'CANCEL',
+            default => strtoupper(trim($status)) ?: 'UNKNOWN',
+        };
+    }
+
+    private static function isVoiceAnsweredStatus(string $status): bool
+    {
+        return self::normalizeVoiceReportStatus($status) === 'ANSWER';
+    }
+
+    private static function resolveVoiceReportPrice(array $row): float
+    {
+        $finalPrice = (float)($row['final_price'] ?? 0);
+        $value = (float)($row['value'] ?? 0);
+
+        if ($finalPrice > 0) {
+            return $finalPrice;
+        }
+
+        if ($value > 0) {
+            return $value;
+        }
+
+        return max($finalPrice, $value, 0);
+    }
+
+    private static function voiceDialStatusLabel(string $status): string
+    {
+        return match (strtoupper(trim($status))) {
+            'ANSWER' => 'Atendida',
+            'NOANSWER' => 'Não atendida',
+            'BUSY' => 'Ocupado',
+            'FAILED' => 'Falhou',
+            'CANCEL' => 'Cancelada',
+            default => trim($status) !== '' ? ucfirst(strtolower($status)) : 'Sem status',
+        };
+    }
+
+    private static function formatReportDateTime(?string $value): string
+    {
+        if (empty($value) || $value === '0000-00-00 00:00:00') {
+            return '-';
+        }
+
+        try {
+            return (new DateTime($value))->format('d/m/Y H:i');
+        } catch (\Throwable) {
+            return '-';
+        }
+    }
+
+    private static function reportRowTimestamp(array $row, array $fields = ['sent_at', 'delivered_at', 'answered_at']): int
+    {
+        foreach ($fields as $field) {
+            $value = trim((string)($row[$field] ?? ''));
+            if ($value === '' || $value === '-') {
+                continue;
+            }
+
+            $date = \DateTime::createFromFormat('d/m/Y H:i', $value);
+            if ($date instanceof \DateTime) {
+                return $date->getTimestamp();
+            }
+        }
+
+        return 0;
+    }
+
     public static function getRechargeResellers($request): Response
     {
         // 1. Pega o usuário logado e sua Tenancy
@@ -1163,7 +2027,7 @@ class Reports extends ViewComponents
         }
 
         $userId   = $obUser['id'];
-        $role     = strtolower($obUser['function']);
+        $role     = self::resolveUserRole($obUser);
         $tenancy  = $obUser['tenancy_id'];
 
         // ============================================================

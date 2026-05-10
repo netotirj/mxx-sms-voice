@@ -238,11 +238,25 @@ class Users extends ViewComponents
         $lastName    = htmlspecialchars(trim($postVars['last_name'] ?? ''));
         $email       = filter_var(trim($postVars['email'] ?? ''), FILTER_SANITIZE_EMAIL);
         $password    = trim($postVars['password'] ?? '');
-        $roleName    = trim($postVars['user_function'] ?? $postVars['role'] ?? '');
+        $roleName    = strtolower(trim($postVars['user_function'] ?? $postVars['role'] ?? ''));
         $statusAcc   = trim($postVars['status'] ?? 'active');
 
         if (empty($firstName) || empty($email) || empty($password) || empty($roleName)) {
             return new Response(400, json_encode(['status' => 'ERROR', 'message' => 'Preencha todos os campos obrigatórios.']), 'application/json');
+        }
+
+        if (!self::canAssignRole($obUser, $roleName)) {
+            return new Response(403, json_encode([
+                'status' => 'ERROR',
+                'message' => 'Você não tem permissão para criar usuários com esta função.'
+            ]), 'application/json');
+        }
+
+        if (strtolower($roleName) === 'admin' && !TenancyHelper::isSuperAdmin($obUser)) {
+            return new Response(403, json_encode([
+                'status' => 'ERROR',
+                'message' => 'O papel administrador padrao do sistema so pode ser gerenciado pelo super administrador.'
+            ]), 'application/json');
         }
 
         // --- 🚀 LÓGICA INTELIGENTE DE DESCRIÇÕES DE PAPÉIS ---
@@ -597,6 +611,13 @@ class Users extends ViewComponents
             ], 'application/json');
         }
 
+        if (!self::canManageTargetUser($obUser, $userData, true)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Você não tem permissão para editar este usuário.'
+            ], 'application/json');
+        }
+
         // Monta conteúdo da view já com dados do usuário
         $content = View::render('/users/edit', [
             'id'            => $userData['id'],
@@ -670,11 +691,20 @@ class Users extends ViewComponents
             'reseller'                                     // Parceiros
         ];
 
-        if (empty($data['role']) || !in_array($data['role'], $allowedRoles)) {
+        $data['role'] = strtolower(trim((string)($data['role'] ?? '')));
+
+        if (empty($data['role']) || !in_array($data['role'], $allowedRoles, true)) {
             return new Response(400, json_encode([
                 'success' => false,
                 'message' => 'Função inválida: ' . ($data['role'] ?? 'não informada')
             ]), 'application/json');
+        }
+
+        if (strtolower((string)$data['role']) === 'admin' && !TenancyHelper::isSuperAdmin($obUser)) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'O papel administrador padrao do sistema so pode ser gerenciado pelo super administrador.'
+            ], 'application/json');
         }
 
         if (empty($data['status']) || !in_array($data['status'], ['active','inactive'])) {
@@ -716,6 +746,24 @@ class Users extends ViewComponents
                 return new Response(404, [
                     'status' => 404,
                     'message' => 'Usuário não encontrado.'
+                ], 'application/json');
+            }
+
+            if (!self::canManageTargetUser($obUser, $targetUser, true)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Você não tem permissão para editar este usuário.'
+                ], 'application/json');
+            }
+
+            $isSelfEditKeepingSameRole =
+                (int)($targetUser['id'] ?? 0) === (int)($obUser['id'] ?? 0)
+                && strtolower((string)($targetUser['user_function'] ?? '')) === $data['role'];
+
+            if (!self::canAssignRole($obUser, $data['role']) && !$isSelfEditKeepingSameRole) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Você não tem permissão para atribuir esta função.'
                 ], 'application/json');
             }
 
@@ -844,6 +892,20 @@ class Users extends ViewComponents
                 ], 'application/json');
             }
 
+            if ((int)($targetUser['id'] ?? 0) === (int)($obUser['id'] ?? 0) && !$isSuperAdmin) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Você não pode excluir a própria conta por esta tela.'
+                ], 'application/json');
+            }
+
+            if (!self::canManageTargetUser($obUser, $targetUser, false)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Você não tem permissão para excluir este usuário.'
+                ], 'application/json');
+            }
+
             $targetTenancyId = (string)($targetUser['tenancy_id'] ?? '');
             $tenantOwnerId = $targetTenancyId !== ''
                 ? RegisterTenancies::getTenancyOwnerUserId($targetTenancyId)
@@ -899,6 +961,24 @@ class Users extends ViewComponents
                $dataStatus = $request->getPostVars();
 
         try {
+            $targetUser = TenancyHelper::isSuperAdmin($obUser)
+                ? UserSearch::getUserByIdGlobal((int)($dataStatus['id'] ?? 0))
+                : UserSearch::getUserById((string)$obUser['tenancy_id'], (int)($dataStatus['id'] ?? 0));
+
+            if (!$targetUser) {
+                return new Response(404, [
+                    'status' => 404,
+                    'message' => 'Usuário não encontrado.'
+                ], 'application/json');
+            }
+
+            if (!self::canManageTargetUser($obUser, $targetUser, false)) {
+                return new Response(403, [
+                    'status' => 403,
+                    'message' => 'Você não tem permissão para alterar o status deste usuário.'
+                ], 'application/json');
+            }
+
             $success = UserSearch::updateStatusUser(
                 (int)$dataStatus['id'],
                 TenancyHelper::isSuperAdmin($obUser) ? null : $obUser['tenancy_id'],
@@ -925,6 +1005,66 @@ class Users extends ViewComponents
         }
 
 
+    }
+
+    private static function normalizedRole(array $user): string
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+    }
+
+    private static function canAssignRole(array $actor, string $roleName): bool
+    {
+        $roleName = strtolower(trim($roleName));
+        $actorRole = self::normalizedRole($actor);
+
+        if ($roleName === '') {
+            return false;
+        }
+
+        if (TenancyHelper::isSuperAdmin($actor)) {
+            return true;
+        }
+
+        if ($actorRole === 'admin') {
+            return $roleName !== 'admin';
+        }
+
+        if ($actorRole === 'reseller') {
+            return in_array($roleName, ['agent', 'operator'], true);
+        }
+
+        return false;
+    }
+
+    private static function canManageTargetUser(array $actor, array $targetUser, bool $allowSelf = false): bool
+    {
+        if (TenancyHelper::isSuperAdmin($actor)) {
+            return true;
+        }
+
+        $actorId = (int)($actor['id'] ?? 0);
+        $targetId = (int)($targetUser['id'] ?? 0);
+        $actorTenancy = (string)($actor['tenancy_id'] ?? '');
+        $targetTenancy = (string)($targetUser['tenancy_id'] ?? '');
+        $actorRole = self::normalizedRole($actor);
+
+        if ($actorTenancy === '' || $targetTenancy === '' || $actorTenancy !== $targetTenancy) {
+            return false;
+        }
+
+        if ($actorId === $targetId) {
+            return $allowSelf;
+        }
+
+        if ($actorRole === 'admin') {
+            return true;
+        }
+
+        if ($actorRole === 'reseller') {
+            return (int)($targetUser['user_id'] ?? 0) === $actorId;
+        }
+
+        return false;
     }
 
 }

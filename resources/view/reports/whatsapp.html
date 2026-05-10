@@ -86,15 +86,15 @@
 
                     <div id="waReportStats" class="mx-6 my-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                         <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <p class="text-slate-400 font-bold uppercase">Registros</p>
+                            <p id="waReportTotalLabel" class="text-slate-400 font-bold uppercase">Registros</p>
                             <p id="waReportTotal" class="mt-1 text-lg font-black text-slate-700">0</p>
                         </div>
                         <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                            <p class="text-emerald-600 font-bold uppercase">Cobradas</p>
+                            <p id="waReportChargedCountLabel" class="text-emerald-600 font-bold uppercase">Cobradas</p>
                             <p id="waReportChargedCount" class="mt-1 text-lg font-black text-emerald-700">0</p>
                         </div>
                         <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
-                            <p class="text-indigo-600 font-bold uppercase">Total cobrado</p>
+                            <p id="waReportChargedTotalLabel" class="text-indigo-600 font-bold uppercase">Total cobrado</p>
                             <p id="waReportChargedTotal" class="mt-1 text-lg font-black text-indigo-700">R$ 0,00</p>
                         </div>
                     </div>
@@ -105,20 +105,21 @@
                             <table id="wa-report-table" class="w-full text-sm text-slate-700 border-collapse text-center">
                                 <thead class="bg-slate-100 text-xs uppercase tracking-wide">
                                 <tr>
-                                    <th class="px-4 py-2 border border-slate-100">ID</th>
-                                    <th class="px-4 py-2 border border-slate-100">Data</th>
-                                    <th class="px-4 py-2 border border-slate-100">Conta</th>
-                                    <th class="px-4 py-2 border border-slate-100">Destino</th>
-                                    <th class="px-4 py-2 border border-slate-100">Template</th>
-                                    <th class="px-4 py-2 border border-slate-100">Categoria</th>
-                                    <th class="px-4 py-2 border border-slate-100">Valor</th>
-                                    <th class="px-4 py-2 border border-slate-100">Cobrado</th>
-                                    <th class="px-4 py-2 border border-slate-100">Status</th>
+                                    <th id="waReportHead1" class="px-4 py-2 border border-slate-100">ID</th>
+                                    <th id="waReportHead2" class="px-4 py-2 border border-slate-100">Data</th>
+                                    <th id="waReportHead3" class="px-4 py-2 border border-slate-100">Conta</th>
+                                    <th id="waReportHead4" class="px-4 py-2 border border-slate-100">Destino</th>
+                                    <th id="waReportHead5" class="px-4 py-2 border border-slate-100">Template</th>
+                                    <th id="waReportHead6" class="px-4 py-2 border border-slate-100">Categoria</th>
+                                    <th id="waReportHead7" class="px-4 py-2 border border-slate-100">Valor</th>
+                                    <th id="waReportHead8" class="px-4 py-2 border border-slate-100">Cobrado</th>
+                                    <th id="waReportHead9" class="px-4 py-2 border border-slate-100">Status</th>
+                                    <th id="waReportHead10" class="px-4 py-2 border border-slate-100 hidden">Origem</th>
                                 </tr>
                                 </thead>
                                 <tbody id="waReportTableBody">
                                 <tr>
-                                    <td colspan="9" class="px-4 py-6 text-center text-slate-400 italic">
+                                    <td colspan="10" class="px-4 py-6 text-center text-slate-400 italic">
                                         Carregando registros...
                                     </td>
                                 </tr>
@@ -226,19 +227,19 @@
 
                     <div id="waQueueStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
                         <div class="p-4 rounded-xl border border-blue-100 bg-blue-50/30">
-                            <p class="text-xxs font-bold text-blue-500 uppercase">T.M.A (Média Conversa)</p>
+                            <p id="waQueueStatTmaLabel" class="text-xxs font-bold text-blue-500 uppercase">T.M.A (Média Conversa)</p>
                             <h6 id="waQueueStatTma" class="text-sm font-bold text-slate-800 mb-0">00:00:00</h6>
                         </div>
                         <div class="p-4 rounded-xl border border-emerald-100 bg-emerald-50/30">
-                            <p class="text-xxs font-bold text-emerald-500 uppercase">Atendimentos Finalizados</p>
+                            <p id="waQueueStatFinishedLabel" class="text-xxs font-bold text-emerald-500 uppercase">Atendimentos Finalizados</p>
                             <h6 id="waQueueStatFinished" class="text-sm font-bold text-slate-800 mb-0">0</h6>
                         </div>
                         <div class="p-4 rounded-xl border border-red-100 bg-red-50/30">
-                            <p class="text-xxs font-bold text-red-500 uppercase">Conversas Aguardando</p>
+                            <p id="waQueueStatWaitingLabel" class="text-xxs font-bold text-red-500 uppercase">Conversas Aguardando</p>
                             <h6 id="waQueueStatWaiting" class="text-sm font-bold text-slate-800 mb-0">0</h6>
                         </div>
                         <div class="p-4 rounded-xl border border-purple-100 bg-purple-50/30">
-                            <p class="text-xxs font-bold text-purple-500 uppercase">T.M.E (Média Espera)</p>
+                            <p id="waQueueStatTmeLabel" class="text-xxs font-bold text-purple-500 uppercase">T.M.E (Média Espera)</p>
                             <h6 id="waQueueStatTme" class="text-sm font-bold text-slate-800 mb-0">00:00:00</h6>
                         </div>
                     </div>
@@ -352,6 +353,9 @@
         const headerIcon = document.getElementById('waReportHeaderIcon');
         const headerTitle = document.getElementById('waReportHeaderTitle');
         const headerDescription = document.getElementById('waReportHeaderDescription');
+        const reportQuery = new URLSearchParams(window.location.search);
+        const reportType = String(reportQuery.get('report') || 'message').toLowerCase() === 'voice' ? 'voice' : 'message';
+        const isVoiceReport = reportType === 'voice';
 
         const costState = {
             allItems: [],
@@ -372,6 +376,95 @@
             tmaChart: null,
             tmeChart: null,
         };
+
+        function voiceStatusLabel(status) {
+            const key = String(status || '').toLowerCase();
+            return {
+                answer: 'ATENDIDA',
+                noanswer: 'NAO ATENDIDA',
+                busy: 'OCUPADO',
+                failed: 'FALHOU',
+                cancel: 'CANCELADA',
+                inbound: 'RECEBIDA',
+                outbound: 'EFETUADA'
+            }[key] || (key ? key.toUpperCase() : '-');
+        }
+
+        function voiceStatusBadge(status) {
+            const key = String(status || '').toLowerCase();
+            let cls = 'bg-slate-100 text-slate-700';
+            if (key === 'answer' || key === 'inbound' || key === 'outbound') cls = 'bg-emerald-100 text-emerald-700';
+            if (key === 'noanswer' || key === 'busy') cls = 'bg-amber-100 text-amber-700';
+            if (key === 'failed' || key === 'cancel') cls = 'bg-red-100 text-red-700';
+            return `<span class="px-2 py-1 rounded-lg text-[10px] font-black uppercase ${cls}">${voiceStatusLabel(key)}</span>`;
+        }
+
+        function setupVoiceFilters() {
+            if (!isVoiceReport) return;
+
+            const statusFilter = document.getElementById('waReportStatusFilter');
+            const queueStatusFilter = document.getElementById('waQueueFilterStatus');
+            const searchInput = document.getElementById('waReportSearchInput');
+            const queueSearchInput = document.getElementById('waQueueSearchInput');
+
+            if (statusFilter) {
+                statusFilter.innerHTML = `
+                    <option value="" selected>Todas</option>
+                    <option value="charged">Tarifadas</option>
+                    <option value="answered">Atendidas</option>
+                    <option value="noanswer">Não atendidas</option>
+                    <option value="busy">Ocupado</option>
+                    <option value="failed">Falhou</option>
+                    <option value="cancel">Cancelada</option>
+                    <option value="inbound">Recebidas</option>
+                    <option value="outbound">Efetuadas</option>
+                `;
+            }
+
+            if (queueStatusFilter) {
+                queueStatusFilter.innerHTML = `
+                    <option value="">Todos</option>
+                    <option value="answer">Atendidas</option>
+                    <option value="noanswer">Não atendidas</option>
+                    <option value="busy">Ocupado</option>
+                    <option value="failed">Falhou</option>
+                    <option value="cancel">Cancelada</option>
+                `;
+            }
+
+            if (searchInput) {
+                searchInput.placeholder = 'origem, destino, call_id...';
+            }
+
+            if (queueSearchInput) {
+                queueSearchInput.placeholder = 'origem, destino, fila ou atendente...';
+            }
+
+            const totalLabel = document.getElementById('waReportTotalLabel');
+            const chargedCountLabel = document.getElementById('waReportChargedCountLabel');
+            const chargedTotalLabel = document.getElementById('waReportChargedTotalLabel');
+            if (totalLabel) totalLabel.textContent = 'Chamadas';
+            if (chargedCountLabel) chargedCountLabel.textContent = 'Tarifadas';
+            if (chargedTotalLabel) chargedTotalLabel.textContent = 'Total tarifado';
+
+            const queueFinishedLabel = document.getElementById('waQueueStatFinishedLabel');
+            const queueWaitingLabel = document.getElementById('waQueueStatWaitingLabel');
+            if (queueFinishedLabel) queueFinishedLabel.textContent = 'Chamadas Atendidas';
+            if (queueWaitingLabel) queueWaitingLabel.textContent = 'Chamadas Não Atendidas';
+        }
+
+        function refreshCostTableHeader() {
+            const labels = isVoiceReport
+                ? ['ID', 'Data', 'Conta', 'Origem', 'Destino', 'Direção', 'Valor', 'Tarifada', 'Status', 'Canal']
+                : ['ID', 'Data', 'Conta', 'Destino', 'Template', 'Categoria', 'Valor', 'Cobrado', 'Status', ''];
+            labels.forEach((label, index) => {
+                const target = document.getElementById(`waReportHead${index + 1}`);
+                if (target) {
+                    target.textContent = label;
+                    target.classList.toggle('hidden', !isVoiceReport && index === 9);
+                }
+            });
+        }
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -455,6 +548,9 @@
         }
 
         function queueStateLabel(state) {
+            if (isVoiceReport) {
+                return voiceStatusLabel(state);
+            }
             return {
                 waiting: 'Aguardando',
                 active: 'Em atendimento',
@@ -463,6 +559,9 @@
         }
 
         function queueStateBadge(state) {
+            if (isVoiceReport) {
+                return voiceStatusBadge(state);
+            }
             const key = String(state || '').toLowerCase();
             const cls = {
                 waiting: 'bg-amber-100 text-amber-700',
@@ -479,15 +578,25 @@
             costSection.classList.toggle('hidden', !isCosts);
             queueSection.classList.toggle('hidden', isCosts);
             if (headerIconWrap && headerIcon && headerTitle && headerDescription) {
-                headerIconWrap.className = `inline-flex items-center justify-center w-10 h-10 rounded-xl text-lg shadow-sm ${isCosts ? 'bg-emerald-100 text-emerald-700' : 'bg-cyan-100 text-cyan-700'}`;
-                headerIcon.className = isCosts ? 'fa-brands fa-whatsapp' : 'fa fa-headset';
-                headerTitle.textContent = isCosts ? 'Relatório WhatsApp' : 'Relatório WhatsApp Filas';
-                headerDescription.textContent = isCosts
-                    ? 'Custos, entregas e visão operacional das filas de atendimento.'
-                    : 'Histórico detalhado de atendimento, filas e performance operacional do WhatsApp.';
+                if (isVoiceReport) {
+                    headerIconWrap.className = `inline-flex items-center justify-center w-10 h-10 rounded-xl text-lg shadow-sm ${isCosts ? 'bg-emerald-100 text-emerald-700' : 'bg-cyan-100 text-cyan-700'}`;
+                    headerIcon.className = isCosts ? 'fa fa-phone-volume' : 'fa fa-headset';
+                    headerTitle.textContent = isCosts ? 'Relatório WhatsApp Voz' : 'Relatório WhatsApp Voz por Fila';
+                    headerDescription.textContent = isCosts
+                        ? 'Tarifação, direção e histórico das chamadas de voz no WhatsApp.'
+                        : 'Visão operacional das chamadas de voz por fila e atendente.';
+                } else {
+                    headerIconWrap.className = `inline-flex items-center justify-center w-10 h-10 rounded-xl text-lg shadow-sm ${isCosts ? 'bg-emerald-100 text-emerald-700' : 'bg-cyan-100 text-cyan-700'}`;
+                    headerIcon.className = isCosts ? 'fa-brands fa-whatsapp' : 'fa fa-headset';
+                    headerTitle.textContent = isCosts ? 'Relatório WhatsApp Mensagem' : 'Relatório WhatsApp Mensagem por Filas';
+                    headerDescription.textContent = isCosts
+                        ? 'Custos, entregas e visão operacional das filas de atendimento.'
+                        : 'Histórico detalhado de atendimento, filas e performance operacional do WhatsApp.';
+                }
             }
             const url = new URL(window.location.href);
             url.searchParams.set('tab', isCosts ? 'costs' : 'queues');
+            url.searchParams.set('report', reportType);
             window.history.replaceState({}, '', url.toString());
             if (!isCosts && queueState.allItems.length === 0) {
                 fetchQueueData();
@@ -509,6 +618,7 @@
                 const params = new URLSearchParams();
                 const period = String(periodFilter.value || 'day');
                 params.set('period', period);
+                params.set('report', reportType);
                 params.set('status', String(statusFilter.value || ''));
                 if (period === 'custom') {
                     if (dateFromInput.value) params.set('date_from', dateFromInput.value);
@@ -533,7 +643,22 @@
         function applyCostFilters(resetPage = true) {
             const query = normalizeText(document.getElementById('waReportSearchInput')?.value || '');
             costState.filteredItems = costState.allItems.filter(item => {
-                const haystack = normalizeText([
+                const haystack = normalizeText(isVoiceReport ? [
+                    item.id,
+                    item.call_id,
+                    item.client_name,
+                    item.client_account_code,
+                    item.client_id,
+                    item.source_number,
+                    item.destination,
+                    item.direction,
+                    item.source_origin,
+                    item.source_origin_label,
+                    item.status,
+                    item.dialstatus,
+                    item.queue_name,
+                    item.message_preview
+                ].join(' ') : [
                     item.id,
                     item.client_name,
                     item.client_account_code,
@@ -563,30 +688,54 @@
 
             const categories = {};
             costState.filteredItems.forEach(item => {
-                const key = String(item.category || 'marketing').toLowerCase();
-                if (!categories[key]) categories[key] = { quantity: 0, charged: 0, total: 0 };
-                categories[key].quantity += 1;
-                if (item.billed) {
-                    categories[key].charged += 1;
-                    categories[key].total += Number(item.charged_value || 0);
+                const registerCategory = (key) => {
+                    const normalizedKey = String(key || '').toLowerCase();
+                    if (!normalizedKey) return;
+                    if (!categories[normalizedKey]) categories[normalizedKey] = { quantity: 0, charged: 0, total: 0 };
+                    categories[normalizedKey].quantity += 1;
+                    if (item.billed) {
+                        categories[normalizedKey].charged += 1;
+                        categories[normalizedKey].total += Number(item.charged_value || 0);
+                    }
+                };
+
+                if (isVoiceReport) {
+                    const directionKey = String(item.direction || item.category || 'outbound').toLowerCase();
+                    const qualityKey = String(item.status || item.dialstatus || '').toLowerCase() === 'answer'
+                        ? 'answered'
+                        : 'unanswered';
+
+                    registerCategory(directionKey);
+                    registerCategory(qualityKey);
+                    return;
                 }
+
+                registerCategory(String(item.category || 'marketing').toLowerCase());
             });
 
-            const labels = {
+            const labels = isVoiceReport ? {
+                inbound: 'Recebidas',
+                outbound: 'Efetuadas',
+                answered: 'Atendidas',
+                unanswered: 'Não Atendidas'
+            } : {
                 marketing: 'Marketing',
                 utility: 'Utilitário',
                 authentication: 'Autenticação',
                 service: 'Atendimento'
             };
+            const order = isVoiceReport
+                ? ['inbound', 'outbound', 'answered', 'unanswered']
+                : ['marketing', 'utility', 'authentication', 'service'];
 
             const statsEl = document.getElementById('waReportCategoryStats');
-            statsEl.innerHTML = ['marketing', 'utility', 'authentication', 'service'].map(key => {
+            statsEl.innerHTML = order.map(key => {
                 const item = categories[key] || { quantity: 0, charged: 0, total: 0 };
                 return `
                     <div class="rounded-xl border border-slate-200 bg-white p-3">
                         <p class="text-slate-400 font-bold uppercase">${labels[key]}</p>
                         <p class="mt-1 text-base font-black text-slate-700">${formatCurrency(item.total)}</p>
-                        <p class="mt-1 text-[10px] text-slate-400">${item.charged}/${item.quantity} cobradas</p>
+                        <p class="mt-1 text-[10px] text-slate-400">${item.charged}/${item.quantity} ${isVoiceReport ? 'tarifadas' : 'cobradas'}</p>
                     </div>
                 `;
             }).join('');
@@ -606,9 +755,40 @@
             const items = costState.filteredItems.slice(start, start + costState.perPage);
 
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="9" class="py-10 text-center text-slate-400 italic">Nenhum registro encontrado.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${isVoiceReport ? 10 : 9}" class="py-10 text-center text-slate-400 italic">Nenhum registro encontrado.</td></tr>`;
             } else {
                 items.forEach(item => {
+                    if (isVoiceReport) {
+                        const chargedBadge = item.billed
+                            ? '<span class="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700">SIM</span>'
+                            : '<span class="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-500">NÃO</span>';
+
+                        tbody.insertAdjacentHTML('beforeend', `
+                            <tr class="hover:bg-slate-50 transition border-b border-slate-50 text-center">
+                                <td class="px-4 py-3 text-[11px] text-slate-500 font-bold">#${escapeHtml(item.id)}</td>
+                                <td class="px-4 py-3 text-[11px] text-slate-500 font-medium">${escapeHtml(item.sent_at)}</td>
+                                <td class="px-4 py-3 text-center">
+                                    <div class="leading-tight">
+                                        <div class="font-semibold text-slate-700 text-xs">${escapeHtml(item.client_name || '-')}</div>
+                                        <div class="text-[11px] text-slate-500">${escapeHtml(item.client_account_code && item.client_account_code !== '-' ? item.client_account_code : item.client_id || '-')}</div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 font-bold text-slate-700">${escapeHtml(item.source_number || '-')}</td>
+                                <td class="px-4 py-3 font-bold text-slate-700">${escapeHtml(item.destination)}</td>
+                                <td class="px-4 py-3 text-[11px] font-semibold text-emerald-600 uppercase">${escapeHtml(item.direction === 'inbound' ? 'Recebida' : 'Efetuada')}</td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-black text-xs">${formatCurrency(item.price_brl)}</span>
+                                </td>
+                                <td class="px-4 py-3">${chargedBadge}</td>
+                                <td class="px-4 py-3">${voiceStatusBadge(item.status)}</td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 font-black text-xs">${escapeHtml(item.source_origin_label || '-')}</span>
+                                </td>
+                            </tr>
+                        `);
+                        return;
+                    }
+
                     const template = item.template_name && item.template_name !== '-' ? item.template_name : 'Mensagem livre';
                     const chargedBadge = item.billed
                         ? '<span class="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700">SIM</span>'
@@ -658,7 +838,23 @@
         }
 
         function exportCostRows() {
-            return costState.filteredItems.map(item => ({
+            return costState.filteredItems.map(item => isVoiceReport ? ({
+                ID: item.id,
+                CallID: item.call_id || '',
+                Data: item.sent_at,
+                Cliente: item.client_name,
+                Conta: item.client_account_code,
+                ClienteID: item.client_id,
+                Origem: item.source_number,
+                Destino: item.destination,
+                Direcao: item.direction === 'inbound' ? 'Recebida' : 'Efetuada',
+                Canal: item.source_origin_label || '',
+                DuracaoSegundos: Number(item.duration_seconds || 0),
+                Valor: Number(item.price_brl || 0),
+                Tarifada: item.billed ? 'Sim' : 'Não',
+                Status: voiceStatusLabel(item.status),
+                Fila: item.queue_name || ''
+            }) : ({
                 ID: item.id,
                 Data: item.delivered_at !== '-' ? item.delivered_at : item.sent_at,
                 Cliente: item.client_name,
@@ -690,6 +886,7 @@
                 const period = String(periodFilter.value || 'day');
                 params.set('mode', 'queues');
                 params.set('period', period);
+                params.set('report', reportType);
                 if (period === 'custom') {
                     if (dateFromInput.value) params.set('date_from', dateFromInput.value);
                     if (dateToInput.value) params.set('date_to', dateToInput.value);
@@ -741,16 +938,19 @@
             queueState.filteredItems = queueState.allItems.filter(item => {
                 const queueMatches = !queueFilter || String(item.queue_id || '') === queueFilter;
                 const agentMatches = !agentFilter || String(item.assigned_agent_user_id || '') === agentFilter;
-                const statusMatches = !statusFilter || String(item.state || '') === statusFilter;
+                const statusValue = String(isVoiceReport ? (item.call_status_key || '') : (item.state || ''));
+                const statusMatches = !statusFilter || statusValue === statusFilter;
                 const haystack = normalizeText([
                     item.id,
+                    item.call_id,
                     item.contact_name,
                     item.contact_phone,
                     item.account_label,
                     item.queue_name,
                     item.agent_name,
                     item.last_message,
-                    item.state
+                    item.state,
+                    item.call_status_key
                 ].join(' '));
                 const searchMatches = !query || haystack.includes(query);
                 return queueMatches && agentMatches && statusMatches && searchMatches;
@@ -763,8 +963,8 @@
         }
 
         function renderQueueStats() {
-            const waiting = queueState.filteredItems.filter(item => item.state === 'waiting').length;
-            const finished = queueState.filteredItems.filter(item => item.state === 'finished').length;
+            const waiting = queueState.filteredItems.filter(item => isVoiceReport ? item.call_status_key !== 'answer' : item.state === 'waiting').length;
+            const finished = queueState.filteredItems.filter(item => isVoiceReport ? item.call_status_key === 'answer' : item.state === 'finished').length;
             const waitSamples = queueState.filteredItems.map(item => Number(item.wait_seconds || 0)).filter(value => value > 0);
             const serviceSamples = queueState.filteredItems.map(item => Number(item.service_seconds || 0)).filter(value => value > 0);
             const avgWait = waitSamples.length ? Math.round(waitSamples.reduce((a, b) => a + b, 0) / waitSamples.length) : 0;
@@ -800,6 +1000,37 @@
                 tbody.innerHTML = '<tr><td colspan="7" class="py-10 text-center text-slate-400 italic">Nenhum atendimento encontrado.</td></tr>';
             } else {
                 items.forEach(item => {
+                    if (isVoiceReport) {
+                        tbody.insertAdjacentHTML('beforeend', `
+                            <tr class="hover:bg-slate-50 transition border-b border-slate-50">
+                                <td class="px-6 py-3">
+                                    <div class="text-xs font-bold text-slate-700">${escapeHtml(item.queued_at)}</div>
+                                    <div class="text-[11px] text-slate-400">Chamada #${escapeHtml(item.id)}</div>
+                                </td>
+                                <td class="px-6 py-3">
+                                    <div class="text-xs font-bold text-slate-700">${escapeHtml(item.contact_name)}</div>
+                                    <div class="text-[11px] text-slate-400">${escapeHtml(item.contact_phone)}</div>
+                                </td>
+                                <td class="px-6 py-3">
+                                    <div class="text-xs font-bold text-slate-700">${escapeHtml(item.queue_name || 'Sem fila')}</div>
+                                    <div class="text-[11px] text-slate-400">${escapeHtml(item.account_label || '-')} • ${escapeHtml(item.source_origin_label || '-')}</div>
+                                </td>
+                                <td class="px-6 py-3">
+                                    <div class="text-xs font-bold text-slate-700">${escapeHtml(item.agent_name || 'Sem atendente')}</div>
+                                    <div class="text-[11px] text-slate-400">${escapeHtml(item.direction === 'inbound' ? 'Recebida' : 'Efetuada')}</div>
+                                </td>
+                                <td class="px-6 py-3 text-center">
+                                    <span class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-black text-xs">${formatSeconds(item.wait_seconds)}</span>
+                                </td>
+                                <td class="px-6 py-3 text-center">
+                                    <span class="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-black text-xs">${formatSeconds(item.service_seconds)}</span>
+                                </td>
+                                <td class="px-6 py-3 text-center">${queueStateBadge(item.call_status_key || item.state)}</td>
+                            </tr>
+                        `);
+                        return;
+                    }
+
                     tbody.insertAdjacentHTML('beforeend', `
                         <tr class="hover:bg-slate-50 transition border-b border-slate-50">
                             <td class="px-6 py-3">
@@ -1034,8 +1265,8 @@
                 renderCostPage();
             }
         });
-        document.getElementById('waReportExportCsv').addEventListener('click', () => exportCsv(exportCostRows(), `whatsapp-custos-${new Date().toISOString().slice(0, 10)}.csv`));
-        document.getElementById('waReportExportXls').addEventListener('click', () => exportXls(exportCostRows(), `whatsapp-custos-${new Date().toISOString().slice(0, 10)}.xls`));
+        document.getElementById('waReportExportCsv').addEventListener('click', () => exportCsv(exportCostRows(), `${isVoiceReport ? 'whatsapp-voz' : 'whatsapp-mensagem'}-custos-${new Date().toISOString().slice(0, 10)}.csv`));
+        document.getElementById('waReportExportXls').addEventListener('click', () => exportXls(exportCostRows(), `${isVoiceReport ? 'whatsapp-voz' : 'whatsapp-mensagem'}-custos-${new Date().toISOString().slice(0, 10)}.xls`));
 
         document.getElementById('waQueueSearchInput').addEventListener('input', () => applyQueueFilters(true));
         document.getElementById('waQueueFilterQueue').addEventListener('change', () => applyQueueFilters(true));
@@ -1099,16 +1330,18 @@
         });
         document.getElementById('waQueueExportCsv').addEventListener('click', () => exportCsv(queueState.filteredItems.map(item => ({
             Sessao: item.id,
+            CallID: item.call_id || '',
             Entrada: item.queued_at,
             Conta: item.account_label,
             Contato: item.contact_name,
             Telefone: item.contact_phone,
             Fila: item.queue_name,
             Atendente: item.agent_name || 'Sem atendente',
+            Canal: item.source_origin_label || '',
             Espera: formatSeconds(item.wait_seconds),
             Atendimento: formatSeconds(item.service_seconds),
-            Status: queueStateLabel(item.state),
-        })), `whatsapp-filas-${new Date().toISOString().slice(0, 10)}.csv`));
+            Status: queueStateLabel(isVoiceReport ? (item.call_status_key || item.state) : item.state),
+        })), `${isVoiceReport ? 'whatsapp-voz' : 'whatsapp-mensagem'}-filas-${new Date().toISOString().slice(0, 10)}.csv`));
         document.getElementById('waQueueExportPdf').addEventListener('click', function () {
             const elemento = document.querySelector('.w-full.px-6.py-6.mx-auto');
             const loading = document.getElementById('waQueuePdfLoading');
@@ -1179,6 +1412,9 @@
         costTabBtn.addEventListener('click', () => toggleReportMode('costs'));
         queueTabBtn.addEventListener('click', () => toggleReportMode('queues'));
 
+        setupVoiceFilters();
+        refreshCostTableHeader();
+
         syncDateInputsFromPeriod(
             document.getElementById('waReportPeriodFilter'),
             document.getElementById('waReportDateFrom'),
@@ -1191,12 +1427,9 @@
             queuePeriodButtons
         );
 
-        fetchCostData();
-
         const initialTab = String(new URLSearchParams(window.location.search).get('tab') || 'costs').toLowerCase();
-        if (initialTab === 'queues') {
-            toggleReportMode('queues');
-        }
+        toggleReportMode(initialTab === 'queues' ? 'queues' : 'costs');
+        fetchCostData();
     });
 </script>
 

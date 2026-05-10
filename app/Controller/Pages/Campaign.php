@@ -2,8 +2,7 @@
 
 namespace App\Controller\Pages;
 
-use App\Model\Entity\RegisterTenancies;
-use App\Model\Entity\UserPlans;
+use App\Service\PlanRuntimeService;
 use App\Utils\View;
 use App\Model\Entity\CampaignSearch;
 use App\Model\Entity\ContactsSearch;
@@ -14,6 +13,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class Campaign extends ViewComponents
 {
+    private static function currentSmsRate(string $tenancyId): float
+    {
+        $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
+        return (float)($summary->value_sms ?? 0);
+    }
+
     public static function getCampaign($request): array|bool|string
     {
         $content = View::render('/campaign/index', []);
@@ -30,16 +35,7 @@ class Campaign extends ViewComponents
             ], 'application/json');
         }
 
-        // 2️⃣ Busca o plano ativo
-        $obPlanId = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
-
-        $valueSms = 0.0;
-        if ($obPlanId) {
-            $obPlan = UserPlans::getUserPlanInfoByPlanId($obPlanId, $obUser['tenancy_id']);
-            if ($obPlan && isset($obPlan->value_sms)) {
-                $valueSms = (float)$obPlan->value_sms;
-            }
-        }
+        $valueSms = self::currentSmsRate((string)$obUser['tenancy_id']);
 
         // 3️⃣ Renderiza view com valor default
         $content = View::render('/campaign/new', [
@@ -237,7 +233,7 @@ class Campaign extends ViewComponents
             $inserted = 0;
 
             // Definir aliases e localização das colunas
-            $nameAliases = ['name', 'nome', 'full_name'];
+            $nameAliases = ['name', 'nome', 'cliente', 'full_name'];
             $phoneAliases = ['phone', 'telefone', 'celular'];
 
             function findColumnIndex(array $headerMap, array $aliases): ?int
@@ -399,16 +395,7 @@ class Campaign extends ViewComponents
             ]), 'application/json');
         }
 
-        // 2️⃣ Busca o plano ativo
-        $obPlanId = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
-
-        $valueSms = 0.0;
-        if ($obPlanId) {
-            $obPlan = UserPlans::getUserPlanInfoByPlanId($obPlanId, $obUser['tenancy_id']);
-            if ($obPlan && isset($obPlan->value_sms)) {
-                $valueSms = (float)$obPlan->value_sms;
-            }
-        }
+        $valueSms = self::currentSmsRate((string)$obUser['tenancy_id']);
 
         // Renderizar a view passando os dados da campanha para o formulário
         $content = View::render('/campaign/edit', [
@@ -448,14 +435,7 @@ class Campaign extends ViewComponents
                 ], 'application/json');
             }
 
-            $obPlanId = RegisterTenancies::getActivePlanId($obUser['tenancy_id']);
-            $valueSms = 0.0;
-            if ($obPlanId) {
-                $obPlan = UserPlans::getUserPlanInfoByPlanId($obPlanId, $obUser['tenancy_id']);
-                if ($obPlan && isset($obPlan->value_sms)) {
-                    $valueSms = (float)$obPlan->value_sms;
-                }
-            }
+            $valueSms = self::currentSmsRate((string)$obUser['tenancy_id']);
 
             $content = View::render('/campaign/edit', [
                 'id' => $obCampaign->id,

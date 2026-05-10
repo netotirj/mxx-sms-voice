@@ -37,11 +37,16 @@ class WhatsAppTemplateVariableResolver
             ];
         }
 
-        return [
-            'components' => [[
+        $components = self::buildTemplateSendComponents($template, $resolved);
+        if ($components === []) {
+            $components = [[
                 'type' => 'body',
                 'parameters' => $parameters,
-            ]],
+            ]];
+        }
+
+        return [
+            'components' => $components,
             'resolved' => $resolved,
             'preview_body' => self::renderPreview($template, $resolved),
         ];
@@ -233,6 +238,91 @@ class WhatsAppTemplateVariableResolver
         }
 
         return trim((string)($template['body'] ?? ''));
+    }
+
+    private static function buildTemplateSendComponents(array $template, array $resolved): array
+    {
+        $sourceComponents = self::jsonColumnToArray($template['components'] ?? null) ?: [];
+        $sendComponents = [];
+
+        foreach ($sourceComponents as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $type = strtoupper((string)($component['type'] ?? ''));
+            if ($type === 'BODY') {
+                $positions = self::extractPositionsFromText((string)($component['text'] ?? ''));
+                if ($positions !== []) {
+                    $sendComponents[] = [
+                        'type' => 'body',
+                        'parameters' => self::resolvedParametersForPositions($positions, $resolved),
+                    ];
+                }
+                continue;
+            }
+
+            if ($type !== 'BUTTONS') {
+                continue;
+            }
+
+            foreach (array_values($component['buttons'] ?? []) as $index => $button) {
+                if (!is_array($button)) {
+                    continue;
+                }
+
+                $buttonType = strtolower((string)($button['type'] ?? ''));
+                $positions = self::extractPositionsFromText((string)($button['url'] ?? ''));
+                if ($positions === []) {
+                    $positions = self::extractPositionsFromText((string)($button['text'] ?? ''));
+                }
+                if ($positions === []) {
+                    $positions = self::extractPositionsFromText((string)($button['payload'] ?? ''));
+                }
+                if ($positions === []) {
+                    continue;
+                }
+
+                $sendComponents[] = [
+                    'type' => 'button',
+                    'sub_type' => $buttonType !== '' ? $buttonType : 'url',
+                    'index' => (string)$index,
+                    'parameters' => self::resolvedParametersForPositions($positions, $resolved),
+                ];
+            }
+        }
+
+        return $sendComponents;
+    }
+
+    private static function resolvedParametersForPositions(array $positions, array $resolved): array
+    {
+        $parameters = [];
+        foreach ($positions as $position) {
+            $text = (string)($resolved[(string)$position]['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+            $parameters[] = [
+                'type' => 'text',
+                'text' => $text,
+            ];
+        }
+
+        return $parameters;
+    }
+
+    private static function extractPositionsFromText(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $text, $matches);
+        $positions = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
+        sort($positions);
+
+        return $positions;
     }
 
     private static function jsonColumnToArray(mixed $value): ?array

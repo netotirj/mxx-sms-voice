@@ -819,7 +819,9 @@
             clearAutoReload();
             if (!autoReloadChk.checked) return;
             const intervalMs = Number(reloadInterval.value || 10000);
-            autoReloadTimer = setInterval(() => fetchCdrData(false), intervalMs);
+            autoReloadTimer = setInterval(() => {
+                if (!document.hidden) fetchCdrData(false);
+            }, intervalMs);
         }
 
         // ========= Fetch de dados =========
@@ -864,6 +866,19 @@
                     }
                 });
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearAutoReload();
+                return;
+            }
+
+            if (autoReloadChk?.checked) {
+                fetchCdrData(false);
+                setupAutoReload();
+            }
+        });
+        window.addEventListener('beforeunload', clearAutoReload);
 
         // ========= Eventos =========
         perPageSel.addEventListener("change", () => {

@@ -214,7 +214,7 @@ class RegisterUsers extends ViewComponents
         //print_r($roleId);
         //echo "</pre>";exit();
 
-        // Libera todas as rotas da sys_routes para este novo Admin
+        // Vincula o admin da nova tenancy ao papel padrão do sistema
         PermissionsRules::initAdminPermissions($tenancyId, $roleId);
 
         // 3️⃣ Criar Usuário

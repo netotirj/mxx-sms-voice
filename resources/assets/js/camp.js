@@ -10,6 +10,13 @@
 // Define base URL a partir de meta tag no HTML
 const baseUrl = (document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '').replace(/\/$/, '');
 
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadModal = document.getElementById('uploadModal');
+    if (uploadModal && uploadModal.parentElement !== document.body) {
+        document.body.appendChild(uploadModal);
+    }
+});
+
 // Instancia notyf globalmente para notificações
 window.notyf = window.notyf || new Notyf({
     duration: 4000,

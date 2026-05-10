@@ -332,13 +332,67 @@
         renderCallsTableManual();
     };
 
-    document.addEventListener('DOMContentLoaded', function() {
-        startTimers();
-        setupCallcenterListeningModal();
+    let ccMonitoringSource = null;
+    let ccMonitoringReconnectTimer = null;
+    let ccMonitoringFailureCount = 0;
+    let ccMonitoringCooldownUntil = 0;
+    const CC_MONITORING_RETRY_MS = 3000;
+    const CC_MONITORING_RETRY_MAX_MS = 60000;
+    const CC_MONITORING_FAILURE_THRESHOLD = 4;
+    const CC_MONITORING_COOLDOWN_MS = 180000;
 
-        const eventSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+    function resetCcMonitoringFailures() {
+        ccMonitoringFailureCount = 0;
+    }
 
-        eventSource.addEventListener('update', function(e) {
+    function nextCcMonitoringRetryDelay() {
+        ccMonitoringFailureCount += 1;
+        return Math.min(
+            CC_MONITORING_RETRY_MS * Math.max(1, Math.pow(2, ccMonitoringFailureCount - 1)),
+            CC_MONITORING_RETRY_MAX_MS
+        );
+    }
+
+    function stopCcMonitoringStream() {
+        if (ccMonitoringReconnectTimer) {
+            clearTimeout(ccMonitoringReconnectTimer);
+            ccMonitoringReconnectTimer = null;
+        }
+
+        if (ccMonitoringSource) {
+            ccMonitoringSource.close();
+            ccMonitoringSource = null;
+        }
+    }
+
+    function tripCcMonitoringCircuitBreaker() {
+        ccMonitoringCooldownUntil = Date.now() + CC_MONITORING_COOLDOWN_MS;
+        stopCcMonitoringStream();
+        console.warn('Callcenter monitoring SSE em cooldown temporario.', {
+            retryAfterMs: CC_MONITORING_COOLDOWN_MS,
+            failures: ccMonitoringFailureCount
+        });
+
+        ccMonitoringReconnectTimer = setTimeout(() => {
+            ccMonitoringReconnectTimer = null;
+            if (!document.hidden) {
+                if (ccMonitoringCooldownUntil <= Date.now()) {
+                    ccMonitoringCooldownUntil = 0;
+                    resetCcMonitoringFailures();
+                }
+                connectCcMonitoringStream();
+            }
+        }, CC_MONITORING_COOLDOWN_MS);
+    }
+
+    function connectCcMonitoringStream() {
+        if (document.hidden || ccMonitoringSource) return;
+        if (ccMonitoringCooldownUntil > Date.now()) return;
+
+        ccMonitoringSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+        ccMonitoringSource.addEventListener('update', function(e) {
+            resetCcMonitoringFailures();
             const data = JSON.parse(e.data);
 
             // Salva dados para os filtros
@@ -360,6 +414,32 @@
             renderAgentsCardsManual();
             syncCallcenterListeningModal();
         });
+
+        ccMonitoringSource.onerror = function() {
+            const connectionState = ccMonitoringSource?.readyState;
+            stopCcMonitoringStream();
+
+            if (document.hidden || connectionState === EventSource.CONNECTING) {
+                return;
+            }
+
+            const delay = nextCcMonitoringRetryDelay();
+            if (ccMonitoringFailureCount >= CC_MONITORING_FAILURE_THRESHOLD) {
+                tripCcMonitoringCircuitBreaker();
+                return;
+            }
+
+            ccMonitoringReconnectTimer = setTimeout(() => {
+                ccMonitoringReconnectTimer = null;
+                connectCcMonitoringStream();
+            }, delay);
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        startTimers();
+        setupCallcenterListeningModal();
+        connectCcMonitoringStream();
 
         // --- LÓGICA DE FILTRO DE CHAMADAS ---
         window.renderCallsTableManual = function() {
@@ -516,9 +596,20 @@
             if (tmeEl) tmeEl.innerText = typeof stats.tme === 'number' ? formatTime(stats.tme) : stats.tme;
         }
 
-        eventSource.onerror = function() {
-            console.warn("Monitoramento offline. Tentando reconectar automaticamente...");
-        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopCcMonitoringStream();
+                return;
+            }
+
+            if (ccMonitoringCooldownUntil > 0 && ccMonitoringCooldownUntil <= Date.now()) {
+                ccMonitoringCooldownUntil = 0;
+                resetCcMonitoringFailures();
+            }
+
+            connectCcMonitoringStream();
+        });
+        window.addEventListener('beforeunload', stopCcMonitoringStream);
     });
 
     function ccNotify(type, message) {
@@ -1127,6 +1218,7 @@
         if (timersStarted) return;
         timersStarted = true;
         setInterval(() => {
+            if (document.hidden) return;
             document.querySelectorAll('.dynamic-timer').forEach(el => {
                 // Garante que o valor base seja um número (previne NaN no incremento)
                 let seconds = parseInt(el.dataset.seconds);

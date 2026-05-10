@@ -18,6 +18,16 @@ $obRouter->get('/permissions', [
     }
 ]);
 
+$obRouter->get('/me/permissions', [
+    'name' => '/me/permissions',
+    'middlewares' => [
+        'require-session-login'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::getCurrentPermissions($request));
+    }
+]);
+
 $obRouter->post('/permissions/roles/save', [
     'name' => '/permissions/roles/save', // nome da rota
     'middlewares' => [
@@ -49,6 +59,17 @@ $obRouter->get('/permissions/search', [
     ],
     function($request){
         return new Response(200, Pages\PermissionsUsersRoles::getAllPermissionsUsers($request));
+    }
+]);
+
+$obRouter->get('/permissions/templates', [
+    'name' => '/permissions/templates',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::getRoleTemplates($request));
     }
 ]);
 
@@ -100,6 +121,35 @@ $obRouter->post('/permissions/roles/toggle', [
     }
 ]);
 
+$obRouter->post('/permissions/roles/bulk-toggle', [
+    'name' => '/permissions/roles/bulk-toggle',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::bulkTogglePermissions($request));
+    }
+]);
 
+$obRouter->post('/permissions/roles/clear', [
+    'name' => '/permissions/roles/clear',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::clearPermissions($request));
+    }
+]);
 
-
+$obRouter->post('/permissions/roles/sync-template', [
+    'name' => '/permissions/roles/sync-template',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return new Response(200, Pages\PermissionsUsersRoles::syncRoleFromTemplate($request));
+    }
+]);

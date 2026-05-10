@@ -16,6 +16,3 @@ Database::config(
 );
 
 date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo');
-
-$offset = date('P');
-(new Database())->execute("SET time_zone = '{$offset}'");

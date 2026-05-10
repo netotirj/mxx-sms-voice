@@ -1,7 +1,7 @@
 <!-- Modal de Upload -->
-<div id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="fixed inset-0 z-[999] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
+<div id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="fixed inset-0 z-[100050] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
     <div id="uploadModalContent"
-         class="w-full max-w-xl overflow-hidden rounded-2xl bg-white text-left shadow-2xl border border-slate-100 transition-all duration-200 scale-95 opacity-0 dark:bg-slate-900 dark:border-slate-700">
+         class="relative z-[100051] w-full max-w-xl overflow-hidden rounded-2xl bg-white text-left shadow-2xl border border-slate-100 transition-all duration-200 scale-95 opacity-0 dark:bg-slate-900 dark:border-slate-700">
         <form id="uploadForm">
             <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
                 <div class="flex items-center gap-3">
@@ -10,7 +10,7 @@
                     </span>
                     <div>
                         <h3 id="dialog-title" class="text-base font-bold text-slate-800 dark:text-white">Importar contatos</h3>
-                        <p class="text-xs text-slate-500">CSV, XLS ou XLSX com colunas de nome e telefone.</p>
+                        <p class="text-xs text-slate-500">CSV, XLS ou XLSX com colunas aceitas de nome e telefone.</p>
                     </div>
                 </div>
                 <button type="button" onclick="closeUploadModal()" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800" aria-label="Fechar">
@@ -25,9 +25,29 @@
                 <label class="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center transition hover:border-blue-400 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-800/60">
                     <i class="fa fa-cloud-arrow-up mb-3 text-3xl text-blue-500"></i>
                     <span id="uploadFileName" class="text-sm font-semibold text-slate-700 dark:text-slate-200">Clique para selecionar o arquivo</span>
-                    <span class="mt-1 text-xs text-slate-400">Cabeçalhos aceitos: nome/name/cliente e telefone/phone/celular</span>
+                    <span class="mt-1 text-xs text-slate-400">Cabeçalhos aceitos: nome, name, cliente, full_name e telefone, phone, celular</span>
                     <input type="file" id="fileInput" name="fileInput" accept=".csv,.xls,.xlsx" class="sr-only"/>
                 </label>
+
+                <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Modelo pronto</p>
+                            <p class="mb-1 text-xs text-slate-500">Baixe o exemplo com os cabecalhos aceitos pelo importador.</p>
+                            <p class="mb-0 text-[11px] text-slate-400">Use nome e telefone no formato 55DDDNUMERO.</p>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <a id="campaignDownloadCsvTemplate" href="{{URL}}/resources/assets/upload/modelos/modelo-contatos-sms.csv" download="modelo-contatos-sms.csv" class="inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black uppercase text-emerald-700 shadow-sm transition hover:bg-emerald-50">
+                                <i class="fa fa-file-csv"></i>
+                                Baixar CSV
+                            </a>
+                            <a id="campaignDownloadExcelTemplate" href="{{URL}}/resources/assets/upload/modelos/modelo-contatos-sms.xls" download="modelo-contatos-sms.xls" class="inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-blue-200 bg-white px-3 text-[11px] font-black uppercase text-blue-700 shadow-sm transition hover:bg-blue-50">
+                                <i class="fa fa-file-excel"></i>
+                                Baixar Excel
+                            </a>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="mt-5">
                     <div class="mb-2 flex items-center justify-between text-xs font-bold uppercase text-slate-400">

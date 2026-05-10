@@ -125,7 +125,7 @@
     const formatRate = (value) => Number(value || 0).toFixed(4).replace('.', ',');
 
     // Única função necessária para carregar e mostrar os planos
-    async function loadPlans(type = 'sms') {
+    async function loadPlans(type = 'all') {
         const container = document.getElementById('plansContainer');
         if (!container) return;
 
@@ -199,7 +199,7 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="grid grid-cols-2 gap-2 text-center">
                             <div class="p-2 bg-emerald-50 dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
                                 <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Marketing</p>
                                 <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_marketing || plan.v_whatsapp}</p>
@@ -212,42 +212,71 @@
                                 <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Auth</p>
                                 <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_authentication || plan.v_whatsapp}</p>
                             </div>
+                            <div class="p-2 bg-emerald-50 dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
+                                <p class="text-[7px] font-black text-slate-500 uppercase mb-1 leading-none">WA Voz</p>
+                                <p class="text-[9px] font-bold text-emerald-600 italic">R$ ${plan.v_whatsapp_voice || '0,0000'}</p>
+                            </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 text-center">
-                            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Usuários</p>
-                                <p class="text-[9px] font-bold text-slate-700 dark:text-white uppercase italic">${plan.users_y_n}</p>
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 text-center">
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 min-w-0">
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Modulos</p>
+                                <p class="text-[11px] font-extrabold text-slate-800 dark:text-white uppercase italic whitespace-nowrap">${plan.modules_count || 0}</p>
                             </div>
-                            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Acessos Sim.</p>
-                                <p class="text-[9px] font-bold text-slate-700 dark:text-white uppercase italic">${plan.access}</p>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 min-w-0">
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Acessos</p>
+                                <p class="text-[9px] font-semibold text-slate-800 dark:text-white uppercase italic whitespace-nowrap">${plan.access}</p>
                             </div>
-                            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Campanhas</p>
-                                <p class="text-[9px] font-bold text-slate-700 dark:text-white uppercase italic">${plan.camp}</p>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 min-w-0">
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Usuarios</p>
+                                <p class="text-[9px] font-semibold text-slate-800 dark:text-white uppercase italic whitespace-nowrap">${plan.users_limit || plan.users_y_n}</p>
                             </div>
-                            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Relatórios</p>
-                                <p class="text-[9px] font-bold text-slate-700 dark:text-white uppercase italic">Sim</p>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 min-w-0">
+                                <p class="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">Trunks</p>
+                                <p class="text-[9px] font-semibold text-slate-800 dark:text-white uppercase italic whitespace-nowrap">${plan.trunks}</p>
                             </div>
                         </div>
 
                         <div class="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                            <div class="flex flex-col gap-2 mb-3 border-b border-indigo-100 dark:border-indigo-800 pb-2">
-                                <span class="text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest text-center">
-                                    <i class="fa fa-layer-group"></i> Sistema Multicanal Ativado
-                                </span>
-                                <div class="flex justify-center gap-3 text-[10px] text-indigo-500">
-                                    <i class="fa fa-comment-dots" title="SMS"></i>
-                                    <i class="fa fa-phone" title="Voz"></i>
-                                    <i class="fa fa-whatsapp" title="WhatsApp"></i>
-                                    <i class="fa fa-bullhorn" title="Torpedos"></i>
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-800 pb-2">
+                                    <span class="text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                                        <i class="fa fa-layer-group"></i> Modulos Liberados
+                                    </span>
+                                    <span class="text-[9px] font-black text-indigo-500 uppercase">${plan.modules_count || 0} ativos</span>
                                 </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    ${(Array.isArray(plan.modules_labels) && plan.modules_labels.length
+                                        ? plan.modules_labels
+                                        : ['Nenhum modulo configurado']
+                                    ).map((label) => `
+                                        <span class="inline-flex min-w-0 items-center justify-center rounded-full border border-indigo-200 bg-white/80 px-3 py-1.5 text-center text-[9px] font-black uppercase tracking-wide text-indigo-600 dark:border-indigo-700 dark:bg-slate-900/60 dark:text-indigo-300 break-words">
+                                            ${label}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 text-center">
+                                    <div class="rounded-xl bg-white/70 px-3 py-3 border border-indigo-100 dark:bg-slate-900/40 dark:border-indigo-900 min-w-0">
+                                        <p class="text-[6px] font-black uppercase tracking-wide text-slate-400 mb-1">Contas</p>
+                                        <p class="text-[10px] font-semibold text-slate-700 dark:text-white whitespace-nowrap">${plan.whatsapp_accounts}</p>
+                                    </div>
+                                    <div class="rounded-xl bg-white/70 px-3 py-3 border border-indigo-100 dark:bg-slate-900/40 dark:border-indigo-900 min-w-0">
+                                        <p class="text-[6px] font-black uppercase tracking-wide text-slate-400 mb-1">Temps</p>
+                                        <p class="text-[10px] font-semibold text-slate-700 dark:text-white whitespace-nowrap">${plan.templates_limit || '0'}</p>
+                                    </div>
+                                    <div class="rounded-xl bg-white/70 px-3 py-3 border border-indigo-100 dark:bg-slate-900/40 dark:border-indigo-900 min-w-0">
+                                        <p class="text-[6px] font-black uppercase tracking-wide text-slate-400 mb-1">SMS</p>
+                                        <p class="text-[10px] font-semibold text-slate-700 dark:text-white whitespace-nowrap">${plan.sms_limit || '0'}</p>
+                                    </div>
+                                    <div class="rounded-xl bg-white/70 px-3 py-3 border border-indigo-100 dark:bg-slate-900/40 dark:border-indigo-900 min-w-0">
+                                        <p class="text-[6px] font-black uppercase tracking-wide text-slate-400 mb-1">Voz</p>
+                                        <p class="text-[10px] font-semibold text-slate-700 dark:text-white whitespace-nowrap">${plan.voice_limit || '0'}</p>
+                                    </div>
+                                </div>
+                                <p class="text-[9px] text-slate-600 dark:text-slate-400 italic font-medium leading-tight text-center">
+                                    ${plan.desc}
+                                </p>
                             </div>
-                            <p class="text-[9px] text-slate-600 dark:text-slate-400 italic font-medium leading-tight text-center italic">
-                                ${plan.desc}
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -260,7 +289,7 @@
     }
 
     // Inicia automático
-    document.addEventListener('DOMContentLoaded', () => loadPlans('sms'));
+    document.addEventListener('DOMContentLoaded', () => loadPlans('all'));
 
     // Função para o Collapse (Ver detalhes)
     function toggleDetails(btn) {

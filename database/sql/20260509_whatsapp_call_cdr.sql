@@ -1,0 +1,37 @@
+CREATE TABLE IF NOT EXISTS whatsapp_call_cdr (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenancy_id VARCHAR(64) NOT NULL,
+    customer_id INT UNSIGNED NULL,
+    plan_id INT UNSIGNED NULL,
+    account_id INT UNSIGNED NOT NULL,
+    call_id VARCHAR(191) NOT NULL,
+    direction VARCHAR(32) NULL,
+    from_number VARCHAR(32) NULL,
+    to_number VARCHAR(32) NULL,
+    status VARCHAR(64) NULL,
+    started_at DATETIME NULL,
+    answered_at DATETIME NULL,
+    ended_at DATETIME NULL,
+    duration_seconds INT UNSIGNED NULL,
+    billable_seconds INT UNSIGNED NULL,
+    billable_minutes DECIMAL(12,4) NULL,
+    pulse_seconds INT UNSIGNED NULL DEFAULT 6,
+    price_per_minute DECIMAL(12,4) NULL,
+    base_cost DECIMAL(12,4) NULL,
+    markup_percent DECIMAL(8,4) NULL,
+    final_price DECIMAL(12,4) NULL,
+    raw_payload LONGTEXT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY unq_whatsapp_call_cdr_call_id (call_id),
+    KEY idx_whatsapp_call_cdr_tenancy (tenancy_id),
+    KEY idx_whatsapp_call_cdr_account (account_id),
+    KEY idx_whatsapp_call_cdr_customer (customer_id),
+    KEY idx_whatsapp_call_cdr_started (started_at),
+    KEY idx_whatsapp_call_cdr_status (status),
+    KEY idx_whatsapp_call_cdr_direction (direction)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Rollback:
+-- DROP TABLE IF EXISTS whatsapp_call_cdr;

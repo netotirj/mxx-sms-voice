@@ -13,6 +13,7 @@ class WhatsAppNumberManager
     public static function listForUser(array $user): array
     {
         self::ensureTwoStepPinColumns();
+        self::ensureVoiceColumns();
         [$where, $params] = self::numberOwnerScope($user, 'wn');
 
         return (new Database('whatsapp_numbers wn LEFT JOIN whatsapp_accounts wa ON wa.id = wn.whatsapp_account_id AND wa.tenancy_id = wn.company_id'))
@@ -46,6 +47,7 @@ class WhatsAppNumberManager
                 'wn.verified_at',
                 'wn.removed_at',
                 'wn.last_error',
+                'wn.voice_requested',
                 'wn.created_at',
                 'wn.updated_at',
                 'wa.label AS account_label',
@@ -57,6 +59,7 @@ class WhatsAppNumberManager
     public static function listAvailablePlatformNumbers(): array
     {
         self::ensureTwoStepPinColumns();
+        self::ensureVoiceColumns();
         return (new Database('whatsapp_numbers'))
             ->select("origin = 'platform' AND status = 'available'", [], 'phone_number ASC', '', [
                 'id',
@@ -73,6 +76,7 @@ class WhatsAppNumberManager
     public static function listNumberRequests(array $user): array
     {
         self::ensureTwoStepPinColumns();
+        self::ensureVoiceColumns();
         self::syncOpenRequestVerificationStatus($user);
 
         [$where, $params] = self::requestOwnerScope($user, 'nr');
@@ -91,6 +95,7 @@ class WhatsAppNumberManager
                 'nr.status',
                 'nr.admin_notes',
                 'nr.whatsapp_number_id',
+                'nr.voice_requested',
                 'nr.support_ticket_id',
                 'nr.reviewed_by_user_id',
                 'nr.reviewed_at',
@@ -129,9 +134,9 @@ class WhatsAppNumberManager
     {
         [$where, $params] = self::requestOwnerScope($user, 'nr');
         $where = "({$where})
-            AND nr.status = 'meta_submitted'
+            AND nr.status IN ('meta_submitted', 'approved')
             AND wn.id IS NOT NULL
-            AND wn.status IN ('code_sent', 'pending_verification', 'pending_name_approval')
+            AND wn.status IN ('code_sent', 'pending_verification', 'pending_name_approval', 'active')
             AND (
                 wn.display_name_last_checked_at IS NULL
                 OR wn.display_name_last_checked_at <= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
@@ -180,6 +185,7 @@ class WhatsAppNumberManager
 
     public static function registerClientNumber(array $user, array $input): array
     {
+        self::ensureVoiceColumns();
         $phone = self::normalizePhone((string)($input['phone_number'] ?? $input['phone'] ?? ''));
         $phone = self::normalizeMetaRequestPhone($phone);
 
@@ -212,6 +218,7 @@ class WhatsAppNumberManager
             'internal_label' => $internalLabel,
             'display_name_meta' => $displayNameMeta,
             'display_name' => $displayNameMeta,
+            'voice_requested' => !empty($input['activate_voice']) ? 1 : 0,
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -528,12 +535,20 @@ class WhatsAppNumberManager
             'updated_at' => date('Y-m-d H:i:s'),
         ], [':id' => $numberId]);
 
+        if (!empty($number['voice_requested'])) {
+            $account = WhatsAppAccount::getById($accountId);
+            if ($account) {
+                WhatsAppAccountVoice::activateIfRequested($account, (int)($user['id'] ?? 0));
+            }
+        }
+
         return self::getForUser($numberId, $user) ?: $number;
     }
 
     public static function createPlatformNumber(array $user, array $input): array
     {
         self::assertPlatformAdmin($user);
+        self::ensureVoiceColumns();
 
         $phone = self::normalizePhone((string)($input['phone_number'] ?? $input['phone'] ?? ''));
         $metaId = trim((string)($input['meta_id'] ?? $input['phone_number_id'] ?? ''));
@@ -584,6 +599,7 @@ class WhatsAppNumberManager
             'display_name' => $displayName,
             'origin' => 'platform',
             'status' => $targetOwner ? 'active' : 'available',
+            'voice_requested' => !empty($input['activate_voice']) ? 1 : 0,
             'meta_id' => $metaId,
             'waba_id' => self::nullableString($input['waba_id'] ?? null) ?: self::platformWabaId(),
             'verification_method' => null,
@@ -603,6 +619,13 @@ class WhatsAppNumberManager
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+
+        if ($targetOwner && !empty($input['activate_voice'])) {
+            $account = WhatsAppAccount::getById($accountId);
+            if ($account) {
+                WhatsAppAccountVoice::activateIfRequested($account, (int)($user['id'] ?? 0));
+            }
+        }
 
         return self::getForUser($id, $user) ?: ['id' => $id];
     }
@@ -796,6 +819,37 @@ class WhatsAppNumberManager
         }
 
         SupportTicket::addMessage($ticketId, $actor, $senderType, $body);
+    }
+
+    private static function finalizeNumberRequestSupportTicket(array $request, array $actor, string $senderType, string $body): void
+    {
+        $ticketId = (int)($request['support_ticket_id'] ?? 0);
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        self::appendNumberRequestTicketMessage($request, $actor, $senderType, $body);
+
+        $ticket = SupportTicket::getById($ticketId);
+        if ($ticket && (string)($ticket['status'] ?? '') !== 'closed') {
+            SupportTicket::updateStatus($ticketId, 'closed', $actor);
+        }
+    }
+
+    private static function markRequestApprovedFromMeta(array $request, array $actor): void
+    {
+        $requestId = (int)($request['id'] ?? 0);
+        if ($requestId <= 0) {
+            return;
+        }
+
+        (new Database('number_requests'))->update('id = :id', [
+            'status' => 'approved',
+            'reviewed_by_user_id' => (int)($actor['id'] ?? 0) ?: null,
+            'reviewed_at' => date('Y-m-d H:i:s'),
+            'admin_notes' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], [':id' => $requestId]);
     }
 
     private static function requestVerificationCodeForNumber(int $numberId, array $number, string $method = 'SMS'): array
@@ -1061,6 +1115,7 @@ class WhatsAppNumberManager
     private static function provisionNumberRequestOnMeta(array $user, array $request): array
     {
         self::assertPlatformAdmin($user);
+        self::ensureVoiceColumns();
 
         $requestId = (int)($request['id'] ?? 0);
         $metaRequest = $requestId > 0 ? self::getRequestForUser($requestId, $user) : null;
@@ -1126,6 +1181,7 @@ class WhatsAppNumberManager
             'internal_label' => $internalLabel,
             'display_name_meta' => $displayName,
             'display_name' => $displayName,
+            'voice_requested' => !empty($metaRequest['voice_requested']) ? 1 : 0,
             'origin' => 'client',
             'status' => 'pending_verification',
             'meta_id' => $metaId,
@@ -1202,14 +1258,17 @@ class WhatsAppNumberManager
                     ], [':id' => $numberId]);
                     throw $e;
                 }
-                $request = self::findSubmittedRequestForNumber($numberId);
-                if ($request && (string)$request['status'] === 'meta_submitted') {
-                    (new Database('number_requests'))->update('id = :id', [
-                        'status' => 'approved',
-                        'reviewed_at' => date('Y-m-d H:i:s'),
-                        'updated_at' => date('Y-m-d H:i:s'),
-                    ], [':id' => (int)$request['id']]);
-                }
+            }
+
+            $request = self::findSubmittedRequestForNumber($numberId);
+            if ($request) {
+                self::markRequestApprovedFromMeta($request, $user);
+                self::finalizeNumberRequestSupportTicket(
+                    $request,
+                    $user,
+                    'agent',
+                    'Nome comercial aprovado pela Meta. A conexão do número foi concluída e o ticket foi encerrado automaticamente.'
+                );
             }
             return;
         }
@@ -1462,28 +1521,21 @@ class WhatsAppNumberManager
 
     private static function assertOwnerCanRequest(array $owner): void
     {
-        self::assertOwnerHasNoActiveNumber($owner);
+        // A simples solicitação do número continua liberada.
+        // A trava de plano entra quando o número vai ser provisionado/conectado.
     }
 
     private static function assertOwnerHasNoActiveNumber(array $owner, ?int $ignoreNumberId = null): void
     {
-        $where = "owner_type = :owner_type AND owner_id = :owner_id AND status = 'active'";
-        $params = [
-            ':owner_type' => $owner['owner_type'],
-            ':owner_id' => (int)$owner['id'],
-        ];
-
-        if ($ignoreNumberId !== null) {
-            $where .= ' AND id <> :ignore_id';
-            $params[':ignore_id'] = $ignoreNumberId;
+        $tenancyId = (string)($owner['tenancy_id'] ?? '');
+        if ($tenancyId === '') {
+            return;
         }
 
-        $existing = (new Database('whatsapp_numbers'))
-            ->select($where, $params, '', '1', ['id'])
-            ->fetch(PDO::FETCH_ASSOC);
-
-        if ($existing) {
-            throw new \RuntimeException('Este usuário já possui um número WhatsApp ativo.');
+        $currentCount = PlanAccessPolicy::currentWhatsAppAccountsCount($tenancyId, $ignoreNumberId);
+        $access = PlanAccessPolicy::assertCanCreateWhatsAppAccount($tenancyId, $currentCount);
+        if (!($access['allowed'] ?? false)) {
+            throw new \RuntimeException((string)($access['message'] ?? 'Limite de contas WhatsApp atingido.'));
         }
     }
 
@@ -1734,6 +1786,42 @@ class WhatsAppNumberManager
                 $alterParts[] = 'ADD COLUMN two_step_pin_generated_at DATETIME NULL AFTER two_step_pin';
             }
             $db->execute('ALTER TABLE whatsapp_numbers ' . implode(', ', $alterParts));
+        }
+
+        $ensured = true;
+    }
+
+    private static function ensureVoiceColumns(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+
+        $db = new Database();
+
+        $requestRows = $db->execute("
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'number_requests'
+              AND COLUMN_NAME = 'voice_requested'
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        if (!in_array('voice_requested', $requestRows, true)) {
+            $db->execute("ALTER TABLE number_requests ADD COLUMN voice_requested TINYINT(1) NOT NULL DEFAULT 0 AFTER whatsapp_number_id");
+        }
+
+        $numberRows = $db->execute("
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'whatsapp_numbers'
+              AND COLUMN_NAME = 'voice_requested'
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        if (!in_array('voice_requested', $numberRows, true)) {
+            $db->execute("ALTER TABLE whatsapp_numbers ADD COLUMN voice_requested TINYINT(1) NOT NULL DEFAULT 0 AFTER whatsapp_account_id");
         }
 
         $ensured = true;

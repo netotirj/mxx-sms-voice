@@ -301,6 +301,21 @@
 
         const btnCancela = document.getElementById('btnCancelarPausa');
         if(btnCancela) btnCancela.onclick = () => closePauseModal();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopPauseSse();
+                return;
+            }
+
+            if (pauseSseCooldownUntil > 0 && pauseSseCooldownUntil <= Date.now()) {
+                pauseSseCooldownUntil = 0;
+                resetPauseSseFailures();
+            }
+
+            connectPausesSSE();
+        });
+        window.addEventListener('beforeunload', stopPauseSse);
     });
 
     // --- FUNÇÃO DE FORMATAÇÃO (Obrigatória para o gráfico não dar erro) ---
@@ -353,10 +368,14 @@
             }
         }
 
+        if (document.hidden || pauseSource) return;
+        if (pauseSseCooldownUntil > Date.now()) return;
+
         pauseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
 
         pauseSource.addEventListener('update', (event) => {
             try {
+                resetPauseSseFailures();
                 const payload = JSON.parse(event.data);
 
                 if (payload.stats && payload.stats.pausas) {
@@ -433,9 +452,75 @@
         });
 
         pauseSource.onerror = () => {
+            const connectionState = pauseSource?.readyState;
             if (pauseSource) { pauseSource.close(); pauseSource = null; }
-            setTimeout(connectPausesSSE, 3000);
+
+            if (document.hidden || connectionState === EventSource.CONNECTING) {
+                return;
+            }
+
+            const delay = nextPauseSseRetryDelay();
+            if (pauseSseFailureCount >= PAUSE_SSE_FAILURE_THRESHOLD) {
+                tripPauseSseCircuitBreaker();
+                return;
+            }
+
+            pauseSseReconnectTimer = setTimeout(() => {
+                pauseSseReconnectTimer = null;
+                connectPausesSSE();
+            }, delay);
         };
+    }
+
+    let pauseSseReconnectTimer = null;
+    let pauseSseFailureCount = 0;
+    let pauseSseCooldownUntil = 0;
+    const PAUSE_SSE_RETRY_MS = 3000;
+    const PAUSE_SSE_RETRY_MAX_MS = 60000;
+    const PAUSE_SSE_FAILURE_THRESHOLD = 4;
+    const PAUSE_SSE_COOLDOWN_MS = 180000;
+
+    function resetPauseSseFailures() {
+        pauseSseFailureCount = 0;
+    }
+
+    function nextPauseSseRetryDelay() {
+        pauseSseFailureCount += 1;
+        return Math.min(
+            PAUSE_SSE_RETRY_MS * Math.max(1, Math.pow(2, pauseSseFailureCount - 1)),
+            PAUSE_SSE_RETRY_MAX_MS
+        );
+    }
+
+    function stopPauseSse() {
+        if (pauseSseReconnectTimer) {
+            clearTimeout(pauseSseReconnectTimer);
+            pauseSseReconnectTimer = null;
+        }
+        if (pauseSource) {
+            pauseSource.close();
+            pauseSource = null;
+        }
+    }
+
+    function tripPauseSseCircuitBreaker() {
+        pauseSseCooldownUntil = Date.now() + PAUSE_SSE_COOLDOWN_MS;
+        stopPauseSse();
+        console.warn('Callcenter breaks SSE em cooldown temporario.', {
+            retryAfterMs: PAUSE_SSE_COOLDOWN_MS,
+            failures: pauseSseFailureCount
+        });
+
+        pauseSseReconnectTimer = setTimeout(() => {
+            pauseSseReconnectTimer = null;
+            if (!document.hidden) {
+                if (pauseSseCooldownUntil <= Date.now()) {
+                    pauseSseCooldownUntil = 0;
+                    resetPauseSseFailures();
+                }
+                connectPausesSSE();
+            }
+        }, PAUSE_SSE_COOLDOWN_MS);
     }
 
     /**

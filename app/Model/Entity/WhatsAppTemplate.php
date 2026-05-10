@@ -477,7 +477,7 @@ class WhatsAppTemplate
             ))";
         }
 
-        return "{$tenant} AND ({$system} OR user_id = {$userId})";
+        return "{$tenant} AND ({$system} OR status = 'approved' OR user_id = {$userId})";
     }
 
     private static function isSuperAdmin(array $user): bool

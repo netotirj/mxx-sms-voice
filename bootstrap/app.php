@@ -2,6 +2,7 @@
 require __DIR__.'/../vendor/autoload.php';
 
 use App\Session\User as SessionUser;
+use App\Support\RequestCache;
 use App\Utils\View;
 use WilliamCosta\DotEnv\Environment;
 use WilliamCosta\DatabaseManager\Database;
@@ -24,16 +25,13 @@ Database::config(
 );
 
 // 4. Agora sim, busca o usuário logado
-$obUser = SessionUser::getLogged();
+RequestCache::reset();
+$obUser = PHP_SAPI === 'cli' ? null : SessionUser::getLogged();
 
 if ($obUser) {
     // Calibra o fuso do PHP
     $timezone = $obUser['timezone'] ?? 'America/Sao_Paulo';
     date_default_timezone_set($timezone);
-
-    // 🌍 CALIBRA O FUSO DO MYSQL (Para o BI e as Queries baterem com o seu relógio)
-    $offset = date('P');
-    (new Database())->execute("SET time_zone = '$offset'");
 }
 
 // 5. Inicializa Views e Middlewares
@@ -59,12 +57,14 @@ MiddlewareQueue::setMap([
     'require-session-logout' => \App\Http\Middleware\RequireSessionLogout::class,
     'require-session-login'  => \App\Http\Middleware\RequireSessionLogin::class,
     'auto-logout-inactive'   => \App\Http\Middleware\AutoLogoutInactiveMiddleware::class,
+    'performance-monitor'    => \App\Http\Middleware\PerformanceMonitorMiddleware::class,
     'require-permissions-tenancies' => \App\Http\Middleware\PermissionMiddleware::class,
 ]);
 
 MiddlewareQueue::setDefault([
     'maintenance',
     'auto-logout-inactive',
+    'performance-monitor',
 ]);
 
 function buildCurrentViewUrl(string $fallbackUrl): string

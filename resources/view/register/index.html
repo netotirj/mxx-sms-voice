@@ -2,7 +2,7 @@
 <html lang="pt-br" class="dark">
 
 <head>
-  <title>{{title}} | Maxx Solutions</title>
+  <title>{{title}}</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="base-url" content="{{URL}}">
@@ -41,10 +41,10 @@
 
 <body class="bg-darkSurface font-sans text-white antialiased">
   <section class="min-h-screen flex items-center justify-center py-6 px-4 lg:py-0">
-    <div class="max-w-6xl w-full grid lg:grid-cols-12 gap-10 items-center">
+    <div class="max-w-5xl w-full grid lg:grid-cols-12 gap-8 items-center">
       <div class="lg:col-span-7 flex flex-col items-center lg:items-end">
-        <div class="w-full max-w-md bg-darkCard rounded-2xl shadow-2xl p-6 border border-gray-700">
-          <div class="mb-5 flex items-center gap-3">
+        <div class="w-full max-w-[28rem] bg-darkCard rounded-2xl shadow-2xl p-5 border border-gray-700">
+          <div class="mb-4 flex items-center gap-3">
             <div class="flex h-12 w-12 shrink-0 items-center justify-center">
               <img src="{{URL}}/resources/view/login/assets/images/maxx-logo-transparent.png" alt="Maxx Solutions" class="h-10 w-10 object-contain">
             </div>
@@ -54,7 +54,7 @@
             </div>
           </div>
 
-          <div class="mb-5">
+          <div class="mb-4">
             <h1 class="text-2xl font-extrabold tracking-tight mb-1.5">Crie sua conta</h1>
             <p class="text-sm text-gray-400">
               Acesso para Relatórios e Disparos. Já tem conta?
@@ -62,7 +62,7 @@
             </p>
           </div>
 
-          <form id="registerForm" class="space-y-4" data-social-registration="{{registerSocialMode}}">
+          <form id="registerForm" class="space-y-3.5" data-social-registration="{{registerSocialMode}}">
             <input type="hidden" id="socialRegistration" value="{{registerSocialInput}}">
             <div class="relative flex items-center justify-center">
               <div class="w-full border-t border-gray-700"></div>
@@ -152,7 +152,7 @@
         <div class="relative">
           <div class="absolute -top-20 -left-20 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl"></div>
           <div class="absolute -bottom-20 -right-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl"></div>
-          <img src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/authentication/illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full transform hover:scale-105 transition duration-700">
+          <img src="{{URL}}/resources/view/login/assets/images/flowbite-authentication-illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full transform hover:scale-105 transition duration-700">
         </div>
       </div>
     </div>

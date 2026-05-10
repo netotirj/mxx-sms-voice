@@ -17,12 +17,14 @@ class WhatsAppDynamicPricing
         'marketing' => 0.071880,
         'utility' => 0.007820,
         'authentication' => 0.007820,
+        'voice' => 0.010800,
     ];
 
     private const DEFAULT_MARGINS = [
-        'marketing' => 85.00,
-        'utility' => 180.00,
-        'authentication' => 180.00,
+        'marketing' => 36.00,
+        'utility' => 140.00,
+        'authentication' => 140.00,
+        'voice' => 80.00,
     ];
 
     public static function calculatePrice(string $messageType, string $countryCode = self::DEFAULT_COUNTRY, ?int $customerId = null): array
@@ -171,7 +173,7 @@ class WhatsAppDynamicPricing
     public static function syncPlanWhatsappPricing(string $countryCode = self::DEFAULT_COUNTRY): array
     {
         $countryCode = self::normalizeCountryCode($countryCode);
-        $categories = ['marketing', 'utility', 'authentication'];
+        $categories = ['marketing', 'utility', 'authentication', 'voice'];
         $prices = [];
 
         try {
@@ -209,6 +211,7 @@ class WhatsAppDynamicPricing
                     'marketing' => round((float)($prices['marketing']['final_price_brl'] ?? 0), 4),
                     'utility' => round((float)($prices['utility']['final_price_brl'] ?? 0), 4),
                     'authentication' => round((float)($prices['authentication']['final_price_brl'] ?? 0), 4),
+                    'voice' => round((float)($prices['voice']['final_price_brl'] ?? 0), 4),
                 ],
                 'synced_at' => date('Y-m-d H:i:s'),
             ];
@@ -274,6 +277,7 @@ class WhatsAppDynamicPricing
             'marketing' => 'marketing',
             'utility', 'utilidade' => 'utility',
             'authentication', 'auth', 'autenticacao', 'autenticação' => 'authentication',
+            'voice', 'voz' => 'voice',
             'service' => 'service',
             default => 'marketing',
         };
@@ -775,6 +779,8 @@ class WhatsAppDynamicPricing
             return;
         }
 
+        self::ensureVoicePricingSchema();
+
         $rate = (float)TelephonyConfig::env('WHATSAPP_USD_BRL_FALLBACK', 5.00);
         $safety = self::exchangeSafetyMarginPercent();
 
@@ -825,6 +831,7 @@ class WhatsAppDynamicPricing
         $marketing = round((float)($prices['marketing']['final_price_brl'] ?? 0), 4);
         $utility = round((float)($prices['utility']['final_price_brl'] ?? 0), 4);
         $authentication = round((float)($prices['authentication']['final_price_brl'] ?? 0), 4);
+        $voice = round((float)($prices['voice']['final_price_brl'] ?? 0), 4);
 
         if ($marketing <= 0 || $utility <= 0 || $authentication <= 0) {
             return;
@@ -847,6 +854,13 @@ class WhatsAppDynamicPricing
             $fields['value_whatsapp_authentication'] = $authentication;
         }
 
+        if ($voice > 0 && isset($columns['whatsapp_voice_price_per_minute'])) {
+            $fields['whatsapp_voice_price_per_minute'] = $voice;
+            if (isset($columns['whatsapp_voice_enabled'])) {
+                $fields['whatsapp_voice_enabled'] = 1;
+            }
+        }
+
         if (!$fields) {
             return;
         }
@@ -867,6 +881,58 @@ class WhatsAppDynamicPricing
             'UPDATE mxx_plans SET ' . implode(', ', $set) . " WHERE status = 'active'",
             $params
         );
+    }
+
+    private static function ensureVoicePricingSchema(): void
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+
+        $schemaUpdates = [
+            'whatsapp_meta_message_prices' => 'ALTER TABLE whatsapp_meta_message_prices MODIFY COLUMN message_type VARCHAR(32) NOT NULL',
+            'whatsapp_pricing_margins' => 'ALTER TABLE whatsapp_pricing_margins MODIFY COLUMN message_type VARCHAR(32) NOT NULL',
+            'whatsapp_pricing_price_floors' => 'ALTER TABLE whatsapp_pricing_price_floors MODIFY COLUMN message_type VARCHAR(32) NOT NULL',
+            'plan_whatsapp_pricing' => 'ALTER TABLE plan_whatsapp_pricing MODIFY COLUMN category VARCHAR(32) NOT NULL',
+        ];
+
+        foreach ($schemaUpdates as $table => $sql) {
+            try {
+                $columnName = $table === 'plan_whatsapp_pricing' ? 'category' : 'message_type';
+                $type = (string)((new Database())->execute(
+                    "SELECT COLUMN_TYPE
+                     FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = :table
+                       AND COLUMN_NAME = :column
+                     LIMIT 1",
+                    [
+                        ':table' => $table,
+                        ':column' => $columnName,
+                    ]
+                )->fetchColumn() ?: '');
+
+                if (stripos($type, 'enum(') === 0) {
+                    (new Database())->execute($sql);
+                }
+            } catch (\Throwable $e) {
+                error_log('[whatsapp_voice_pricing_schema] ' . $table . ' ' . $e->getMessage());
+            }
+        }
+
+        try {
+            (new Database())->execute(
+                "UPDATE whatsapp_pricing_margins
+                 SET message_type = 'voice', updated_at = NOW()
+                 WHERE message_type = ''
+                   AND customer_id = 0
+                   AND margin_percent = 80.0000"
+            );
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_voice_margin_repair] ' . $e->getMessage());
+        }
     }
 
     private static function mxxPlanColumns(): array

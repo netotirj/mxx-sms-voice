@@ -226,6 +226,28 @@
 
                 <input type="hidden" id="voiceListId" name="voiceListId" value="">
 
+                <div class="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div class="min-w-0">
+                            <p class="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Modelo pronto</p>
+                            <p class="mb-1 text-xs text-slate-500">Baixe o exemplo com os cabecalhos aceitos pelo importador de listas de voz.</p>
+                            <p class="mb-0 text-[11px] text-slate-400">Use nome, telefone no formato 55DDDNUMERO e cpf se quiser preencher esse campo.</p>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <a href="{{URL}}/resources/assets/upload/modelos/modelo-lista-voz.csv" download="modelo-lista-voz.csv"
+                               class="inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black uppercase text-emerald-700 shadow-sm transition hover:bg-emerald-50">
+                                <i class="fa fa-file-csv"></i>
+                                Baixar CSV
+                            </a>
+                            <a href="{{URL}}/resources/assets/upload/modelos/modelo-lista-voz.xls" download="modelo-lista-voz.xls"
+                               class="inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-blue-200 bg-white px-3 text-[11px] font-black uppercase text-blue-700 shadow-sm transition hover:bg-blue-50">
+                                <i class="fa fa-file-excel"></i>
+                                Baixar Excel
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="progressArea" class="mb-4">
                     <div class="flex justify-between items-center mb-1">
                         <span class="text-[10px] font-bold text-slate-400 uppercase">Status do Upload</span>

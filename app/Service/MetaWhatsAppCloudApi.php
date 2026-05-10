@@ -41,6 +41,39 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    public function sendCallPermissionRequest(
+        string $accessToken,
+        string $phoneNumberId,
+        string $to,
+        ?string $body = null
+    ): array {
+        if (WhatsAppConfig::fakeSend()) {
+            return $this->fakeMessageResponse($to);
+        }
+
+        $interactive = [
+            'type' => 'call_permission_request',
+            'action' => [
+                'name' => 'call_permission_request',
+            ],
+        ];
+
+        $body = trim((string)$body);
+        if ($body !== '') {
+            $interactive['body'] = [
+                'text' => $body,
+            ];
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $to,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ]);
+    }
+
     public function sendTemplate(
         string $accessToken,
         string $phoneNumberId,
@@ -71,6 +104,40 @@ class MetaWhatsAppCloudApi
             'to' => $to,
             'type' => 'template',
             'template' => $template,
+        ]);
+    }
+
+    public function markMessageAsRead(
+        string $accessToken,
+        string $phoneNumberId,
+        string $messageId
+    ): array {
+        if ($messageId === '') {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [],
+                'error' => 'Mensagem inválida para confirmação de leitura.',
+            ];
+        }
+
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'success' => true,
+                    'local_test' => true,
+                    'message_id' => $messageId,
+                ],
+                'error' => null,
+            ];
+        }
+
+        return $this->postMessage($accessToken, $phoneNumberId, [
+            'messaging_product' => 'whatsapp',
+            'status' => 'read',
+            'message_id' => $messageId,
         ]);
     }
 
@@ -786,6 +853,73 @@ class MetaWhatsAppCloudApi
         ]);
     }
 
+    public function getCallingSettings(string $accessToken, string $phoneNumberId): array
+    {
+        $this->logCallingRequest('settings.fetch', $phoneNumberId, []);
+        $result = $this->request('GET', $phoneNumberId . '/settings', $accessToken);
+        $this->logCallingResponse('settings.fetch', $phoneNumberId, $result);
+
+        return $result;
+    }
+
+    public function updateCallingSettings(string $accessToken, string $phoneNumberId, array $calling): array
+    {
+        $payload = [
+            'calling' => $calling,
+        ];
+
+        $this->logCallingRequest('settings.update', $phoneNumberId, $payload);
+        $result = $this->request('POST', $phoneNumberId . '/settings', $accessToken, [
+            'json' => $payload,
+        ]);
+        $this->logCallingResponse('settings.update', $phoneNumberId, $result);
+
+        return $result;
+    }
+
+    public function getCallPermissions(string $accessToken, string $phoneNumberId, string $userWaId): array
+    {
+        $query = [
+            'user_wa_id' => preg_replace('/\D+/', '', $userWaId) ?: $userWaId,
+        ];
+
+        $this->logCallingRequest('permissions.fetch', $phoneNumberId, ['query' => $query]);
+        $result = $this->request('GET', $phoneNumberId . '/call_permissions', $accessToken, [
+            'query' => $query,
+        ]);
+        $this->logCallingResponse('permissions.fetch', $phoneNumberId, $result);
+
+        return $result;
+    }
+
+    public function manageCall(string $accessToken, string $phoneNumberId, array $payload): array
+    {
+        if (WhatsAppConfig::fakeSend()) {
+            return [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'messaging_product' => 'whatsapp',
+                    'calls' => [
+                        [
+                            'id' => (string)($payload['call_id'] ?? ('local_call_' . substr(sha1(json_encode($payload)), 0, 16))),
+                        ],
+                    ],
+                    'local_test' => true,
+                ],
+                'error' => null,
+            ];
+        }
+
+        $this->logCallingRequest('calls.manage', $phoneNumberId, $this->maskCallPayloadForLog($payload));
+        $result = $this->request('POST', $phoneNumberId . '/calls', $accessToken, [
+            'json' => $payload,
+        ]);
+        $this->logCallingResponse('calls.manage', $phoneNumberId, $result);
+
+        return $result;
+    }
+
     private function postMessage(string $accessToken, string $phoneNumberId, array $payload): array
     {
         $verifyMode = WhatsAppConfig::sslVerify();
@@ -897,6 +1031,27 @@ class MetaWhatsAppCloudApi
         return $payload;
     }
 
+    private function maskCallPayloadForLog(array $payload): array
+    {
+        if (isset($payload['to'])) {
+            $payload['to'] = $this->maskPhoneForLog((string)$payload['to']);
+        }
+
+        if (isset($payload['session']['sdp'])) {
+            $payload['session'] = [
+                'sdp_type' => $payload['session']['sdp_type'] ?? null,
+                'sdp_summary' => [
+                    'length' => strlen((string)$payload['session']['sdp']),
+                    'has_audio' => str_contains(strtolower((string)$payload['session']['sdp']), 'm=audio'),
+                    'has_video' => str_contains(strtolower((string)$payload['session']['sdp']), 'm=video'),
+                    'candidate_count' => preg_match_all('/^a=candidate:/mi', (string)$payload['session']['sdp']) ?: 0,
+                ],
+            ];
+        }
+
+        return $payload;
+    }
+
     private function maskPhoneForLog(string $phone): string
     {
         $phone = preg_replace('/\D+/', '', $phone) ?: '';
@@ -905,6 +1060,31 @@ class MetaWhatsAppCloudApi
         }
 
         return substr($phone, 0, 4) . '***' . substr($phone, -2);
+    }
+
+    private function logCallingRequest(string $event, string $phoneNumberId, array $payload): void
+    {
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_calling_request',
+            'action' => $event,
+            'phone_number_id' => $phoneNumberId,
+            'payload' => $payload,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function logCallingResponse(string $event, string $phoneNumberId, array $result): void
+    {
+        error_log(json_encode([
+            'event' => 'meta_whatsapp_calling_response',
+            'action' => $event,
+            'phone_number_id' => $phoneNumberId,
+            'status' => $result['status'] ?? 0,
+            'ok' => $result['ok'] ?? false,
+            'error' => $result['error'] ?? null,
+            'error_code' => $result['error_code'] ?? null,
+            'error_subcode' => $result['error_subcode'] ?? null,
+            'response' => $result['data'] ?? [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     private function request(string $method, string $uri, string $accessToken, array $options = []): array

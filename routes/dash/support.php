@@ -82,7 +82,7 @@ $obRouter->post('/support/tickets/{id}/status', [
 ]);
 
 $obRouter->post('/support/tickets/{id}/request-close', [
-    'name' => '/support/tickets/{id}/messages/create',
+    'name' => '/support/tickets/{id}/request-close',
     'middlewares' => [
         'require-session-login',
         'require-permissions-tenancies'

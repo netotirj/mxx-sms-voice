@@ -437,8 +437,61 @@
             }
         }
 
+        let reportsSseFailureCount = 0;
+        let reportsSseReconnectTimer = null;
+        let reportsSseCooldownUntil = 0;
+        const REPORTS_SSE_RETRY_MS = 3000;
+        const REPORTS_SSE_RETRY_MAX_MS = 60000;
+        const REPORTS_SSE_FAILURE_THRESHOLD = 4;
+        const REPORTS_SSE_COOLDOWN_MS = 180000;
+
+        function resetReportsSseFailures() {
+            reportsSseFailureCount = 0;
+        }
+
+        function nextReportsSseRetryDelay() {
+            reportsSseFailureCount += 1;
+            return Math.min(
+                REPORTS_SSE_RETRY_MS * Math.max(1, Math.pow(2, reportsSseFailureCount - 1)),
+                REPORTS_SSE_RETRY_MAX_MS
+            );
+        }
+
+        function stopReportsSse() {
+            if (reportsSseReconnectTimer) {
+                clearTimeout(reportsSseReconnectTimer);
+                reportsSseReconnectTimer = null;
+            }
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        }
+
+        function tripReportsSseCircuitBreaker() {
+            reportsSseCooldownUntil = Date.now() + REPORTS_SSE_COOLDOWN_MS;
+            stopReportsSse();
+            console.warn('Callcenter reports SSE em cooldown temporario.', {
+                retryAfterMs: REPORTS_SSE_COOLDOWN_MS,
+                failures: reportsSseFailureCount
+            });
+
+            reportsSseReconnectTimer = setTimeout(() => {
+                reportsSseReconnectTimer = null;
+                if (!document.hidden) {
+                    if (reportsSseCooldownUntil <= Date.now()) {
+                        reportsSseCooldownUntil = 0;
+                        resetReportsSseFailures();
+                    }
+                    connectSSE();
+                }
+            }, REPORTS_SSE_COOLDOWN_MS);
+        }
+
         function connectSSE() {
-            if (eventSource) eventSource.close();
+            if (document.hidden) return;
+            if (reportsSseCooldownUntil > Date.now()) return;
+            stopReportsSse();
             const params = new URLSearchParams({
                 agent: document.getElementById('filterAgent')?.value || '',
                 status: document.getElementById('cdrStatusFilter')?.value || '',
@@ -449,6 +502,7 @@
             eventSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls?${params.toString()}`);
 
             eventSource.addEventListener('update', function (e) {
+                resetReportsSseFailures();
                 const data = JSON.parse(e.data);
                 if (data.cdr_report) {
                     allItems = data.cdr_report.records || [];
@@ -460,6 +514,24 @@
                     animateCountUp(document.getElementById('stat-na-fila'), data.stats.naFila);
                 }
             });
+            eventSource.onerror = function() {
+                const connectionState = eventSource?.readyState;
+                stopReportsSse();
+                if (document.hidden || connectionState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextReportsSseRetryDelay();
+                if (reportsSseFailureCount >= REPORTS_SSE_FAILURE_THRESHOLD) {
+                    tripReportsSseCircuitBreaker();
+                    return;
+                }
+
+                reportsSseReconnectTimer = setTimeout(() => {
+                    reportsSseReconnectTimer = null;
+                    connectSSE();
+                }, delay);
+            };
         }
 
         // --- 5. ATIVAÇÃO DOS FILTROS (Sem duplicação) ---
@@ -1197,6 +1269,20 @@
 
         syncDatesFromPeriod();
         connectSSE();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopReportsSse();
+                return;
+            }
+
+            if (reportsSseCooldownUntil > 0 && reportsSseCooldownUntil <= Date.now()) {
+                reportsSseCooldownUntil = 0;
+                resetReportsSseFailures();
+            }
+
+            connectSSE();
+        });
+        window.addEventListener('beforeunload', stopReportsSse);
     });
 
     // 🚩 COLE AS FUNÇÕES AQUI, FORA DE QUALQUER OUTRA FUNÇÃO

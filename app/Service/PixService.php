@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Controller\Pages\AsteriskExtensionsSip;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
+use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
@@ -204,7 +205,13 @@ class PixService
             (float)($planInfo->value_torpedo ?? 0),
             $paymentReference,
             (float)($planInfo->voice_open_rate ?? $planInfo->value_voice ?? 0),
-            (float)($planInfo->voice_smart_rate ?? $planInfo->value_voice ?? 0)
+            (float)($planInfo->voice_smart_rate ?? $planInfo->value_voice ?? 0),
+            (float)($planInfo->value_whatsapp ?? 0),
+            (float)($planInfo->service_fee ?? 0),
+            self::planSnapshotJson((int)$planInfo->plan_id),
+            (string)($planInfo->name_plan ?? ''),
+            (string)(PlanCatalog::findById((int)$planInfo->plan_id)['billing_cycle'] ?? 'monthly'),
+            (float)($planInfo->amount_plan ?? 0)
         );
 
         UserPlans::updateUserPlan((int)$planInfo->user_plan_id, [
@@ -212,6 +219,7 @@ class PixService
         ]);
 
         RegisterTenancies::updateActivePlan((string)$planInfo->tenancy_id, (int)$planInfo->plan_id);
+        PlanRuntimeService::refreshPlanRuntime((string)$planInfo->tenancy_id);
 
         self::syncAdminBalance((int)$planInfo->user_id, (string)$planInfo->tenancy_id, (float)$pix->value);
 
@@ -237,6 +245,19 @@ class PixService
             'processed' => true,
             'credited' => $credited,
         ], 'Pagamento confirmado com sucesso.');
+    }
+
+    private static function planSnapshotJson(int $planId): ?string
+    {
+        $plan = PlanCatalog::findById($planId);
+        if (!$plan) {
+            return null;
+        }
+
+        return json_encode(
+            PlanCatalog::buildSnapshotPayload($plan),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
     }
 
     private static function processRefund(PixSearch $pix, array $payment): array

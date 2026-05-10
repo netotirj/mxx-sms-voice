@@ -349,4 +349,16 @@ class UserSearch
 
         return (new Database('users'))->update($where, ['status_account' => $status], $params) > 0;
     }
+
+    public static function updateRoleUser(int $userId, string $tenancyId, int $roleId): bool
+    {
+        return (new Database('users'))->update(
+                'id = :id AND tenancy_id = :tenancy_id',
+                ['role_id' => $roleId],
+                [
+                    ':id' => $userId,
+                    ':tenancy_id' => $tenancyId,
+                ]
+            ) > 0;
+    }
 }

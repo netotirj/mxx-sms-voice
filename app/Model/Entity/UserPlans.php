@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Model\Entity;
+use App\Service\PlanRuntimeService;
 use WilliamCosta\DatabaseManager\Database;
 
 #[\AllowDynamicProperties]
@@ -18,6 +19,8 @@ class UserPlans
     public string $value_sms;
     public int $is_popular = 0;
     public int $sales_count = 0;
+    public int $trunks = 0;
+    public int $whatsapp_accounts = 0;
 
     public static function getActivePlanByUser(int $planId, string $tenancyId, int $userId)
     {
@@ -111,7 +114,9 @@ class UserPlans
             p.value_whatsapp,
             p.value_whatsapp_marketing,
             p.value_whatsapp_utility,
-            p.value_whatsapp_authentication
+            p.value_whatsapp_authentication,
+            p.trunks,
+            p.whatsapp_accounts
         FROM mxx_user_plans up
         LEFT JOIN mxx_plans p ON up.plan_id = p.id
         WHERE up.plan_id = :plan_id
@@ -151,7 +156,9 @@ class UserPlans
             mp.value_whatsapp,
             mp.value_whatsapp_marketing,
             mp.value_whatsapp_utility,
-            mp.value_whatsapp_authentication
+            mp.value_whatsapp_authentication,
+            mp.trunks,
+            mp.whatsapp_accounts
         FROM mxx_user_plans mup
         INNER JOIN mxx_plans mp ON mp.id = mup.plan_id
         WHERE 
@@ -173,18 +180,16 @@ class UserPlans
 
     public static function getAllActivePlans(?string $typePlan = null): array
     {
-        $where = 'status = "active"';
-        $params = [];
+        $plans = PlanCatalog::all([
+            'status' => 'active',
+            'type_plan' => $typePlan ?: null,
+        ]);
 
-        // Se o type_plan foi enviado, filtra
-        if (!empty($typePlan)) {
-            $where .= ' AND type_plan = :type_plan';
-            $params[':type_plan'] = $typePlan;
-        }
-
-        $plans = (new Database('mxx_plans'))
-            ->select($where, $params, 'id ASC')
-            ->fetchAll(\PDO::FETCH_CLASS, self::class);
+        $plans = array_values(array_filter($plans, static function (array $planData): bool {
+            $name = strtolower(trim((string)($planData['name_plan'] ?? '')));
+            $slug = strtolower((string)($planData['slug'] ?? ''));
+            return $name !== 'bootstrap' && $slug !== 'bootstrap-admin-bootstrap';
+        }));
 
         if (empty($plans)) {
             return [];
@@ -192,16 +197,22 @@ class UserPlans
 
         $popularPlanId = self::getMostSoldPlanId($typePlan);
 
-        foreach ($plans as $plan) {
+        $entities = [];
+        foreach ($plans as $planData) {
+            $plan = new self();
+            foreach ($planData as $field => $value) {
+                $plan->{$field} = $value;
+            }
             $plan->is_popular = ($popularPlanId > 0 && (int)$plan->id === $popularPlanId) ? 1 : 0;
+            $entities[] = $plan;
         }
 
-        return $plans;
+        return $entities;
     }
 
     private static function getMostSoldPlanId(?string $typePlan = null): int
     {
-        $where = 'p.status = "active"';
+        $where = 'p.status = "active" AND LOWER(TRIM(p.name_plan)) <> "bootstrap" AND p.slug <> "bootstrap-admin-bootstrap"';
         $params = [];
 
         if (!empty($typePlan)) {
@@ -237,160 +248,32 @@ class UserPlans
 
     public static function getPlanById(int $id): ?self
     {
-        return (new Database('mxx_plans'))
-            ->select('id = :id', ['id' => $id])
-            ->fetchObject(self::class) ?: null;
+        $planData = PlanCatalog::findById($id);
+        if (!$planData) {
+            return null;
+        }
+
+        $plan = new self();
+        foreach ($planData as $field => $value) {
+            $plan->{$field} = $value;
+        }
+
+        return $plan;
     }
 
     public static function getPlanServiceSummary(int $planId, int $userId, string $tenancyId): ?object
     {
-        $query = "
-            SELECT
-                p.id AS plan_id,
-                p.name_plan,
-                p.description,
-                p.amount_plan,
-                COALESCE(b.value_sms, p.value_sms, 0) AS value_sms,
-                COALESCE(b.value_voice, p.value_voice, 0) AS value_voice,
-                COALESCE(b.voice_open_rate, p.voice_open_rate, 0) AS voice_open_rate,
-                COALESCE(b.voice_smart_rate, p.voice_smart_rate, 0) AS voice_smart_rate,
-                COALESCE(b.value_torpedo, p.value_torpedo, 0) AS value_torpedo,
-                COALESCE(b.service_fee, 0) AS service_fee,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'marketing' THEN w.price_brl END),
-                    p.value_whatsapp_marketing,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_marketing,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'utility' THEN w.price_brl END),
-                    p.value_whatsapp_utility,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_utility,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'authentication' THEN w.price_brl END),
-                    p.value_whatsapp_authentication,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_authentication
-            FROM mxx_plans p
-            LEFT JOIN tenancy_balance b
-                ON b.id = (
-                    SELECT tb.id
-                    FROM tenancy_balance tb
-                    WHERE tb.plan_id = p.id
-                      AND tb.user_id = :user_id
-                      AND tb.tenancy_id = :tenancy_id
-                    ORDER BY tb.updated_at DESC
-                    LIMIT 1
-                )
-            LEFT JOIN plan_whatsapp_pricing w
-                ON w.plan_id = p.id
-            WHERE p.id = :plan_id
-            GROUP BY
-                p.id,
-                p.name_plan,
-                p.description,
-                p.amount_plan,
-                p.value_sms,
-                p.value_voice,
-                p.voice_open_rate,
-                p.voice_smart_rate,
-                p.value_torpedo,
-                p.value_whatsapp,
-                p.value_whatsapp_marketing,
-                p.value_whatsapp_utility,
-                p.value_whatsapp_authentication,
-                b.value_sms,
-                b.value_voice,
-                b.voice_open_rate,
-                b.voice_smart_rate,
-                b.value_torpedo,
-                b.service_fee
-            LIMIT 1
-        ";
+        $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
+        if (!$summary) {
+            return null;
+        }
 
-        $result = (new Database())->execute($query, [
-            ':plan_id' => $planId,
-            ':user_id' => $userId,
-            ':tenancy_id' => $tenancyId,
-        ])->fetchObject();
-
-        return $result ?: null;
+        return ((int)($summary->plan_id ?? 0) === $planId) ? $summary : null;
     }
 
     public static function getLatestBalancePlanServiceSummary(int $userId, string $tenancyId): ?object
     {
-        $query = "
-            SELECT
-                p.id AS plan_id,
-                p.name_plan,
-                p.description,
-                p.amount_plan,
-                COALESCE(b.value_sms, p.value_sms, 0) AS value_sms,
-                COALESCE(b.value_voice, p.value_voice, 0) AS value_voice,
-                COALESCE(b.voice_open_rate, p.voice_open_rate, 0) AS voice_open_rate,
-                COALESCE(b.voice_smart_rate, p.voice_smart_rate, 0) AS voice_smart_rate,
-                COALESCE(b.value_torpedo, p.value_torpedo, 0) AS value_torpedo,
-                COALESCE(b.service_fee, 0) AS service_fee,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'marketing' THEN w.price_brl END),
-                    p.value_whatsapp_marketing,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_marketing,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'utility' THEN w.price_brl END),
-                    p.value_whatsapp_utility,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_utility,
-                COALESCE(
-                    MAX(CASE WHEN w.category = 'authentication' THEN w.price_brl END),
-                    p.value_whatsapp_authentication,
-                    p.value_whatsapp,
-                    0
-                ) AS value_whatsapp_authentication
-            FROM tenancy_balance b
-            INNER JOIN mxx_plans p
-                ON p.id = b.plan_id
-            LEFT JOIN plan_whatsapp_pricing w
-                ON w.plan_id = p.id
-            WHERE b.user_id = :user_id
-              AND b.tenancy_id = :tenancy_id
-            GROUP BY
-                b.id,
-                p.id,
-                p.name_plan,
-                p.description,
-                p.amount_plan,
-                p.value_sms,
-                p.value_voice,
-                p.voice_open_rate,
-                p.voice_smart_rate,
-                p.value_torpedo,
-                p.value_whatsapp,
-                p.value_whatsapp_marketing,
-                p.value_whatsapp_utility,
-                p.value_whatsapp_authentication,
-                b.value_sms,
-                b.value_voice,
-                b.voice_open_rate,
-                b.voice_smart_rate,
-                b.value_torpedo,
-                b.service_fee,
-                b.updated_at
-            ORDER BY b.updated_at DESC
-            LIMIT 1
-        ";
-
-        $result = (new Database())->execute($query, [
-            ':user_id' => $userId,
-            ':tenancy_id' => $tenancyId,
-        ])->fetchObject();
-
-        return $result ?: null;
+        return PlanRuntimeService::getDisplaySummary($tenancyId);
     }
 
     public static function createUserPlan(array $data): int

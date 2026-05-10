@@ -108,6 +108,7 @@ class RatesResellers extends ViewComponents
             'marketing' => 0,
             'utility' => 0,
             'authentication' => 0,
+            'voice' => 0,
         ];
         $status = 'active';
         $updatedAt = null;
@@ -323,6 +324,7 @@ class RatesResellers extends ViewComponents
             'marketing' => self::parseRateValue($data['whatsapp_marketing'] ?? $fallback),
             'utility' => self::parseRateValue($data['whatsapp_utility'] ?? $fallback),
             'authentication' => self::parseRateValue($data['whatsapp_authentication'] ?? $fallback),
+            'voice' => self::parseRateValue($data['whatsapp_voice'] ?? $fallback),
         ];
     }
 

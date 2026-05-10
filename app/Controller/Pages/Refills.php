@@ -4,6 +4,7 @@ namespace App\Controller\Pages;
 
 use App\Http\Response;
 use App\Model\Entity\RefillsResellers;
+use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\UserSearch;
 use App\Session\User as SessionUser;
 use App\Utils\View;
@@ -27,17 +28,28 @@ class Refills extends ViewComponents
 
     public static function getComponentsPlains($request, $type): Response
     {
-
-        //echo "<pre>";
-        //print_r($type);
-        //echo "</pre>";exit;
-
-        $plans = UserPlans::getAllActivePlans($type);
+        PlanCatalog::ensureSchema();
+        $normalizedType = strtolower(trim((string)$type));
+        $plans = in_array($normalizedType, ['all', '*', 'todos', 'todas', 'catalog'], true)
+            ? UserPlans::getAllActivePlans(null)
+            : UserPlans::getAllActivePlans($normalizedType);
 
 
         $formatted = [];
 
         foreach ($plans as $p) {
+            $planRow = PlanCatalog::normalizeRow(get_object_vars($p));
+            $planName = strtolower(trim((string)($p->name_plan ?? '')));
+            $planSlug = strtolower(trim((string)($p->slug ?? '')));
+
+            if ($planName === 'bootstrap' || $planSlug === 'bootstrap-admin-bootstrap') {
+                continue;
+            }
+
+            $campaignsLimit = $p->campaigns_limit ?? $p->camp_qtd ?? 0;
+            $reportsLabel = $p->reports_label ?? $p->rports ?? '';
+            $enabledModules = self::enabledPlanModules((array)($planRow['modules'] ?? []));
+
             $formatted[] = [
                 'id'          => $p->id,
                 'name'        => $p->name_plan,
@@ -60,12 +72,21 @@ class Refills extends ViewComponents
                 'v_whatsapp_marketing' => number_format((float)($p->value_whatsapp_marketing ?? $p->value_whatsapp), 4, ',', '.'),
                 'v_whatsapp_utility' => number_format((float)($p->value_whatsapp_utility ?? $p->value_whatsapp), 4, ',', '.'),
                 'v_whatsapp_authentication' => number_format((float)($p->value_whatsapp_authentication ?? $p->value_whatsapp), 4, ',', '.'),
+                'v_whatsapp_voice' => number_format((float)($p->whatsapp_voice_price_per_minute ?? 0), 4, ',', '.'),
                 'v_torpedo'   => number_format($p->value_torpedo, 4, ',', '.'),
                 // Detalhes Técnicos
                 'users_y_n'   => ($p->users_create == 'y' ? 'Sim' : 'Não'),
-                'access'      => ($p->simultaneous_access == -1 ? 'Ilimitados' : $p->simultaneous_access),
-                'camp'        => ($p->camp_qtd == -1 ? 'Ilimitadas' : $p->camp_qtd),
-                'reports'     => $p->rports,
+                'access'      => ($p->simultaneous_access == -1 ? 'Ilimitado' : $p->simultaneous_access),
+                'camp'        => ((int)$campaignsLimit === -1 ? 'Ilimitado' : (int)$campaignsLimit),
+                'trunks'      => ((int)($p->trunks ?? 0) === -1 ? 'Ilimitado' : (int)($p->trunks ?? 0)),
+                'whatsapp_accounts' => ((int)($p->whatsapp_accounts ?? 0) === -1 ? 'Ilimitado' : (int)($p->whatsapp_accounts ?? 0)),
+                'reports'     => $reportsLabel,
+                'modules_count' => count($enabledModules),
+                'modules_labels' => array_values($enabledModules),
+                'users_limit' => self::formatLimit((int)($planRow['users_limit'] ?? 0)),
+                'sms_limit' => self::formatLimit((int)($planRow['sms_limit'] ?? 0)),
+                'voice_limit' => self::formatLimit((int)($planRow['voice_limit'] ?? 0)),
+                'templates_limit' => self::formatLimit((int)($planRow['templates_limit'] ?? 0)),
             ];
         }
 
@@ -76,6 +97,41 @@ class Refills extends ViewComponents
         return new Response(200, $response, 'application/json');
 
 
+    }
+
+    private static function enabledPlanModules(array $modules): array
+    {
+        $labels = [
+            'administrative' => 'Administrativo',
+            'users' => 'Usuarios',
+            'permissions' => 'Permissoes',
+            'rates' => 'Tarifas',
+            'reports' => 'Relatorios',
+            'sms' => 'SMS',
+            'voice' => 'Voz',
+            'callcenter' => 'Call Center',
+            'whatsapp' => 'WhatsApp',
+            'templates' => 'Templates',
+            'trunks' => 'Trunks',
+        ];
+
+        $enabled = [];
+        foreach ($labels as $key => $label) {
+            if (!empty($modules[$key])) {
+                $enabled[$key] = $label;
+            }
+        }
+
+        return $enabled;
+    }
+
+    private static function formatLimit(int $value): string
+    {
+        if ($value === -1) {
+            return 'Ilimitado';
+        }
+
+        return (string)$value;
     }
 
 

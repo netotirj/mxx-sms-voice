@@ -7,7 +7,7 @@ use App\Model\Entity\UserAuthentication;
 
 class HeartbeatController extends ViewComponents
 {
-    private const int SESSION_EXPIRATION = 3600; // 1 hora
+    private const int SESSION_EXPIRATION = 1800; // 30 minutos
 
     public static function updateSession($request): void
     {

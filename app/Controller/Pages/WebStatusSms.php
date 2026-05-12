@@ -277,7 +277,7 @@ class WebStatusSms
         // ==================================================
         // 3️⃣ Retorno HTTP
         // ==================================================
-        $status = ($count > 0) ? 200 : 204;
+        $status = 200;
         return self::json($status, [
             'status'  => $status,
             'message' => "{$count} registros processados"

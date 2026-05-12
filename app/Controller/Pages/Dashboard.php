@@ -1861,6 +1861,13 @@ class Dashboard extends ViewComponents
         }
 
         $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = [];
+        }
+
+        if (empty($input['plan_id'])) {
+            $input = array_merge($request->getPostVars(), $input);
+        }
 
         $tenancyId = $obUser['tenancy_id'] ?? null;
         $planId    = $input['plan_id'] ?? null;

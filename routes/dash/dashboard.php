@@ -46,7 +46,19 @@ $obRouter->post('/dashboard/swap-plan',[
         'require-permissions-tenancies'
     ],
     function($request){
-        return new Response(200,Pages\Dashboard::setUpdatePlan($request));
+        return Pages\Dashboard::setUpdatePlan($request);
+    }
+
+]);
+
+$obRouter->put('/dashboard/swap-plan',[
+    'name' => '/dashboard/swap-plan-put',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request){
+        return Pages\Dashboard::setUpdatePlan($request);
     }
 
 ]);

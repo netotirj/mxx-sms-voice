@@ -2286,9 +2286,21 @@ class WhatsApp extends ViewComponents
         $processed = 0;
 
         try {
+            if (self::handleStandaloneCoexistenceWebhook($payload, $processed)) {
+                self::logWebhookDebug('receive.success', [
+                    'processed' => $processed,
+                ]);
+
+                return self::json(200, [
+                    'success' => true,
+                    'processed' => $processed,
+                ]);
+            }
+
             foreach (($payload['entry'] ?? []) as $entry) {
                 foreach (($entry['changes'] ?? []) as $change) {
                     $value = $change['value'] ?? [];
+                    $field = (string)($change['field'] ?? '');
                     $phoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
                     if ($phoneNumberId === '') {
                         self::logWebhookDebug('receive.skip_missing_phone_number_id', [
@@ -2301,16 +2313,18 @@ class WhatsApp extends ViewComponents
                     $statuses = is_array($value['statuses'] ?? null) ? $value['statuses'] : [];
                     $calls = is_array($value['calls'] ?? null) ? $value['calls'] : [];
                     $messages = is_array($value['messages'] ?? null) ? $value['messages'] : [];
+                    $messageEchoes = is_array($value['message_echoes'] ?? null) ? $value['message_echoes'] : [];
                     $hasCallingStatuses = self::hasCallingStatuses($statuses);
                     $account = null;
 
-                    if ($messages !== [] || $calls !== [] || $hasCallingStatuses) {
+                    if ($messages !== [] || $messageEchoes !== [] || $calls !== [] || $hasCallingStatuses || in_array($field, ['history', 'smb_app_state_sync'], true)) {
                         $account = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
                         if (!$account) {
                             self::logWebhookDebug('receive.skip_unknown_phone_number_id', [
                                 'phone_number_id' => $phoneNumberId,
-                                'change_field' => $change['field'] ?? null,
+                                'change_field' => $field,
                                 'message_count' => count($messages),
+                                'message_echo_count' => count($messageEchoes),
                                 'call_count' => count($calls),
                             ]);
                         }
@@ -2350,6 +2364,32 @@ class WhatsApp extends ViewComponents
                                 $processed++;
                             }
                         }
+                    }
+
+                    if ($messageEchoes !== [] && $account) {
+                        foreach ($messageEchoes as $messageEcho) {
+                            if (self::storeCoexistenceEchoMessage($account, $messageEcho, $value)) {
+                                $processed++;
+                            }
+                        }
+                    }
+
+                    if ($field === 'history') {
+                        if (self::storeCoexistenceHistoryEvent($account, [
+                            'id' => $entry['id'] ?? null,
+                            'event' => 'history',
+                            'data' => $value,
+                        ])) {
+                            $processed++;
+                        }
+                        continue;
+                    }
+
+                    if ($field === 'smb_app_state_sync') {
+                        if (self::storeCoexistenceStateSync($account, $value)) {
+                            $processed++;
+                        }
+                        continue;
                     }
 
                     if ($messages === [] || !$account) {
@@ -2638,6 +2678,42 @@ class WhatsApp extends ViewComponents
         return null;
     }
 
+    private static function handleStandaloneCoexistenceWebhook(array $payload, int &$processed): bool
+    {
+        $event = strtolower(trim((string)($payload['event'] ?? '')));
+        if ($event === '') {
+            return false;
+        }
+
+        if (!in_array($event, ['history', 'smb_app_state_sync'], true)) {
+            self::logWebhookDebug('coex.standalone_ignored', [
+                'event' => $event,
+            ]);
+            return true;
+        }
+
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $phoneNumberId = (string)($data['metadata']['phone_number_id'] ?? '');
+        $account = $phoneNumberId !== '' ? WhatsAppAccount::getByPhoneNumberId($phoneNumberId) : null;
+
+        if (!$account && $phoneNumberId !== '') {
+            self::logWebhookDebug('coex.standalone_unknown_phone_number', [
+                'event' => $event,
+                'phone_number_id' => $phoneNumberId,
+            ]);
+        }
+
+        if ($event === 'history' && self::storeCoexistenceHistoryEvent($account, $payload)) {
+            $processed++;
+        }
+
+        if ($event === 'smb_app_state_sync' && self::storeCoexistenceStandaloneStateSync($account, $payload)) {
+            $processed++;
+        }
+
+        return true;
+    }
+
     private static function storeInboundWebhookMessage(array $account, array $message, array $value): bool
     {
         $from = self::normalizePhone((string)($message['from'] ?? ''));
@@ -2682,11 +2758,15 @@ class WhatsApp extends ViewComponents
             'tenancy_id' => $account['tenancy_id'],
             'user_id' => (int)$account['user_id'],
             'account_id' => (int)$account['id'],
+            'phone_number_id' => $account['phone_number_id'] ?? null,
+            'waba_id' => $account['waba_id'] ?? null,
             'contact_phone' => $from,
             'contact_name' => $contactName,
             'overwrite_contact_name' => true,
             'last_message' => $body,
             'last_direction' => 'inbound',
+            'last_source' => 'whatsapp',
+            'last_origin' => 'customer',
             'unread_count' => 1,
         ]);
 
@@ -2696,6 +2776,10 @@ class WhatsApp extends ViewComponents
                 'account_id' => (int)$account['id'],
                 'wamid' => $message['id'] ?? null,
                 'direction' => 'inbound',
+                'source' => 'whatsapp',
+                'origin' => 'customer',
+                'phone_number_id' => $account['phone_number_id'] ?? null,
+                'waba_id' => $account['waba_id'] ?? null,
                 'message_type' => $messageType,
                 'body' => $body,
                 'status' => 'received',
@@ -2733,6 +2817,83 @@ class WhatsApp extends ViewComponents
             ]);
             throw $e;
         }
+
+        return true;
+    }
+
+    private static function storeCoexistenceEchoMessage(array $account, array $messageEcho, array $value): bool
+    {
+        $to = self::normalizePhone((string)($messageEcho['to'] ?? ''));
+        if ($to === '') {
+            self::logWebhookDebug('coex.echo_skip_missing_to', [
+                'account_id' => (int)($account['id'] ?? 0),
+                'wamid' => $messageEcho['id'] ?? null,
+                'message_type' => $messageEcho['type'] ?? null,
+            ]);
+            return false;
+        }
+
+        $messageType = (string)($messageEcho['type'] ?? 'unknown');
+        $body = self::extractWebhookMessageBody($messageEcho);
+        $payload = $messageEcho + [
+            'coexistence' => [
+                'event' => 'smb_message_echoes',
+                'received_at' => date('c'),
+            ],
+        ];
+
+        $conversationId = WhatsAppConversation::findOrCreate([
+            'tenancy_id' => $account['tenancy_id'],
+            'user_id' => (int)$account['user_id'],
+            'account_id' => (int)$account['id'],
+            'phone_number_id' => $account['phone_number_id'] ?? null,
+            'waba_id' => $account['waba_id'] ?? null,
+            'contact_phone' => $to,
+            'contact_name' => null,
+            'last_message' => $body,
+            'last_direction' => 'outbound',
+            'last_source' => 'whatsapp_business_app',
+            'last_origin' => 'human_agent',
+            'unread_count' => 0,
+        ]);
+
+        try {
+            WhatsAppConversation::addMessage([
+                'conversation_id' => $conversationId,
+                'account_id' => (int)$account['id'],
+                'wamid' => $messageEcho['id'] ?? null,
+                'direction' => 'outbound',
+                'source' => 'whatsapp_business_app',
+                'origin' => 'human_agent',
+                'phone_number_id' => $account['phone_number_id'] ?? null,
+                'waba_id' => $account['waba_id'] ?? null,
+                'is_from_api' => 0,
+                'is_from_app' => 1,
+                'message_type' => $messageType,
+                'body' => $body,
+                'status' => 'sent',
+                'payload' => $payload,
+            ]);
+        } catch (\Throwable $e) {
+            self::logWebhookDebug('coex.echo_add_failed', [
+                'account_id' => (int)($account['id'] ?? 0),
+                'conversation_id' => $conversationId,
+                'wamid' => $messageEcho['id'] ?? null,
+                'to' => $to,
+                'message_type' => $messageType,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        self::logWebhookDebug('coex.echo_stored', [
+            'account_id' => (int)($account['id'] ?? 0),
+            'conversation_id' => $conversationId,
+            'wamid' => $messageEcho['id'] ?? null,
+            'to' => $to,
+            'message_type' => $messageType,
+            'body_preview' => mb_substr($body, 0, 200),
+        ]);
 
         return true;
     }
@@ -2798,6 +2959,63 @@ class WhatsApp extends ViewComponents
         }
     }
 
+    private static function storeCoexistenceHistoryEvent(?array $account, array $payload): bool
+    {
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $history = is_array($data['history'] ?? null) ? $data['history'] : [];
+        $threadCount = 0;
+        $messageCount = 0;
+
+        foreach ($history as $chunk) {
+            $threads = is_array($chunk['threads'] ?? null) ? $chunk['threads'] : [];
+            $threadCount += count($threads);
+            foreach ($threads as $thread) {
+                $messageCount += count(is_array($thread['messages'] ?? null) ? $thread['messages'] : []);
+            }
+        }
+
+        self::logWebhookDebug('coex.history_received', [
+            'account_id' => (int)($account['id'] ?? 0),
+            'phone_number_id' => $data['metadata']['phone_number_id'] ?? null,
+            'waba_id' => $data['id'] ?? null,
+            'event_id' => $payload['id'] ?? null,
+            'thread_count' => $threadCount,
+            'message_count' => $messageCount,
+            'has_errors' => !empty($history[0]['errors']),
+            'payload' => $payload,
+        ]);
+
+        return true;
+    }
+
+    private static function storeCoexistenceStateSync(?array $account, array $value): bool
+    {
+        $syncEntries = is_array($value['state_sync'] ?? null) ? $value['state_sync'] : [];
+        self::logWebhookDebug('coex.state_sync_received', [
+            'account_id' => (int)($account['id'] ?? 0),
+            'phone_number_id' => $value['metadata']['phone_number_id'] ?? null,
+            'entries' => count($syncEntries),
+            'payload' => $value,
+        ]);
+
+        return true;
+    }
+
+    private static function storeCoexistenceStandaloneStateSync(?array $account, array $payload): bool
+    {
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $syncEntries = is_array($data['state_sync'] ?? null) ? $data['state_sync'] : [];
+        self::logWebhookDebug('coex.state_sync_received', [
+            'account_id' => (int)($account['id'] ?? 0),
+            'phone_number_id' => $data['metadata']['phone_number_id'] ?? null,
+            'entries' => count($syncEntries),
+            'event_id' => $payload['id'] ?? null,
+            'payload' => $payload,
+        ]);
+
+        return true;
+    }
+
     private static function captureWebhookHeaders(mixed $request = null): array
     {
         $headers = is_object($request) && method_exists($request, 'getHeaders')
@@ -2839,6 +3057,11 @@ class WhatsApp extends ViewComponents
 
         $logFile = 'C:/wamp64/logs/meta_whatsapp_webhook_dump.log';
         @file_put_contents($logFile, $json . PHP_EOL . str_repeat('-', 80) . PHP_EOL, FILE_APPEND);
+
+        if (str_starts_with($event, 'coex.')) {
+            $coexLogFile = 'C:/wamp64/logs/meta_whatsapp_coex.log';
+            @file_put_contents($coexLogFile, $json . PHP_EOL . str_repeat('-', 80) . PHP_EOL, FILE_APPEND);
+        }
     }
 
     private static function extractWebhookMessageBody(array $message): string

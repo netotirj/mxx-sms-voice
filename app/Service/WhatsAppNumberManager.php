@@ -709,6 +709,7 @@ class WhatsAppNumberManager
     public static function removeNumberFromMeta(array $user, int $numberId): array
     {
         self::assertPlatformAdmin($user);
+        self::assertTraditionalRegistrationAllowed('desregistrar número da Cloud API');
 
         $number = self::getForUser($numberId, $user);
         if (!$number) {
@@ -854,6 +855,8 @@ class WhatsAppNumberManager
 
     private static function requestVerificationCodeForNumber(int $numberId, array $number, string $method = 'SMS'): array
     {
+        self::assertTraditionalRegistrationAllowed('solicitar código de verificação');
+
         if ((string)($number['status'] ?? '') === 'active') {
             return self::getForUser($numberId, self::ownerFromNumber($number)) ?: $number;
         }
@@ -955,6 +958,8 @@ class WhatsAppNumberManager
 
     private static function registerVerifiedPhoneNumber(int $numberId, string $phoneNumberId): void
     {
+        self::assertTraditionalRegistrationAllowed('registrar número na Cloud API');
+
         if ($phoneNumberId === '') {
             throw new \RuntimeException('Número WhatsApp sem ID Meta para registrar na Cloud API.');
         }
@@ -999,6 +1004,19 @@ class WhatsAppNumberManager
             . '. Confirme o código na Meta antes de usar este número.';
     }
 
+    private static function assertTraditionalRegistrationAllowed(string $operation): void
+    {
+        if (WhatsAppConfig::allowTraditionalRegistration()) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            'Fluxo tradicional da Cloud API bloqueado para segurança ao ' . $operation
+            . '. Use o onboarding de Coexistência da Meta ou habilite explicitamente '
+            . 'WHATSAPP_ALLOW_TRADITIONAL_REGISTRATION=true se a operação for intencional.'
+        );
+    }
+
     private static function isMetaNameReviewPending(string $status): bool
     {
         $status = strtoupper(trim($status));
@@ -1040,6 +1058,8 @@ class WhatsAppNumberManager
 
     private static function verifyNumberRequestCode(array $user, array $number, string $code): array
     {
+        self::assertTraditionalRegistrationAllowed('confirmar código de verificação');
+
         $numberId = (int)($number['id'] ?? 0);
         if (!in_array((string)($number['status'] ?? ''), ['code_sent', 'pending_verification', 'failed', 'blocked'], true)) {
             throw new \RuntimeException('Solicite o envio do código antes de confirmar.');

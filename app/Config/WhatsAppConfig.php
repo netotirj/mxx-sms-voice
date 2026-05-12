@@ -82,6 +82,13 @@ class WhatsAppConfig
         return in_array($value, ['1', 'true', 'yes', 'on'], true);
     }
 
+    public static function allowTraditionalRegistration(): bool
+    {
+        $value = strtolower((string) TelephonyConfig::env('WHATSAPP_ALLOW_TRADITIONAL_REGISTRATION', 'false'));
+
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+    }
+
     public static function sslVerify(): bool|string
     {
         $value = trim((string) TelephonyConfig::env('WHATSAPP_SSL_VERIFY', 'true'));

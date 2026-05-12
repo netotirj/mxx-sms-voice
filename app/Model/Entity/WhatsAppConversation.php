@@ -12,6 +12,7 @@ class WhatsAppConversation
 {
     public static function findOrCreate(array $data): int
     {
+        self::ensureCoexistenceColumns();
         $phone = self::normalizePhone((string)$data['contact_phone']);
         $contactName = self::nullableString($data['contact_name'] ?? null);
         $allowNameOverwrite = !empty($data['overwrite_contact_name']);
@@ -34,20 +35,32 @@ class WhatsAppConversation
         }
 
         try {
-            return (int)(new Database('whatsapp_conversations'))->insert([
+            return (int)(new Database('whatsapp_conversations'))->insert(array_filter([
                 'tenancy_id' => $data['tenancy_id'],
                 'user_id' => (int)$data['user_id'],
                 'account_id' => (int)$data['account_id'],
+                'phone_number_id' => self::conversationHasColumn('phone_number_id')
+                    ? self::nullableString($data['phone_number_id'] ?? null)
+                    : null,
+                'waba_id' => self::conversationHasColumn('waba_id')
+                    ? self::nullableString($data['waba_id'] ?? null)
+                    : null,
                 'contact_phone' => $phone,
                 'contact_name' => $contactName,
                 'last_message' => $data['last_message'] ?? null,
                 'last_direction' => $data['last_direction'] ?? null,
+                'last_source' => self::conversationHasColumn('last_source')
+                    ? self::nullableString($data['last_source'] ?? null)
+                    : null,
+                'last_origin' => self::conversationHasColumn('last_origin')
+                    ? self::nullableString($data['last_origin'] ?? null)
+                    : null,
                 'last_message_at' => $data['last_message_at'] ?? date('Y-m-d H:i:s'),
                 'unread_count' => (int)($data['unread_count'] ?? 0),
                 'status' => $data['status'] ?? 'open',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ], static fn ($value) => $value !== null));
         } catch (\Throwable $e) {
             if (!self::isDuplicateKeyException($e)) {
                 throw $e;
@@ -458,20 +471,34 @@ class WhatsAppConversation
 
     public static function addMessage(array $data): int
     {
+        self::ensureCoexistenceColumns();
         $wamid = self::nullableString($data['wamid'] ?? null);
         if ($wamid !== null) {
             $existing = self::findMessageByWamid($wamid);
             if ($existing) {
                 self::mergeDuplicateMessage((int)$existing['id'], $existing, $data);
+                self::syncConversationFromMessage((int)$data['conversation_id'], $data);
                 return (int)$existing['id'];
             }
         }
+
+        $direction = (string)($data['direction'] ?? 'outbound');
+        $resolvedSource = self::nullableString($data['source'] ?? null)
+            ?? ($direction === 'inbound' ? 'whatsapp' : 'cloud_api');
+        $resolvedOrigin = self::nullableString($data['origin'] ?? null)
+            ?? ($direction === 'inbound' ? 'customer' : 'api');
+        $isFromApi = array_key_exists('is_from_api', $data)
+            ? (int)!empty($data['is_from_api'])
+            : ($resolvedSource === 'cloud_api' ? 1 : 0);
+        $isFromApp = array_key_exists('is_from_app', $data)
+            ? (int)!empty($data['is_from_app'])
+            : ($resolvedSource === 'whatsapp_business_app' ? 1 : 0);
 
         $values = [
             'conversation_id' => (int)$data['conversation_id'],
             'account_id' => (int)$data['account_id'],
             'wamid' => $wamid,
-            'direction' => $data['direction'],
+            'direction' => $direction,
             'message_type' => $data['message_type'] ?? 'text',
             'template_name' => $data['template_name'] ?? null,
             'template_category' => $data['template_category'] ?? null,
@@ -488,6 +515,12 @@ class WhatsAppConversation
         ];
 
         foreach ([
+            'source' => $resolvedSource,
+            'origin' => $resolvedOrigin,
+            'phone_number_id' => self::nullableString($data['phone_number_id'] ?? null),
+            'waba_id' => self::nullableString($data['waba_id'] ?? null),
+            'is_from_api' => $isFromApi,
+            'is_from_app' => $isFromApp,
             'preview_body' => $data['preview_body'] ?? $data['body'] ?? null,
             'template_variables' => isset($data['template_variables'])
                 ? json_encode($data['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -514,15 +547,22 @@ class WhatsAppConversation
             }
 
             self::mergeDuplicateMessage((int)$existing['id'], $existing, $data);
+            self::syncConversationFromMessage((int)$data['conversation_id'], $data);
             return (int)$existing['id'];
         }
 
         self::touchFromMessage(
             (int)$data['conversation_id'],
             (string)($data['body'] ?? ''),
-            (string)$data['direction'],
-            $data['direction'] === 'inbound' ? 1 : 0
+            $direction,
+            $direction === 'inbound' ? 1 : 0
         );
+        self::syncConversationFromMessage((int)$data['conversation_id'], $data + [
+            'source' => $resolvedSource,
+            'origin' => $resolvedOrigin,
+            'is_from_api' => $isFromApi,
+            'is_from_app' => $isFromApp,
+        ]);
 
         return $id;
     }
@@ -881,6 +921,70 @@ class WhatsAppConversation
         }
     }
 
+    private static function ensureCoexistenceColumns(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        $checked = true;
+
+        try {
+            $db = new Database();
+
+            $messageRows = $db->execute('SHOW COLUMNS FROM whatsapp_messages')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $messageColumns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $messageRows), true);
+            $messageAlter = [];
+
+            if (!isset($messageColumns['source'])) {
+                $messageAlter[] = "ADD COLUMN source VARCHAR(32) NULL AFTER direction";
+            }
+            if (!isset($messageColumns['origin'])) {
+                $messageAlter[] = "ADD COLUMN origin VARCHAR(32) NULL AFTER source";
+            }
+            if (!isset($messageColumns['phone_number_id'])) {
+                $messageAlter[] = "ADD COLUMN phone_number_id VARCHAR(128) NULL AFTER account_id";
+            }
+            if (!isset($messageColumns['waba_id'])) {
+                $messageAlter[] = "ADD COLUMN waba_id VARCHAR(128) NULL AFTER phone_number_id";
+            }
+            if (!isset($messageColumns['is_from_api'])) {
+                $messageAlter[] = "ADD COLUMN is_from_api TINYINT(1) NOT NULL DEFAULT 0 AFTER origin";
+            }
+            if (!isset($messageColumns['is_from_app'])) {
+                $messageAlter[] = "ADD COLUMN is_from_app TINYINT(1) NOT NULL DEFAULT 0 AFTER is_from_api";
+            }
+
+            if ($messageAlter !== []) {
+                $db->execute('ALTER TABLE whatsapp_messages ' . implode(', ', $messageAlter));
+            }
+
+            $conversationRows = $db->execute('SHOW COLUMNS FROM whatsapp_conversations')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $conversationColumns = array_fill_keys(array_map(static fn ($row) => (string)$row['Field'], $conversationRows), true);
+            $conversationAlter = [];
+
+            if (!isset($conversationColumns['phone_number_id'])) {
+                $conversationAlter[] = "ADD COLUMN phone_number_id VARCHAR(128) NULL AFTER account_id";
+            }
+            if (!isset($conversationColumns['waba_id'])) {
+                $conversationAlter[] = "ADD COLUMN waba_id VARCHAR(128) NULL AFTER phone_number_id";
+            }
+            if (!isset($conversationColumns['last_source'])) {
+                $conversationAlter[] = "ADD COLUMN last_source VARCHAR(32) NULL AFTER last_direction";
+            }
+            if (!isset($conversationColumns['last_origin'])) {
+                $conversationAlter[] = "ADD COLUMN last_origin VARCHAR(32) NULL AFTER last_source";
+            }
+
+            if ($conversationAlter !== []) {
+                $db->execute('ALTER TABLE whatsapp_conversations ' . implode(', ', $conversationAlter));
+            }
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_coexistence_columns] ' . $e->getMessage());
+        }
+    }
+
     private static function messageHasColumn(string $column): bool
     {
         static $columns = null;
@@ -954,6 +1058,12 @@ class WhatsAppConversation
         }
 
         foreach ([
+            'source' => self::nullableString($incoming['source'] ?? null),
+            'origin' => self::nullableString($incoming['origin'] ?? null),
+            'phone_number_id' => self::nullableString($incoming['phone_number_id'] ?? null),
+            'waba_id' => self::nullableString($incoming['waba_id'] ?? null),
+            'is_from_api' => array_key_exists('is_from_api', $incoming) ? (int)!empty($incoming['is_from_api']) : null,
+            'is_from_app' => array_key_exists('is_from_app', $incoming) ? (int)!empty($incoming['is_from_app']) : null,
             'preview_body' => $incoming['preview_body'] ?? $incoming['body'] ?? null,
             'template_variables' => isset($incoming['template_variables'])
                 ? json_encode($incoming['template_variables'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -1164,6 +1274,51 @@ class WhatsAppConversation
     private static function normalizedRole(array $user): string
     {
         return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+    }
+
+    private static function syncConversationFromMessage(int $conversationId, array $data): void
+    {
+        if ($conversationId <= 0) {
+            return;
+        }
+
+        $values = [
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if (self::conversationHasColumn('phone_number_id')) {
+            $phoneNumberId = self::nullableString($data['phone_number_id'] ?? null);
+            if ($phoneNumberId !== null) {
+                $values['phone_number_id'] = $phoneNumberId;
+            }
+        }
+
+        if (self::conversationHasColumn('waba_id')) {
+            $wabaId = self::nullableString($data['waba_id'] ?? null);
+            if ($wabaId !== null) {
+                $values['waba_id'] = $wabaId;
+            }
+        }
+
+        if (self::conversationHasColumn('last_source')) {
+            $source = self::nullableString($data['source'] ?? null);
+            if ($source !== null) {
+                $values['last_source'] = $source;
+            }
+        }
+
+        if (self::conversationHasColumn('last_origin')) {
+            $origin = self::nullableString($data['origin'] ?? null);
+            if ($origin !== null) {
+                $values['last_origin'] = $origin;
+            }
+        }
+
+        if (count($values) <= 1) {
+            return;
+        }
+
+        (new Database('whatsapp_conversations'))->update('id = :id', $values, [':id' => $conversationId]);
     }
 
     private static function isRestrictedSupportRole(array $user): bool

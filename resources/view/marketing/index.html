@@ -326,6 +326,9 @@
                                     <img id="previewMediaImage" src="" alt="Thumbnail da campanha" class="hidden h-full w-full object-cover">
                                     <video id="previewMediaVideo" class="hidden h-full w-full object-cover" controls muted playsinline preload="metadata"></video>
                                 </div>
+                                <div id="previewMediaNotice" class="absolute left-5 right-5 top-16 hidden rounded-2xl border border-white/15 bg-slate-950/75 px-4 py-3 text-xs font-semibold text-slate-100 backdrop-blur">
+                                    Nenhuma midia selecionada.
+                                </div>
                                 <div class="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] backdrop-blur">Vídeo demo</div>
                                 <div class="absolute inset-x-5 bottom-5 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                                     <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-100">Thumbnail / vídeo</p>
@@ -370,8 +373,8 @@
         settings: {},
         currentCampaign: null,
         availableAccounts: [],
-        previewVideoObjectUrl: null,
-        previewImageObjectUrl: null,
+        previewImageDataUrl: '',
+        previewVideoSelection: null,
     };
 
     const els = {
@@ -430,6 +433,7 @@
         mediaVisual: document.getElementById('previewMediaVisual'),
         mediaImage: document.getElementById('previewMediaImage'),
         mediaVideo: document.getElementById('previewMediaVideo'),
+        mediaNotice: document.getElementById('previewMediaNotice'),
     };
 
     const settingsFields = {
@@ -736,6 +740,8 @@
 
     function fillCampaignForm(campaign) {
         els.formId.value = campaign.id || '';
+        state.previewImageDataUrl = '';
+        state.previewVideoSelection = null;
         fields.name.value = campaign.name || '';
         fields.description.value = campaign.description || '';
         fields.objective.value = campaign.objective || 'lead_generation';
@@ -769,6 +775,8 @@
         els.form.reset();
         els.formId.value = '';
         state.currentCampaign = null;
+        state.previewImageDataUrl = '';
+        state.previewVideoSelection = null;
         renderAccountOptions();
         document.getElementById('campaignVideoHint').textContent = 'MP4, MOV ou WEBM até 100 MB.';
         document.getElementById('campaignThumbnailHint').textContent = 'JPG, PNG ou WEBP até 5 MB.';
@@ -965,18 +973,7 @@
         `).join('');
     }
 
-    function revokePreviewObjectUrl(key) {
-        const current = state[key];
-        if (current) {
-            URL.revokeObjectURL(current);
-            state[key] = null;
-        }
-    }
-
     function resetPreviewMediaVisual() {
-        revokePreviewObjectUrl('previewVideoObjectUrl');
-        revokePreviewObjectUrl('previewImageObjectUrl');
-
         preview.mediaVisual.classList.add('hidden');
         preview.mediaImage.classList.add('hidden');
         preview.mediaImage.removeAttribute('src');
@@ -984,10 +981,17 @@
         preview.mediaVideo.pause();
         preview.mediaVideo.removeAttribute('src');
         preview.mediaVideo.load();
+        preview.mediaNotice.classList.add('hidden');
+        preview.mediaNotice.textContent = '';
 
         preview.media.style.backgroundImage = '';
         preview.media.style.backgroundSize = '';
         preview.media.style.backgroundPosition = '';
+    }
+
+    function showPreviewNotice(message) {
+        preview.mediaNotice.textContent = message;
+        preview.mediaNotice.classList.remove('hidden');
     }
 
     function showPreviewImage(url) {
@@ -1010,6 +1014,42 @@
         preview.mediaVideo.load();
     }
 
+    function syncLocalMediaSelection() {
+        const thumbnailFile = fields.thumbnailFile.files[0] || null;
+        const videoFile = fields.videoFile.files[0] || null;
+
+        state.previewImageDataUrl = '';
+        state.previewVideoSelection = null;
+
+        if (videoFile) {
+            state.previewVideoSelection = {
+                name: videoFile.name || 'video',
+                type: videoFile.type || 'video',
+                size: Number(videoFile.size || 0),
+            };
+        }
+
+        if (!thumbnailFile) {
+            updatePreview();
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            state.previewImageDataUrl = typeof reader.result === 'string' ? reader.result : '';
+            updatePreview();
+        };
+        reader.onerror = () => {
+            state.previewImageDataUrl = '';
+            console.error('[MarketingPreview] Falha ao converter thumbnail local para pre-visualizacao.', {
+                name: thumbnailFile.name || '',
+                type: thumbnailFile.type || '',
+            });
+            updatePreview();
+        };
+        reader.readAsDataURL(thumbnailFile);
+    }
+
     function updatePreview() {
         const title = fields.adTitle.value.trim() || 'Veja o sistema em ação';
         const text = fields.primaryText.value.trim() || 'Preencha o texto principal para visualizar a prévia.';
@@ -1025,10 +1065,11 @@
         preview.destinationLink.textContent = `ou site: ${destinationLink}`;
         preview.callToAction.textContent = cta;
 
-        if (fields.videoFile.files[0]) {
-            revokePreviewObjectUrl('previewVideoObjectUrl');
-            state.previewVideoObjectUrl = URL.createObjectURL(fields.videoFile.files[0]);
-            showPreviewVideo(state.previewVideoObjectUrl, fields.videoFile.files[0].type || '');
+        if (state.previewImageDataUrl) {
+            showPreviewImage(state.previewImageDataUrl);
+            if (state.previewVideoSelection) {
+                showPreviewNotice(`Video local selecionado: ${state.previewVideoSelection.name}. A previa completa sera exibida apos salvar a campanha.`);
+            }
             return;
         }
 
@@ -1037,10 +1078,9 @@
             return;
         }
 
-        if (fields.thumbnailFile.files[0]) {
-            revokePreviewObjectUrl('previewImageObjectUrl');
-            state.previewImageObjectUrl = URL.createObjectURL(fields.thumbnailFile.files[0]);
-            showPreviewImage(state.previewImageObjectUrl);
+        if (state.previewVideoSelection) {
+            resetPreviewMediaVisual();
+            showPreviewNotice(`Video local selecionado: ${state.previewVideoSelection.name}. Este navegador bloqueou a previa direta do arquivo antes do salvamento.`);
             return;
         }
 
@@ -1107,6 +1147,8 @@
         els.resetBtn.addEventListener('click', clearCampaignForm);
         els.syncPreviewBtn.addEventListener('click', () => runSyncPreview());
         fields.accountId.addEventListener('change', handleAccountSelectionChange);
+        fields.videoFile.addEventListener('change', syncLocalMediaSelection);
+        fields.thumbnailFile.addEventListener('change', syncLocalMediaSelection);
         els.pauseBtn.addEventListener('click', () => {
             const id = Number(els.formId.value || 0);
             if (id) changeCampaignStatus(id, 'paused');

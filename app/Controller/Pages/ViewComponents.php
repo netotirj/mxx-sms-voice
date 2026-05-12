@@ -306,8 +306,8 @@ class ViewComponents
             $config .= self::buildMenuItem('/campaign/voice/trunks', 'Trunks', 'ni ni-world', 'text-purple-500');
         }
 
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/sip-devices'])) {
-            $config .= self::buildMenuItem('/campaign/voice/sip-devices', 'SIP Devices', 'ni ni-mobile-button', 'text-orange-500');
+        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/sip', '/campaign/voice/sip-devices'])) {
+            $config .= self::buildMenuItem('/campaign/voice/sip', 'SIP Devices', 'ni ni-mobile-button', 'text-orange-500');
         }
 
         $content = '';

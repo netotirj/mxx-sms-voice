@@ -778,7 +778,7 @@
                                 <aside id="wa-conversation-list-sidebar" class="flex h-full min-h-0 w-75 shrink-0 flex-col overflow-hidden border-r border-gray-100 bg-white xl:w-80">
                                     <div class="shrink-0 border-b border-gray-100 bg-white p-4">
                                         <div class="relative">
-                                            <input id="wa-chat-search" type="text" placeholder="Buscar por nome ou número..." class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-transparent focus:ring-2 focus:ring-blue-500">
+                                            <input id="wa-chat-search" type="text" name="wa_chat_filter" placeholder="Buscar por nome ou número..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-transparent focus:ring-2 focus:ring-blue-500">
                                             <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-slate-400">
                                                 <i class="fa fa-search"></i>
                                             </span>
@@ -1764,6 +1764,27 @@
         let verificationPollTimer = null;
         let verificationCountdownTimer = null;
         let conversationSearchTimer = null;
+
+        function clearAutofilledConversationSearch() {
+            if (!searchInput) {
+                return;
+            }
+
+            const rawValue = String(searchInput.value || '').trim();
+            if (!rawValue) {
+                return;
+            }
+
+            // Esse campo aceita busca por nome ou numero. Se o navegador injetar um email
+            // salvo no autofill, limpamos para evitar lista vazia ao abrir a tela.
+            if (rawValue.includes('@')) {
+                searchInput.value = '';
+            }
+        }
+
+        clearAutofilledConversationSearch();
+        window.setTimeout(clearAutofilledConversationSearch, 120);
+        window.setTimeout(clearAutofilledConversationSearch, 600);
         let conversationListCollapsed = localStorage.getItem('wa_conversation_list_collapsed') === '1';
         let realtimeSyncBusy = false;
         let pendingMediaFile = null;

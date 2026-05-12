@@ -185,30 +185,13 @@ Resultado:
 - resposta manual do atendente pelo celular aparece no painel
 - mas não dispara reprocessamento como se fosse uma nova mensagem do cliente
 
-### 4.5 Trava contra migração tradicional
+### 4.5 Compatibilidade com fluxo tradicional
 
-Arquivos:
+Comportamento atual após o ajuste:
 
-- `app/Config/WhatsAppConfig.php`
-- `app/Service/WhatsAppNumberManager.php`
-- `.env.example`
-
-Nova flag:
-
-- `WHATSAPP_ALLOW_TRADITIONAL_REGISTRATION=false`
-
-Comportamento:
-
-- por padrão, operações de fluxo tradicional da Cloud API ficam bloqueadas:
-  - solicitar código
-  - confirmar código
-  - registrar número
-  - desregistrar número
-
-Uso recomendado:
-
-- manter `false` para este número de suporte
-- só liberar explicitamente se a empresa decidir fazer onboarding tradicional para outro número
+- o fluxo tradicional da Cloud API continua funcionando para números novos
+- a preparação de CoEx não substitui nem bloqueia o onboarding tradicional
+- o backend apenas passa a reconhecer, além do fluxo antigo, os eventos extras de Coexistência quando o número for conectado pelo WhatsApp Business App
 
 ## 5. Situação do webhook atual
 
@@ -285,7 +268,7 @@ Com base na documentação disponível e no comportamento esperado:
 
 1. Aplicar a migration de CoEx.
 2. Validar que o webhook publicado é `/painel/webhooks/meta/whatsapp`.
-3. Confirmar que `WHATSAPP_ALLOW_TRADITIONAL_REGISTRATION=false`.
+3. Confirmar no time qual número será ativado via fluxo tradicional e qual número seguirá pelo onboarding de CoEx.
 4. Fazer backup lógico do banco antes da ativação.
 5. Executar o onboarding somente no fluxo de Coexistência.
 6. Parar imediatamente se o fluxo pedir registro tradicional do número.
@@ -307,4 +290,5 @@ Conclusão objetiva:
 - O sistema agora está preparado para operar com CoEx no backend e tratar corretamente mensagens vindas do cliente, da API e do WhatsApp Business App.
 - A elegibilidade real da conta Meta para CoEx ainda precisa ser confirmada no onboarding autenticado da própria conta.
 - O fluxo seguro para este número é o de conectar o WhatsApp Business App existente com QR Code.
-- O fluxo tradicional de registro da Cloud API foi bloqueado por padrão para reduzir risco operacional.
+- O fluxo tradicional de registro da Cloud API continua disponível para números novos.
+- A preparação de CoEx foi adicionada sem remover a capacidade de cadastrar números “virgens” no modelo antigo.

@@ -470,8 +470,22 @@ class Users extends ViewComponents
         }
 
         $uploadDir = __DIR__ . "/../../../resources/assets/img/upload/{$tenancyId}/{$userId}/";
-        if (!file_exists($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
+        if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'Não foi possível preparar o diretório de upload no servidor.'
+            ], 'application/json');
+        }
+
+        if (!is_writable($uploadDir)) {
+            @chmod($uploadDir, 0775);
+        }
+
+        if (!is_writable($uploadDir)) {
+            return new Response(500, [
+                'status' => 500,
+                'message' => 'O diretório de upload está sem permissão de escrita no servidor.'
+            ], 'application/json');
         }
 
         $fileName = uniqid('imageUser_', true) . "." . $extensionMap[$mimeType];
@@ -480,7 +494,7 @@ class Users extends ViewComponents
         if (!move_uploaded_file($tmpName, $targetPath)) {
             return new Response(500, [
                 'status' => 500,
-                'message' => 'Erro ao mover o arquivo para o servidor.'
+                'message' => 'Erro ao mover o arquivo para o servidor. Verifique permissões da pasta resources/assets/img/upload.'
             ], 'application/json');
         }
 

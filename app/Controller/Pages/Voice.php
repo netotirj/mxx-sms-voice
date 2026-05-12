@@ -3084,8 +3084,14 @@ class Voice extends ViewComponents
 
         $role = strtolower($obUser['user_function'] ?? $obUser['function'] ?? '');
 
-        // Sempre enviamos o tenant_id
-        $query = ['tenant_id' => $obUser['tenancy_id']];
+        // Super admin ve tudo. Os demais seguem restritos ao escopo da tenancy.
+        $query = [
+            'function' => $role,
+        ];
+
+        if ($role !== 'super_admin') {
+            $query['tenant_id'] = $obUser['tenancy_id'];
+        }
 
         // Para RESELLER ou OPERADOR, enviamos o ID dele para a Model filtrar
         // ramais onde ele é o dono (user_id) ou o criador (creator_id)

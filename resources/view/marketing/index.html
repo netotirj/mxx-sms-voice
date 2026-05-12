@@ -1074,8 +1074,13 @@
 
     function bindEvents() {
         preview.mediaVideo?.addEventListener('error', () => {
+            const currentSrc = preview.mediaVideo.currentSrc || preview.mediaVideo.src || '';
+            if (!currentSrc) {
+                return;
+            }
+
             console.error('[MarketingPreview] Falha ao carregar vídeo de pré-visualização.', {
-                src: preview.mediaVideo.currentSrc || preview.mediaVideo.src || '',
+                src: currentSrc,
                 error: preview.mediaVideo.error ? {
                     code: preview.mediaVideo.error.code,
                     message: preview.mediaVideo.error.message || '',
@@ -1084,8 +1089,13 @@
         });
 
         preview.mediaImage?.addEventListener('error', () => {
+            const currentSrc = preview.mediaImage.currentSrc || preview.mediaImage.src || '';
+            if (!currentSrc) {
+                return;
+            }
+
             console.error('[MarketingPreview] Falha ao carregar imagem de pré-visualização.', {
-                src: preview.mediaImage.currentSrc || preview.mediaImage.src || '',
+                src: currentSrc,
             });
         });
 

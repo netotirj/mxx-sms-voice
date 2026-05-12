@@ -27,8 +27,8 @@
     </div>
 </div>
 
-<div id="modalPix" class="fixed inset-0 z-[999] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
-    <div id="modalPixContent" class="relative bg-white dark:bg-slate-850 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-[360px] p-6 border border-slate-100 dark:border-slate-700 transform transition-all scale-95 opacity-0">
+<div id="modalPix" class="fixed inset-0 z-[100050] hidden items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
+    <div id="modalPixContent" class="relative my-6 bg-white dark:bg-slate-850 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-[360px] p-6 border border-slate-100 dark:border-slate-700 transform transition-all scale-95 opacity-0">
 
         <button onclick="closePixModal()" class="absolute top-6 right-6 text-slate-400 hover:text-rose-500 transition-colors duration-200">
             <i class="fa fa-times text-lg"></i>
@@ -121,6 +121,13 @@
     let countdownTimer;
     window.pixStatusInterval = null;
     window.pixCountdownInterval = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('modalPix');
+        if (modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+    });
 
     const formatRate = (value) => Number(value || 0).toFixed(4).replace('.', ',');
 
@@ -430,6 +437,7 @@
             }
 
             // 4. Mostrar Modal com animação
+            document.body.classList.add('overflow-hidden');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
 
@@ -491,6 +499,7 @@
         const modal = document.getElementById('modalPix');
         const content = document.getElementById('modalPixContent');
         clearInterval(countdownTimer);
+        document.body.classList.remove('overflow-hidden');
         content.classList.remove('scale-100', 'opacity-100');
         content.classList.add('scale-95', 'opacity-0');
         setTimeout(() => {

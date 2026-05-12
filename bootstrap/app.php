@@ -12,7 +12,7 @@ use App\Http\Middleware\Queue as MiddlewareQueue;
 Environment::load(__DIR__.'/../');
 
 // 2. Define a URL
-define('URL', getenv('URL') ?: 'https://maxxsolutions.com.br/system');
+define('URL', getenv('URL') ?: 'https://maxxsolutions.com.br/painel');
 define('VIEW_URL', buildCurrentViewUrl(URL));
 
 // 3. CONFIGURA O BANCO PRIMEIRO (Obrigatório antes de ler sessão) 🚀

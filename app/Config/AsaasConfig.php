@@ -40,7 +40,7 @@ class AsaasConfig
     {
         $baseUrl = defined('VIEW_URL')
             ? (string)VIEW_URL
-            : ((string)(getenv('URL') ?: 'https://maxxsolutions.com.br/system'));
+            : ((string)(getenv('URL') ?: 'https://maxxsolutions.com.br/painel'));
 
         return rtrim($baseUrl, '/') . '/refills/webhooks-asaas';
     }

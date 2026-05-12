@@ -102,16 +102,58 @@ class Router
         $this->addRoute('PATCH', $route, $params);
     }
 
-    /**
-     * Retorna a URI atual sem prefixo
-     */
-    private function getUri(): string
+    private function normalizeUriPath(string $uri): string
     {
-        $uri = $this->request->getURI();
-        if (str_starts_with($uri, $this->prefix)) {
-            $uri = substr($uri, strlen($this->prefix));
+        $normalized = '/' . trim($uri, '/');
+
+        return $normalized === '//' ? '/' : $normalized;
+    }
+
+    private function stripPrefixFromUri(string $uri, string $prefix): string
+    {
+        $uri = $this->normalizeUriPath($uri);
+        $prefix = $this->normalizeUriPath($prefix);
+
+        if ($prefix === '/') {
+            return $uri;
         }
-        return '/' . trim($uri, '/');
+
+        if ($uri === $prefix) {
+            return '/';
+        }
+
+        if (str_starts_with($uri, $prefix . '/')) {
+            return $this->normalizeUriPath(substr($uri, strlen($prefix)));
+        }
+
+        return $uri;
+    }
+
+    /**
+     * Retorna todas as URIs candidatas considerando prefixo configurado e
+     * diretório real do front controller. Isso evita 404 quando o deploy usa
+     * subpasta como /painel, mas o servidor entrega REQUEST_URI/SCRIPT_NAME
+     * de forma diferente do ambiente local.
+     */
+    private function getCandidateUris(): array
+    {
+        $rawUri = $this->normalizeUriPath($this->request->getURI());
+        $candidates = [$rawUri];
+
+        $prefixes = array_filter([
+            $this->prefix,
+            dirname($_SERVER['SCRIPT_NAME'] ?? ''),
+            dirname($_SERVER['PHP_SELF'] ?? ''),
+        ], static fn ($value) => is_string($value) && trim($value) !== '' && trim($value) !== '.');
+
+        foreach (array_unique($prefixes) as $prefix) {
+            $stripped = $this->stripPrefixFromUri($rawUri, $prefix);
+            if (!in_array($stripped, $candidates, true)) {
+                $candidates[] = $stripped;
+            }
+        }
+
+        return $candidates;
     }
 
     /**
@@ -142,8 +184,8 @@ class Router
 
     private function getRoute(): array
     {
-        $uri = $this->getUri();
         $httpMethod = $this->request->getHttpMethod();
+        $candidateUris = $this->getCandidateUris();
 
         $routes = $this->routes;
 
@@ -158,16 +200,19 @@ class Router
             return strlen($b) <=> strlen($a);
         });
 
-        foreach ($routes as $patternRoute => $methods) {
-            if (preg_match($patternRoute, $uri, $matches)) {
-                if (isset($methods[$httpMethod])) {
-                    array_shift($matches);
-                    $keys = $methods[$httpMethod]['variables'];
-                    $methods[$httpMethod]['variables'] = array_combine($keys, $matches);
-                    $methods[$httpMethod]['variables']['request'] = $this->request;
-                    return $methods[$httpMethod];
+        foreach ($candidateUris as $uri) {
+            foreach ($routes as $patternRoute => $methods) {
+                if (preg_match($patternRoute, $uri, $matches)) {
+                    if (isset($methods[$httpMethod])) {
+                        array_shift($matches);
+                        $keys = $methods[$httpMethod]['variables'];
+                        $methods[$httpMethod]['variables'] = array_combine($keys, $matches);
+                        $methods[$httpMethod]['variables']['request'] = $this->request;
+                        return $methods[$httpMethod];
+                    }
+
+                    throw new Exception("Método não permitido", 405);
                 }
-                throw new Exception("Método não permitido", 405);
             }
         }
 
@@ -221,7 +266,9 @@ class Router
      */
     public function getCurrentUrl(): string
     {
-        return $this->url . $this->getUri();
+        $candidateUris = $this->getCandidateUris();
+
+        return $this->url . ($candidateUris[0] ?? '/');
     }
 
 }

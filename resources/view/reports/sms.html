@@ -388,7 +388,7 @@
                     params.set('status', status);
                 }
 
-                const response = await fetch(`sms-view-realtime?${params.toString()}`, {
+                const response = await fetch(`${baseUrl}/reports/sms-view-realtime?${params.toString()}`, {
                     method: 'GET',
                     cache: 'no-store'
                 });

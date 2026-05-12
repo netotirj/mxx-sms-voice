@@ -642,14 +642,27 @@ class WhatsApp extends ViewComponents
         $input = self::jsonInput();
         $phoneNumberId = trim((string)($input['phone_number_id'] ?? ''));
         $wabaId = trim((string)($input['waba_id'] ?? ''));
-        if ($phoneNumberId === '' || $wabaId === '') {
+        if ($wabaId === '') {
             return self::json(422, [
                 'success' => false,
-                'message' => 'A Meta não retornou phone_number_id ou waba_id ao concluir a conexão.',
+                'message' => 'A Meta não retornou o waba_id ao concluir a conexão CoEx.',
             ]);
         }
 
         try {
+            $phoneNumberId = self::resolveEmbeddedSignupPhoneNumberId(
+                $accessToken,
+                $wabaId,
+                $phoneNumberId,
+                (string)($input['display_phone_number'] ?? '')
+            );
+            if ($phoneNumberId === '') {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'A Meta concluiu o onboarding, mas o painel não conseguiu identificar o phone_number_id do número conectado.',
+                ]);
+            }
+
             $existingAccount = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
 
             if (!$existingAccount) {
@@ -783,6 +796,55 @@ class WhatsApp extends ViewComponents
 HTML;
 
         return new Response(200, $html, 'text/html; charset=utf-8');
+    }
+
+    private static function resolveEmbeddedSignupPhoneNumberId(
+        string $accessToken,
+        string $wabaId,
+        string $phoneNumberId,
+        string $displayPhoneNumber = ''
+    ): string {
+        $phoneNumberId = trim($phoneNumberId);
+        if ($phoneNumberId !== '') {
+            return $phoneNumberId;
+        }
+
+        $result = (new MetaWhatsAppCloudApi())->listPhoneNumbers($accessToken, $wabaId);
+        if (!$result['ok']) {
+            return '';
+        }
+
+        $data = $result['data']['data'] ?? $result['data'] ?? [];
+        if (!is_array($data) || $data === []) {
+            return '';
+        }
+
+        $normalizedTarget = self::normalizePhone($displayPhoneNumber);
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $candidateId = trim((string)($item['id'] ?? ''));
+            if ($candidateId === '') {
+                continue;
+            }
+
+            if ($normalizedTarget === '') {
+                return $candidateId;
+            }
+
+            $candidatePhone = self::normalizePhone((string)($item['display_phone_number'] ?? ''));
+            if ($candidatePhone !== '' && $candidatePhone === $normalizedTarget) {
+                return $candidateId;
+            }
+        }
+
+        if (count($data) === 1 && is_array($data[0])) {
+            return trim((string)($data[0]['id'] ?? ''));
+        }
+
+        return '';
     }
 
     public static function updateAccountSettings($request, int|string $id): Response

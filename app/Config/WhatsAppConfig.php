@@ -68,6 +68,7 @@ class WhatsAppConfig
         }
 
         $extras = rawurlencode(json_encode([
+            'featureType' => 'whatsapp_business_app_onboarding',
             'sessionInfoVersion' => '3',
             'version' => 'v4',
         ], JSON_UNESCAPED_SLASHES));

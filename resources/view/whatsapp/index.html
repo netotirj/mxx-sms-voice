@@ -143,13 +143,13 @@
                             <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                                 <p class="text-[10px] font-black uppercase text-slate-500 mb-2">Como vai funcionar</p>
                                 <ol class="space-y-2 text-[12px] leading-5 text-slate-600 list-decimal pl-4 mb-0">
-                                    <li>O painel abre o Embedded Signup oficial da Meta.</li>
-                                    <li>No popup, escolha o fluxo de conectar o WhatsApp Business App existente.</li>
-                                    <li>A Meta envia a etapa de QR Code.</li>
-                                    <li>No celular, abra o WhatsApp Business e confirme a conexão.</li>
-                                    <li>Se quiser, compartilhe o histórico quando a Meta oferecer essa opção.</li>
+                                    <li>O painel abre o Embedded Signup oficial da Meta no modo CoEx.</li>
+                                    <li>No popup, escolha a opcao de conectar o WhatsApp Business App existente.</li>
+                                    <li>A Meta pode pedir o numero, mostrar um codigo de verificacao e enviar a etapa de conexao para o app.</li>
+                                    <li>No celular, abra o WhatsApp Business, confirme a conexao com a plataforma e escaneie o QR Code se a Meta exibir essa etapa.</li>
+                                    <li>Se quiser, compartilhe ate 6 meses de historico quando a Meta oferecer essa opcao.</li>
                                 </ol>
-                                <p class="mt-3 mb-0 text-[11px] text-amber-700 font-semibold">Se o popup cair no fluxo de código/SMS para número virgem, feche e use o fluxo tradicional.</p>
+                                <p class="mt-3 mb-0 text-[11px] text-amber-700 font-semibold">Se o popup cair no fluxo generico de compartilhar ativos ou de codigo/SMS para numero virgem, interrompa e use apenas o caminho oficial do app existente.</p>
                             </div>
                         </div>
 
@@ -9443,6 +9443,7 @@
             }
 
             const extras = encodeURIComponent(JSON.stringify({
+                featureType: 'whatsapp_business_app_onboarding',
                 sessionInfoVersion: '3',
                 version: 'v4'
             }));
@@ -9530,11 +9531,15 @@
                 waPendingCoexSignup.phone_number_id = String(payload.phone_number_id || '');
                 waPendingCoexSignup.waba_id = String(payload.waba_id || '');
                 waPendingCoexSignup.business_id = String(payload.business_id || '');
+                if (payload.code) {
+                    waPendingCoexSignup.code = String(payload.code || '');
+                }
                 void completeCoexSignup({
                     event: sessionEvent,
                     phone_number_id: waPendingCoexSignup.phone_number_id,
                     waba_id: waPendingCoexSignup.waba_id,
                     business_id: waPendingCoexSignup.business_id,
+                    code: waPendingCoexSignup.code || '',
                 });
                 return;
             }
@@ -9545,7 +9550,7 @@
                 return;
             }
 
-            setTextFeedback(feedback, `Meta: ${sessionEvent || 'evento recebido'}. Aguarde a conclusão do popup.`, null);
+            setTextFeedback(feedback, `Meta: ${sessionEvent || 'evento recebido'}. Continue ate o final no popup e confirme a etapa no WhatsApp Business App.`, null);
         }
 
         async function startCoexEmbeddedSignup() {
@@ -9568,45 +9573,57 @@
                 submitting: false,
             };
 
-            const hostedUrl = buildHostedEmbeddedSignupUrl();
-            if (!hostedUrl) {
-                waPendingCoexSignup = null;
-                setTextFeedback(feedback, 'Não foi possível montar a URL hospedada da Meta para gerar o QR Code.', false);
-                return;
-            }
-
-            setTextFeedback(feedback, 'Abrindo a página hospedada da Meta para gerar o QR Code...', null);
+            setTextFeedback(feedback, 'Abrindo o fluxo CoEx oficial da Meta. O QR Code, quando houver, sera exibido pela propria Meta dentro do processo.', null);
 
             try {
-                const popup = window.open(
-                    hostedUrl,
-                    'waMetaEmbeddedSignup',
-                    'width=980,height=760,menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes'
-                );
+                const FB = await ensureMetaEmbeddedSignupSdk();
 
-                if (!popup) {
-                    throw new Error('O navegador bloqueou a janela da Meta. Libere pop-ups e tente novamente.');
-                }
+                await new Promise((resolve, reject) => {
+                    FB.login((response) => {
+                        if (!waPendingCoexSignup) {
+                            resolve();
+                            return;
+                        }
 
-                const popupWatcher = window.setInterval(() => {
-                    if (!waPendingCoexSignup) {
-                        window.clearInterval(popupWatcher);
-                        return;
-                    }
+                        const authResponse = response && typeof response === 'object'
+                            ? (response.authResponse || {})
+                            : {};
+                        const code = String(authResponse.code || response?.code || '').trim();
+                        if (code) {
+                            waPendingCoexSignup.code = code;
+                            setTextFeedback(feedback, 'Meta autorizada. Agora conclua a conexao no popup e confirme a etapa no WhatsApp Business App.', null);
+                            resolve();
+                            return;
+                        }
 
-                    if (popup.closed && !waPendingCoexSignup.submitting) {
-                        window.clearInterval(popupWatcher);
-                        setTextFeedback(feedback, 'A janela da Meta foi fechada antes da conclusão. Se o QR Code apareceu, abra novamente e finalize todo o fluxo.', false);
-                        waPendingCoexSignup = null;
-                    }
-                }, 700);
+                        const status = String(response?.status || '').toLowerCase();
+                        if (status === 'not_authorized' || status === 'unknown') {
+                            waPendingCoexSignup = null;
+                            reject(new Error('A Meta nao concluiu a autorizacao do CoEx. Verifique se o fluxo abriu a opcao do WhatsApp Business App existente.'));
+                            return;
+                        }
+
+                        setTextFeedback(feedback, 'A Meta abriu o fluxo, mas ainda nao devolveu o codigo final. Continue no popup e no app do celular.', null);
+                        resolve();
+                    }, {
+                        config_id: embeddedSignupConfigId,
+                        response_type: 'code',
+                        override_default_response_type: true,
+                        extras: {
+                            setup: {},
+                            featureType: 'whatsapp_business_app_onboarding',
+                            sessionInfoVersion: '3',
+                            version: 'v4'
+                        }
+                    });
+                });
 
                 if (embeddedSignupRedirectUri) {
-                    setTextFeedback(feedback, `Meta aberta. Se o fluxo pedir confirmação final, o retorno esperado é ${embeddedSignupRedirectUri}.`, null);
+                    setTextFeedback(feedback, `Meta aberta em modo CoEx. Se houver redirecionamento final, o retorno esperado e ${embeddedSignupRedirectUri}.`, null);
                 }
             } catch (error) {
                 waPendingCoexSignup = null;
-                setTextFeedback(feedback, error.message || 'Não foi possível abrir a conexão da Meta.', false);
+                setTextFeedback(feedback, error.message || 'Nao foi possivel abrir a conexao CoEx da Meta.', false);
             }
         }
 

@@ -105,6 +105,26 @@
     </div>
 </div>
 
+<div id="pixRefundModal" class="fixed inset-0 z-[100060] hidden items-center justify-center bg-slate-900/60 px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <div class="px-6 py-5 border-b border-slate-100">
+            <p class="text-xs font-bold uppercase tracking-[0.25em] text-rose-500">Confirmar estorno</p>
+            <h3 class="mt-2 text-lg font-semibold text-slate-800">Reverter esta cobrança PIX?</h3>
+            <p id="pixRefundModalText" class="mt-2 text-sm text-slate-500 leading-relaxed">
+                O valor será estornado e, se este for o plano ativo atual do cliente, o sistema volta para o bootstrap.
+            </p>
+        </div>
+        <div class="px-6 py-4 flex items-center justify-end gap-3">
+            <button type="button" id="pixRefundCancelBtn" class="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+                Cancelar
+            </button>
+            <button type="button" id="pixRefundConfirmBtn" class="px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 text-white hover:bg-rose-700 transition">
+                Confirmar estorno
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const tbody       = document.getElementById("pixTableBody");
@@ -124,6 +144,10 @@
         const intervalSel = document.getElementById("pixReloadInterval");
         const baseUrlMeta = document.querySelector('meta[name="base-url"]');
         const baseUrl = (baseUrlMeta?.content || '').replace(/\/$/, '');
+        const refundModal = document.getElementById('pixRefundModal');
+        const refundModalText = document.getElementById('pixRefundModalText');
+        const refundCancelBtn = document.getElementById('pixRefundCancelBtn');
+        const refundConfirmBtn = document.getElementById('pixRefundConfirmBtn');
 
         let allItems = [];
         let filteredItems = [];
@@ -131,10 +155,42 @@
         let perPage = 10;
         let userType = 'admin';
         let autoReloadTimer = null;
+        let pendingRefund = null;
 
         // Formatação de Moeda
         const formatBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
         const columnCount = () => userType === 'reseller' ? 7 : 7;
+        const notifySuccess = (message) => {
+            if (typeof notyf !== 'undefined') {
+                notyf.success(message);
+                return;
+            }
+            console.log(message);
+        };
+        const notifyError = (message) => {
+            if (typeof notyf !== 'undefined') {
+                notyf.error(message);
+                return;
+            }
+            console.error(message);
+        };
+
+        function openRefundModal(payload) {
+            pendingRefund = payload;
+            refundModalText.textContent = `Você está prestes a estornar a cobrança #${payload.invoice} no valor de ${formatBRL(payload.value)}. Se esse pagamento estiver vinculado ao plano ativo atual, o cliente volta para o bootstrap.`;
+            refundModal.classList.remove('hidden');
+            refundModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeRefundModal() {
+            pendingRefund = null;
+            refundModal.classList.add('hidden');
+            refundModal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+            refundConfirmBtn.disabled = false;
+            refundConfirmBtn.textContent = 'Confirmar estorno';
+        }
 
         // Badges de Status
         function getStatusBadge(status) {
@@ -298,7 +354,10 @@
 
         // Função para exportar os dados filtrados para CSV
         document.getElementById('pixExportCsv').onclick = function() {
-            if (filteredItems.length === 0) return alert('Não há dados para exportar.');
+            if (filteredItems.length === 0) {
+                notifyError('Não há dados para exportar.');
+                return;
+            }
 
             let csv = 'ID;Status;Valor;Fatura;Data\n'; // Cabeçalho
             filteredItems.forEach(item => {
@@ -322,21 +381,31 @@
                 return;
             }
 
-            const webhookId = button.dataset.webhookId;
-            const invoice = button.dataset.invoice || webhookId;
-            const value = Number(button.dataset.value || 0);
+            openRefundModal({
+                webhookId: button.dataset.webhookId,
+                invoice: button.dataset.invoice || button.dataset.webhookId,
+                value: Number(button.dataset.value || 0),
+            });
+        });
 
-            const confirmed = window.confirm(`Confirmar o estorno da cobrança #${invoice} no valor de ${formatBRL(value)}? O plano ativo do cliente será revertido quando este pagamento for o plano atual.`);
-            if (!confirmed) {
+        refundCancelBtn?.addEventListener('click', closeRefundModal);
+        refundModal?.addEventListener('click', (event) => {
+            if (event.target === refundModal) {
+                closeRefundModal();
+            }
+        });
+
+        refundConfirmBtn?.addEventListener('click', async () => {
+            if (!pendingRefund?.webhookId) {
+                closeRefundModal();
                 return;
             }
 
-            const originalLabel = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '<span>⏳</span> Estornando...';
+            refundConfirmBtn.disabled = true;
+            refundConfirmBtn.textContent = 'Estornando...';
 
             try {
-                const response = await fetch(`${baseUrl}/reports/transactions/${webhookId}/refund`, {
+                const response = await fetch(`${baseUrl}/reports/transactions/${pendingRefund.webhookId}/refund`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json'
@@ -348,12 +417,13 @@
                     throw new Error(payload.message || 'Não foi possível estornar a cobrança.');
                 }
 
-                alert(payload.message || 'Estorno realizado com sucesso.');
+                closeRefundModal();
+                notifySuccess(payload.message || 'Estorno realizado com sucesso.');
                 await fetchData(true);
             } catch (error) {
-                alert(error.message || 'Falha ao estornar a cobrança.');
-                button.disabled = false;
-                button.innerHTML = originalLabel;
+                refundConfirmBtn.disabled = false;
+                refundConfirmBtn.textContent = 'Confirmar estorno';
+                notifyError(error.message || 'Falha ao estornar a cobrança.');
             }
         });
 

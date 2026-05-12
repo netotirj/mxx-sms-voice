@@ -29,6 +29,20 @@ class AssasApi
         return $this->send('GET', '/payments?pixQrCodeId=' . rawurlencode($pixQrCodeId));
     }
 
+    public function refundPayment(string $paymentId, float $value, ?string $description = null): array
+    {
+        $request = [
+            'value' => round($value, 2),
+        ];
+
+        $description = trim((string)$description);
+        if ($description !== '') {
+            $request['description'] = $description;
+        }
+
+        return $this->send('POST', '/payments/' . rawurlencode($paymentId) . '/refund', $request);
+    }
+
     private function send(string $method, string $resource, array $request = []): array
     {
         $endpoint = $this->baseUrl . $resource;

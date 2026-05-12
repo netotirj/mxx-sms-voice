@@ -107,6 +107,17 @@ $obRouter->get('/reports/transactions-realtime',[
     }
 ]);
 
+$obRouter->post('/reports/transactions/{id}/refund',[
+    'name' => '/reports/transactions/{id}/refund',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function($request, $id){
+        return Pages\Reports::refundTransactionPix($request, $id);
+    }
+]);
+
 $obRouter->get('/reports/recharge-transactions',[
     'name' => '/reports/recharge-transactions', // nome da rota
     'middlewares' => [

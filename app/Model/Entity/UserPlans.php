@@ -338,4 +338,16 @@ class UserPlans
             ) > 0;
     }
 
+    public static function markRefunded(int $userPlanId): bool
+    {
+        return (new Database('mxx_user_plans'))->update(
+                'id = ' . (int)$userPlanId,
+                [
+                    'status_payment' => 'refunded',
+                    'status' => 'inactive',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]
+            ) > 0;
+    }
+
 }

@@ -565,6 +565,16 @@ class PixSearch
         return $data ? self::hydrate($data) : null;
     }
 
+    public static function getByWebhookId(int $webhookId): ?self
+    {
+        self::ensureSchema();
+        $data = (new Database('webhook_pix'))
+            ->select('webhook_id = :webhook_id', [':webhook_id' => $webhookId])
+            ->fetch(\PDO::FETCH_ASSOC);
+
+        return $data ? self::hydrate($data) : null;
+    }
+
     public static function findByProviderPayload(array $payment): ?self
     {
         self::ensureSchema();
@@ -640,29 +650,37 @@ class PixSearch
         $where = '1=1';
 
         if (isset($filters['tenancy_id'])) {
-            $where .= ' AND tenancy_id = :tenancy_id';
+            $where .= ' AND wp.tenancy_id = :tenancy_id';
             $params[':tenancy_id'] = $filters['tenancy_id'];
         }
 
         if (isset($filters['user_id'])) {
-            $where .= ' AND user_id = :user_id';
+            $where .= ' AND wp.user_id = :user_id';
             $params[':user_id'] = $filters['user_id'];
         }
 
         $query = "
             SELECT
-                webhook_id,
-                payment_status,
-                value,
-                asaas_payment_id,
-                asaas_customer_id,
-                invoiceNumber,
-                invoice_url,
-                transactionReceiptUrl,
-                due_date,
-                payment_date,
-                confirmed_date
-            FROM webhook_pix
+                wp.webhook_id,
+                wp.user_id,
+                wp.tenancy_id,
+                wp.user_plain_id,
+                wp.payment_status,
+                wp.value,
+                wp.pixQrCodeId,
+                wp.external_Reference,
+                wp.asaas_payment_id,
+                wp.asaas_customer_id,
+                wp.invoiceNumber,
+                wp.invoice_url,
+                wp.transactionReceiptUrl,
+                wp.due_date,
+                wp.payment_date,
+                wp.confirmed_date,
+                wp.updated_at,
+                u.email
+            FROM webhook_pix wp
+            LEFT JOIN users u ON u.id = wp.user_id AND u.tenancy_id = wp.tenancy_id
             WHERE {$where}
             ORDER BY {$order}
         ";

@@ -3,6 +3,7 @@
 namespace App\Controller\Pages;
 
 
+use App\Config\AsaasConfig;
 use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
@@ -13,6 +14,7 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\Rates;
 use App\Model\Entity\RefillsResellers;
 use App\Model\Entity\UserSearch;
+use App\Service\PixService;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
 use App\Session\User as SessionUser;
@@ -146,11 +148,21 @@ class Reports extends ViewComponents
 
             return [
                 'id'             => $row['webhook_id'] ?? $row['id'],
+                'webhook_id'     => $row['webhook_id'] ?? $row['id'],
+                'user_id'        => isset($row['user_id']) ? (int)$row['user_id'] : null,
+                'tenancy_id'     => $row['tenancy_id'] ?? null,
+                'plan_id'        => isset($row['user_plain_id']) ? (int)$row['user_plain_id'] : null,
                 'status'         => $row['payment_status'] ?? 'PENDING',
                 'value'          => (float)($row['value'] ?? 0),
+                'email'          => $row['email'] ?? null,
+                'pix_qr_code_id' => $row['pixQrCodeId'] ?? null,
+                'payment_id'     => $row['asaas_payment_id'] ?? null,
                 'invoice_number' => $row['invoiceNumber'] ?? '-',
+                'invoice_url'    => $row['invoice_url'] ?? null,
                 'date'           => isset($row['confirmed_date']) ? (new DateTime($row['confirmed_date']))->format('d-m-Y H:i:s') : '-',
+                'date_iso'       => $row['confirmed_date'] ?? $row['payment_date'] ?? $row['updated_at'] ?? null,
                 'receipt_url'    => $row['transactionReceiptUrl'] ?? null,
+                'can_refund'     => in_array((string)($row['payment_status'] ?? ''), ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'], true),
             ];
         }, $data);
 
@@ -163,6 +175,148 @@ class Reports extends ViewComponents
             'total'     => count($formatted),
             'data'      => $formatted
         ], 'application/json');
+    }
+
+    public static function refundTransactionPix($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $role = self::resolveUserRole($obUser);
+        if (!in_array($role, ['admin', 'super_admin'], true)) {
+            return new Response(403, ['success' => false, 'message' => 'Sem permissão para estornar cobranças.'], 'application/json');
+        }
+
+        $webhookId = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (!$webhookId) {
+            return new Response(422, ['success' => false, 'message' => 'Transação Pix inválida.'], 'application/json');
+        }
+
+        $pix = PixSearch::getByWebhookId((int)$webhookId);
+        if (!$pix) {
+            return new Response(404, ['success' => false, 'message' => 'Transação Pix não encontrada.'], 'application/json');
+        }
+
+        if ($role !== 'super_admin' && (string)$pix->tenancy_id !== (string)($obUser['tenancy_id'] ?? '')) {
+            return new Response(403, ['success' => false, 'message' => 'Você não pode estornar transações de outra empresa.'], 'application/json');
+        }
+
+        $currentStatus = strtoupper(trim((string)($pix->payment_status ?? '')));
+        if ($currentStatus === 'PAYMENT_REFUNDED') {
+            return new Response(409, ['success' => false, 'message' => 'Esta transação já foi estornada.'], 'application/json');
+        }
+
+        if (!in_array($currentStatus, ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'], true)) {
+            return new Response(409, ['success' => false, 'message' => 'Somente cobranças pagas podem ser estornadas.'], 'application/json');
+        }
+
+        if (!AsaasConfig::isConfigured()) {
+            return new Response(500, ['success' => false, 'message' => 'Configuração do Asaas incompleta para processar estorno.'], 'application/json');
+        }
+
+        try {
+            $paymentId = trim((string)($pix->asaas_payment_id ?? ''));
+            if ($paymentId === '' && !empty($pix->pixQrCodeId)) {
+                $providerPayment = self::resolveProviderPaymentForPix((string)$pix->pixQrCodeId, $pix);
+                if ($providerPayment !== null) {
+                    $syncResult = PixService::syncProviderStatusPayment($pix, $providerPayment);
+                    if (!$syncResult['success']) {
+                        return new Response(
+                            (int)($syncResult['status'] ?? 422),
+                            [
+                                'success' => false,
+                                'message' => $syncResult['error'] ?? 'Falha ao sincronizar pagamento antes do estorno.',
+                            ],
+                            'application/json'
+                        );
+                    }
+
+                    $refreshedPix = PixSearch::getByWebhookId((int)$webhookId);
+                    if ($refreshedPix) {
+                        $pix = $refreshedPix;
+                        $paymentId = trim((string)($pix->asaas_payment_id ?? ''));
+                    }
+                }
+            }
+
+            if ($paymentId === '') {
+                return new Response(422, ['success' => false, 'message' => 'Não foi possível identificar o pagamento no Asaas para estorno.'], 'application/json');
+            }
+
+            $client = AsaasConfig::createClient();
+            $refundResponse = $client->refundPayment(
+                $paymentId,
+                round((float)$pix->value, 2),
+                'Estorno solicitado pelo administrativo'
+            );
+
+            if (isset($refundResponse['error']) || isset($refundResponse['errors'])) {
+                return new Response(424, [
+                    'success' => false,
+                    'message' => 'O Asaas recusou o estorno desta cobrança.',
+                    'errors' => $refundResponse['errors'] ?? null,
+                ], 'application/json');
+            }
+
+            $providerPayment = null;
+            if (!empty($pix->pixQrCodeId)) {
+                $providerPayment = self::resolveProviderPaymentForPix((string)$pix->pixQrCodeId, $pix);
+            }
+
+            $refundStatus = strtoupper(trim((string)($refundResponse['status'] ?? '')));
+            if ($refundStatus === '') {
+                $refundStatus = strtoupper(trim((string)($refundResponse['refunds'][0]['status'] ?? '')));
+            }
+
+            $providerPaymentStatus = strtoupper(trim((string)($providerPayment['status'] ?? '')));
+            $canProcessLocalRefund = $providerPaymentStatus === 'REFUNDED' || $refundStatus === 'DONE';
+
+            if (!$canProcessLocalRefund) {
+                return new Response(202, [
+                    'success' => true,
+                    'message' => 'Pedido de estorno enviado ao Asaas. A reversão local será concluída quando o webhook confirmar o estorno.',
+                ], 'application/json');
+            }
+
+            if ($providerPayment === null) {
+                $providerPayment = [
+                    'id' => $paymentId,
+                    'status' => 'REFUNDED',
+                    'value' => (float)$pix->value,
+                    'invoiceNumber' => $pix->invoiceNumber,
+                    'pixQrCodeId' => $pix->pixQrCodeId,
+                    'externalReference' => $pix->external_Reference,
+                    'paymentDate' => date('Y-m-d H:i:s'),
+                    'confirmedDate' => date('Y-m-d H:i:s'),
+                ];
+            }
+
+            $result = PixService::processWebhookPayment('PAYMENT_REFUNDED', $providerPayment);
+            if (!$result['success']) {
+                return new Response(
+                    (int)($result['status'] ?? 422),
+                    [
+                        'success' => false,
+                        'message' => $result['error'] ?? 'Falha ao aplicar o estorno localmente.',
+                    ],
+                    'application/json'
+                );
+            }
+
+            return new Response(200, [
+                'success' => true,
+                'message' => 'Estorno realizado com sucesso.',
+                'data' => $result['data'] ?? [],
+            ], 'application/json');
+        } catch (\Throwable $e) {
+            return new Response(500, [
+                'success' => false,
+                'message' => 'Falha ao solicitar estorno da cobrança.',
+                'error' => $e->getMessage(),
+            ], 'application/json');
+        }
     }
 
     public static function getNotificationsStatusRealtime($request): Response
@@ -360,6 +514,36 @@ class Reports extends ViewComponents
     private static function normalizeNotificationType(string $type): string
     {
         return in_array($type, ['info', 'notice', 'warning', 'error', 'success'], true) ? $type : 'info';
+    }
+
+    private static function resolveProviderPaymentForPix(string $pixQrCodeId, PixSearch $pix): ?array
+    {
+        $response = AsaasConfig::createClient()->listPaymentsByPixQrCodeId($pixQrCodeId);
+        $items = is_array($response['data'] ?? null) ? $response['data'] : [];
+
+        if ($items === []) {
+            return null;
+        }
+
+        foreach ($items as $item) {
+            $sameInvoice = !empty($pix->invoiceNumber) && (string)($item['invoiceNumber'] ?? '') === (string)$pix->invoiceNumber;
+            $samePayment = !empty($pix->asaas_payment_id) && (string)($item['id'] ?? '') === (string)$pix->asaas_payment_id;
+            if ($sameInvoice || $samePayment) {
+                $item['pixQrCodeId'] = $item['pixQrCodeId'] ?? $pix->pixQrCodeId;
+                $item['invoiceNumber'] = $item['invoiceNumber'] ?? $pix->invoiceNumber;
+                $item['externalReference'] = $item['externalReference'] ?? $pix->external_Reference;
+                $item['value'] = $item['value'] ?? $pix->value;
+                return $item;
+            }
+        }
+
+        $item = $items[0];
+        $item['pixQrCodeId'] = $item['pixQrCodeId'] ?? $pix->pixQrCodeId;
+        $item['invoiceNumber'] = $item['invoiceNumber'] ?? $pix->invoiceNumber;
+        $item['externalReference'] = $item['externalReference'] ?? $pix->external_Reference;
+        $item['value'] = $item['value'] ?? $pix->value;
+
+        return $item;
     }
 
     public static function getStatusSmsViewRealtime($request): Response

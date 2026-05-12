@@ -51,6 +51,7 @@
                             <select id="pixStatusFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option value="">Todos</option>
                                 <option value="PAYMENT_RECEIVED">Aprovado</option>
+                                <option value="PAYMENT_CONFIRMED">Confirmado</option>
                                 <option value="PAYMENT_CREATED">Aguardando</option>
                                 <option value="PAYMENT_REFUNDED">Estornado</option>
                             </select>
@@ -121,6 +122,8 @@
         const reloadBtn   = document.getElementById("pixReloadBtn");
         const autoReload  = document.getElementById("pixAutoReload");
         const intervalSel = document.getElementById("pixReloadInterval");
+        const baseUrlMeta = document.querySelector('meta[name="base-url"]');
+        const baseUrl = (baseUrlMeta?.content || '').replace(/\/$/, '');
 
         let allItems = [];
         let filteredItems = [];
@@ -131,11 +134,13 @@
 
         // Formatação de Moeda
         const formatBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        const columnCount = () => userType === 'reseller' ? 7 : 7;
 
         // Badges de Status
         function getStatusBadge(status) {
             const map = {
                 'PAYMENT_RECEIVED': { text: 'Aprovado',  cls: 'bg-green-100 text-green-700' },
+                'PAYMENT_CONFIRMED': { text: 'Confirmado', cls: 'bg-emerald-100 text-emerald-700' },
                 'PAYMENT_CREATED':  { text: 'Aguardando', cls: 'bg-yellow-100 text-yellow-700' },
                 'PAYMENT_REFUNDED': { text: 'Estornado', cls: 'bg-red-100 text-red-700' },
                 'completed':        { text: 'Concluído', cls: 'bg-green-100 text-green-700' },
@@ -168,6 +173,7 @@
                 <th class="px-4 py-2 border border-slate-100">Número Fatura</th>
                 <th class="px-4 py-2 border border-slate-100">Data Pagamento</th>
                 <th class="px-4 py-2 border border-slate-100">Comprovante</th>
+                <th class="px-4 py-2 border border-slate-100">Ações</th>
             </tr>`;
             }
         }
@@ -189,6 +195,16 @@
 
             // Ajuste aqui: usando item.receipt_url e item.invoice_number que vem no seu JSON
             const receipt = item.receipt_url ? `<a href="${item.receipt_url}" target="_blank" class="text-red-600"><i class="fa fa-file-pdf"></i></a>` : '-';
+            const canRefund = Boolean(item.can_refund) && item.status !== 'PAYMENT_REFUNDED';
+            const refundButton = canRefund
+                ? `<button type="button"
+                           class="pix-refund-btn inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition"
+                           data-webhook-id="${item.webhook_id || item.id}"
+                           data-invoice="${item.invoice_number || ''}"
+                           data-value="${item.value || 0}">
+                        <span>↩</span> Estornar
+                   </button>`
+                : `<span class="text-xs text-slate-300">-</span>`;
 
             return `<tr>
                         <td class="px-4 py-2 border border-slate-100">#${item.id}</td>
@@ -197,20 +213,21 @@
                         <td class="px-4 py-2 border border-slate-100">${item.invoice_number || '-'}</td>
                         <td class="px-4 py-2 border border-slate-100 text-xs">${item.date || '-'}</td>
                         <td class="px-4 py-2 border border-slate-100">${receipt}</td>
+                        <td class="px-4 py-2 border border-slate-100">${refundButton}</td>
                     </tr>`;
         }
 
         async function fetchData(showLoading = true) {
-            if (showLoading) tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 italic">Carregando...</td></tr>';
+            if (showLoading) tbody.innerHTML = `<tr><td colspan="${columnCount()}" class="px-4 py-6 text-center text-slate-400 italic">Carregando...</td></tr>`;
             try {
-                const r = await fetch('transactions-realtime');
+                const r = await fetch(`${baseUrl}/reports/transactions-realtime`);
                 const res = await r.json();
                 userType = res.user_type || 'admin';
                 allItems = res.data || [];
                 updateHeaders();
                 applyFilters();
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${columnCount()}" class="px-4 py-6 text-center text-red-500">Erro ao carregar dados.</td></tr>`;
             }
         }
 
@@ -223,12 +240,12 @@
 
             filteredItems = allItems.filter(i => {
                 const matchesStatus = statusQ ? (i.payment_status === statusQ || i.status === statusQ) : true;
-                const matchesID = idQ ? (String(i.webhook_id || i.id || '').toLowerCase().includes(idQ) || String(i.invoiceNumber || '').toLowerCase().includes(idQ)) : true;
+                const matchesID = idQ ? (String(i.webhook_id || i.id || '').toLowerCase().includes(idQ) || String(i.invoice_number || '').toLowerCase().includes(idQ)) : true;
                 const matchesEmail = emailQ ? (String(i.email || '').toLowerCase().includes(emailQ)) : true;
 
                 // Filtro de data simples
                 if (dFrom || dTo) {
-                    const itemDate = new Date(i.confirmed_date || i.created_at || i.started);
+                    const itemDate = new Date(i.date_iso || i.confirmed_date || i.created_at || i.started);
                     if (dFrom && itemDate < new Date(dFrom)) return false;
                     if (dTo && itemDate > new Date(dTo + "T23:59:59")) return false;
                 }
@@ -247,7 +264,7 @@
             const start = (currentPage - 1) * perPage;
 
             if (!total) {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400">Nenhum registro.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${columnCount()}" class="px-4 py-6 text-center text-slate-400">Nenhum registro.</td></tr>`;
             } else {
                 filteredItems.slice(start, start + perPage).forEach(item => {
                     tbody.insertAdjacentHTML("beforeend", rowTemplate(item));
@@ -298,6 +315,47 @@
             link.click();
             document.body.removeChild(link);
         };
+
+        tbody.addEventListener('click', async (event) => {
+            const button = event.target.closest('.pix-refund-btn');
+            if (!button) {
+                return;
+            }
+
+            const webhookId = button.dataset.webhookId;
+            const invoice = button.dataset.invoice || webhookId;
+            const value = Number(button.dataset.value || 0);
+
+            const confirmed = window.confirm(`Confirmar o estorno da cobrança #${invoice} no valor de ${formatBRL(value)}? O plano ativo do cliente será revertido quando este pagamento for o plano atual.`);
+            if (!confirmed) {
+                return;
+            }
+
+            const originalLabel = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<span>⏳</span> Estornando...';
+
+            try {
+                const response = await fetch(`${baseUrl}/reports/transactions/${webhookId}/refund`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const payload = await response.json();
+                if (!response.ok || payload.success === false) {
+                    throw new Error(payload.message || 'Não foi possível estornar a cobrança.');
+                }
+
+                alert(payload.message || 'Estorno realizado com sucesso.');
+                await fetchData(true);
+            } catch (error) {
+                alert(error.message || 'Falha ao estornar a cobrança.');
+                button.disabled = false;
+                button.innerHTML = originalLabel;
+            }
+        });
 
         // Eventos
         reloadBtn.onclick = () => fetchData(true);

@@ -309,11 +309,37 @@ class PixService
         BalanceSms::decrementBalance((int)$pix->user_id, (string)$pix->tenancy_id, (float)$pix->value, $paymentReference);
         self::syncAdminBalance((int)$pix->user_id, (string)$pix->tenancy_id, -1 * (float)$pix->value);
 
+        $planInfo = UserPlans::getUserPlanInfo(
+            (int)$pix->user_plain_id,
+            (int)$pix->user_id,
+            (string)$pix->tenancy_id
+        );
+
+        $revertedToBootstrap = false;
+        $bootstrapPlanId = self::resolveBootstrapPlanId();
+
+        if ($planInfo && !empty($planInfo->user_plan_id)) {
+            UserPlans::markRefunded((int)$planInfo->user_plan_id);
+
+            $currentActivePlanId = RegisterTenancies::getActivePlanId((string)$pix->tenancy_id);
+            if (
+                $bootstrapPlanId > 0
+                && $currentActivePlanId !== null
+                && (int)$currentActivePlanId === (int)$planInfo->plan_id
+                && (int)$planInfo->plan_id !== $bootstrapPlanId
+            ) {
+                RegisterTenancies::updateActivePlan((string)$pix->tenancy_id, $bootstrapPlanId);
+                PlanRuntimeService::refreshPlanRuntime((string)$pix->tenancy_id);
+                $revertedToBootstrap = true;
+            }
+        }
+
         Notifications::insertNotifications(
             (string)$pix->tenancy_id,
             (int)$pix->user_id,
             'Pagamento estornado',
-            'O pagamento referente a fatura <b>#' . $paymentReference . '</b> foi estornado. O valor foi debitado do seu saldo.',
+            'O pagamento referente a fatura <b>#' . $paymentReference . '</b> foi estornado. O valor foi debitado do seu saldo.' .
+            ($revertedToBootstrap ? ' O plano ativo foi revertido para o bootstrap.' : ''),
             'alert'
         );
 
@@ -321,6 +347,8 @@ class PixService
             'invoiceNumber' => $invoice,
             'user_id' => $pix->user_id,
             'tenancy_id' => $pix->tenancy_id,
+            'reverted_to_bootstrap' => $revertedToBootstrap,
+            'bootstrap_plan_id' => $bootstrapPlanId,
         ]);
 
         return self::success([
@@ -328,7 +356,23 @@ class PixService
             'pixQrCodeId' => $pix->pixQrCodeId,
             'paymentReference' => $paymentReference,
             'processed' => true,
+            'revertedToBootstrap' => $revertedToBootstrap,
         ], 'Estorno processado com sucesso.');
+    }
+
+    private static function resolveBootstrapPlanId(): int
+    {
+        $plans = PlanCatalog::all(['type_plan' => 'bootstrap']);
+
+        foreach ($plans as $plan) {
+            $slug = strtolower(trim((string)($plan['slug'] ?? '')));
+            $name = strtolower(trim((string)($plan['name_plan'] ?? '')));
+            if ($slug === 'bootstrap-admin-bootstrap' || $name === 'bootstrap') {
+                return (int)($plan['id'] ?? 0);
+            }
+        }
+
+        return 37;
     }
 
     private static function syncAdminBalance(int $userId, string $tenancyId, float $amount): void

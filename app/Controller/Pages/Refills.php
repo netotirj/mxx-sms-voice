@@ -253,8 +253,9 @@ class Refills extends ViewComponents
         }
 
         $externalReference = 'pix_' . bin2hex(random_bytes(16));
-        $description = mb_substr((string)$obPlan->description, 0, 60);
-        $description = preg_replace('/[^A-Za-z0-9 ]/', '', $description) ?: 'Recarga Maxx Solutions';
+        $description = preg_replace('/[^A-Za-z0-9 ]/', '', (string)$obPlan->description);
+        $description = trim((string)preg_replace('/\s+/', ' ', $description));
+        $description = mb_substr($description !== '' ? $description : 'Recarga Maxx Solutions', 0, 37);
 
         $pixRequest = [
             'addressKey' => AsaasConfig::pixKey(),

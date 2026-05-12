@@ -319,6 +319,10 @@
                         </p>
                         <div class="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950">
                             <div id="previewMedia" class="relative aspect-[4/5] bg-[linear-gradient(180deg,_rgba(15,23,42,0.15),_rgba(15,23,42,0.8)),radial-gradient(circle_at_top,_rgba(251,113,133,0.55),_transparent_42%),linear-gradient(135deg,_#0f172a,_#1e293b)] p-5 text-white">
+                                <div id="previewMediaVisual" class="absolute inset-0 hidden overflow-hidden">
+                                    <img id="previewMediaImage" src="" alt="Thumbnail da campanha" class="hidden h-full w-full object-cover">
+                                    <video id="previewMediaVideo" class="hidden h-full w-full object-cover" controls muted playsinline preload="metadata"></video>
+                                </div>
                                 <div class="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] backdrop-blur">Vídeo demo</div>
                                 <div class="absolute inset-x-5 bottom-5 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                                     <p class="text-xs font-black uppercase tracking-[0.16em] text-rose-100">Thumbnail / vídeo</p>
@@ -362,6 +366,8 @@
         summary: {},
         settings: {},
         currentCampaign: null,
+        previewVideoObjectUrl: null,
+        previewImageObjectUrl: null,
     };
 
     const els = {
@@ -417,6 +423,9 @@
         destinationLink: document.getElementById('previewDestinationLink'),
         callToAction: document.getElementById('previewCallToAction'),
         media: document.getElementById('previewMedia'),
+        mediaVisual: document.getElementById('previewMediaVisual'),
+        mediaImage: document.getElementById('previewMediaImage'),
+        mediaVideo: document.getElementById('previewMediaVideo'),
     };
 
     const settingsFields = {
@@ -903,6 +912,51 @@
         `).join('');
     }
 
+    function revokePreviewObjectUrl(key) {
+        const current = state[key];
+        if (current) {
+            URL.revokeObjectURL(current);
+            state[key] = null;
+        }
+    }
+
+    function resetPreviewMediaVisual() {
+        revokePreviewObjectUrl('previewVideoObjectUrl');
+        revokePreviewObjectUrl('previewImageObjectUrl');
+
+        preview.mediaVisual.classList.add('hidden');
+        preview.mediaImage.classList.add('hidden');
+        preview.mediaImage.removeAttribute('src');
+        preview.mediaVideo.classList.add('hidden');
+        preview.mediaVideo.pause();
+        preview.mediaVideo.removeAttribute('src');
+        preview.mediaVideo.load();
+
+        preview.media.style.backgroundImage = '';
+        preview.media.style.backgroundSize = '';
+        preview.media.style.backgroundPosition = '';
+    }
+
+    function showPreviewImage(url) {
+        resetPreviewMediaVisual();
+        preview.mediaVisual.classList.remove('hidden');
+        preview.mediaImage.src = url;
+        preview.mediaImage.classList.remove('hidden');
+    }
+
+    function showPreviewVideo(url, mimeType = '') {
+        resetPreviewMediaVisual();
+        preview.mediaVisual.classList.remove('hidden');
+        preview.mediaVideo.src = url;
+        if (mimeType) {
+            preview.mediaVideo.setAttribute('type', mimeType);
+        } else {
+            preview.mediaVideo.removeAttribute('type');
+        }
+        preview.mediaVideo.classList.remove('hidden');
+        preview.mediaVideo.load();
+    }
+
     function updatePreview() {
         const title = fields.adTitle.value.trim() || 'Veja o sistema em ação';
         const text = fields.primaryText.value.trim() || 'Preencha o texto principal para visualizar a prévia.';
@@ -918,15 +972,31 @@
         preview.destinationLink.textContent = `ou site: ${destinationLink}`;
         preview.callToAction.textContent = cta;
 
-        if (state.currentCampaign?.thumbnail_url) {
-            preview.media.style.backgroundImage = `linear-gradient(180deg, rgba(15,23,42,0.15), rgba(15,23,42,0.8)), url('${state.currentCampaign.thumbnail_url}')`;
-            preview.media.style.backgroundSize = 'cover';
-            preview.media.style.backgroundPosition = 'center';
-        } else {
-            preview.media.style.backgroundImage = '';
-            preview.media.style.backgroundSize = '';
-            preview.media.style.backgroundPosition = '';
+        if (fields.videoFile.files[0]) {
+            revokePreviewObjectUrl('previewVideoObjectUrl');
+            state.previewVideoObjectUrl = URL.createObjectURL(fields.videoFile.files[0]);
+            showPreviewVideo(state.previewVideoObjectUrl, fields.videoFile.files[0].type || '');
+            return;
         }
+
+        if (state.currentCampaign?.video_url) {
+            showPreviewVideo(state.currentCampaign.video_url);
+            return;
+        }
+
+        if (fields.thumbnailFile.files[0]) {
+            revokePreviewObjectUrl('previewImageObjectUrl');
+            state.previewImageObjectUrl = URL.createObjectURL(fields.thumbnailFile.files[0]);
+            showPreviewImage(state.previewImageObjectUrl);
+            return;
+        }
+
+        if (state.currentCampaign?.thumbnail_url) {
+            showPreviewImage(state.currentCampaign.thumbnail_url);
+            return;
+        }
+
+        resetPreviewMediaVisual();
     }
 
     function findCampaign(id) {
@@ -934,6 +1004,22 @@
     }
 
     function bindEvents() {
+        preview.mediaVideo?.addEventListener('error', () => {
+            console.error('[MarketingPreview] Falha ao carregar vídeo de pré-visualização.', {
+                src: preview.mediaVideo.currentSrc || preview.mediaVideo.src || '',
+                error: preview.mediaVideo.error ? {
+                    code: preview.mediaVideo.error.code,
+                    message: preview.mediaVideo.error.message || '',
+                } : null,
+            });
+        });
+
+        preview.mediaImage?.addEventListener('error', () => {
+            console.error('[MarketingPreview] Falha ao carregar imagem de pré-visualização.', {
+                src: preview.mediaImage.currentSrc || preview.mediaImage.src || '',
+            });
+        });
+
         els.form.addEventListener('submit', saveCampaign);
         els.settingsForm.addEventListener('submit', saveSettings);
         els.testConnectionBtn.addEventListener('click', testConnection);

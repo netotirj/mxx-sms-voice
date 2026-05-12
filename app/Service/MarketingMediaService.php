@@ -91,6 +91,15 @@ class MarketingMediaService
             'metadata_json' => null,
         ];
 
+        error_log('[MarketingMedia] upload stored: ' . json_encode([
+            'campaign_id' => $campaignId,
+            'tenancy_id' => $tenancyId,
+            'asset_type' => $assetType,
+            'mime_type' => $detectedMime,
+            'size_bytes' => $size,
+            'public_path' => $publicRelative,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
         if ($assetType === 'thumbnail') {
             $dimensions = @getimagesize($absolutePath);
             if (is_array($dimensions)) {
@@ -142,6 +151,7 @@ class MarketingMediaService
     {
         $ffmpeg = self::resolveBinary('ffmpeg');
         if ($ffmpeg === null) {
+            error_log('[MarketingMedia] ffmpeg not found; automatic thumbnail skipped for campaign ' . $campaignId);
             return null;
         }
 
@@ -154,8 +164,19 @@ class MarketingMediaService
 
         @exec($command, $output, $status);
         if ($status !== 0 || !is_file($thumbAbsolute)) {
+            error_log('[MarketingMedia] thumbnail generation failed: ' . json_encode([
+                'campaign_id' => $campaignId,
+                'video_path' => $videoPath,
+                'status' => $status,
+                'output' => $output,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return null;
         }
+
+        error_log('[MarketingMedia] thumbnail generated: ' . json_encode([
+            'campaign_id' => $campaignId,
+            'thumbnail_path' => 'upload/marketing/' . $tenancyId . '/' . $campaignId . '/' . $thumbName,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return 'upload/marketing/' . $tenancyId . '/' . $campaignId . '/' . $thumbName;
     }

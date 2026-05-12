@@ -117,7 +117,7 @@
                         <label class="block">
                             <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Access Token</span>
                             <input id="metaAccessToken" type="password" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="Cole um novo token para atualizar">
-                            <p id="metaAccessTokenHint" class="mt-1 text-xs text-slate-400">Token atual não é exposto no frontend.</p>
+                            <p id="metaAccessTokenHint" class="mt-1 max-w-full break-words text-xs text-slate-400">Token atual não é exposto no frontend.</p>
                         </label>
                         <label class="block">
                             <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Meta Ad Account ID</span>
@@ -141,8 +141,8 @@
                         </label>
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Status da conexão</p>
-                            <p id="metaConnectionStatus" class="mt-2 text-sm font-black text-slate-700">Não configurado</p>
-                            <p id="metaConnectionError" class="mt-1 text-xs text-rose-500"></p>
+                            <p id="metaConnectionStatus" class="mt-2 max-w-full break-words text-sm font-black text-slate-700">Não configurado</p>
+                            <p id="metaConnectionError" class="mt-1 max-w-full break-words text-xs text-rose-500"></p>
                         </div>
                         <div class="flex flex-wrap gap-3">
                             <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white">Salvar config</button>
@@ -672,7 +672,7 @@
         settingsFields.businessId.value = settings.meta_business_id || '';
         settingsFields.accessToken.value = '';
         settingsFields.accessTokenHint.textContent = settings.has_access_token
-            ? `Token atual: ${settings.access_token_masked || 'configurado'}`
+            ? 'Token atual configurado com segurança.'
             : 'Nenhum token configurado.';
         settingsFields.connectionStatus.textContent = statusConnectionLabel(settings.connection_status);
         settingsFields.connectionError.textContent = settings.last_error || '';

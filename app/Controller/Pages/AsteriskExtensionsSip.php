@@ -96,12 +96,8 @@ class AsteriskExtensionsSip
     {
         $query = $this->normalizeQuery($query);
         $payload = $this->normalizePayload($payload, 'generic');
-        //echo "<pre>";
-        //print_r($payload);
-        //echo "</pre>";exit();
-
         $query['action'] = 'update_tariff';
-        return $this->request('PUT', $query, $payload);
+        return $this->request('POST', $query, $payload);
     }
 
     public function deleteExtension(array $query, array $payload): array

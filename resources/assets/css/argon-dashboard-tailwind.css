@@ -1018,6 +1018,10 @@ h6 {
   z-index: 100051;
 }
 
+.z-\[100060\] {
+  z-index: 100060;
+}
+
 .z-\[1024\] {
   z-index: 1024;
 }
@@ -1064,10 +1068,6 @@ h6 {
 
 .z-\[9999\] {
   z-index: 9999;
-}
-
-.z-\[999\] {
-  z-index: 999;
 }
 
 .z-sticky {
@@ -3474,6 +3474,11 @@ h6 {
   background-color: rgb(244 63 94 / var(--tw-bg-opacity, 1));
 }
 
+.bg-rose-600 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(225 29 72 / var(--tw-bg-opacity, 1));
+}
+
 .bg-sky-100 {
   --tw-bg-opacity: 1;
   background-color: rgb(246 249 252 / var(--tw-bg-opacity, 1));
@@ -3677,10 +3682,6 @@ h6 {
 
 .bg-\[linear-gradient\(180deg\2c _rgba\(15\2c 23\2c 42\2c 0\.15\)\2c _rgba\(15\2c 23\2c 42\2c 0\.8\)\)\2c radial-gradient\(circle_at_top\2c _rgba\(251\2c 113\2c 133\2c 0\.55\)\2c _transparent_42\%\)\2c linear-gradient\(135deg\2c _\#0f172a\2c _\#1e293b\)\] {
   background-image: linear-gradient(180deg, rgba(15,23,42,0.15), rgba(15,23,42,0.8)),radial-gradient(circle at top, rgba(251,113,133,0.55), transparent 42%),linear-gradient(135deg, #0f172a, #1e293b);
-}
-
-.bg-\[radial-gradient\(circle_at_top_right\2c _rgba\(251\2c 113\2c 133\2c 0\.28\)\2c _transparent_58\%\)\] {
-  background-image: radial-gradient(circle at top right, rgba(251,113,133,0.28), transparent 58%);
 }
 
 .bg-gradient-to-b {
@@ -3986,11 +3987,6 @@ h6 {
   --tw-gradient-stops: var(--tw-gradient-from), #f5365c var(--tw-gradient-via-position), var(--tw-gradient-to);
 }
 
-.via-slate-900 {
-  --tw-gradient-to: rgb(5 17 57 / 0)  var(--tw-gradient-to-position);
-  --tw-gradient-stops: var(--tw-gradient-from), #051139 var(--tw-gradient-via-position), var(--tw-gradient-to);
-}
-
 .to-amber-400 {
   --tw-gradient-to: #fbbf24 var(--tw-gradient-to-position);
 }
@@ -4113,10 +4109,6 @@ h6 {
 
 .to-rose-600 {
   --tw-gradient-to: #e11d48 var(--tw-gradient-to-position);
-}
-
-.to-rose-900 {
-  --tw-gradient-to: #881337 var(--tw-gradient-to-position);
 }
 
 .to-sky-300 {
@@ -4806,6 +4798,10 @@ h6 {
   letter-spacing: 0.24em;
 }
 
+.tracking-\[0\.25em\] {
+  letter-spacing: 0.25em;
+}
+
 .tracking-\[0\.28em\] {
   letter-spacing: 0.28em;
 }
@@ -5135,10 +5131,6 @@ h6 {
 
 .text-rose-100\/70 {
   color: rgb(255 228 230 / 0.7);
-}
-
-.text-rose-100\/80 {
-  color: rgb(255 228 230 / 0.8);
 }
 
 .text-rose-100\/85 {
@@ -6352,6 +6344,11 @@ h6 {
 .hover\:bg-rose-100:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(255 228 230 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-rose-700:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(190 18 60 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-sky-600:hover {

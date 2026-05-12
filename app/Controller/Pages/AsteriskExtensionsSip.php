@@ -97,7 +97,34 @@ class AsteriskExtensionsSip
         $query = $this->normalizeQuery($query);
         $payload = $this->normalizePayload($payload, 'generic');
         $query['action'] = 'update_tariff';
-        return $this->request('POST', $query, $payload);
+
+        foreach (['POST', 'PATCH', 'PUT'] as $method) {
+            $response = $this->request($method, $query, $payload);
+
+            if (!empty($response['ok'])) {
+                return $response;
+            }
+
+            $status = (int)($response['status'] ?? 0);
+            $error = strtolower((string)($response['error'] ?? ''));
+            $shouldRetry = $status === 405
+                || str_contains($error, 'acao put invalida')
+                || str_contains($error, 'ação put inválida')
+                || str_contains($error, 'acao patch invalida')
+                || str_contains($error, 'ação patch inválida')
+                || str_contains($error, 'method not allowed');
+
+            if (!$shouldRetry) {
+                return $response;
+            }
+        }
+
+        return $response ?? [
+            'ok' => false,
+            'status' => 0,
+            'error' => 'Falha ao sincronizar tarifa com a API Asterisk.',
+            'data' => null,
+        ];
     }
 
     public function deleteExtension(array $query, array $payload): array

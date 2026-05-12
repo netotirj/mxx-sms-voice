@@ -287,8 +287,11 @@
                         <input id="campaignEndDate" name="end_date" type="date" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
                     </label>
                     <label class="block md:col-span-2">
-                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Meta Ad Account da campanha</span>
-                        <input id="campaignAccountId" name="account_id" type="text" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none" placeholder="Opcional, pode herdar da configuração">
+                        <span class="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Conta WhatsApp da campanha</span>
+                        <select id="campaignAccountId" name="account_id" class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none">
+                            <option value="">Selecionar conta WhatsApp...</option>
+                        </select>
+                        <p id="campaignAccountHint" class="mt-1 text-xs text-slate-400">Selecione uma conta real do sistema. O número pode ser herdado automaticamente para a campanha.</p>
                     </label>
                     <div class="md:col-span-2 flex flex-wrap gap-3 pt-2">
                         <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white">Salvar campanha</button>
@@ -366,6 +369,7 @@
         summary: {},
         settings: {},
         currentCampaign: null,
+        availableAccounts: [],
         previewVideoObjectUrl: null,
         previewImageObjectUrl: null,
     };
@@ -439,6 +443,8 @@
         connectionStatus: document.getElementById('metaConnectionStatus'),
         connectionError: document.getElementById('metaConnectionError'),
     };
+
+    const accountHint = document.getElementById('campaignAccountHint');
 
     const summaryEls = {
         total: document.getElementById('summaryTotalCampaigns'),
@@ -528,6 +534,8 @@
         const data = await request(`${marketingBase}/dashboard`);
         state.campaigns = Array.isArray(data.data?.campaigns) ? data.data.campaigns : [];
         state.summary = data.data?.summary || {};
+        state.availableAccounts = Array.isArray(data.data?.available_accounts) ? data.data.available_accounts : [];
+        renderAccountOptions();
         renderSummary();
         renderCampaigns();
     }
@@ -666,6 +674,48 @@
         summaryEls.heroIntegration.textContent = settings.connection_status === 'connected' ? 'Meta conectada' : 'Meta Ads preparada';
     }
 
+    function accountOptionLabel(account) {
+        const mainLabel = account.label || account.display_name || account.display_phone_number || `Conta ${account.id}`;
+        const phone = account.display_phone_number ? ` • ${account.display_phone_number}` : '';
+        return `${mainLabel}${phone}`;
+    }
+
+    function selectedAccount() {
+        const selectedId = String(fields.accountId.value || '').trim();
+        if (!selectedId) {
+            return null;
+        }
+
+        return state.availableAccounts.find((account) => String(account.id) === selectedId) || null;
+    }
+
+    function syncAccountHint() {
+        const account = selectedAccount();
+        if (!accountHint) {
+            return;
+        }
+
+        if (!account) {
+            accountHint.textContent = 'Selecione uma conta real do sistema. O número pode ser herdado automaticamente para a campanha.';
+            return;
+        }
+
+        accountHint.textContent = `Conta ativa: ${accountOptionLabel(account)}`;
+    }
+
+    function renderAccountOptions() {
+        const currentValue = String(fields.accountId.value || '').trim();
+        const options = ['<option value="">Selecionar conta WhatsApp...</option>'];
+
+        state.availableAccounts.forEach((account) => {
+            const selected = String(account.id) === currentValue ? ' selected' : '';
+            options.push(`<option value="${escapeHtml(String(account.id))}"${selected}>${escapeHtml(accountOptionLabel(account))}</option>`);
+        });
+
+        fields.accountId.innerHTML = options.join('');
+        syncAccountHint();
+    }
+
     function statusConnectionLabel(status) {
         const labels = {
             connected: 'Conectado',
@@ -707,16 +757,19 @@
         fields.startDate.value = campaign.start_date || '';
         fields.endDate.value = campaign.end_date || '';
         fields.accountId.value = campaign.account_id || '';
+        renderAccountOptions();
         fields.videoFile.value = '';
         fields.thumbnailFile.value = '';
         document.getElementById('campaignVideoHint').textContent = campaign.video_url ? `Atual: ${campaign.video_url.split('/').pop()}` : 'MP4, MOV ou WEBM até 100 MB.';
         document.getElementById('campaignThumbnailHint').textContent = campaign.thumbnail_url ? `Atual: ${campaign.thumbnail_url.split('/').pop()}` : 'JPG, PNG ou WEBP até 5 MB.';
+        syncAccountHint();
     }
 
     function clearCampaignForm() {
         els.form.reset();
         els.formId.value = '';
         state.currentCampaign = null;
+        renderAccountOptions();
         document.getElementById('campaignVideoHint').textContent = 'MP4, MOV ou WEBM até 100 MB.';
         document.getElementById('campaignThumbnailHint').textContent = 'JPG, PNG ou WEBP até 5 MB.';
         renderHistory([]);
@@ -1003,6 +1056,22 @@
         return state.campaigns.find((campaign) => Number(campaign.id) === Number(id)) || null;
     }
 
+    function handleAccountSelectionChange() {
+        const account = selectedAccount();
+        syncAccountHint();
+
+        if (!account) {
+            updatePreview();
+            return;
+        }
+
+        if (!String(fields.whatsappNumber.value || '').trim() && account.display_phone_number) {
+            fields.whatsappNumber.value = account.display_phone_number;
+        }
+
+        updatePreview();
+    }
+
     function bindEvents() {
         preview.mediaVideo?.addEventListener('error', () => {
             console.error('[MarketingPreview] Falha ao carregar vídeo de pré-visualização.', {
@@ -1027,6 +1096,7 @@
         els.newBtn.addEventListener('click', clearCampaignForm);
         els.resetBtn.addEventListener('click', clearCampaignForm);
         els.syncPreviewBtn.addEventListener('click', () => runSyncPreview());
+        fields.accountId.addEventListener('change', handleAccountSelectionChange);
         els.pauseBtn.addEventListener('click', () => {
             const id = Number(els.formId.value || 0);
             if (id) changeCampaignStatus(id, 'paused');

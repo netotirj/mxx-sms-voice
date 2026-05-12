@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Model\Entity\MarketingCampaign;
+use App\Model\Entity\WhatsAppAccount;
 use App\Utils\TenancyHelper;
 
 class MarketingCampaignService
@@ -33,6 +34,7 @@ class MarketingCampaignService
             ],
             'campaigns' => array_map(static fn (array $row): array => self::presentCampaignRow($row), $campaigns),
             'settings' => $settings,
+            'available_accounts' => self::availableAccounts($user),
         ];
     }
 
@@ -533,6 +535,7 @@ class MarketingCampaignService
             'meta_ad_id' => (string)($row['meta_ad_id'] ?? ''),
             'meta_creative_id' => (string)($row['meta_creative_id'] ?? ''),
             'sync_status' => (string)($row['sync_status'] ?? 'pending'),
+            'account_context' => self::resolveAccountContext((string)($row['account_id'] ?? ''), $row),
             'impressions' => (int)($row['impressions'] ?? 0),
             'clicks' => (int)($row['clicks'] ?? 0),
             'cost_per_click' => (float)($row['cost_per_click'] ?? 0),
@@ -566,6 +569,27 @@ class MarketingCampaignService
         ];
 
         return $campaign;
+    }
+
+    private static function resolveAccountContext(string $accountId, array $row = []): ?array
+    {
+        $accountId = trim($accountId);
+        if ($accountId === '' || !ctype_digit($accountId)) {
+            return null;
+        }
+
+        $account = WhatsAppAccount::getById((int)$accountId);
+        if (!$account) {
+            return null;
+        }
+
+        return [
+            'id' => (int)($account['id'] ?? 0),
+            'label' => (string)($account['internal_label'] ?? $account['label'] ?? ''),
+            'display_name' => (string)($account['display_name_meta'] ?? $account['display_name'] ?? ''),
+            'display_phone_number' => (string)($account['display_phone_number'] ?? ''),
+            'tenancy_id' => (string)($account['tenancy_id'] ?? ($row['tenancy_id'] ?? '')),
+        ];
     }
 
     private static function logHistory(?int $campaignId, array $user, string $action, string $label, array $details = []): void
@@ -617,6 +641,34 @@ class MarketingCampaignService
         }
 
         return implode(' | ', $parts);
+    }
+
+    private static function availableAccounts(array $user): array
+    {
+        $accounts = WhatsAppAccount::listForUser($user);
+
+        return array_map(static function (array $account): array {
+            $numberId = (int)($account['number_id'] ?? 0);
+            $label = trim((string)($account['internal_label'] ?? ''));
+            if ($label === '') {
+                $label = trim((string)($account['label'] ?? ''));
+            }
+
+            $displayName = trim((string)($account['display_name_meta'] ?? ''));
+            if ($displayName === '') {
+                $displayName = trim((string)($account['display_name'] ?? ''));
+            }
+
+            return [
+                'id' => (int)($account['id'] ?? 0),
+                'number_id' => $numberId > 0 ? $numberId : null,
+                'label' => $label,
+                'display_name' => $displayName,
+                'display_phone_number' => (string)($account['display_phone_number'] ?? ''),
+                'status' => (string)($account['status'] ?? 'active'),
+                'voice_status' => (string)($account['voice_status'] ?? ''),
+            ];
+        }, $accounts);
     }
 
     private static function normalizeStatus(string $status): string

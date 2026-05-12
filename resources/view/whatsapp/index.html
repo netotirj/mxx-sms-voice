@@ -106,6 +106,62 @@
                     </div>
                 </div>
 
+                <div id="wa-coex-modal" class="fixed inset-0 z-[99991] hidden items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm">
+                    <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-100 mx-4">
+                        <div class="flex items-start justify-between gap-4 mb-5">
+                            <div>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 mb-1">WhatsApp Business App + Meta</p>
+                                <h6 class="text-slate-700 text-lg font-bold mb-1 uppercase">Conectar app existente com QR Code</h6>
+                                <p class="text-xs text-slate-400 mb-0">Use este fluxo quando o número já está ativo no WhatsApp Business do celular e você quer manter app + API oficial juntos.</p>
+                            </div>
+                            <button id="wa-coex-close" type="button" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-xl leading-none">×</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="wa-field">
+                                    <span>Nome do número no painel</span>
+                                    <input id="wa-coex-label" type="text" placeholder="Ex: Suporte Oficial">
+                                </label>
+                                <label class="wa-field">
+                                    <span>Número do WhatsApp Business</span>
+                                    <input id="wa-coex-display-phone" type="text" inputmode="numeric" placeholder="Ex: 5521999999999">
+                                    <p class="mt-1 mb-0 text-[11px] text-slate-400">Use o mesmo número que já está no app do celular.</p>
+                                </label>
+                                <label class="wa-field md:col-span-2">
+                                    <span>Nome comercial esperado na Meta</span>
+                                    <input id="wa-coex-display-name-meta" type="text" placeholder="Nome da empresa no WhatsApp">
+                                </label>
+                                <label class="wa-field md:col-span-2">
+                                    <span class="inline-flex items-center gap-2">
+                                        <input id="wa-coex-activate-voice" type="checkbox">
+                                        Ativar chamadas de voz WhatsApp quando o número for liberado
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p class="text-[10px] font-black uppercase text-slate-500 mb-2">Como vai funcionar</p>
+                                <ol class="space-y-2 text-[12px] leading-5 text-slate-600 list-decimal pl-4 mb-0">
+                                    <li>O painel abre o Embedded Signup oficial da Meta.</li>
+                                    <li>No popup, escolha o fluxo de conectar o WhatsApp Business App existente.</li>
+                                    <li>A Meta envia a etapa de QR Code.</li>
+                                    <li>No celular, abra o WhatsApp Business e confirme a conexão.</li>
+                                    <li>Se quiser, compartilhe o histórico quando a Meta oferecer essa opção.</li>
+                                </ol>
+                                <p class="mt-3 mb-0 text-[11px] text-amber-700 font-semibold">Se o popup cair no fluxo de código/SMS para número virgem, feche e use o fluxo tradicional.</p>
+                            </div>
+                        </div>
+
+                        <p id="wa-coex-feedback" class="text-xs font-bold mt-4 mb-0 min-h-4"></p>
+
+                        <div class="flex justify-end gap-2 mt-5">
+                            <button id="wa-coex-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold uppercase">Cancelar</button>
+                            <button id="wa-coex-start" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Abrir Meta e gerar QR Code</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="wa-account-settings-modal" class="fixed inset-0 z-[99991] hidden items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm">
                     <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xl border border-slate-100 mx-4">
                         <div class="flex items-start justify-between gap-4 mb-5">
@@ -702,6 +758,7 @@
                                                 <div id="wa-actions-dropdown" class="wa-actions-dropdown hidden">
                                                     <button id="wa-test-account" type="button"><i class="fa fa-plug"></i> Testar conexão</button>
                                                     <button id="wa-add-account" type="button"><i class="fa fa-plus"></i> Conectar número</button>
+                                                    <button id="wa-add-coex-account" type="button"><i class="fa fa-qrcode"></i> Conectar app existente (QR Code)</button>
                                                 </div>
                                             </div>
                                             <button id="wa-refresh-conversations" type="button" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50" title="Atualizar">
@@ -1384,7 +1441,8 @@
                                 </label>
                             </div>
                             <p id="wa-page-account-feedback" class="text-xs font-bold mt-2 mb-0 min-h-4"></p>
-                            <div class="flex justify-end gap-2 mt-4">
+                            <div class="flex flex-wrap justify-end gap-2 mt-4">
+                                <button id="wa-page-account-coex" type="button" class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold uppercase">Usar WhatsApp Business App + QR Code</button>
                                 <button id="wa-page-account-save" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase shadow">Solicitar conexão</button>
                             </div>
                         </div>
@@ -1449,12 +1507,18 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
+        window.__WA_META_APP_ID__ = '{{WHATSAPP_META_APP_ID}}';
+        window.__WA_META_EMBEDDED_SIGNUP_CONFIG_ID__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID}}';
+        window.__WA_META_EMBEDDED_SIGNUP_REDIRECT_URI__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_REDIRECT_URI}}';
+        window.__WA_META_GRAPH_VERSION__ = '{{META_GRAPH_VERSION}}';
+        window.__WA_META_EMBEDDED_SIGNUP_ENABLED__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_ENABLED}}';
         const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
         const permissionsSyncUrl = document.querySelector('meta[name="permissions-sync-url"]')?.getAttribute('content') || `${baseUrl}/me/permissions`;
         const waWebRtcHost = '{{ASTERISK_WS_HOST}}';
         const waWebRtcPort = '{{ASTERISK_WS_PORT}}';
         const waShell = document.getElementById('wa-shell');
         const accountModal = document.getElementById('wa-account-modal');
+        const coexModal = document.getElementById('wa-coex-modal');
         const accountSettingsModal = document.getElementById('wa-account-settings-modal');
         const verificationModal = document.getElementById('wa-verification-modal');
         const businessProfileModal = document.getElementById('wa-business-profile-modal');
@@ -1488,6 +1552,11 @@
         const protocolFeedback = document.getElementById('wa-protocol-feedback');
         const searchInput = document.getElementById('wa-chat-search');
         const refreshConversationsBtn = document.getElementById('wa-refresh-conversations');
+        const embeddedSignupEnabled = String(window.__WA_META_EMBEDDED_SIGNUP_ENABLED__ || '').toLowerCase() === 'true';
+        const embeddedSignupAppId = String(window.__WA_META_APP_ID__ || '').trim();
+        const embeddedSignupConfigId = String(window.__WA_META_EMBEDDED_SIGNUP_CONFIG_ID__ || '').trim();
+        const embeddedSignupRedirectUri = String(window.__WA_META_EMBEDDED_SIGNUP_REDIRECT_URI__ || '').trim();
+        const embeddedSignupGraphVersion = String(window.__WA_META_GRAPH_VERSION__ || 'v25.0').trim();
         const deleteConversationBtn = document.getElementById('wa-delete-conversation');
         const clearSelectionBtn = document.getElementById('wa-clear-selection');
         const markReadBtn = document.getElementById('wa-mark-read');
@@ -1660,6 +1729,8 @@
         let selectedAccountId = Number(localStorage.getItem('wa_selected_account_id') || 0);
         let selectedConversation = null;
         let selectedConversationMessagesMeta = null;
+        let waEmbeddedSignupSdkPromise = null;
+        let waPendingCoexSignup = null;
         let waWebRtcUa = null;
         let waWebRtcSession = null;
         let waWebRtcRegisterPromise = null;
@@ -9270,6 +9341,244 @@
             }
         }
 
+        function openCoexModal(prefillFromPage = false) {
+            if (!coexModal) return;
+
+            const labelField = document.getElementById('wa-coex-label');
+            const phoneField = document.getElementById('wa-coex-display-phone');
+            const metaNameField = document.getElementById('wa-coex-display-name-meta');
+            const voiceField = document.getElementById('wa-coex-activate-voice');
+
+            if (prefillFromPage) {
+                if (labelField) labelField.value = document.getElementById('wa-page-account-label')?.value || '';
+                if (phoneField) phoneField.value = document.getElementById('wa-page-account-display-phone')?.value || '';
+                if (metaNameField) metaNameField.value = document.getElementById('wa-page-account-display-name-meta')?.value || '';
+                if (voiceField) voiceField.checked = !!document.getElementById('wa-page-account-activate-voice')?.checked;
+            }
+
+            const feedback = document.getElementById('wa-coex-feedback');
+            setTextFeedback(
+                feedback,
+                embeddedSignupEnabled
+                    ? 'Pronto para abrir o fluxo oficial da Meta.'
+                    : 'Configure WHATSAPP_META_APP_ID e WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID para liberar o QR Code.',
+                embeddedSignupEnabled ? true : false
+            );
+
+            modal(coexModal, true);
+        }
+
+        function closeCoexModal() {
+            modal(coexModal, false);
+            waPendingCoexSignup = null;
+        }
+
+        function coexFormPayload() {
+            return {
+                label: String(document.getElementById('wa-coex-label')?.value || '').trim(),
+                display_name_meta: String(document.getElementById('wa-coex-display-name-meta')?.value || '').trim(),
+                display_phone_number: normalizeMetaRequestPhoneValue(document.getElementById('wa-coex-display-phone')?.value || ''),
+                activate_voice: !!document.getElementById('wa-coex-activate-voice')?.checked,
+            };
+        }
+
+        async function ensureMetaEmbeddedSignupSdk() {
+            if (window.FB && typeof window.FB.init === 'function') {
+                return window.FB;
+            }
+
+            if (waEmbeddedSignupSdkPromise) {
+                return waEmbeddedSignupSdkPromise;
+            }
+
+            waEmbeddedSignupSdkPromise = new Promise((resolve, reject) => {
+                const finishInit = () => {
+                    if (!(window.FB && typeof window.FB.init === 'function')) {
+                        reject(new Error('SDK do Facebook não ficou disponível.'));
+                        return;
+                    }
+
+                    try {
+                        window.FB.init({
+                            appId: embeddedSignupAppId,
+                            cookie: true,
+                            xfbml: false,
+                            version: embeddedSignupGraphVersion,
+                        });
+                        resolve(window.FB);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+
+                window.fbAsyncInit = finishInit;
+
+                const existingScript = document.getElementById('facebook-jssdk');
+                if (existingScript) {
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.id = 'facebook-jssdk';
+                script.async = true;
+                script.defer = true;
+                script.crossOrigin = 'anonymous';
+                script.src = 'https://connect.facebook.net/en_US/sdk.js';
+                script.onerror = () => reject(new Error('Não foi possível carregar o SDK do Facebook.'));
+                document.head.appendChild(script);
+            });
+
+            return waEmbeddedSignupSdkPromise;
+        }
+
+        async function completeCoexSignup(metaPayload = {}) {
+            const feedback = document.getElementById('wa-coex-feedback');
+            const pending = waPendingCoexSignup;
+            if (!pending || pending.submitting) {
+                return;
+            }
+
+            pending.submitting = true;
+            setTextFeedback(feedback, 'Concluindo conexão no painel...', null);
+
+            try {
+                const result = await api('/campaign/whatsapp/accounts/embedded-signup/complete', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        label: pending.label,
+                        display_name_meta: pending.display_name_meta,
+                        display_phone_number: pending.display_phone_number,
+                        activate_voice: pending.activate_voice,
+                        phone_number_id: metaPayload.phone_number_id || pending.phone_number_id || '',
+                        waba_id: metaPayload.waba_id || pending.waba_id || '',
+                        business_id: metaPayload.business_id || pending.business_id || '',
+                        code: metaPayload.code || pending.code || '',
+                        session_event: metaPayload.event || '',
+                    })
+                });
+
+                setTextFeedback(feedback, result.message || 'Número conectado com sucesso.', true);
+                notify('success', result.message || 'Número conectado com sucesso.');
+                closeCoexModal();
+                await loadAccounts();
+                await loadNumbers();
+                await loadNumberRequests();
+                renderAccountsList();
+            } catch (error) {
+                pending.submitting = false;
+                setTextFeedback(feedback, error.message, false);
+                notify('error', error.message);
+            }
+        }
+
+        function parseEmbeddedSignupMessage(raw) {
+            if (raw === null || raw === undefined) {
+                return null;
+            }
+
+            if (typeof raw === 'string') {
+                const trimmed = raw.trim();
+                if (!trimmed) return null;
+                try {
+                    return JSON.parse(trimmed);
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            if (typeof raw === 'object') {
+                return raw;
+            }
+
+            return null;
+        }
+
+        function handleEmbeddedSignupMessage(event) {
+            const message = parseEmbeddedSignupMessage(event.data);
+            if (!message || String(message.type || '') !== 'WA_EMBEDDED_SIGNUP') {
+                return;
+            }
+
+            const feedback = document.getElementById('wa-coex-feedback');
+            const sessionEvent = String(message.event || '').toUpperCase();
+            const payload = typeof message.data === 'object' && message.data ? message.data : {};
+
+            if (!waPendingCoexSignup) {
+                return;
+            }
+
+            if (sessionEvent.startsWith('FINISH')) {
+                waPendingCoexSignup.phone_number_id = String(payload.phone_number_id || '');
+                waPendingCoexSignup.waba_id = String(payload.waba_id || '');
+                waPendingCoexSignup.business_id = String(payload.business_id || '');
+                void completeCoexSignup({
+                    event: sessionEvent,
+                    phone_number_id: waPendingCoexSignup.phone_number_id,
+                    waba_id: waPendingCoexSignup.waba_id,
+                    business_id: waPendingCoexSignup.business_id,
+                });
+                return;
+            }
+
+            if (sessionEvent === 'CANCEL') {
+                setTextFeedback(feedback, 'Fluxo da Meta cancelado antes de concluir a conexão.', false);
+                waPendingCoexSignup = null;
+                return;
+            }
+
+            setTextFeedback(feedback, `Meta: ${sessionEvent || 'evento recebido'}. Aguarde a conclusão do popup.`, null);
+        }
+
+        async function startCoexEmbeddedSignup() {
+            const feedback = document.getElementById('wa-coex-feedback');
+            const phoneInput = document.getElementById('wa-coex-display-phone');
+            const phoneError = metaRequestPhoneError(phoneInput?.value || '');
+            if (phoneError) {
+                setTextFeedback(feedback, phoneError, false);
+                phoneInput?.focus();
+                return;
+            }
+
+            if (!embeddedSignupEnabled || !embeddedSignupAppId || !embeddedSignupConfigId) {
+                setTextFeedback(feedback, 'Configure WHATSAPP_META_APP_ID e WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID para gerar o QR Code.', false);
+                return;
+            }
+
+            waPendingCoexSignup = {
+                ...coexFormPayload(),
+                submitting: false,
+            };
+
+            setTextFeedback(feedback, 'Abrindo o Embedded Signup da Meta...', null);
+
+            try {
+                const fb = await ensureMetaEmbeddedSignupSdk();
+                fb.login((response) => {
+                    if (!waPendingCoexSignup) {
+                        return;
+                    }
+
+                    if (response?.authResponse?.code) {
+                        waPendingCoexSignup.code = response.authResponse.code;
+                    } else if (!waPendingCoexSignup.submitting) {
+                        setTextFeedback(feedback, 'Fluxo da Meta fechado antes da conclusão. Se o QR Code chegou a aparecer, tente novamente e finalize todo o popup.', false);
+                        waPendingCoexSignup = null;
+                    }
+                }, {
+                    config_id: embeddedSignupConfigId,
+                    response_type: 'code',
+                    override_default_response_type: true,
+                    extras: {
+                        feature: 'whatsapp_embedded_signup',
+                        sessionInfoVersion: '3'
+                    }
+                });
+            } catch (error) {
+                waPendingCoexSignup = null;
+                setTextFeedback(feedback, error.message || 'Não foi possível abrir a conexão da Meta.', false);
+            }
+        }
+
         async function approveNumberRequest(id) {
             const confirmed = await confirmApproveNumberRequest(id);
             if (!confirmed) return;
@@ -10595,12 +10904,22 @@
             actionsDropdown?.classList.add('hidden');
             modal(accountModal, true);
         });
+        document.getElementById('wa-add-coex-account')?.addEventListener('click', () => {
+            actionsDropdown?.classList.add('hidden');
+            openCoexModal(false);
+        });
+        document.getElementById('wa-page-account-coex')?.addEventListener('click', () => openCoexModal(true));
         document.getElementById('wa-account-close')?.addEventListener('click', () => modal(accountModal, false));
         document.getElementById('wa-account-cancel')?.addEventListener('click', () => modal(accountModal, false));
+        document.getElementById('wa-coex-close')?.addEventListener('click', closeCoexModal);
+        document.getElementById('wa-coex-cancel')?.addEventListener('click', closeCoexModal);
+        document.getElementById('wa-coex-start')?.addEventListener('click', startCoexEmbeddedSignup);
         bindMetaRequestPhoneField(document.getElementById('wa-account-display-phone'), document.getElementById('wa-account-feedback'));
         bindMetaRequestPhoneField(document.getElementById('wa-page-account-display-phone'), document.getElementById('wa-page-account-feedback'));
+        bindMetaRequestPhoneField(document.getElementById('wa-coex-display-phone'), document.getElementById('wa-coex-feedback'));
         document.getElementById('wa-account-save')?.addEventListener('click', saveAccount);
         document.getElementById('wa-page-account-save')?.addEventListener('click', savePageAccount);
+        window.addEventListener('message', handleEmbeddedSignupMessage);
         document.getElementById('wa-verification-close')?.addEventListener('click', closeVerificationModal);
         verificationResend?.addEventListener('click', () => resendVerificationModalCode('SMS'));
         verificationResendVoice?.addEventListener('click', () => resendVerificationModalCode('VOICE'));

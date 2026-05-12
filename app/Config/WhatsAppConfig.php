@@ -40,6 +40,27 @@ class WhatsAppConfig
         return trim((string) TelephonyConfig::env('WHATSAPP_META_APP_SECRET', ''));
     }
 
+    public static function embeddedSignupConfigId(): string
+    {
+        return trim((string) TelephonyConfig::env('WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID', ''));
+    }
+
+    public static function embeddedSignupRedirectUri(): string
+    {
+        $configured = trim((string) TelephonyConfig::env('WHATSAPP_META_EMBEDDED_SIGNUP_REDIRECT_URI', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $baseUrl = rtrim((string) TelephonyConfig::env('URL', ''), '/');
+        return $baseUrl !== '' ? $baseUrl . '/campaign/whatsapp' : '';
+    }
+
+    public static function embeddedSignupEnabled(): bool
+    {
+        return self::metaAppId() !== '' && self::embeddedSignupConfigId() !== '';
+    }
+
     public static function platformWabaId(): string
     {
         return trim((string) TelephonyConfig::env('WHATSAPP_PLATFORM_WABA_ID', ''));

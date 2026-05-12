@@ -58,6 +58,11 @@ class WhatsApp extends ViewComponents
         $content = View::render('/whatsapp/index', [
             'ASTERISK_WS_HOST' => AsteriskEnv::wsHost(),
             'ASTERISK_WS_PORT' => AsteriskEnv::wsPort(),
+            'WHATSAPP_META_APP_ID' => WhatsAppConfig::metaAppId(),
+            'WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID' => WhatsAppConfig::embeddedSignupConfigId(),
+            'WHATSAPP_META_EMBEDDED_SIGNUP_REDIRECT_URI' => WhatsAppConfig::embeddedSignupRedirectUri(),
+            'META_GRAPH_VERSION' => WhatsAppConfig::graphVersion(),
+            'WHATSAPP_META_EMBEDDED_SIGNUP_ENABLED' => WhatsAppConfig::embeddedSignupEnabled() ? 'true' : 'false',
         ]);
         return parent::getComponentsUsers('Maxx Solutions - SMS | VOZ', $content);
     }
@@ -600,6 +605,137 @@ class WhatsApp extends ViewComponents
                 'success' => false,
                 'message' => 'Falha ao consultar dados do número.',
                 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function completeEmbeddedSignupAccount(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Ação permitida apenas para administrador.',
+            ]);
+        }
+
+        if (!WhatsAppConfig::embeddedSignupEnabled()) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Configure WHATSAPP_META_APP_ID e WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID para usar CoEx com QR Code.',
+            ]);
+        }
+
+        $accessToken = WhatsAppConfig::platformAccessToken();
+        if ($accessToken === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Configure WHATSAPP_PLATFORM_ACCESS_TOKEN antes de concluir a conexão CoEx.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $phoneNumberId = trim((string)($input['phone_number_id'] ?? ''));
+        $wabaId = trim((string)($input['waba_id'] ?? ''));
+        if ($phoneNumberId === '' || $wabaId === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'A Meta não retornou phone_number_id ou waba_id ao concluir a conexão.',
+            ]);
+        }
+
+        try {
+            $existingAccount = WhatsAppAccount::getByPhoneNumberId($phoneNumberId);
+
+            if (!$existingAccount) {
+                $currentCount = PlanAccessPolicy::currentWhatsAppAccountsCount((string)$obUser['tenancy_id']);
+                $access = PlanAccessPolicy::assertCanCreateWhatsAppAccount((string)$obUser['tenancy_id'], $currentCount);
+                if (!($access['allowed'] ?? false)) {
+                    return self::json(409, [
+                        'success' => false,
+                        'message' => (string)($access['message'] ?? 'Limite de contas WhatsApp atingido.'),
+                    ]);
+                }
+            } elseif ((string)($existingAccount['tenancy_id'] ?? '') !== (string)$obUser['tenancy_id']) {
+                return self::json(409, [
+                    'success' => false,
+                    'message' => 'Este número já está conectado em outra tenancy do sistema.',
+                ]);
+            }
+
+            $phoneDetails = (new MetaWhatsAppCloudApi())->getPhoneNumber($accessToken, $phoneNumberId);
+            if (!$phoneDetails['ok']) {
+                return self::json(424, [
+                    'success' => false,
+                    'message' => $phoneDetails['error'] ?: 'Falha ao consultar os dados do número conectado na Meta.',
+                    'meta' => $phoneDetails,
+                ]);
+            }
+
+            $verification = WhatsAppNumberSafety::fetchVerificationStatus($accessToken, $phoneNumberId);
+            if (!$verification['verified']) {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'A Meta concluiu o fluxo, mas o número ainda não aparece como verificado para uso na plataforma.',
+                    'meta_status' => $verification['status'],
+                    'meta' => $verification['payload'],
+                ]);
+            }
+
+            $displayPhone = self::normalizePhone((string)($input['display_phone_number'] ?? $phoneDetails['data']['display_phone_number'] ?? ''));
+            $verifiedName = trim((string)($phoneDetails['data']['verified_name'] ?? ''));
+            $label = trim((string)($input['label'] ?? ''));
+            if ($label === '') {
+                $label = $verifiedName !== '' ? $verifiedName : ($displayPhone !== '' ? $displayPhone : 'WhatsApp Business');
+            }
+
+            $saved = WhatsAppAccount::createOrUpdateConnection([
+                'tenancy_id' => $obUser['tenancy_id'],
+                'user_id' => (int)$obUser['id'],
+                'label' => $label,
+                'waba_id' => $wabaId,
+                'business_id' => self::nullableString($input['business_id'] ?? null),
+                'phone_number_id' => $phoneNumberId,
+                'display_phone_number' => $displayPhone,
+                'access_token' => $accessToken,
+                'app_secret' => WhatsAppConfig::metaAppSecret(),
+                'verify_token' => null,
+                'status' => 'active',
+            ]);
+
+            $account = WhatsAppAccount::getById((int)$saved['id']);
+            if (!$account) {
+                throw new \RuntimeException('Conta criada, mas não foi possível recarregar o número conectado.');
+            }
+
+            if (!empty($input['activate_voice'])) {
+                WhatsAppAccountVoice::activateIfRequested($account, (int)$obUser['id']);
+                $account = WhatsAppAccount::getById((int)$saved['id']) ?: $account;
+            }
+
+            self::logWebhookDebug('coex.embedded_signup_completed', [
+                'account_id' => (int)$saved['id'],
+                'phone_number_id' => $phoneNumberId,
+                'waba_id' => $wabaId,
+                'created' => !empty($saved['created']),
+                'meta' => $phoneDetails['data'] ?? [],
+            ]);
+
+            return self::json($saved['created'] ? 201 : 200, [
+                'success' => true,
+                'message' => $saved['created']
+                    ? 'Número conectado via CoEx com sucesso.'
+                    : 'Conexão CoEx atualizada com sucesso.',
+                'data' => $account,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
             ]);
         }
     }

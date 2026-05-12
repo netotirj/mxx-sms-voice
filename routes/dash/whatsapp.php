@@ -277,6 +277,17 @@ $obRouter->post('/campaign/whatsapp/accounts', [
     }
 ]);
 
+$obRouter->post('/campaign/whatsapp/accounts/embedded-signup/complete', [
+    'name' => '/campaign/whatsapp/accounts/embedded-signup/complete',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::completeEmbeddedSignupAccount();
+    }
+]);
+
 $obRouter->post('/whatsapp/connection', [
     'name' => '/whatsapp/connection',
     'middlewares' => [

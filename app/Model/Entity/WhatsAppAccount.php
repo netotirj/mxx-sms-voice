@@ -11,6 +11,51 @@ use WilliamCosta\DatabaseManager\Database;
 
 class WhatsAppAccount
 {
+    public static function createOrUpdateConnection(array $data): array
+    {
+        self::ensureVoiceColumns();
+
+        $phoneNumberId = trim((string)($data['phone_number_id'] ?? ''));
+        if ($phoneNumberId === '') {
+            throw new \InvalidArgumentException('ID do número Meta é obrigatório.');
+        }
+
+        $existing = (new Database('whatsapp_accounts'))
+            ->select('phone_number_id = :phone_number_id', [
+                ':phone_number_id' => $phoneNumberId,
+            ], '', '1')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            if ((string)($existing['tenancy_id'] ?? '') !== (string)($data['tenancy_id'] ?? '')) {
+                throw new \RuntimeException('Este número já está conectado em outra tenancy do sistema.');
+            }
+
+            (new Database('whatsapp_accounts'))->update('id = :id', [
+                'user_id' => (int)$data['user_id'],
+                'label' => $data['label'],
+                'waba_id' => $data['waba_id'] ?? null,
+                'business_id' => $data['business_id'] ?? null,
+                'display_phone_number' => $data['display_phone_number'],
+                'access_token' => SecretBox::encrypt($data['access_token']),
+                'app_secret' => SecretBox::encrypt($data['app_secret'] ?? null),
+                'verify_token' => $data['verify_token'] ?? null,
+                'status' => $data['status'] ?? 'active',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ], [':id' => (int)$existing['id']]);
+
+            return [
+                'id' => (int)$existing['id'],
+                'created' => false,
+            ];
+        }
+
+        return [
+            'id' => self::create($data),
+            'created' => true,
+        ];
+    }
+
     public static function create(array $data): int
     {
         self::ensureVoiceColumns();

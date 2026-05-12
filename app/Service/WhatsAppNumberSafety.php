@@ -190,7 +190,7 @@ class WhatsAppNumberSafety
             (string)$account['phone_number_id']
         );
 
-        self::updateFromMetaPayload($account, $verification['payload'], 'verification_check');
+        self::updateFromMetaPayload($account, $verification['payload'], 'api');
         if (!$verification['verified']) {
             self::demoteUnverifiedAccount($account, $verification['status']);
         }

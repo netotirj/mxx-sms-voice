@@ -778,7 +778,9 @@
                                 <aside id="wa-conversation-list-sidebar" class="flex h-full min-h-0 w-75 shrink-0 flex-col overflow-hidden border-r border-gray-100 bg-white xl:w-80">
                                     <div class="shrink-0 border-b border-gray-100 bg-white p-4">
                                         <div class="relative">
-                                            <input id="wa-chat-search" type="text" name="wa_chat_filter" placeholder="Buscar por nome ou número..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-transparent focus:ring-2 focus:ring-blue-500">
+                                            <input type="text" tabindex="-1" autocomplete="username" aria-hidden="true" class="absolute -left-[9999px] top-0 h-0 w-0 opacity-0 pointer-events-none">
+                                            <input type="password" tabindex="-1" autocomplete="current-password" aria-hidden="true" class="absolute -left-[9999px] top-0 h-0 w-0 opacity-0 pointer-events-none">
+                                            <input id="wa-chat-search" type="text" name="wa_chat_filter" placeholder="Buscar por nome ou número..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" readonly class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-transparent focus:ring-2 focus:ring-blue-500">
                                             <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-slate-400">
                                                 <i class="fa fa-search"></i>
                                             </span>
@@ -1780,6 +1782,18 @@
             if (rawValue.includes('@')) {
                 searchInput.value = '';
             }
+        }
+
+        function unlockConversationSearchInput() {
+            if (!searchInput) {
+                return;
+            }
+
+            if (searchInput.hasAttribute('readonly')) {
+                searchInput.removeAttribute('readonly');
+            }
+
+            clearAutofilledConversationSearch();
         }
 
         clearAutofilledConversationSearch();
@@ -11434,6 +11448,9 @@
             const item = event.target.closest('[data-conversation-id]');
             if (item) openConversation(item.dataset.conversationId);
         });
+        searchInput?.addEventListener('focus', unlockConversationSearchInput, { once: true });
+        searchInput?.addEventListener('pointerdown', unlockConversationSearchInput, { once: true });
+        searchInput?.addEventListener('keydown', unlockConversationSearchInput, { once: true });
         searchInput.addEventListener('input', () => {
             renderConversations();
             if (conversationSearchTimer) {

@@ -13,6 +13,14 @@ $obRouter->get('/webhooks/meta/whatsapp', [
     }
 ]);
 
+$obRouter->get('/integrations/whatsapp/embedded-signup/callback', [
+    'name' => '/integrations/whatsapp/embedded-signup/callback',
+    'middlewares' => [],
+    function ($request) {
+        return Pages\WhatsApp::embeddedSignupCallback();
+    }
+]);
+
 $obRouter->post('/webhooks/meta/whatsapp', [
     'name' => '/webhooks/meta/whatsapp',
     'middlewares' => [],

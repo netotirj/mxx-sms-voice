@@ -61,6 +61,7 @@ class WhatsApp extends ViewComponents
             'WHATSAPP_META_APP_ID' => WhatsAppConfig::metaAppId(),
             'WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID' => WhatsAppConfig::embeddedSignupConfigId(),
             'WHATSAPP_META_EMBEDDED_SIGNUP_REDIRECT_URI' => WhatsAppConfig::embeddedSignupRedirectUri(),
+            'WHATSAPP_META_EMBEDDED_SIGNUP_HOSTED_URL' => WhatsAppConfig::embeddedSignupHostedUrl(),
             'META_GRAPH_VERSION' => WhatsAppConfig::graphVersion(),
             'WHATSAPP_META_EMBEDDED_SIGNUP_ENABLED' => WhatsAppConfig::embeddedSignupEnabled() ? 'true' : 'false',
         ]);
@@ -738,6 +739,50 @@ class WhatsApp extends ViewComponents
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    public static function embeddedSignupCallback(): Response
+    {
+        $html = <<<'HTML'
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Embedded Signup</title>
+</head>
+<body>
+<script>
+(function () {
+  function collect() {
+    const search = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    const data = {};
+    for (const [key, value] of search.entries()) data[key] = value;
+    for (const [key, value] of hash.entries()) data[key] = value;
+    return data;
+  }
+
+  const payload = {
+    type: 'WA_EMBEDDED_SIGNUP',
+    event: 'FINISH_REDIRECT',
+    data: collect()
+  };
+
+  if (window.opener && !window.opener.closed) {
+    try {
+      window.opener.postMessage(payload, '*');
+    } catch (e) {}
+  }
+
+  window.close();
+})();
+</script>
+</body>
+</html>
+HTML;
+
+        return new Response(200, $html, 'text/html; charset=utf-8');
     }
 
     public static function updateAccountSettings($request, int|string $id): Response

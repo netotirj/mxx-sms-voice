@@ -1510,6 +1510,7 @@
         window.__WA_META_APP_ID__ = '{{WHATSAPP_META_APP_ID}}';
         window.__WA_META_EMBEDDED_SIGNUP_CONFIG_ID__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_CONFIG_ID}}';
         window.__WA_META_EMBEDDED_SIGNUP_REDIRECT_URI__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_REDIRECT_URI}}';
+        window.__WA_META_EMBEDDED_SIGNUP_HOSTED_URL__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_HOSTED_URL}}';
         window.__WA_META_GRAPH_VERSION__ = '{{META_GRAPH_VERSION}}';
         window.__WA_META_EMBEDDED_SIGNUP_ENABLED__ = '{{WHATSAPP_META_EMBEDDED_SIGNUP_ENABLED}}';
         const baseUrl = document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '';
@@ -1556,6 +1557,7 @@
         const embeddedSignupAppId = String(window.__WA_META_APP_ID__ || '').trim();
         const embeddedSignupConfigId = String(window.__WA_META_EMBEDDED_SIGNUP_CONFIG_ID__ || '').trim();
         const embeddedSignupRedirectUri = String(window.__WA_META_EMBEDDED_SIGNUP_REDIRECT_URI__ || '').trim();
+        const embeddedSignupHostedUrl = String(window.__WA_META_EMBEDDED_SIGNUP_HOSTED_URL__ || '').trim();
         const embeddedSignupGraphVersion = String(window.__WA_META_GRAPH_VERSION__ || 'v25.0').trim();
         const deleteConversationBtn = document.getElementById('wa-delete-conversation');
         const clearSelectionBtn = document.getElementById('wa-clear-selection');
@@ -9431,6 +9433,23 @@
             return waEmbeddedSignupSdkPromise;
         }
 
+        function buildHostedEmbeddedSignupUrl() {
+            if (embeddedSignupHostedUrl) {
+                return embeddedSignupHostedUrl;
+            }
+
+            if (!embeddedSignupAppId || !embeddedSignupConfigId) {
+                return '';
+            }
+
+            const extras = encodeURIComponent(JSON.stringify({
+                sessionInfoVersion: '3',
+                version: 'v4'
+            }));
+
+            return `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=${encodeURIComponent(embeddedSignupAppId)}&config_id=${encodeURIComponent(embeddedSignupConfigId)}&extras=${extras}`;
+        }
+
         async function completeCoexSignup(metaPayload = {}) {
             const feedback = document.getElementById('wa-coex-feedback');
             const pending = waPendingCoexSignup;
@@ -9549,30 +9568,42 @@
                 submitting: false,
             };
 
-            setTextFeedback(feedback, 'Abrindo o Embedded Signup da Meta...', null);
+            const hostedUrl = buildHostedEmbeddedSignupUrl();
+            if (!hostedUrl) {
+                waPendingCoexSignup = null;
+                setTextFeedback(feedback, 'Não foi possível montar a URL hospedada da Meta para gerar o QR Code.', false);
+                return;
+            }
+
+            setTextFeedback(feedback, 'Abrindo a página hospedada da Meta para gerar o QR Code...', null);
 
             try {
-                const fb = await ensureMetaEmbeddedSignupSdk();
-                fb.login((response) => {
+                const popup = window.open(
+                    hostedUrl,
+                    'waMetaEmbeddedSignup',
+                    'width=980,height=760,menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes'
+                );
+
+                if (!popup) {
+                    throw new Error('O navegador bloqueou a janela da Meta. Libere pop-ups e tente novamente.');
+                }
+
+                const popupWatcher = window.setInterval(() => {
                     if (!waPendingCoexSignup) {
+                        window.clearInterval(popupWatcher);
                         return;
                     }
 
-                    if (response?.authResponse?.code) {
-                        waPendingCoexSignup.code = response.authResponse.code;
-                    } else if (!waPendingCoexSignup.submitting) {
-                        setTextFeedback(feedback, 'Fluxo da Meta fechado antes da conclusão. Se o QR Code chegou a aparecer, tente novamente e finalize todo o popup.', false);
+                    if (popup.closed && !waPendingCoexSignup.submitting) {
+                        window.clearInterval(popupWatcher);
+                        setTextFeedback(feedback, 'A janela da Meta foi fechada antes da conclusão. Se o QR Code apareceu, abra novamente e finalize todo o fluxo.', false);
                         waPendingCoexSignup = null;
                     }
-                }, {
-                    config_id: embeddedSignupConfigId,
-                    response_type: 'code',
-                    override_default_response_type: true,
-                    extras: {
-                        feature: 'whatsapp_embedded_signup',
-                        sessionInfoVersion: '3'
-                    }
-                });
+                }, 700);
+
+                if (embeddedSignupRedirectUri) {
+                    setTextFeedback(feedback, `Meta aberta. Se o fluxo pedir confirmação final, o retorno esperado é ${embeddedSignupRedirectUri}.`, null);
+                }
             } catch (error) {
                 waPendingCoexSignup = null;
                 setTextFeedback(feedback, error.message || 'Não foi possível abrir a conexão da Meta.', false);

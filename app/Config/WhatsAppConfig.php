@@ -61,6 +61,23 @@ class WhatsAppConfig
         return self::metaAppId() !== '' && self::embeddedSignupConfigId() !== '';
     }
 
+    public static function embeddedSignupHostedUrl(): string
+    {
+        if (!self::embeddedSignupEnabled()) {
+            return '';
+        }
+
+        $extras = rawurlencode(json_encode([
+            'sessionInfoVersion' => '3',
+            'version' => 'v4',
+        ], JSON_UNESCAPED_SLASHES));
+
+        return 'https://business.facebook.com/messaging/whatsapp/onboard/?app_id='
+            . rawurlencode(self::metaAppId())
+            . '&config_id=' . rawurlencode(self::embeddedSignupConfigId())
+            . '&extras=' . $extras;
+    }
+
     public static function platformWabaId(): string
     {
         return trim((string) TelephonyConfig::env('WHATSAPP_PLATFORM_WABA_ID', ''));

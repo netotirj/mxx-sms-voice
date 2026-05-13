@@ -1,3 +1,64 @@
+<style>
+    #servicesMonitorApp .services-monitor-toolbar {
+        width: 100%;
+        min-width: 0;
+    }
+
+    #servicesMonitorApp .services-monitor-select {
+        max-width: 100%;
+        min-width: 280px;
+        height: 44px;
+    }
+
+    #servicesMonitorApp .services-monitor-host-badge {
+        max-width: 100%;
+        min-height: 36px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    #servicesMonitorApp .services-monitor-update-btn {
+        min-height: 44px;
+        white-space: nowrap;
+    }
+
+    #servicesMonitorApp .services-monitor-log-body {
+        max-height: 60vh;
+        color: #86efac;
+        font-weight: 500;
+        line-height: 1.6;
+    }
+
+    #servicesMonitorRestartButton {
+        min-width: 170px;
+        min-height: 50px;
+        justify-content: center;
+        border: 0;
+        background: linear-gradient(135deg, #d97706 0%, #f97316 100%);
+        color: #ffffff;
+        box-shadow: 0 10px 24px rgba(217, 119, 6, 0.28);
+        opacity: 1;
+    }
+
+    #servicesMonitorRestartButton:hover {
+        background: linear-gradient(135deg, #f59e0b 0%, #fb923c 100%);
+    }
+
+    #servicesMonitorRestartButton:disabled {
+        background: linear-gradient(135deg, #cbd5e1 0%, #e2e8f0 100%);
+        color: #64748b;
+        box-shadow: none;
+        opacity: 1;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 1024px) {
+        #servicesMonitorApp .services-monitor-select {
+            min-width: 100%;
+        }
+    }
+</style>
+
 <div class="w-full px-6 py-6 mx-auto" id="servicesMonitorApp">
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
@@ -12,12 +73,12 @@
                             <p class="text-xs text-slate-400">Status do systemd, heartbeat dos workers, logs recentes e restart controlado.</p>
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <select id="servicesMonitorServerSelect" onchange="servicesMonitor.changeServer(this.value)" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 outline-none">
+                    <div class="flex flex-wrap items-center gap-2 services-monitor-toolbar">
+                        <select id="servicesMonitorServerSelect" onchange="servicesMonitor.changeServer(this.value)" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 outline-none services-monitor-select">
                             <option value="local">Carregando...</option>
                         </select>
-                        <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Servidor: ...</span>
-                        <button type="button" onclick="servicesMonitor.loadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
+                        <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 services-monitor-host-badge">Servidor: ...</span>
+                        <button type="button" onclick="servicesMonitor.loadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white services-monitor-update-btn">
                             <i class="ni ni-refresh"></i>
                             Atualizar
                         </button>
@@ -68,7 +129,7 @@
                     <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">Recarregar</button>
                 </div>
                 <div id="servicesMonitorLogsHint" class="hidden mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
-                <pre id="servicesMonitorLogsBody" class="max-h-[60vh] overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-6 text-emerald-300 font-medium">Carregando logs...</pre>
+                <pre id="servicesMonitorLogsBody" class="overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs services-monitor-log-body">Carregando logs...</pre>
             </div>
         </div>
     </div>
@@ -99,7 +160,7 @@
                 </div>
                 <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="servicesMonitor.closeRestart()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
-                    <button type="button" id="servicesMonitorRestartButton" onclick="servicesMonitor.confirmRestart()" class="min-w-[160px] justify-center bg-gradient-to-tr from-amber-600 to-orange-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2 hover:from-amber-500 hover:to-orange-400 disabled:opacity-100 disabled:from-slate-300 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none">
+                    <button type="button" id="servicesMonitorRestartButton" onclick="servicesMonitor.confirmRestart()" class="text-xs font-bold px-6 py-3 rounded-xl uppercase flex items-center gap-2">
                         <i class="fa fa-rotate-right text-[10px]"></i> Reiniciar
                     </button>
                 </div>

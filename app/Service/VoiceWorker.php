@@ -74,21 +74,25 @@ class VoiceWorker
 
         while (true) {
 
+            $stasisOnline = $this->isStasisOnline(10);
+
             // =====================================================
-            // 🛑 STASIS GATE — aguarda listener voltar
+            // 🔎 STASIS / ACTIVE CALLS
             // =====================================================
-            if (!$this->isStasisOnline(10)) {
-                echo "🛑 STASIS OFFLINE → aguardando heartbeat...\n";
-                $this->heartbeatIfDue('waiting_stasis', 'Aguardando heartbeat do Stasis.');
-                sleep(1); // não consome fila, não gera carga
-                continue;
+            if (!$stasisOnline) {
+                $this->logOnce(
+                    'stasis_offline_non_blocking',
+                    15,
+                    "⚠ STASIS OFFLINE → seguindo sem bloquear voice:queue"
+                );
+                $this->heartbeatIfDue('warning', 'Stasis offline; worker segue consumindo a fila sem sync de chamadas ativas.');
             }
 
             // =====================================================
             // 🔄 SYNC agentes / chamadas
             // =====================================================
             try {
-                if ($this->shouldSyncAgents()) {
+                if ($stasisOnline && $this->shouldSyncAgents()) {
                     $this->syncAgentsFromActiveCalls();
                 }
             } catch (Throwable $e) {

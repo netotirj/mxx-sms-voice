@@ -1764,6 +1764,10 @@ class Voice extends ViewComponents
         ]);
         $redis->expire("campaign:{$jobId}", 86400);
 
+        $payloadBackupKey = "campaign:{$jobId}:payload_backup";
+        $payloadBackupTtl = 86400 * 7;
+        $redis->del($payloadBackupKey);
+
         $campaign = new CampaignVoice();
         $campaign->user_id        = $userId;
         $campaign->tenancy_id     = $tenantId;
@@ -1844,9 +1848,14 @@ class Voice extends ViewComponents
                 'timestamp' => time()
             ];
 
-            $redis->rPush("voice:queue", json_encode($payload));
+            $rawPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            $redis->rPush("voice:queue", $rawPayload);
             $redis->rPush("queue:originate:{$jobId}", $dest);
+            $redis->rPush($payloadBackupKey, $rawPayload);
         }
+
+        $redis->expire($payloadBackupKey, $payloadBackupTtl);
 
         //echo "<pre>";
         //print_r($payload);
@@ -3259,6 +3268,138 @@ class Voice extends ViewComponents
         return $moved;
     }
 
+    private static function recoverMissingCampaignPayloads(RedisClient $redis, string $jobId): int
+    {
+        $backupKey = "campaign:{$jobId}:payload_backup";
+        $backupItems = $redis->lrange($backupKey, 0, -1);
+        if (!is_array($backupItems) || $backupItems === []) {
+            return 0;
+        }
+
+        $knownCallIds = self::knownCampaignCallIds($redis, $jobId);
+        $recovered = 0;
+
+        foreach ($backupItems as $raw) {
+            $payload = json_decode((string)$raw, true);
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            if (trim((string)($payload['job_id'] ?? '')) !== $jobId) {
+                continue;
+            }
+
+            $callId = trim((string)($payload['call_id'] ?? ''));
+            if ($callId === '' || isset($knownCallIds[$callId])) {
+                continue;
+            }
+
+            $redis->rpush('voice:queue', (string)$raw);
+            $knownCallIds[$callId] = true;
+            $recovered++;
+        }
+
+        return $recovered;
+    }
+
+    private static function knownCampaignCallIds(RedisClient $redis, string $jobId): array
+    {
+        $callIds = [];
+
+        foreach (self::activeCallIdsByJob($redis, $jobId) as $callId) {
+            $callIds[$callId] = true;
+        }
+
+        foreach (self::queuedCallIdsByJob($redis, $jobId, 'voice:queue') as $callId) {
+            $callIds[$callId] = true;
+        }
+
+        foreach (self::queuedCallIdsByJob($redis, $jobId, "voice:paused:job:{$jobId}") as $callId) {
+            $callIds[$callId] = true;
+        }
+
+        foreach (self::processedCallIdsByJob($jobId) as $callId) {
+            $callIds[$callId] = true;
+        }
+
+        return $callIds;
+    }
+
+    private static function activeCallIdsByJob(RedisClient $redis, string $jobId): array
+    {
+        $raw = $redis->get('asterisk:active_calls');
+        $payload = $raw ? json_decode((string)$raw, true) : null;
+        $calls = is_array($payload) ? (array)($payload['chamadas'] ?? []) : [];
+
+        $callIds = [];
+        foreach ($calls as $call) {
+            if (!is_array($call)) {
+                continue;
+            }
+
+            $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
+            $currentJobId = trim((string)($call['job_id'] ?? $vars['JOB_ID'] ?? ''));
+            if ($currentJobId !== $jobId) {
+                continue;
+            }
+
+            $callId = trim((string)($call['call_id'] ?? $vars['CALL_ID'] ?? ''));
+            if ($callId !== '') {
+                $callIds[] = $callId;
+            }
+        }
+
+        return array_values(array_unique($callIds));
+    }
+
+    private static function queuedCallIdsByJob(RedisClient $redis, string $jobId, string $queueKey): array
+    {
+        $items = $redis->lrange($queueKey, 0, -1);
+        if (!is_array($items) || $items === []) {
+            return [];
+        }
+
+        $callIds = [];
+        foreach ($items as $raw) {
+            $payload = json_decode((string)$raw, true);
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            if (trim((string)($payload['job_id'] ?? '')) !== $jobId) {
+                continue;
+            }
+
+            $callId = trim((string)($payload['call_id'] ?? ''));
+            if ($callId !== '') {
+                $callIds[] = $callId;
+            }
+        }
+
+        return array_values(array_unique($callIds));
+    }
+
+    private static function processedCallIdsByJob(string $jobId): array
+    {
+        try {
+            $rows = (new \WilliamCosta\DatabaseManager\Database())->execute(
+                "SELECT DISTINCT call_id
+                   FROM cdr
+                  WHERE job_id = :job_id
+                    AND call_id IS NOT NULL
+                    AND call_id <> ''",
+                [':job_id' => $jobId]
+            )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($value): string => trim((string)$value),
+            $rows
+        ))));
+    }
+
 
 
 
@@ -4576,14 +4717,22 @@ class Voice extends ViewComponents
                 $movedToMainQueue++;
             }
 
+            $recoveredPayloads = 0;
+            if ($movedToMainQueue === 0) {
+                $recoveredPayloads = self::recoverMissingCampaignPayloads($redis, $jobId);
+            }
+
             return new Response(200, [
                 'ok' => true,
                 'status' => 'y',
                 'message' => $movedToMainQueue > 0
                     ? 'Campanha retomada e payloads devolvidos para a fila.'
-                    : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.',
+                    : ($recoveredPayloads > 0
+                        ? 'Campanha retomada e payloads órfãos foram reconstruídos.'
+                        : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.'),
                 'meta' => [
                     'moved_to_main_queue' => $movedToMainQueue,
+                    'recovered_payloads' => $recoveredPayloads,
                     'remaining_paused_queue' => (int)$redis->llen($pausedQueue),
                 ],
             ], 'application/json');

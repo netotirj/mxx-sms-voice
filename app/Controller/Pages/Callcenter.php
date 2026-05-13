@@ -289,13 +289,13 @@ class Callcenter extends ViewComponents
                 $label = 'Offline';
                 $color = 'slate';
 
-                if ($isOnline) {
+                if ($statusReal === 'PAUSA') {
+                    $label = 'Em Pausa';
+                    $color = 'orange';
+                } elseif ($isOnline) {
                     if (in_array($statusReal, ['LIVRE', 'ONLINE'], true)) {
                         $label = 'Disponível';
                         $color = 'emerald';
-                    } elseif ($statusReal === 'PAUSA') {
-                        $label = 'Em Pausa';
-                        $color = 'orange';
                     } else {
                         $label = 'Em Chamada';
                         $color = 'blue';

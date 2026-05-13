@@ -9149,7 +9149,8 @@
             activeAccountSettingsSnapshot = {
                 label: String(account.label || ''),
                 display_name_meta: String(account.display_name_meta || account.display_name || ''),
-                voice_enabled: !!account.voice_enabled
+                voice_enabled: !!account.voice_enabled,
+                voice_status: String(account.voice_status || (account.voice_enabled ? 'active' : 'inactive'))
             };
             document.getElementById('wa-account-settings-label').value = account.label || '';
             document.getElementById('wa-account-settings-display-name-meta').value = account.display_name_meta || account.display_name || '';
@@ -9175,7 +9176,7 @@
             const label = String(document.getElementById('wa-account-settings-label')?.value || '').trim();
             const displayNameMeta = String(document.getElementById('wa-account-settings-display-name-meta')?.value || '').trim();
             const activateVoice = !!document.getElementById('wa-account-settings-activate-voice')?.checked;
-            const snapshot = activeAccountSettingsSnapshot || { label: '', display_name_meta: '', voice_enabled: false };
+            const snapshot = activeAccountSettingsSnapshot || { label: '', display_name_meta: '', voice_enabled: false, voice_status: 'inactive' };
             const payload = {};
 
             if (label !== String(snapshot.label || '').trim()) {
@@ -9186,7 +9187,8 @@
                 payload.display_name_meta = displayNameMeta;
             }
 
-            if (activateVoice && !snapshot.voice_enabled) {
+            const currentVoiceStatus = String(snapshot.voice_status || '').toLowerCase();
+            if (activateVoice && (!snapshot.voice_enabled || currentVoiceStatus !== 'active')) {
                 payload.activate_voice = true;
             }
 
@@ -9228,7 +9230,8 @@
                     activeAccountSettingsSnapshot = {
                         label: String(updated.label || ''),
                         display_name_meta: String(updated.display_name_meta || updated.display_name || ''),
-                        voice_enabled: !!updated.voice_enabled
+                        voice_enabled: !!updated.voice_enabled,
+                        voice_status: String(updated.voice_status || (updated.voice_enabled ? 'active' : 'inactive'))
                     };
                     document.getElementById('wa-account-settings-label').value = updated.label || '';
                     document.getElementById('wa-account-settings-display-name-meta').value = updated.display_name_meta || updated.display_name || '';

@@ -158,6 +158,11 @@ class WhatsAppAccountVoice
             return false;
         }
 
+        $displayName = self::sanitizeMetaDisplayName($displayName);
+        if ($displayName === '') {
+            throw new \RuntimeException('Informe um nome válido para enviar à Meta.');
+        }
+
         $api = new MetaWhatsAppCloudApi();
         $result = $api->updatePhoneNumberDisplayName(
             (string)($account['access_token'] ?? ''),
@@ -289,5 +294,25 @@ class WhatsAppAccountVoice
             'action' => $event,
             'context' => $context,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function sanitizeMetaDisplayName(string $displayName): string
+    {
+        $normalized = trim($displayName);
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (function_exists('iconv')) {
+            $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);
+            if (is_string($ascii) && $ascii !== '') {
+                $normalized = $ascii;
+            }
+        }
+
+        $normalized = preg_replace('/[^A-Za-z0-9 ._\\-]/', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\\s+/', ' ', $normalized) ?? $normalized;
+
+        return trim($normalized);
     }
 }

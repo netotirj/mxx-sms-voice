@@ -878,11 +878,17 @@ HTML;
         $hasActivateVoiceInput = array_key_exists('activate_voice', $input);
         $currentLabel = trim((string)($account['label'] ?? ''));
         $currentMetaDisplayName = trim((string)($account['display_name_meta'] ?? $account['display_name'] ?? ''));
+        $currentMetaDisplayNameStatus = strtoupper(trim((string)($account['display_name_status'] ?? '')));
         $voiceAlreadyActive = !empty($account['voice_enabled'])
             && (($account['voice_status'] ?? '') === 'active' || ($account['voice_status'] ?? '') === '');
 
         $shouldUpdateLabel = $hasLabelInput && $label !== '' && $label !== $currentLabel;
-        $shouldUpdateMetaDisplayName = $hasMetaDisplayNameInput && $metaDisplayName !== '' && $metaDisplayName !== $currentMetaDisplayName;
+        $shouldUpdateMetaDisplayName = $hasMetaDisplayNameInput
+            && $metaDisplayName !== ''
+            && (
+                $metaDisplayName !== $currentMetaDisplayName
+                || in_array($currentMetaDisplayNameStatus, ['REJECTED', 'DECLINED', 'DENIED'], true)
+            );
         $shouldActivateVoice = $hasActivateVoiceInput && $activateVoice && !$voiceAlreadyActive;
 
         try {
@@ -923,9 +929,7 @@ HTML;
 
             return self::json(200, [
                 'success' => true,
-                'message' => $shouldActivateVoice
-                    ? 'Número atualizado e voz sincronizada.'
-                    : 'Número atualizado.',
+                'message' => 'Número atualizado com sucesso.',
                 'voice' => $voice,
                 'data' => WhatsAppAccount::getById((int)$account['id']),
             ]);

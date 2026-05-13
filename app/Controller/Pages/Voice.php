@@ -1289,7 +1289,8 @@ class Voice extends ViewComponents
         $isSystem        = (int)($trunk['is_system'] ?? 0);
         $isCustomerTrunk = ($isSystem === 0);
         $trunkOwnerId    = (int)($trunk['user_id'] ?? 0);
-        $planIdUsed = (int)($obPlan->id ?? $currentPlan);
+        // Usa o ID do plano comercial (mxx_plans.id), nao o ID do vinculo em mxx_user_plans.
+        $planIdUsed = (int)($obPlan->plan_id ?? $currentPlan);
 
         try {
             $voiceQuote = VoicePricingService::quote([

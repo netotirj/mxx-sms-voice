@@ -3828,7 +3828,7 @@ class Voice extends ViewComponents
 
             // 2. Busca o nome desse usuário no banco (A Fonte da Verdade)
             $userData = UserSearch::getUserById($tenantId, $targetUserId);
-            $nomeUsuarioBanco = ($userData && isset($userData->name)) ? strtoupper($userData->name) : '';
+            $nomeUsuarioBanco = ($userData && isset($userData['name'])) ? strtoupper((string)$userData['name']) : '';
 
             // 3. Pega o que está no input de texto
             $nomeInput = strtoupper(trim($inputData['name'] ?? ''));

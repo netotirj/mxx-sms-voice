@@ -37,3 +37,14 @@ $obRouter->get('/admin/services-monitor/logs', [
         return Pages\ServicesMonitor::logs($request);
     }
 ]);
+
+$obRouter->post('/admin/services-monitor/restart', [
+    'name' => '/admin/services-monitor/restart',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies',
+    ],
+    function ($request) {
+        return Pages\ServicesMonitor::restart($request);
+    }
+]);

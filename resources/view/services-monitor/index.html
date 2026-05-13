@@ -9,11 +9,14 @@
                         </span>
                         <div>
                             <h2 class="text-lg font-semibold text-slate-800">Monitoramento de Serviços</h2>
-                            <p class="text-xs text-slate-400">Status do systemd, heartbeat dos workers e logs recentes dos serviços críticos.</p>
+                            <p class="text-xs text-slate-400">Status do systemd, heartbeat dos workers, logs recentes e restart controlado.</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Host: ...</span>
+                        <select id="servicesMonitorServerSelect" onchange="servicesMonitor.changeServer(this.value)" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 outline-none">
+                            <option value="local">Carregando...</option>
+                        </select>
+                        <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Servidor: ...</span>
                         <button type="button" onclick="servicesMonitor.loadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
                             <i class="ni ni-refresh"></i>
                             Atualizar
@@ -48,23 +51,57 @@
         </div>
     </div>
 
-    <div id="servicesMonitorLogsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 px-4">
-        <div class="w-full max-w-5xl rounded-3xl bg-white shadow-2xl">
+    <div id="servicesMonitorLogsModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4" onclick="servicesMonitor.dismissBackdrop(event, 'logs')">
+        <div class="relative z-[100051] w-full max-w-5xl rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
             <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-bold text-slate-800">Logs Recentes</h3>
                     <p id="servicesMonitorLogsTitle" class="text-xs text-slate-400">Serviço</p>
                 </div>
                 <button type="button" onclick="servicesMonitor.closeLogs()" class="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-                    <i class="ni ni-fat-remove text-lg"></i>
+                    <i class="fa fa-times text-sm"></i>
                 </button>
             </div>
             <div class="px-6 py-4">
-                <div class="mb-3 flex items-center justify-between">
+                <div class="mb-3 flex items-center justify-between gap-3">
                     <p id="servicesMonitorLogsMeta" class="text-xs font-semibold uppercase tracking-wide text-slate-400"></p>
-                    <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">Recarregar</button>
+                    <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">Recarregar</button>
                 </div>
                 <pre id="servicesMonitorLogsBody" class="max-h-[60vh] overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-5 text-emerald-200">Carregando logs...</pre>
+            </div>
+        </div>
+    </div>
+
+    <div id="servicesMonitorRestartModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4" onclick="servicesMonitor.dismissBackdrop(event, 'restart')">
+        <div class="relative z-[100051] w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="p-6 pb-4 flex items-start justify-between border-b border-slate-100">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg">
+                        <i class="fa fa-rotate-right text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Reiniciar Serviço</h3>
+                        <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider italic">Confirmação em duas etapas</p>
+                    </div>
+                </div>
+                <button type="button" onclick="servicesMonitor.closeRestart()" class="rounded-full p-2 text-slate-400 hover:bg-slate-100">
+                    <i class="fa fa-times text-sm"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Você está prestes a reiniciar o serviço <strong id="servicesMonitorRestartServiceName">-</strong> no servidor <strong id="servicesMonitorRestartServerName">-</strong>.
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider italic">Digite RESTART para confirmar</label>
+                    <input type="text" id="servicesMonitorRestartConfirmInput" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none" placeholder="RESTART">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="servicesMonitor.closeRestart()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
+                    <button type="button" id="servicesMonitorRestartButton" onclick="servicesMonitor.confirmRestart()" class="bg-gradient-to-tr from-amber-600 to-orange-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2">
+                        <i class="fa fa-rotate-right text-[10px]"></i> Reiniciar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -74,6 +111,26 @@
     const servicesMonitor = {
         baseUrl: document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '',
         currentLogService: null,
+        currentRestartService: null,
+        currentServer: 'local',
+        availableServers: [],
+
+        changeServer(serverKey) {
+            this.currentServer = serverKey || 'local';
+            this.loadStatus();
+        },
+
+        url(path, params = {}) {
+            const query = new URLSearchParams();
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && String(value) !== '') {
+                    query.set(key, String(value));
+                }
+            });
+
+            const suffix = query.toString();
+            return `${this.baseUrl}${path}${suffix ? `?${suffix}` : ''}`;
+        },
 
         async loadStatus(silent = false) {
             const tbody = document.getElementById('servicesMonitorTableBody');
@@ -82,7 +139,10 @@
             }
 
             try {
-                const response = await fetch(`${this.baseUrl}/admin/services-monitor/status?_=${Date.now()}`);
+                const response = await fetch(this.url('/admin/services-monitor/status', {
+                    server: this.currentServer,
+                    _: Date.now()
+                }));
                 const result = await response.json();
 
                 if (!response.ok || !result.success) {
@@ -96,12 +156,17 @@
         },
 
         render(data) {
-            document.getElementById('servicesMonitorHost').textContent = `Host: ${data.host || 'desconhecido'}`;
+            this.currentServer = data.server_key || this.currentServer || 'local';
+            this.availableServers = Array.isArray(data.available_servers) ? data.available_servers : [];
+            this.renderServerOptions(this.availableServers, this.currentServer);
+
+            const hostLabel = [data.server_label || 'Servidor', data.host ? `(${data.host})` : ''].filter(Boolean).join(' ');
+            document.getElementById('servicesMonitorHost').textContent = `Servidor: ${hostLabel || 'desconhecido'}`;
 
             const unsupported = document.getElementById('servicesMonitorUnsupported');
             if (data.supported === false) {
                 unsupported.classList.remove('hidden');
-                unsupported.textContent = 'Este host não suporta systemd/journalctl ou não está em Linux. A tela continua mostrando heartbeat quando houver.';
+                unsupported.textContent = 'Este perfil não conseguiu acessar systemd/journalctl. Se for um host remoto, confira SSH, sudo e permissões do journal.';
             } else {
                 unsupported.classList.add('hidden');
                 unsupported.textContent = '';
@@ -110,6 +175,17 @@
             const services = Array.isArray(data.services) ? data.services : [];
             this.renderSummary(services);
             this.renderTable(services);
+        },
+
+        renderServerOptions(servers, selected) {
+            const select = document.getElementById('servicesMonitorServerSelect');
+            if (!select) return;
+
+            const items = (servers || []).length ? servers : [{ key: 'local', label: 'Aplicação', host: '-' }];
+            select.innerHTML = items.map((server) => {
+                const label = `${server.label || server.key}${server.host ? ` - ${server.host}` : ''}`;
+                return `<option value="${this.escapeAttr(server.key || 'local')}" ${String(server.key || 'local') === String(selected) ? 'selected' : ''}>${this.escape(label)}</option>`;
+            }).join('');
         },
 
         renderSummary(services) {
@@ -147,6 +223,7 @@
                 const heartbeat = service.heartbeat || {};
                 const queue = service.queue_health || {};
                 const alerts = Array.isArray(service.alerts) ? service.alerts : [];
+                const safeServiceName = this.escapeAttr(service.service_name || '');
 
                 return `
                     <tr class="border-t border-slate-100 align-top">
@@ -196,10 +273,16 @@
                             </div>
                         </td>
                         <td class="px-4 py-4 text-center">
-                            <button type="button" onclick="servicesMonitor.openLogs('${this.escapeAttr(service.service_name || '')}')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">
-                                <i class="ni ni-single-copy-04"></i>
-                                Ver logs
-                            </button>
+                            <div class="flex flex-col gap-2 items-center">
+                                <button type="button" onclick="servicesMonitor.openLogs('${safeServiceName}')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">
+                                    <i class="ni ni-single-copy-04"></i>
+                                    Ver logs
+                                </button>
+                                <button type="button" onclick="servicesMonitor.openRestart('${safeServiceName}')" class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-amber-700 hover:bg-amber-100">
+                                    <i class="fa fa-rotate-right"></i>
+                                    Restart
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -208,8 +291,9 @@
 
         async openLogs(serviceName) {
             this.currentLogService = serviceName;
-            document.getElementById('servicesMonitorLogsModal').classList.remove('hidden');
-            document.getElementById('servicesMonitorLogsModal').classList.add('flex');
+            const modal = document.getElementById('servicesMonitorLogsModal');
+            modal.classList.replace('hidden', 'flex');
+            document.body.classList.add('overflow-hidden');
             document.getElementById('servicesMonitorLogsTitle').textContent = serviceName;
             document.getElementById('servicesMonitorLogsBody').textContent = 'Carregando logs...';
             document.getElementById('servicesMonitorReloadLogs').onclick = () => this.fetchLogs(serviceName);
@@ -217,14 +301,19 @@
         },
 
         closeLogs() {
-            document.getElementById('servicesMonitorLogsModal').classList.add('hidden');
-            document.getElementById('servicesMonitorLogsModal').classList.remove('flex');
+            const modal = document.getElementById('servicesMonitorLogsModal');
+            modal.classList.replace('flex', 'hidden');
+            document.body.classList.remove('overflow-hidden');
             this.currentLogService = null;
         },
 
         async fetchLogs(serviceName) {
             try {
-                const response = await fetch(`${this.baseUrl}/admin/services-monitor/logs?service=${encodeURIComponent(serviceName)}&_=${Date.now()}`);
+                const response = await fetch(this.url('/admin/services-monitor/logs', {
+                    service: serviceName,
+                    server: this.currentServer,
+                    _: Date.now()
+                }));
                 const result = await response.json();
                 if (!response.ok || !result.success) {
                     throw new Error(result.message || 'Falha ao carregar logs.');
@@ -239,6 +328,76 @@
                 document.getElementById('servicesMonitorLogsMeta').textContent = 'Erro';
                 document.getElementById('servicesMonitorLogsBody').textContent = error.message || 'Falha ao carregar logs.';
             }
+        },
+
+        openRestart(serviceName) {
+            this.currentRestartService = serviceName;
+            document.getElementById('servicesMonitorRestartServiceName').textContent = serviceName;
+            const currentOption = this.availableServers.find((server) => String(server.key) === String(this.currentServer));
+            document.getElementById('servicesMonitorRestartServerName').textContent = currentOption
+                ? `${currentOption.label} (${currentOption.host || '-'})`
+                : this.currentServer;
+            document.getElementById('servicesMonitorRestartConfirmInput').value = '';
+            const modal = document.getElementById('servicesMonitorRestartModal');
+            modal.classList.replace('hidden', 'flex');
+            document.body.classList.add('overflow-hidden');
+        },
+
+        closeRestart() {
+            const modal = document.getElementById('servicesMonitorRestartModal');
+            modal.classList.replace('flex', 'hidden');
+            document.body.classList.remove('overflow-hidden');
+            this.currentRestartService = null;
+        },
+
+        async confirmRestart() {
+            if (!this.currentRestartService) return;
+
+            const input = document.getElementById('servicesMonitorRestartConfirmInput');
+            const button = document.getElementById('servicesMonitorRestartButton');
+            if (String(input.value || '').trim().toUpperCase() !== 'RESTART') {
+                if (typeof notyf !== 'undefined') notyf.error('Digite RESTART para confirmar.');
+                input.focus();
+                return;
+            }
+
+            if (!window.confirm(`Confirma o restart do serviço ${this.currentRestartService} em ${this.currentServer}?`)) {
+                return;
+            }
+
+            const original = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Reiniciando...';
+
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/services-monitor/restart`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        service: this.currentRestartService,
+                        server: this.currentServer
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao reiniciar o serviço.');
+                }
+
+                if (typeof notyf !== 'undefined') notyf.success(result.message || 'Serviço reiniciado.');
+                this.closeRestart();
+                await this.loadStatus(true);
+            } catch (error) {
+                if (typeof notyf !== 'undefined') notyf.error(error.message || 'Falha ao reiniciar o serviço.');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
+        },
+
+        dismissBackdrop(event, type) {
+            if (event.target !== event.currentTarget) return;
+            if (type === 'logs') this.closeLogs();
+            if (type === 'restart') this.closeRestart();
         },
 
         summaryCard(label, value, color, icon) {
@@ -291,6 +450,13 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
+        ['servicesMonitorLogsModal', 'servicesMonitorRestartModal'].forEach((id) => {
+            const modal = document.getElementById(id);
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+        });
+
         servicesMonitor.loadStatus();
     });
 </script>

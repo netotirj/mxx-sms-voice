@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Config\TelephonyConfig;
 use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\WorkerHeartbeat;
 use App\RedisConn;
@@ -27,24 +28,85 @@ class ServicesMonitorService
                 '/admin/services-monitor',
                 '/admin/services-monitor/status',
                 '/admin/services-monitor/logs',
+                '/admin/services-monitor/restart',
             ]
         );
     }
 
-    public static function statusSnapshot(): array
+    public static function serverProfiles(): array
     {
-        $services = self::allowedServices();
-        $heartbeats = WorkerHeartbeat::listByServices($services);
-        $queueHealth = self::queueHealth();
+        $profiles = [];
+
+        $profiles['local'] = [
+            'key' => 'local',
+            'label' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_LOCAL_LABEL', 'Aplicação')),
+            'mode' => 'local',
+            'host' => gethostname() ?: php_uname('n'),
+            'services' => self::mergeServices(
+                self::FIXED_WHITELIST,
+                self::parseServiceList((string)TelephonyConfig::env('SERVICES_MONITOR_LOCAL_SERVICES', ''))
+            ),
+            'use_sudo' => self::envBool('SERVICES_MONITOR_USE_SUDO', false),
+            'sudo_bin' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_SUDO_BIN', 'sudo -n')),
+        ];
+
+        $asteriskHost = trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', ''));
+        if ($asteriskHost !== '') {
+            $profiles['asterisk'] = [
+                'key' => 'asterisk',
+                'label' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_LABEL', 'Asterisk')),
+                'mode' => 'ssh',
+                'host' => $asteriskHost,
+                'user' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USER', 'root')),
+                'port' => max(1, (int)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_PORT', 22)),
+                'identity_file' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_KEY', '')),
+                'services' => self::mergeServices(
+                    self::FIXED_WHITELIST,
+                    self::parseServiceList((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SERVICES', ''))
+                ),
+                'use_sudo' => self::envBool('SERVICES_MONITOR_ASTERISK_USE_SUDO', false),
+                'sudo_bin' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SUDO_BIN', 'sudo -n')),
+                'strict_host_key' => self::envBool('SERVICES_MONITOR_ASTERISK_STRICT_HOST_KEY', false),
+            ];
+        }
+
+        return $profiles;
+    }
+
+    public static function availableServers(): array
+    {
+        return array_values(array_map(static function (array $profile): array {
+            return [
+                'key' => (string)$profile['key'],
+                'label' => (string)$profile['label'],
+                'host' => (string)$profile['host'],
+                'mode' => (string)$profile['mode'],
+            ];
+        }, self::serverProfiles()));
+    }
+
+    public static function statusSnapshot(?string $serverKey = null): array
+    {
+        $profile = self::resolveProfile($serverKey);
+        $services = self::allowedServices($profile);
+        $heartbeats = ($profile['mode'] ?? 'local') === 'local'
+            ? WorkerHeartbeat::listByServices($services)
+            : [];
+        $queueHealth = ($profile['mode'] ?? 'local') === 'local'
+            ? self::queueHealth()
+            : [];
 
         $items = [];
         foreach ($services as $serviceName) {
-            $systemd = self::serviceSnapshot($serviceName);
+            $systemd = self::serviceSnapshot($profile, $serviceName);
             $heartbeat = $heartbeats[$serviceName] ?? null;
             $item = array_merge(
                 self::baseDefinition($serviceName),
                 $systemd,
                 [
+                    'server_key' => (string)$profile['key'],
+                    'server_label' => (string)$profile['label'],
+                    'server_host' => (string)$profile['host'],
                     'heartbeat' => self::heartbeatSnapshot($heartbeat),
                     'queue_health' => $queueHealth[$serviceName] ?? null,
                 ]
@@ -54,22 +116,29 @@ class ServicesMonitorService
         }
 
         return [
-            'supported' => self::systemdSupported(),
-            'host' => gethostname() ?: php_uname('n'),
+            'supported' => self::systemdSupported($profile),
+            'host' => (string)$profile['host'],
+            'server_key' => (string)$profile['key'],
+            'server_label' => (string)$profile['label'],
+            'server_mode' => (string)$profile['mode'],
             'generated_at' => date('Y-m-d H:i:s'),
             'services' => $items,
             'allowed_services' => $services,
+            'available_servers' => self::availableServers(),
         ];
     }
 
-    public static function recentLogs(string $serviceName, int $lines = self::DEFAULT_LOG_LINES): array
+    public static function recentLogs(string $serviceName, int $lines = self::DEFAULT_LOG_LINES, ?string $serverKey = null): array
     {
-        $serviceName = self::assertAllowedService($serviceName);
+        $profile = self::resolveProfile($serverKey);
+        $serviceName = self::assertAllowedService($serviceName, $profile);
         $lines = max(10, min(300, $lines));
 
-        if (!self::systemdSupported()) {
+        if (!self::systemdSupported($profile)) {
             return [
                 'service' => $serviceName,
+                'server_key' => (string)$profile['key'],
+                'server_label' => (string)$profile['label'],
                 'supported' => false,
                 'lines' => [],
                 'last_line' => 'Host atual não suporta systemd/journalctl.',
@@ -77,12 +146,14 @@ class ServicesMonitorService
         }
 
         $command = 'journalctl -u ' . escapeshellarg($serviceName) . ' -n ' . $lines . ' --no-pager 2>&1';
-        $result = self::runCommand($command);
+        $result = self::runCommandForProfile($profile, $command);
         $rawLines = preg_split('/\r\n|\r|\n/', trim((string)$result['output'])) ?: [];
         $sanitized = array_values(array_filter(array_map([self::class, 'sanitizeLogLine'], $rawLines), static fn ($line): bool => $line !== ''));
 
         return [
             'service' => $serviceName,
+            'server_key' => (string)$profile['key'],
+            'server_label' => (string)$profile['label'],
             'supported' => true,
             'command_ok' => (bool)$result['ok'],
             'lines' => $sanitized,
@@ -90,34 +161,79 @@ class ServicesMonitorService
         ];
     }
 
-    public static function allowedServices(): array
+    public static function restartService(string $serviceName, ?string $serverKey = null): array
     {
-        $services = array_fill_keys(self::FIXED_WHITELIST, true);
+        $profile = self::resolveProfile($serverKey);
+        $serviceName = self::assertAllowedService($serviceName, $profile);
 
-        foreach (self::discoverMaxxServices() as $serviceName) {
+        if (!self::systemdSupported($profile)) {
+            throw new \RuntimeException('Este host não suporta systemd.');
+        }
+
+        $command = 'systemctl restart ' . escapeshellarg($serviceName) . ' 2>&1';
+        $result = self::runCommandForProfile($profile, $command);
+
+        if (!$result['ok']) {
+            $message = trim((string)$result['output']);
+            throw new \RuntimeException($message !== '' ? $message : 'Falha ao reiniciar o serviço.');
+        }
+
+        return [
+            'service' => $serviceName,
+            'server_key' => (string)$profile['key'],
+            'server_label' => (string)$profile['label'],
+            'message' => 'Serviço reiniciado com sucesso.',
+            'status' => self::serviceSnapshot($profile, $serviceName),
+        ];
+    }
+
+    public static function allowedServices(array $profile): array
+    {
+        $services = array_fill_keys((array)($profile['services'] ?? []), true);
+
+        foreach (self::discoverMaxxServices($profile) as $serviceName) {
             $services[$serviceName] = true;
         }
 
-        return array_keys($services);
+        $normalized = [];
+        foreach (array_keys($services) as $serviceName) {
+            $serviceName = trim((string)$serviceName);
+            if ($serviceName !== '' && preg_match('/^[a-zA-Z0-9._@-]+\.service$/', $serviceName)) {
+                $normalized[$serviceName] = true;
+            }
+        }
+
+        return array_keys($normalized);
     }
 
-    private static function assertAllowedService(string $serviceName): string
+    private static function resolveProfile(?string $serverKey): array
+    {
+        $profiles = self::serverProfiles();
+        $serverKey = trim((string)$serverKey);
+        if ($serverKey === '' || !isset($profiles[$serverKey])) {
+            return $profiles['local'];
+        }
+
+        return $profiles[$serverKey];
+    }
+
+    private static function assertAllowedService(string $serviceName, array $profile): string
     {
         $serviceName = trim($serviceName);
         if ($serviceName === '' || !preg_match('/^[a-zA-Z0-9._@-]+\.service$/', $serviceName)) {
             throw new \InvalidArgumentException('Serviço inválido.');
         }
 
-        if (!in_array($serviceName, self::allowedServices(), true)) {
+        if (!in_array($serviceName, self::allowedServices($profile), true)) {
             throw new \InvalidArgumentException('Serviço fora da whitelist.');
         }
 
         return $serviceName;
     }
 
-    private static function discoverMaxxServices(): array
+    private static function discoverMaxxServices(array $profile): array
     {
-        if (!self::systemdSupported()) {
+        if (!self::systemdSupported($profile)) {
             return [];
         }
 
@@ -126,7 +242,7 @@ class ServicesMonitorService
             "systemctl list-unit-files 'maxx-*.service' --type=service --no-legend --no-pager 2>/dev/null",
             "systemctl list-units 'maxx-*.service' --type=service --all --no-legend --no-pager 2>/dev/null",
         ] as $command) {
-            $result = self::runCommand($command);
+            $result = self::runCommandForProfile($profile, $command);
             $lines = preg_split('/\r\n|\r|\n/', trim((string)$result['output'])) ?: [];
             foreach ($lines as $line) {
                 if (!preg_match('/\b(maxx-[a-z0-9._@-]+\.service)\b/i', $line, $matches)) {
@@ -139,9 +255,9 @@ class ServicesMonitorService
         return array_values($candidates);
     }
 
-    private static function serviceSnapshot(string $serviceName): array
+    private static function serviceSnapshot(array $profile, string $serviceName): array
     {
-        if (!self::systemdSupported()) {
+        if (!self::systemdSupported($profile)) {
             return [
                 'load_state' => 'unsupported',
                 'active_state' => 'unsupported',
@@ -156,10 +272,12 @@ class ServicesMonitorService
                 'memory_mb' => null,
                 'cpu_seconds' => null,
                 'last_log_line' => 'Host atual não suporta systemd.',
+                'restart_count' => 0,
             ];
         }
 
-        $result = self::runCommand(
+        $result = self::runCommandForProfile(
+            $profile,
             'systemctl show ' . escapeshellarg($serviceName) . ' --no-page '
             . '--property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStartTimestamp,ActiveEnterTimestamp,InactiveEnterTimestamp,Result,MemoryCurrent,CPUUsageNSec,NRestarts 2>&1'
         );
@@ -191,7 +309,7 @@ class ServicesMonitorService
                 ? round(((float)$properties['CPUUsageNSec']) / 1000000000, 2)
                 : null,
             'restart_count' => isset($properties['NRestarts']) && is_numeric($properties['NRestarts']) ? (int)$properties['NRestarts'] : 0,
-            'last_log_line' => self::lastRelevantLogLine($serviceName),
+            'last_log_line' => self::lastRelevantLogLine($profile, $serviceName),
         ];
     }
 
@@ -292,9 +410,9 @@ class ServicesMonitorService
         return $seconds !== null && $seconds > self::STALE_HEARTBEAT_SECONDS;
     }
 
-    private static function lastRelevantLogLine(string $serviceName): ?string
+    private static function lastRelevantLogLine(array $profile, string $serviceName): ?string
     {
-        $logs = self::recentLogs($serviceName, self::LAST_LOG_LINES);
+        $logs = self::recentLogs($serviceName, self::LAST_LOG_LINES, (string)$profile['key']);
         return $logs['last_line'] ?? null;
     }
 
@@ -325,17 +443,26 @@ class ServicesMonitorService
         ];
     }
 
-    private static function systemdSupported(): bool
+    private static function systemdSupported(array $profile): bool
     {
-        if (PHP_OS_FAMILY !== 'Linux') {
+        if (($profile['mode'] ?? 'local') === 'local' && PHP_OS_FAMILY !== 'Linux') {
             return false;
         }
 
-        $result = self::runCommand('command -v systemctl 2>/dev/null');
+        $result = self::runCommandForProfile($profile, 'command -v systemctl 2>/dev/null');
         return $result['ok'] && trim((string)$result['output']) !== '';
     }
 
-    private static function runCommand(string $command): array
+    private static function runCommandForProfile(array $profile, string $command): array
+    {
+        if (($profile['mode'] ?? 'local') === 'ssh') {
+            return self::runSshCommand($profile, $command);
+        }
+
+        return self::runLocalCommand(self::withSudo($profile, $command));
+    }
+
+    private static function runLocalCommand(string $command): array
     {
         if (!function_exists('exec')) {
             return ['ok' => false, 'status' => 127, 'output' => 'exec() desabilitado neste host.'];
@@ -350,6 +477,62 @@ class ServicesMonitorService
             'status' => $status,
             'output' => implode("\n", $output),
         ];
+    }
+
+    private static function runSshCommand(array $profile, string $command): array
+    {
+        $host = trim((string)($profile['host'] ?? ''));
+        if ($host === '') {
+            return ['ok' => false, 'status' => 127, 'output' => 'Host SSH do perfil não configurado.'];
+        }
+
+        $user = trim((string)($profile['user'] ?? 'root'));
+        $port = max(1, (int)($profile['port'] ?? 22));
+        $identityFile = trim((string)($profile['identity_file'] ?? ''));
+        $strictHostKey = (bool)($profile['strict_host_key'] ?? false);
+        $target = $user !== '' ? "{$user}@{$host}" : $host;
+
+        $parts = [
+            'ssh',
+            '-o',
+            'BatchMode=yes',
+            '-o',
+            'ConnectTimeout=5',
+            '-p',
+            (string)$port,
+        ];
+
+        if (!$strictHostKey) {
+            $parts[] = '-o';
+            $parts[] = 'StrictHostKeyChecking=no';
+            $parts[] = '-o';
+            $parts[] = 'UserKnownHostsFile=/dev/null';
+        }
+
+        if ($identityFile !== '') {
+            $parts[] = '-i';
+            $parts[] = $identityFile;
+        }
+
+        $sshPrefix = implode(' ', array_map('escapeshellarg', $parts));
+        $remoteCommand = self::withSudo($profile, $command);
+        $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' -- ' . escapeshellarg($remoteCommand);
+
+        return self::runLocalCommand($fullCommand);
+    }
+
+    private static function withSudo(array $profile, string $command): string
+    {
+        if (empty($profile['use_sudo'])) {
+            return $command;
+        }
+
+        $sudoBin = trim((string)($profile['sudo_bin'] ?? 'sudo -n'));
+        if ($sudoBin === '') {
+            $sudoBin = 'sudo -n';
+        }
+
+        return $sudoBin . ' ' . $command;
     }
 
     private static function parseSystemctlShow(string $raw): array
@@ -465,5 +648,32 @@ class ServicesMonitorService
         ];
 
         return preg_replace(array_keys($patterns), array_values($patterns), $line) ?? $line;
+    }
+
+    private static function parseServiceList(string $value): array
+    {
+        $items = preg_split('/[\s,;]+/', trim($value)) ?: [];
+        return array_values(array_filter(array_map(static fn ($item): string => trim((string)$item), $items)));
+    }
+
+    private static function mergeServices(array ...$groups): array
+    {
+        $merged = [];
+        foreach ($groups as $group) {
+            foreach ($group as $serviceName) {
+                $serviceName = trim((string)$serviceName);
+                if ($serviceName !== '') {
+                    $merged[$serviceName] = true;
+                }
+            }
+        }
+
+        return array_keys($merged);
+    }
+
+    private static function envBool(string $key, bool $default = false): bool
+    {
+        $value = strtolower(trim((string)TelephonyConfig::env($key, $default ? 'true' : 'false')));
+        return in_array($value, ['1', 'true', 'yes', 'on', 'y'], true);
     }
 }

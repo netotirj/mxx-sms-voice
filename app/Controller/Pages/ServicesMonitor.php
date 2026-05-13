@@ -39,10 +39,11 @@ class ServicesMonitor extends ViewComponents
         }
 
         ServicesMonitorService::ensureRouteCatalog();
+        $server = trim((string)($request->getQueryParams()['server'] ?? 'local'));
 
         return self::json(200, [
             'success' => true,
-            'data' => ServicesMonitorService::statusSnapshot(),
+            'data' => ServicesMonitorService::statusSnapshot($server),
         ]);
     }
 
@@ -62,14 +63,15 @@ class ServicesMonitor extends ViewComponents
         try {
             $service = trim((string)($request->getQueryParams()['service'] ?? ''));
             $lines = (int)($request->getQueryParams()['lines'] ?? 100);
-            $logs = ServicesMonitorService::recentLogs($service, $lines);
+            $server = trim((string)($request->getQueryParams()['server'] ?? 'local'));
+            $logs = ServicesMonitorService::recentLogs($service, $lines, $server);
 
             ServiceMonitorAudit::record(
                 $user,
                 'view_logs',
                 $service,
                 $_SERVER['REMOTE_ADDR'] ?? null,
-                ['lines' => $lines]
+                ['lines' => $lines, 'server' => $server]
             );
 
             return self::json(200, [
@@ -77,6 +79,53 @@ class ServicesMonitor extends ViewComponents
                 'data' => $logs,
             ]);
         } catch (\Throwable $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function restart($request): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!self::canManage($user)) {
+            return self::json(403, ['success' => false, 'message' => 'Sem permissão.']);
+        }
+
+        ServicesMonitorService::ensureRouteCatalog();
+
+        $payload = [];
+
+        try {
+            $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+            $service = trim((string)($payload['service'] ?? ''));
+            $server = trim((string)($payload['server'] ?? 'local'));
+            $result = ServicesMonitorService::restartService($service, $server);
+
+            ServiceMonitorAudit::record(
+                $user,
+                'restart_service',
+                $service,
+                $_SERVER['REMOTE_ADDR'] ?? null,
+                ['server' => $server, 'result' => 'success']
+            );
+
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Serviço reiniciado com sucesso.',
+                'data' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            ServiceMonitorAudit::record(
+                $user,
+                'restart_service',
+                trim((string)(($payload['service'] ?? ''))),
+                $_SERVER['REMOTE_ADDR'] ?? null,
+                ['server' => trim((string)(($payload['server'] ?? 'local'))), 'result' => 'failed', 'error' => $e->getMessage()]
+            );
+
             return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
         }
     }

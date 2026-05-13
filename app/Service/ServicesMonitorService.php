@@ -454,7 +454,25 @@ class ServicesMonitorService
             return false;
         }
 
-        $result = self::runCommandForProfile($profile, 'command -v systemctl 2>/dev/null');
+        return self::binaryExists($profile, 'systemctl')
+            && self::binaryExists($profile, 'journalctl');
+    }
+
+    private static function binaryExists(array $profile, string $binary): bool
+    {
+        $binary = trim($binary);
+        if ($binary === '') {
+            return false;
+        }
+
+        $command = 'which ' . escapeshellarg($binary) . ' 2>/dev/null';
+
+        if (($profile['mode'] ?? 'local') === 'ssh') {
+            $result = self::runSshCommand($profile, $command, false);
+            return $result['ok'] && trim((string)$result['output']) !== '';
+        }
+
+        $result = self::runLocalCommand($command);
         return $result['ok'] && trim((string)$result['output']) !== '';
     }
 
@@ -484,7 +502,7 @@ class ServicesMonitorService
         ];
     }
 
-    private static function runSshCommand(array $profile, string $command): array
+    private static function runSshCommand(array $profile, string $command, bool $useSudo = true): array
     {
         $host = trim((string)($profile['host'] ?? ''));
         if ($host === '') {
@@ -520,7 +538,7 @@ class ServicesMonitorService
         }
 
         $sshPrefix = implode(' ', array_map('escapeshellarg', $parts));
-        $remoteCommand = self::withSudo($profile, $command);
+        $remoteCommand = $useSudo ? self::withSudo($profile, $command) : $command;
         $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' -- ' . escapeshellarg($remoteCommand);
 
         return self::runLocalCommand($fullCommand);

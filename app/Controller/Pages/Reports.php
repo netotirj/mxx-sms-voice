@@ -2329,14 +2329,25 @@ class Reports extends ViewComponents
                 'answered'          => $base['answered'],
                 'ended'             => $base['ended'],
                 'created_at'        => $base['created_at'],
+                '_sort_ts'          => self::voiceCdrSortTimestamp($callRows),
             ];
         }
 
         usort($formatted, static function (array $a, array $b): int {
-            return strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? ''));
+            $sortA = (int)($a['_sort_ts'] ?? 0);
+            $sortB = (int)($b['_sort_ts'] ?? 0);
+
+            if ($sortA === $sortB) {
+                return strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? ''));
+            }
+
+            return $sortB <=> $sortA;
         });
 
-        return $formatted;
+        return array_map(static function (array $row): array {
+            unset($row['_sort_ts']);
+            return $row;
+        }, $formatted);
     }
 
     private static function pickVoiceCdrRepresentativeRow(array $rows): array
@@ -2436,6 +2447,27 @@ class Reports extends ViewComponents
 
         $len = strlen($normalized);
         return $len >= 3 && $len <= 8;
+    }
+
+    private static function voiceCdrSortTimestamp(array $rows): int
+    {
+        $best = 0;
+
+        foreach ($rows as $row) {
+            foreach (['ended', 'answered', 'started', 'created_at'] as $field) {
+                $raw = trim((string)($row[$field] ?? ''));
+                if ($raw === '' || $raw === '0000-00-00 00:00:00') {
+                    continue;
+                }
+
+                $timestamp = strtotime($raw);
+                if ($timestamp !== false && $timestamp > $best) {
+                    $best = $timestamp;
+                }
+            }
+        }
+
+        return $best;
     }
 
 

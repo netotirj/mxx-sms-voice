@@ -3,6 +3,7 @@
 require __DIR__ . '/bootstrap/cli.php';
 
 use App\Service\WhatsAppOutboxWorker;
+use App\Model\Entity\WorkerHeartbeat;
 
 ini_set('output_buffering', 'off');
 ini_set('implicit_flush', '1');
@@ -35,6 +36,9 @@ if (function_exists('pcntl_signal')) {
 
 $worker = new WhatsAppOutboxWorker();
 $loop = 0;
+$serviceName = getenv('WHATSAPP_WORKER_SERVICE_NAME') ?: 'maxx-whatsapp-worker.service';
+
+WorkerHeartbeat::record($serviceName, 'whatsapp', 'starting', 'Daemon de WhatsApp iniciado.', 0, 0, round(memory_get_usage(true) / 1048576, 2));
 
 daemonLog('started', [
     'limit' => $limit,
@@ -49,6 +53,15 @@ while ($running) {
 
     try {
         $summary = $worker->runOnce($limit, $cancelCategory);
+        WorkerHeartbeat::record(
+            $serviceName,
+            'whatsapp',
+            'running',
+            'Daemon tick processado.',
+            (int)($summary['processed'] ?? 0),
+            (int)($summary['failed'] ?? 0),
+            round(memory_get_usage(true) / 1048576, 2)
+        );
         daemonLog('tick', [
             'loop' => $loop,
             'processed' => $summary['processed'] ?? 0,
@@ -59,6 +72,15 @@ while ($running) {
             'memory_mb' => round(memory_get_usage(true) / 1048576, 2),
         ]);
     } catch (Throwable $e) {
+        WorkerHeartbeat::record(
+            $serviceName,
+            'whatsapp',
+            'error',
+            $e->getMessage(),
+            0,
+            1,
+            round(memory_get_usage(true) / 1048576, 2)
+        );
         daemonLog('error', [
             'loop' => $loop,
             'message' => $e->getMessage(),
@@ -73,6 +95,7 @@ while ($running) {
     sleep($sleepSeconds);
 }
 
+WorkerHeartbeat::record($serviceName, 'whatsapp', 'stopped', 'Daemon de WhatsApp finalizado.', 0, 0, round(memory_get_usage(true) / 1048576, 2));
 daemonLog('stopped', ['loops' => $loop]);
 
 function daemonLog(string $event, array $context = []): void

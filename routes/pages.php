@@ -23,6 +23,7 @@ include __DIR__.'/dash/voice.php';
 include __DIR__.'/dash/whatsapp.php';
 include __DIR__.'/dash/support.php';
 include __DIR__.'/dash/system-updates.php';
+include __DIR__.'/dash/services-monitor.php';
 include __DIR__.'/dash/marketing.php';
 include __DIR__.'/dash/callcenter.php';
 include __DIR__.'/dash/movies.php';

@@ -52,6 +52,9 @@ class PermissionMiddleware
         ['type' => 'exact', 'match' => '/system-updates', 'features' => ['administrative']],
         ['type' => 'prefix', 'match' => '/system-updates/', 'features' => ['administrative']],
 
+        ['type' => 'exact', 'match' => '/admin/services-monitor', 'features' => ['administrative']],
+        ['type' => 'prefix', 'match' => '/admin/services-monitor/', 'features' => ['administrative']],
+
         ['type' => 'exact', 'match' => '/site-tests', 'features' => ['administrative']],
         ['type' => 'prefix', 'match' => '/site-tests/', 'features' => ['administrative']],
 

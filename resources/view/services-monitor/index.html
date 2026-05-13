@@ -1,0 +1,296 @@
+<div class="w-full px-6 py-6 mx-auto" id="servicesMonitorApp">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-slate-900 text-white text-lg">
+                            <i class="ni ni-settings"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Monitoramento de Serviços</h2>
+                            <p class="text-xs text-slate-400">Status do systemd, heartbeat dos workers e logs recentes dos serviços críticos.</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Host: ...</span>
+                        <button type="button" onclick="servicesMonitor.loadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
+                            <i class="ni ni-refresh"></i>
+                            Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 px-6 pb-4" id="servicesMonitorSummary"></div>
+
+                <div id="servicesMonitorUnsupported" class="hidden mx-6 mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"></div>
+
+                <div class="px-6 pb-6">
+                    <div class="overflow-x-auto rounded-2xl border border-slate-100">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Serviço</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Systemd</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Heartbeat</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Recursos</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Diagnóstico</th>
+                                <th class="px-4 py-3 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="servicesMonitorTableBody">
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Carregando serviços...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="servicesMonitorLogsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 px-4">
+        <div class="w-full max-w-5xl rounded-3xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Logs Recentes</h3>
+                    <p id="servicesMonitorLogsTitle" class="text-xs text-slate-400">Serviço</p>
+                </div>
+                <button type="button" onclick="servicesMonitor.closeLogs()" class="rounded-full p-2 text-slate-400 hover:bg-slate-100">
+                    <i class="ni ni-fat-remove text-lg"></i>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <div class="mb-3 flex items-center justify-between">
+                    <p id="servicesMonitorLogsMeta" class="text-xs font-semibold uppercase tracking-wide text-slate-400"></p>
+                    <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">Recarregar</button>
+                </div>
+                <pre id="servicesMonitorLogsBody" class="max-h-[60vh] overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-5 text-emerald-200">Carregando logs...</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const servicesMonitor = {
+        baseUrl: document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '',
+        currentLogService: null,
+
+        async loadStatus(silent = false) {
+            const tbody = document.getElementById('servicesMonitorTableBody');
+            if (!silent) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Atualizando serviços...</td></tr>';
+            }
+
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/services-monitor/status?_=${Date.now()}`);
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao consultar monitoramento.');
+                }
+
+                this.render(result.data || {});
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-rose-500 font-semibold">${this.escape(error.message || 'Erro desconhecido')}</td></tr>`;
+            }
+        },
+
+        render(data) {
+            document.getElementById('servicesMonitorHost').textContent = `Host: ${data.host || 'desconhecido'}`;
+
+            const unsupported = document.getElementById('servicesMonitorUnsupported');
+            if (data.supported === false) {
+                unsupported.classList.remove('hidden');
+                unsupported.textContent = 'Este host não suporta systemd/journalctl ou não está em Linux. A tela continua mostrando heartbeat quando houver.';
+            } else {
+                unsupported.classList.add('hidden');
+                unsupported.textContent = '';
+            }
+
+            const services = Array.isArray(data.services) ? data.services : [];
+            this.renderSummary(services);
+            this.renderTable(services);
+        },
+
+        renderSummary(services) {
+            const counts = {
+                running: 0,
+                warning: 0,
+                critical: 0,
+                stale: 0,
+            };
+
+            services.forEach((service) => {
+                const color = service.status_color || 'slate';
+                if (color === 'emerald') counts.running++;
+                if (color === 'amber') counts.warning++;
+                if (color === 'rose' || color === 'slate') counts.critical++;
+                if (service.heartbeat && service.heartbeat.is_stale) counts.stale++;
+            });
+
+            document.getElementById('servicesMonitorSummary').innerHTML = [
+                this.summaryCard('Em execução', counts.running, 'bg-emerald-500', 'ni ni-check-bold'),
+                this.summaryCard('Atenção', counts.warning, 'bg-amber-500', 'ni ni-notification-70'),
+                this.summaryCard('Críticos', counts.critical, 'bg-rose-500', 'ni ni-fat-remove'),
+                this.summaryCard('Heartbeat atrasado', counts.stale, 'bg-slate-800', 'ni ni-watch-time'),
+            ].join('');
+        },
+
+        renderTable(services) {
+            const tbody = document.getElementById('servicesMonitorTableBody');
+            if (!services.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nenhum serviço disponível.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = services.map((service) => {
+                const heartbeat = service.heartbeat || {};
+                const queue = service.queue_health || {};
+                const alerts = Array.isArray(service.alerts) ? service.alerts : [];
+
+                return `
+                    <tr class="border-t border-slate-100 align-top">
+                        <td class="px-4 py-4">
+                            <div class="flex items-start gap-3">
+                                <span class="mt-1 inline-flex h-3 w-3 rounded-full ${this.statusDot(service.status_color)}"></span>
+                                <div>
+                                    <p class="font-bold text-slate-800">${this.escape(service.service_name || '-')}</p>
+                                    <p class="mt-1 text-xs text-slate-500">${this.escape(service.description || '-')}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="space-y-1 text-xs text-slate-600">
+                                <p><span class="font-bold">Estado:</span> ${this.escape(service.active_state || '-')} / ${this.escape(service.sub_state || '-')}</p>
+                                <p><span class="font-bold">Boot:</span> ${service.enabled_on_boot ? 'habilitado' : 'desabilitado'}</p>
+                                <p><span class="font-bold">Uptime:</span> ${this.escape(service.uptime_human || '-')}</p>
+                                <p><span class="font-bold">Último restart:</span> ${this.escape(service.last_restart || '-')}</p>
+                                <p><span class="font-bold">PID:</span> ${this.escape(String(service.main_pid || '-'))}</p>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="space-y-1 text-xs text-slate-600">
+                                <p><span class="font-bold">Último heartbeat:</span> ${this.escape(heartbeat.last_seen_at || '-')}</p>
+                                <p><span class="font-bold">Atraso:</span> ${heartbeat.seconds_since !== undefined && heartbeat.seconds_since !== null ? `${heartbeat.seconds_since}s` : '-'}</p>
+                                <p><span class="font-bold">Status:</span> ${this.escape(heartbeat.last_status || '-')}</p>
+                                <p><span class="font-bold">Processados:</span> ${Number(heartbeat.processed_count || 0)}</p>
+                                <p><span class="font-bold">Falhas:</span> ${Number(heartbeat.failed_count || 0)}</p>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="space-y-1 text-xs text-slate-600">
+                                <p><span class="font-bold">Memória:</span> ${service.memory_mb !== null && service.memory_mb !== undefined ? `${service.memory_mb} MB` : '-'}</p>
+                                <p><span class="font-bold">CPU:</span> ${service.cpu_seconds !== null && service.cpu_seconds !== undefined ? `${service.cpu_seconds}s` : '-'}</p>
+                                <p><span class="font-bold">Fila:</span> ${queue.queue_size !== undefined ? queue.queue_size : '-'}</p>
+                                <p><span class="font-bold">Restarts:</span> ${Number(service.restart_count || 0)}</p>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="space-y-2 text-xs">
+                                <div class="inline-flex rounded-full px-2.5 py-1 font-black uppercase tracking-wide ${this.statusBadge(service.status_color)}">
+                                    ${this.escape(service.status_label || 'unknown')}
+                                </div>
+                                <p class="text-slate-600"><span class="font-bold">Última linha:</span> ${this.escape(service.last_log_line || '-')}</p>
+                                <p class="text-slate-600"><span class="font-bold">Heartbeat:</span> ${this.escape(heartbeat.last_message || '-')}</p>
+                                ${alerts.map((alert) => `<p class="${alert.level === 'critical' ? 'text-rose-600' : 'text-amber-600'} font-semibold">${this.escape(alert.message || '')}</p>`).join('')}
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-center">
+                            <button type="button" onclick="servicesMonitor.openLogs('${this.escapeAttr(service.service_name || '')}')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">
+                                <i class="ni ni-single-copy-04"></i>
+                                Ver logs
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        },
+
+        async openLogs(serviceName) {
+            this.currentLogService = serviceName;
+            document.getElementById('servicesMonitorLogsModal').classList.remove('hidden');
+            document.getElementById('servicesMonitorLogsModal').classList.add('flex');
+            document.getElementById('servicesMonitorLogsTitle').textContent = serviceName;
+            document.getElementById('servicesMonitorLogsBody').textContent = 'Carregando logs...';
+            document.getElementById('servicesMonitorReloadLogs').onclick = () => this.fetchLogs(serviceName);
+            await this.fetchLogs(serviceName);
+        },
+
+        closeLogs() {
+            document.getElementById('servicesMonitorLogsModal').classList.add('hidden');
+            document.getElementById('servicesMonitorLogsModal').classList.remove('flex');
+            this.currentLogService = null;
+        },
+
+        async fetchLogs(serviceName) {
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/services-monitor/logs?service=${encodeURIComponent(serviceName)}&_=${Date.now()}`);
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao carregar logs.');
+                }
+
+                const data = result.data || {};
+                document.getElementById('servicesMonitorLogsMeta').textContent = data.supported === false
+                    ? 'Host sem suporte a journalctl'
+                    : `${(data.lines || []).length} linhas carregadas`;
+                document.getElementById('servicesMonitorLogsBody').textContent = (data.lines || []).join('\n') || 'Nenhum log recente encontrado.';
+            } catch (error) {
+                document.getElementById('servicesMonitorLogsMeta').textContent = 'Erro';
+                document.getElementById('servicesMonitorLogsBody').textContent = error.message || 'Falha ao carregar logs.';
+            }
+        },
+
+        summaryCard(label, value, color, icon) {
+            return `
+                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${label}</p>
+                            <p class="mt-1 text-2xl font-black text-slate-800">${value}</p>
+                        </div>
+                        <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white ${color}">
+                            <i class="${icon}"></i>
+                        </span>
+                    </div>
+                </div>
+            `;
+        },
+
+        statusDot(color) {
+            return {
+                emerald: 'bg-emerald-500',
+                amber: 'bg-amber-500',
+                rose: 'bg-rose-500',
+                slate: 'bg-slate-400'
+            }[color] || 'bg-slate-400';
+        },
+
+        statusBadge(color) {
+            return {
+                emerald: 'bg-emerald-50 text-emerald-700',
+                amber: 'bg-amber-50 text-amber-700',
+                rose: 'bg-rose-50 text-rose-700',
+                slate: 'bg-slate-100 text-slate-600'
+            }[color] || 'bg-slate-100 text-slate-600';
+        },
+
+        escape(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        },
+
+        escapeAttr(value) {
+            return this.escape(value).replace(/"/g, '&quot;');
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        servicesMonitor.loadStatus();
+    });
+</script>

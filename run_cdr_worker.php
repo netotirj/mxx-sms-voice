@@ -3,6 +3,7 @@
 require __DIR__ . '/bootstrap/app.php';
 
 use App\Controller\Pages\Voice;
+use App\Model\Entity\WorkerHeartbeat;
 use App\Utils\AsteriskEnv;
 use Predis\Client as RedisClient;
 
@@ -15,6 +16,8 @@ echo "Listening Redis queue: asterisk:tarifacoes\n";
 echo "Press Ctrl+C to stop.\n";
 
 $lastHeartbeat = time();
+$serviceName = getenv('CDR_WORKER_SERVICE_NAME') ?: 'maxx-cdr-worker.service';
+WorkerHeartbeat::record($serviceName, 'cdr', 'starting', 'CDR worker inicializado.', 0, 0, round(memory_get_usage(true) / 1048576, 2));
 $redis = new RedisClient([
     'scheme' => 'tcp',
     'host' => getenv('REDIS_HOST') ?: AsteriskEnv::host(),
@@ -43,7 +46,22 @@ function cdrWorkerDiagnostics(RedisClient $redis): string
 }
 
 while (true) {
-    Voice::processCdrFromRedis();
+    try {
+        Voice::processCdrFromRedis();
+    } catch (Throwable $e) {
+        WorkerHeartbeat::record(
+            $serviceName,
+            'cdr',
+            'error',
+            'Falha no loop do CDR worker: ' . $e->getMessage(),
+            0,
+            1,
+            round(memory_get_usage(true) / 1048576, 2)
+        );
+        echo '[' . date('Y-m-d H:i:s') . '] ERRO ' . $e->getMessage() . "\n";
+        usleep(500000);
+        continue;
+    }
 
     if (time() - $lastHeartbeat >= 30) {
         try {
@@ -53,6 +71,15 @@ while (true) {
         }
 
         echo '[' . date('Y-m-d H:i:s') . "] CDR Worker alive, waiting for payloads... {$diagnostics}\n";
+        WorkerHeartbeat::record(
+            $serviceName,
+            'cdr',
+            'running',
+            "CDR Worker alive. {$diagnostics}",
+            0,
+            0,
+            round(memory_get_usage(true) / 1048576, 2)
+        );
         $lastHeartbeat = time();
     }
 

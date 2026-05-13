@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Config\TelephonyConfig;
 use App\Model\Entity\CampaignVoice;
+use App\Model\Entity\WorkerHeartbeat;
 use App\RedisConn;
 use App\Service\PerformanceTelemetry;
 use Exception;
@@ -23,6 +24,10 @@ class VoiceWorker
     private array $ariAuth;
     private string $stasisApp;
     private float $lastAgentSyncAt = 0.0;
+    private float $lastHeartbeatAt = 0.0;
+    private int $pendingProcessed = 0;
+    private int $pendingFailed = 0;
+    private string $heartbeatServiceName;
 
     private const int MIN_CPS = 1;
     private const int MAX_CPS = 20;
@@ -36,6 +41,7 @@ class VoiceWorker
         $this->ariHost   = $opts['ari_host']   ?? TelephonyConfig::ariHost();
         $this->ariAuth   = $opts['ari_auth']   ?? TelephonyConfig::ariAuth();
         $this->stasisApp = $opts['stasis_app'] ?? TelephonyConfig::stasisApp();
+        $this->heartbeatServiceName = trim((string)($opts['service_name'] ?? getenv('VOICE_WORKER_SERVICE_NAME') ?: 'maxx-voice-worker.service'));
 
         $this->http = new Client([
             'base_uri'    => 'http://' . $this->ariHost . ':' . TelephonyConfig::ariPort() . '/',
@@ -64,6 +70,7 @@ class VoiceWorker
         ]);
 
         echo "🚀 Worker Voice iniciado (PID " . getmypid() . ")\n";
+        $this->flushHeartbeat('starting', 'Worker de voz inicializado.');
 
         while (true) {
 
@@ -72,6 +79,7 @@ class VoiceWorker
             // =====================================================
             if (!$this->isStasisOnline(10)) {
                 echo "🛑 STASIS OFFLINE → aguardando heartbeat...\n";
+                $this->heartbeatIfDue('waiting_stasis', 'Aguardando heartbeat do Stasis.');
                 sleep(1); // não consome fila, não gera carga
                 continue;
             }
@@ -97,6 +105,7 @@ class VoiceWorker
             }
 
             if (!$item) {
+                $this->heartbeatIfDue('idle', 'Aguardando itens nas filas de voz.');
                 continue;
             }
 
@@ -204,6 +213,8 @@ class VoiceWorker
                 }
 
                 echo "❌ Payload sem tarifação segura → {$pricingError}\n";
+                $this->pendingFailed++;
+                $this->heartbeatIfDue('warning', 'Payload ignorado por falha de tarifação.');
                 continue;
             }
 
@@ -457,6 +468,8 @@ class VoiceWorker
                         if ($jobId) {
                             $this->markCallFailed($data, $jobId);
                         }
+                        $this->pendingFailed++;
+                        $this->flushHeartbeat('error', 'Originate falhou e foi enviado para DLQ.');
                         echo "❌ ORIGINATE {$cls} → movido p/ DLQ\n";
                         continue;
                     }
@@ -486,12 +499,15 @@ class VoiceWorker
                     if ($jobId) {
                         $this->markCallFailed($data, $jobId);
                     }
+                    $this->pendingFailed++;
+                    $this->flushHeartbeat('error', 'Originate excedeu tentativas e foi enviado para DLQ.');
 
                     echo "❌ ORIGINATE falhou ({$cls}) → max retries → DLQ + cancel\n";
                     continue;
                 }
 
                 if ($ok && $jobId) {
+                    $this->pendingProcessed++;
 
                     $processed = $this->redis->hIncrBy(
                         "campaign:{$jobId}",
@@ -520,6 +536,12 @@ class VoiceWorker
                     }
                 }
 
+                if ($ok && !$jobId) {
+                    $this->pendingProcessed++;
+                }
+
+                $this->heartbeatIfDue('running', 'Worker de voz processando fila.');
+
             } catch (Throwable $e) {
 
                 // ✅ registra como erro genérico
@@ -543,6 +565,8 @@ class VoiceWorker
                 if ($jobId) {
                     $this->markCallFailed($data, $jobId);
                 }
+                $this->pendingFailed++;
+                $this->flushHeartbeat('error', '[ORIGINATE_EXCEPTION] ' . $e->getMessage());
 
                 echo "[ORIGINATE] ERRO: {$e->getMessage()}\n";
             }
@@ -570,6 +594,32 @@ class VoiceWorker
             $this->redis->expire($k, $ttl);
             echo $msg . "\n";
         }
+    }
+
+    private function heartbeatIfDue(string $status, string $message): void
+    {
+        if ((microtime(true) - $this->lastHeartbeatAt) < 15 && $this->pendingProcessed === 0 && $this->pendingFailed === 0) {
+            return;
+        }
+
+        $this->flushHeartbeat($status, $message);
+    }
+
+    private function flushHeartbeat(string $status, string $message): void
+    {
+        WorkerHeartbeat::record(
+            $this->heartbeatServiceName,
+            'voice',
+            $status,
+            $message,
+            $this->pendingProcessed,
+            $this->pendingFailed,
+            round(memory_get_usage(true) / 1048576, 2)
+        );
+
+        $this->pendingProcessed = 0;
+        $this->pendingFailed = 0;
+        $this->lastHeartbeatAt = microtime(true);
     }
 
     private function validatePricingPayload(array $data): ?string

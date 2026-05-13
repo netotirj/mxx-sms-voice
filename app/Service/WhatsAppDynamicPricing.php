@@ -805,7 +805,7 @@ class WhatsAppDynamicPricing
     private static function storedExchangeRate(): ?array
     {
         $row = (new Database('currency_exchange_rates'))
-            ->select('currency = :currency', [':currency' => self::DEFAULT_CURRENCY], 'updated_at DESC, id DESC', '1')
+            ->select('currency = :currency', [':currency' => self::DEFAULT_CURRENCY], 'updated_at DESC', '1')
             ->fetch(\PDO::FETCH_ASSOC);
 
         return is_array($row) ? $row : null;

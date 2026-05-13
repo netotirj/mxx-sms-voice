@@ -561,7 +561,14 @@ class ServicesMonitorService
             $sudoBin = 'sudo -n';
         }
 
-        return $sudoBin . ' ' . $command;
+        $parts = preg_split('/\s+/', $sudoBin) ?: [];
+        $parts = array_values(array_filter(array_map(static fn ($value): string => trim((string)$value), $parts)));
+        if ($parts === []) {
+            $parts = ['sudo', '-n'];
+        }
+
+        $prefix = implode(' ', array_map('escapeshellarg', $parts));
+        return $prefix . ' ' . $command;
     }
 
     private static function parseSystemctlShow(string $raw): array

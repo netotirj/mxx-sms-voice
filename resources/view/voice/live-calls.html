@@ -878,7 +878,7 @@
                 const connectionState = callSource?.readyState;
                 document.getElementById('call-status-text').textContent = "Reconectando...";
                 stopCallStream();
-                if (document.hidden || connectionState === EventSource.CONNECTING) {
+                if (document.hidden) {
                     return;
                 }
 
@@ -890,7 +890,13 @@
 
                 callStreamReconnectTimer = setTimeout(() => {
                     callStreamReconnectTimer = null;
-                    startCallStream();
+                    if (callStreamCooldownUntil > 0 && callStreamCooldownUntil <= Date.now()) {
+                        callStreamCooldownUntil = 0;
+                        resetCallStreamFailures();
+                    }
+                    if (!document.hidden) {
+                        startCallStream();
+                    }
                 }, delay);
             });
 

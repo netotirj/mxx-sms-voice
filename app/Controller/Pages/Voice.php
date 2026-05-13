@@ -1174,7 +1174,10 @@ class Voice extends ViewComponents
                 return new Response(404, ['status' => 404, 'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.'], 'application/json');
             }
         } else {
-            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId);
+            // O discador nao pode depender exclusivamente de um vinculo por usuario,
+            // porque o plano ativo da conta e da tenancy e outros modulos usam esse escopo.
+            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId)
+                ?: UserPlans::getActivePlanByTenancy($currentPlan, $tenantId);
             if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
                 return new Response(404, ['status' => 404, 'message' => 'Nenhum plano habilitado ou plano inativo.'], 'application/json');
             }
@@ -1421,7 +1424,10 @@ class Voice extends ViewComponents
                 return new Response(404, ['status' => 404, 'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.'], 'application/json');
             }
         } else {
-            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId);
+            // Mantem o discador alinhado com os demais canais: se o plano esta ativo
+            // para a tenancy, a voz nao deve falhar por ausencia de uma linha por usuario.
+            $obPlan = UserPlans::getActivePlanByUser($currentPlan, $tenantId, $userId)
+                ?: UserPlans::getActivePlanByTenancy($currentPlan, $tenantId);
             if (!$obPlan || empty($obPlan->id) || $obPlan->status !== 'active') {
                 return new Response(404, ['status' => 404, 'message' => 'Nenhum plano habilitado ou plano inativo.'], 'application/json');
             }

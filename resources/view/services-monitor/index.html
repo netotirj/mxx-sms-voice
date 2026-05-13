@@ -1,16 +1,58 @@
 <style>
-    #servicesMonitorApp .services-monitor-toolbar {
+    #servicesMonitorApp {
+        overflow-x: hidden;
+    }
+
+    #servicesMonitorApp .services-monitor-table {
         width: 100%;
+        table-layout: fixed;
+    }
+
+    #servicesMonitorApp .services-monitor-table th,
+    #servicesMonitorApp .services-monitor-table td {
+        vertical-align: top;
+    }
+
+    #servicesMonitorApp .services-monitor-col-service {
+        width: 16%;
+    }
+
+    #servicesMonitorApp .services-monitor-col-systemd {
+        width: 15%;
+    }
+
+    #servicesMonitorApp .services-monitor-col-heartbeat {
+        width: 14%;
+    }
+
+    #servicesMonitorApp .services-monitor-col-resources {
+        width: 12%;
+    }
+
+    #servicesMonitorApp .services-monitor-col-diagnostic {
+        width: 29%;
+    }
+
+    #servicesMonitorApp .services-monitor-col-actions {
+        width: 14%;
+    }
+
+    #servicesMonitorApp .services-monitor-toolbar {
+        width: min(100%, 760px);
         min-width: 0;
+        margin-left: auto;
+        justify-content: flex-end;
     }
 
     #servicesMonitorApp .services-monitor-select {
+        flex: 1 1 340px;
         max-width: 100%;
-        min-width: 280px;
+        min-width: 240px;
         height: 44px;
     }
 
     #servicesMonitorApp .services-monitor-host-badge {
+        flex: 1 1 300px;
         max-width: 100%;
         min-height: 36px;
         white-space: normal;
@@ -18,15 +60,58 @@
     }
 
     #servicesMonitorApp .services-monitor-update-btn {
+        flex: 0 0 auto;
         min-height: 44px;
         white-space: nowrap;
     }
 
+    #servicesMonitorApp .services-monitor-header-copy {
+        flex: 1 1 320px;
+        min-width: 0;
+    }
+
+    #servicesMonitorLogsModal {
+        align-items: center;
+        justify-content: center;
+    }
+
+    #servicesMonitorLogsModal .services-monitor-modal-card {
+        width: min(1100px, calc(100vw - 32px));
+        height: min(820px, calc(100vh - 32px));
+        max-height: calc(100vh - 32px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #servicesMonitorLogsModal .services-monitor-modal-body {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+    }
+
     #servicesMonitorApp .services-monitor-log-body {
-        max-height: 60vh;
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
         color: #86efac;
         font-weight: 500;
         line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    #servicesMonitorApp .services-monitor-diagnostic-copy,
+    #servicesMonitorApp .services-monitor-diagnostic-copy p,
+    #servicesMonitorApp .services-monitor-meta-list,
+    #servicesMonitorApp .services-monitor-meta-list p {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    #servicesMonitorApp .services-monitor-actions {
+        min-width: 112px;
     }
 
     #servicesMonitorRestartButton {
@@ -53,8 +138,33 @@
     }
 
     @media (max-width: 1024px) {
+        #servicesMonitorApp .services-monitor-toolbar {
+            width: 100%;
+        }
+
         #servicesMonitorApp .services-monitor-select {
             min-width: 100%;
+        }
+
+        #servicesMonitorApp .services-monitor-host-badge {
+            flex-basis: 100%;
+        }
+    }
+
+    @media (max-width: 768px) {
+        #servicesMonitorLogsModal .services-monitor-modal-card {
+            width: calc(100vw - 20px);
+            height: calc(100vh - 20px);
+            max-height: calc(100vh - 20px);
+            border-radius: 20px;
+        }
+
+        #servicesMonitorApp .services-monitor-log-body {
+            min-height: 0;
+        }
+
+        #servicesMonitorApp .services-monitor-table {
+            min-width: 980px;
         }
     }
 </style>
@@ -64,7 +174,7 @@
         <div class="flex-none w-full max-w-full px-3">
             <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4">
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 services-monitor-header-copy">
                         <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-slate-900 text-white text-lg">
                             <i class="ni ni-settings"></i>
                         </span>
@@ -91,15 +201,15 @@
 
                 <div class="px-6 pb-6">
                     <div class="overflow-x-auto rounded-2xl border border-slate-100">
-                        <table class="min-w-full text-sm">
+                        <table class="min-w-full text-sm services-monitor-table">
                             <thead class="bg-slate-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Serviço</th>
-                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Systemd</th>
-                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Heartbeat</th>
-                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Recursos</th>
-                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Diagnóstico</th>
-                                <th class="px-4 py-3 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">Ações</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-service">Serviço</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-systemd">Systemd</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-heartbeat">Heartbeat</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-resources">Recursos</th>
+                                <th class="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-diagnostic">Diagnóstico</th>
+                                <th class="px-4 py-3 text-center text-[11px] font-black uppercase tracking-wide text-slate-500 services-monitor-col-actions">Ações</th>
                             </tr>
                             </thead>
                             <tbody id="servicesMonitorTableBody">
@@ -113,7 +223,7 @@
     </div>
 
     <div id="servicesMonitorLogsModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4" onclick="servicesMonitor.dismissBackdrop(event, 'logs')">
-        <div class="relative z-[100051] w-full max-w-5xl rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="relative z-[100051] rounded-3xl bg-white shadow-2xl border border-slate-100 services-monitor-modal-card">
             <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-bold text-slate-800">Logs Recentes</h3>
@@ -123,7 +233,7 @@
                     <i class="fa fa-times text-sm"></i>
                 </button>
             </div>
-            <div class="px-6 py-4">
+            <div class="px-6 py-4 services-monitor-modal-body">
                 <div class="mb-3 flex items-center justify-between gap-3">
                     <p id="servicesMonitorLogsMeta" class="text-xs font-semibold uppercase tracking-wide text-slate-400"></p>
                     <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">Recarregar</button>
@@ -299,7 +409,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-4">
-                            <div class="space-y-1 text-xs text-slate-600">
+                            <div class="space-y-1 text-xs text-slate-600 services-monitor-meta-list">
                                 <p><span class="font-bold">Estado:</span> ${this.escape(service.active_state || '-')} / ${this.escape(service.sub_state || '-')}</p>
                                 <p><span class="font-bold">Boot:</span> ${service.enabled_on_boot ? 'habilitado' : 'desabilitado'}</p>
                                 <p><span class="font-bold">Uptime:</span> ${this.escape(service.uptime_human || '-')}</p>
@@ -308,7 +418,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-4">
-                            <div class="space-y-1 text-xs text-slate-600">
+                            <div class="space-y-1 text-xs text-slate-600 services-monitor-meta-list">
                                 <p><span class="font-bold">Último heartbeat:</span> ${this.escape(heartbeat.last_seen_at || '-')}</p>
                                 <p><span class="font-bold">Atraso:</span> ${heartbeat.seconds_since !== undefined && heartbeat.seconds_since !== null ? `${heartbeat.seconds_since}s` : '-'}</p>
                                 <p><span class="font-bold">Status:</span> ${this.escape(heartbeat.last_status || '-')}</p>
@@ -317,7 +427,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-4">
-                            <div class="space-y-1 text-xs text-slate-600">
+                            <div class="space-y-1 text-xs text-slate-600 services-monitor-meta-list">
                                 <p><span class="font-bold">Memória:</span> ${service.memory_mb !== null && service.memory_mb !== undefined ? `${service.memory_mb} MB` : '-'}</p>
                                 <p><span class="font-bold">CPU:</span> ${service.cpu_seconds !== null && service.cpu_seconds !== undefined ? `${service.cpu_seconds}s` : '-'}</p>
                                 <p><span class="font-bold">Fila:</span> ${queue.queue_size !== undefined ? queue.queue_size : '-'}</p>
@@ -325,7 +435,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-4">
-                            <div class="space-y-2 text-xs">
+                            <div class="space-y-2 text-xs services-monitor-diagnostic-copy">
                                 <div class="inline-flex rounded-full px-2.5 py-1 font-black uppercase tracking-wide ${this.statusBadge(service.status_color)}">
                                     ${this.escape(service.status_label || 'unknown')}
                                 </div>
@@ -335,7 +445,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-4 text-center">
-                            <div class="flex flex-col gap-2 items-center">
+                            <div class="flex flex-col gap-2 items-center services-monitor-actions">
                                 <button type="button" onclick="servicesMonitor.openLogs('${safeServiceName}')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">
                                     <i class="ni ni-single-copy-04"></i>
                                     Ver logs

@@ -19,6 +19,7 @@ class CdrVoice
     public $user_account_code;
     public $channel_number;
     public $endpoints;
+    public $callerid_num;
     public $number;
     public $destination;
     public $direction;
@@ -60,6 +61,9 @@ class CdrVoice
      */
     public function insertCdr(): \PDOStatement
     {
+        self::ensureCallerIdColumn();
+
+        $hasCallerIdNum = self::hasColumn('callerid_num');
         $query = "
         INSERT INTO cdr (
             channel_id,
@@ -73,6 +77,7 @@ class CdrVoice
             user_account_code,
             channel_number,
             endpoints,
+            " . ($hasCallerIdNum ? "callerid_num," : "") . "
             `number`,
             destination,
             direction,
@@ -119,7 +124,8 @@ class CdrVoice
             :user_name,
             :user_account_code,
             :channel_number,
-            :endpoints,   
+            :endpoints,
+            " . ($hasCallerIdNum ? ":callerid_num," : "") . "
             :number,
             :destination,
             :direction,
@@ -170,6 +176,7 @@ class CdrVoice
             ':user_account_code' => $this->user_account_code,
             ':channel_number'=> $this->channel_number,
             ':endpoints'      => $this->endpoints,
+            ':callerid_num'   => $this->callerid_num,
             ':number'        => $this->number,
             ':destination'   => $this->destination,
             ':direction'     => $this->direction ?? 'outbound',
@@ -208,6 +215,29 @@ class CdrVoice
         ];
 
         return (new Database())->execute($query, $params);
+    }
+
+    private static function ensureCallerIdColumn(): void
+    {
+        static $checked = false;
+
+        if ($checked) {
+            return;
+        }
+
+        $checked = true;
+
+        if (self::hasColumn('callerid_num')) {
+            return;
+        }
+
+        try {
+            (new Database())->execute(
+                "ALTER TABLE cdr ADD COLUMN callerid_num VARCHAR(32) NULL AFTER endpoints"
+            );
+        } catch (\Throwable) {
+            // segue sem derrubar o fluxo; a coluna pode já ter sido criada em paralelo
+        }
     }
 
 

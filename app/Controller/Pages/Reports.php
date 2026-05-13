@@ -2300,7 +2300,10 @@ class Reports extends ViewComponents
         foreach ($grouped as $callRows) {
             $base = self::pickVoiceCdrRepresentativeRow($callRows);
 
-            $cid = self::pickVoiceCdrValue($callRows, 'number', false);
+            $cid = self::pickVoiceCdrValue($callRows, 'callerid_num', false);
+            if ($cid === '') {
+                $cid = self::pickVoiceCdrValue($callRows, 'number', false);
+            }
             $destination = self::pickVoiceCdrValue($callRows, 'destination', false);
             $channelNumber = self::pickVoiceCdrValue($callRows, 'channel_number', true);
             $endpoints = self::pickVoiceCdrValue($callRows, 'endpoints', false);

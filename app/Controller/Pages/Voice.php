@@ -5096,6 +5096,7 @@ final class VoiceCdrMapper
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
+        $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? $tariff['number'] ?? null;
         $cdr->number = $tariff['number'] ?? null;
         $cdr->destination = $tariff['destination'] ?? null;
         $cdr->techprefix = $tariff['techprefix'] ?? null;

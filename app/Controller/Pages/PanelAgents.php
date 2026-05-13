@@ -17,17 +17,6 @@ use App\Model\Entity\AgentsPortal as EntityAgent;
 
 class PanelAgents extends ViewComponents
 {
-    private static function resolveAgentOnlineState(AgentManager $agentManager, string $ramal, array $currentData): bool
-    {
-        $checked = $agentManager->checkEndpointOnline($ramal);
-        if ($checked === null) {
-            $cached = $currentData['online'] ?? ($currentData['registered'] ?? false);
-            return $cached === true || $cached === 1 || $cached === '1';
-        }
-
-        return $checked;
-    }
-
     /**
      * Renderiza a página do painel
      */
@@ -96,7 +85,6 @@ class PanelAgents extends ViewComponents
             $rawCurrent = $redis->hGet('discador:agentes', (string)$obAgent->extension);
             $currentData = $rawCurrent ? json_decode($rawCurrent, true) : [];
             $currentData = is_array($currentData) ? $currentData : [];
-            $isOnline = self::resolveAgentOnlineState($agentManager, (string)$obAgent->extension, $currentData);
 
             $currentData['ramal'] = (string)$obAgent->extension;
             $currentData['name'] = $obAgent->name ?? 'Agente';
@@ -105,7 +93,7 @@ class PanelAgents extends ViewComponents
             $currentData['status'] = 'LIVRE';
             $currentData['status_name'] = null;
             $currentData['color'] = 'emerald';
-            $currentData['online'] = $isOnline;
+            $currentData['online'] = true;
             $currentData['last_activity'] = $obAgent->last_activity;
             $currentData['status_since'] = time();
             $currentData['updated'] = time();
@@ -356,7 +344,6 @@ class PanelAgents extends ViewComponents
             $rawCurrent = $redis->hGet('discador:agentes', (string)$ramal);
             $currentData = $rawCurrent ? json_decode($rawCurrent, true) : [];
             $currentData = is_array($currentData) ? $currentData : [];
-            $isOnline = self::resolveAgentOnlineState($agentManager, (string)$ramal, $currentData);
 
             if ($status === 'pausa' && $pausaId) {
                 $config = PauseConfig::getBreakById($pausaId, $tenancy);
@@ -382,7 +369,7 @@ class PanelAgents extends ViewComponents
             $currentData['user_id'] = (int)$obUser['id'];
             $currentData['tenancy_id'] = (string)$tenancy;
             $currentData['status_since'] = time();
-            $currentData['online']       = $isOnline;
+            $currentData['online']       = true;
             $currentData['updated']      = time();
             $currentData['last_update_by'] = 'setAgentStatus_manual';
 

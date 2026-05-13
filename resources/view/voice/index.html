@@ -1310,9 +1310,11 @@
                 }
 
                 notyf.success(
-                    action === "pause"
-                        ? "Campanha pausada com sucesso"
-                        : "Campanha retomada com sucesso"
+                    json?.message || (
+                        action === "pause"
+                            ? "Campanha pausada com sucesso"
+                            : "Campanha retomada com sucesso"
+                    )
                 );
 
             } catch (e) {

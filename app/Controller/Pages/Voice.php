@@ -199,6 +199,13 @@ class Voice extends ViewComponents
         }, $listVoice);
 
         try {
+            $redis = RedisConn::get();
+            $formatted = self::applyCampaignRuntimeState($redis, $formatted);
+        } catch (\Throwable) {
+            // Se o Redis de telefonia falhar, a listagem continua com o status persistido no banco.
+        }
+
+        try {
             $scheduled = CampaignVoiceSchedule::getPendingForList($filterUserId, $filterTenancy);
 
             foreach ($scheduled as $row) {
@@ -3082,6 +3089,176 @@ class Voice extends ViewComponents
         VoiceCdrRedisProcessor::process(null, $emitDebug);
     }
 
+    private static function applyCampaignRuntimeState(RedisClient $redis, array $campaigns): array
+    {
+        if ($campaigns === []) {
+            return $campaigns;
+        }
+
+        $activeCallsByJob = self::activeCallsByJob($redis);
+        $queuedByJob = self::queuedCallsByJob($redis, 'voice:queue');
+
+        foreach ($campaigns as &$campaign) {
+            if (($campaign['source'] ?? 'campaign') !== 'campaign') {
+                continue;
+            }
+
+            $jobId = trim((string)($campaign['job_id'] ?? ''));
+            if ($jobId === '') {
+                continue;
+            }
+
+            $runtime = self::campaignRuntimeSnapshot(
+                $redis,
+                $jobId,
+                $campaign,
+                (int)($activeCallsByJob[$jobId] ?? 0),
+                (int)($queuedByJob[$jobId] ?? 0)
+            );
+
+            $campaign['status'] = $runtime['effective_status'];
+            $campaign['runtime'] = $runtime;
+        }
+        unset($campaign);
+
+        return $campaigns;
+    }
+
+    private static function activeCallsByJob(RedisClient $redis): array
+    {
+        $raw = $redis->get('asterisk:active_calls');
+        $payload = $raw ? json_decode((string)$raw, true) : null;
+        $calls = is_array($payload) ? (array)($payload['chamadas'] ?? []) : [];
+
+        $counts = [];
+        foreach ($calls as $call) {
+            if (!is_array($call)) {
+                continue;
+            }
+
+            $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
+            $jobId = trim((string)($call['job_id'] ?? $vars['JOB_ID'] ?? ''));
+            if ($jobId === '') {
+                continue;
+            }
+
+            $counts[$jobId] = (int)($counts[$jobId] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    private static function queuedCallsByJob(RedisClient $redis, string $queueKey): array
+    {
+        $items = $redis->lrange($queueKey, 0, -1);
+        if (!is_array($items) || $items === []) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($items as $raw) {
+            $payload = json_decode((string)$raw, true);
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            $jobId = trim((string)($payload['job_id'] ?? ''));
+            if ($jobId === '') {
+                continue;
+            }
+
+            $counts[$jobId] = (int)($counts[$jobId] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    private static function campaignRuntimeSnapshot(
+        RedisClient $redis,
+        string $jobId,
+        array $campaign,
+        int $activeCalls,
+        int $queuedCalls
+    ): array {
+        $pauseKey = "campaign:pause:job:{$jobId}";
+        $jobHashKey = "campaign:{$jobId}";
+        $pausedQueue = "voice:paused:job:{$jobId}";
+        $finishedKey = "campaign:{$jobId}:finished";
+
+        $jobHash = $redis->hgetall($jobHashKey);
+        $jobHash = is_array($jobHash) ? $jobHash : [];
+
+        $pausedCalls = (int)$redis->llen($pausedQueue);
+        $pauseRequested = (bool)$redis->get($pauseKey);
+        $finishedAt = (int)$redis->get($finishedKey);
+
+        $totalContacts = max(
+            (int)($campaign['total_contacts'] ?? 0),
+            (int)($jobHash['total'] ?? 0)
+        );
+        $processed = (int)($jobHash['processed'] ?? 0);
+
+        $dbStatus = strtolower(trim((string)($campaign['status'] ?? '')));
+        $dbTotalCalls = (int)($campaign['total_calls'] ?? 0);
+
+        $effectiveStatus = $dbStatus;
+        if ($pauseRequested || $pausedCalls > 0) {
+            $effectiveStatus = 'n';
+        } elseif ($queuedCalls > 0 || $activeCalls > 0) {
+            $effectiveStatus = 'p';
+        } elseif ($finishedAt > 0 || ($totalContacts > 0 && $dbTotalCalls >= $totalContacts)) {
+            $effectiveStatus = 'f';
+        } elseif (in_array($dbStatus, ['p', 'y'], true) && $queuedCalls === 0 && $activeCalls === 0) {
+            $effectiveStatus = 'n';
+        }
+
+        return [
+            'effective_status' => $effectiveStatus,
+            'db_status' => $dbStatus,
+            'active_calls' => $activeCalls,
+            'queued_calls' => $queuedCalls,
+            'paused_calls' => $pausedCalls,
+            'pause_requested' => $pauseRequested,
+            'processed' => $processed,
+            'total' => $totalContacts,
+            'finished_at' => $finishedAt > 0 ? date('Y-m-d H:i:s', $finishedAt) : null,
+        ];
+    }
+
+    private static function moveCampaignPayloadsBetweenQueues(
+        RedisClient $redis,
+        string $sourceQueue,
+        string $targetQueue,
+        string $jobId
+    ): int {
+        $items = $redis->lrange($sourceQueue, 0, -1);
+        if (!is_array($items) || $items === []) {
+            return 0;
+        }
+
+        $moved = 0;
+        foreach ($items as $raw) {
+            $payload = json_decode((string)$raw, true);
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            if (trim((string)($payload['job_id'] ?? '')) !== $jobId) {
+                continue;
+            }
+
+            $removed = (int)$redis->lrem($sourceQueue, 1, (string)$raw);
+            if ($removed <= 0) {
+                continue;
+            }
+
+            $redis->rpush($targetQueue, (string)$raw);
+            $moved++;
+        }
+
+        return $moved;
+    }
+
 
 
 
@@ -4357,12 +4534,26 @@ class Voice extends ViewComponents
             $redis->set($pauseKey, '1');
             $redis->expire($pauseKey, 86400);
 
+            $movedToPaused = self::moveCampaignPayloadsBetweenQueues($redis, 'voice:queue', $pausedQueue, $jobId);
             $redis->hset($jobHashKey, 'status', 'paused');
             $redis->expire($pausedQueue, 86400);
 
             CampaignVoice::updateStatusByJob($jobId, 'n');
 
-            return new Response(200, ['ok' => true, 'status' => 'n'], 'application/json');
+            $activeCalls = (int)(self::activeCallsByJob($redis)[$jobId] ?? 0);
+
+            return new Response(200, [
+                'ok' => true,
+                'status' => 'n',
+                'message' => $activeCalls > 0
+                    ? 'Campanha pausada. Novos originates foram interrompidos; chamadas já em andamento seguem até finalizar.'
+                    : 'Campanha pausada com sucesso.',
+                'meta' => [
+                    'moved_to_paused_queue' => $movedToPaused,
+                    'active_calls' => $activeCalls,
+                    'paused_queue_size' => (int)$redis->llen($pausedQueue),
+                ],
+            ], 'application/json');
         }
 
         // ======================
@@ -4371,18 +4562,31 @@ class Voice extends ViewComponents
         if ($action === 'resume') {
             $redis->del($pauseKey);
             $redis->hset($jobHashKey, 'status', 'pending');
+            $redis->del("campaign:{$jobId}:finished");
 
             CampaignVoice::updateStatusByJob($jobId, 'y');
 
             // devolve payloads segurados
             $max = 20000;
+            $movedToMainQueue = 0;
             for ($i = 0; $i < $max; $i++) {
                 $p = $redis->lpop($pausedQueue);
                 if (!$p) break;
                 $redis->rpush('voice:queue', $p);
+                $movedToMainQueue++;
             }
 
-            return new Response(200, ['ok' => true, 'status' => 'y'], 'application/json');
+            return new Response(200, [
+                'ok' => true,
+                'status' => 'y',
+                'message' => $movedToMainQueue > 0
+                    ? 'Campanha retomada e payloads devolvidos para a fila.'
+                    : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.',
+                'meta' => [
+                    'moved_to_main_queue' => $movedToMainQueue,
+                    'remaining_paused_queue' => (int)$redis->llen($pausedQueue),
+                ],
+            ], 'application/json');
         }
 
         // ======================

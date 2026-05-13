@@ -4205,6 +4205,184 @@ HTML;
         ]);
     }
 
+    public static function sendSupportProtocolTemplate(): Response
+    {
+        $obUser = self::requireUser();
+        if ($obUser instanceof Response) {
+            return $obUser;
+        }
+
+        if (!self::canUseSupportAccount($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para enviar pela conta central de suporte.',
+            ]);
+        }
+
+        $input = self::jsonInput();
+        $to = self::normalizePhone((string)($input['to'] ?? ''));
+        $contactName = self::nullableString($input['name'] ?? null);
+        $protocolReferenceInput = trim((string)($input['protocol_reference'] ?? ''));
+        $companyNameInput = self::nullableString($input['company_name'] ?? null);
+        $templateName = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE', 'util_confirmacao_atendimento_01'));
+        $templateLanguage = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_LANGUAGE', 'pt_BR')) ?: 'pt_BR';
+
+        if (strlen($to) < 8 || strlen($to) > 15) {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe o número com DDI e DDD.',
+            ]);
+        }
+
+        if ($protocolReferenceInput === '') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Informe o protocolo do atendimento.',
+            ]);
+        }
+
+        $account = WhatsAppAccount::getSupportAccount();
+        if (!$account) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Conta WhatsApp central do suporte não configurada.',
+            ]);
+        }
+
+        try {
+            WhatsAppNumberSafety::assertVerifiedForUse($account);
+        } catch (\Throwable $e) {
+            return self::json(409, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $template = WhatsAppTemplate::getByNameForUser($templateName, $templateLanguage, $obUser);
+        if (!$template) {
+            return self::json(404, [
+                'success' => false,
+                'message' => 'Template de protocolo não encontrado.',
+            ]);
+        }
+
+        if (!self::templateMatchesAccount($template, $account)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'Template de protocolo não pertence à conta WhatsApp configurada.',
+            ]);
+        }
+
+        if ((string)($template['status'] ?? '') !== 'approved') {
+            return self::json(422, [
+                'success' => false,
+                'message' => 'Template de protocolo ainda não aprovado pela Meta.',
+            ]);
+        }
+
+        $contactContext = self::findContactContextByPhone((string)$account['tenancy_id'], $to);
+        $contactName = $contactName
+            ?: self::nullableString($contactContext['name'] ?? null)
+            ?: self::templateContactFallback();
+        $companyName = $companyNameInput
+            ?: self::nullableString($account['label'] ?? null)
+            ?: self::tenantName((string)$account['tenancy_id'])
+            ?: 'Maxx Solutions';
+
+        $conversationId = WhatsAppConversation::findOrCreate([
+            'tenancy_id' => $account['tenancy_id'],
+            'user_id' => (int)$account['user_id'],
+            'account_id' => (int)$account['id'],
+            'contact_phone' => $to,
+            'contact_name' => $contactName,
+            'last_message' => 'Seu protocolo de atendimento é: ' . $protocolReferenceInput,
+            'last_direction' => 'outbound',
+            'unread_count' => 0,
+        ]);
+
+        $protocolReference = WhatsAppConversation::ensureConversationProtocolReference(
+            $conversationId,
+            (string)($account['display_phone_number'] ?? $account['phone_number'] ?? $account['id']),
+            $protocolReferenceInput
+        );
+
+        try {
+            $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
+                'tenancy_id' => (string)$account['tenancy_id'],
+                'tenant_name' => $companyName,
+                'contact_name' => $contactName,
+                'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
+                'contact_name_fallback' => self::templateContactFallback(),
+                'contact_phone' => $to,
+            ], [
+                'nome_cliente' => $contactName,
+                'contact_name' => $contactName,
+                'protocolo_atendimento' => $protocolReference,
+                'protocolo' => $protocolReference,
+                'ticket_protocol' => $protocolReference,
+                'ticket.protocol' => $protocolReference,
+                'nome_empresa' => $companyName,
+                'tenant_name' => $companyName,
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $planned = self::withWhatsAppBilling([
+            'tenancy_id' => (string)$account['tenancy_id'],
+            'user_id' => (int)$account['user_id'],
+            'account_id' => (int)$account['id'],
+            'conversation_id' => $conversationId,
+            'contact_phone' => $to,
+            'contact_name' => $contactName,
+        ], [
+            'message_type' => 'template',
+            'message_body' => '[Template] ' . (string)$template['name'],
+            'template_name' => (string)$template['name'],
+            'template_language' => $templateLanguage,
+            'template_variables' => $resolvedTemplate['resolved'] ?? [],
+            'template_components' => is_array($resolvedTemplate['components'] ?? null) ? $resolvedTemplate['components'] : [],
+            'template_category' => WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'UTILITY'),
+            'protocol_reference' => $protocolReference,
+        ], false);
+
+        try {
+            WhatsAppBilling::assertCanSendBatch((int)$account['user_id'], (string)$account['tenancy_id'], [$planned]);
+        } catch (\Throwable $e) {
+            return self::json(402, [
+                'success' => false,
+                'message' => $e->getMessage() === WhatsAppBilling::ERROR_INSUFFICIENT_BALANCE
+                    ? WhatsAppBilling::ERROR_INSUFFICIENT_BALANCE
+                    : $e->getMessage(),
+            ]);
+        }
+
+        $outboxId = WhatsAppOutbox::enqueue($planned);
+        $flush = self::flushOutboxNow([$outboxId]);
+        $deliveryOutcome = self::immediateOutboxDeliveryOutcome([$outboxId], $flush);
+
+        if (!empty($deliveryOutcome['success'])) {
+            WhatsAppConversation::markConversationProtocolSent($conversationId, $protocolReference);
+        }
+
+        return self::json($deliveryOutcome['http_status'], [
+            'success' => $deliveryOutcome['success'],
+            'delivery_status' => $deliveryOutcome['delivery_status'],
+            'message' => $deliveryOutcome['success']
+                ? 'Protocolo enviado com sucesso.'
+                : $deliveryOutcome['message'],
+            'conversation_id' => $conversationId,
+            'protocol_reference' => $protocolReference,
+            'template_name' => (string)$template['name'],
+            'outbox_ids' => [$outboxId],
+            'processed_now' => $flush,
+            'outbox_errors' => $deliveryOutcome['outbox_errors'],
+        ]);
+    }
+
     public static function getCallPermissions(): Response
     {
         $obUser = self::requireUser();

@@ -2158,18 +2158,46 @@
         window.open(`https://wa.me/${numLimpo}?text=${mensagem}`, '_blank');
     }
 
-    function enviarProtocoloWhatsApp(numero, protocolo, nome, elementoBtn) {
+    async function enviarProtocoloWhatsApp(numero, protocolo, nome, elementoBtn) {
         if (!numero || !protocolo || protocolo === '---') return;
 
+        const originalHTML = elementoBtn?.innerHTML || '';
         const numLimpo = String(numero).replace(/\D/g, '');
         if (!numLimpo) return;
 
         if (elementoBtn) {
-            elementoBtn.classList.replace('text-emerald-600', 'text-emerald-700');
+            elementoBtn.disabled = true;
+            elementoBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
         }
 
-        const mensagem = encodeURIComponent(mensagemProtocolo(nome, protocolo));
-        window.open(`https://wa.me/${numLimpo}?text=${mensagem}`, '_blank');
+        try {
+            const response = await fetch(`${baseUrl}/callcenter/send-protocol-whatsapp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: numLimpo,
+                    name: nome,
+                    protocol_reference: protocolo
+                })
+            });
+
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Falha ao enviar protocolo por WhatsApp.');
+            }
+
+            notyf.success(result.message || 'Protocolo enviado com sucesso.');
+            if (elementoBtn) {
+                elementoBtn.classList.replace('text-emerald-600', 'text-emerald-500');
+                elementoBtn.innerHTML = '<i class="fa fa-check"></i>';
+            }
+        } catch (e) {
+            notyf.error(e.message || 'Falha ao enviar protocolo por WhatsApp.');
+            if (elementoBtn) {
+                elementoBtn.disabled = false;
+                elementoBtn.innerHTML = originalHTML;
+            }
+        }
     }
 
     async function enviarProtocoloSMS(numero, protocolo, nome, elementoBtn) {

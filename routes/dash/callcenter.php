@@ -286,6 +286,17 @@ $obRouter->post('/callcenter/get-client', [
     }
 ]);
 
+$obRouter->post('/callcenter/send-protocol-whatsapp', [
+    'name' => '/callcenter/send-protocol-whatsapp',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request) {
+        return Pages\WhatsApp::sendSupportProtocolTemplate();
+    }
+]);
+
 $obRouter->post('/callcenter/lookup-client', [
     'name' => '/callcenter/lookup-client', // nome da rota
     'middlewares' => [

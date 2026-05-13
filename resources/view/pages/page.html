@@ -186,6 +186,172 @@
     })();
     </script>
 
+    <script>
+    (function () {
+        if (typeof window === 'undefined' || typeof document === 'undefined') {
+            return;
+        }
+
+        const FIELD_SELECTOR = [
+            'input:not([type])',
+            'input[type="text"]',
+            'input[type="search"]',
+            'input[type="tel"]',
+            'input[type="url"]',
+            'input[type="number"]',
+            'input[type="email"]',
+            'textarea'
+        ].join(',');
+
+        function canSkipField(field) {
+            if (!(field instanceof HTMLElement)) {
+                return true;
+            }
+
+            if (field.dataset.allowAutofill === 'true' || field.closest('[data-allow-autofill="true"]')) {
+                return true;
+            }
+
+            if (field.matches('[type="hidden"], [type="password"], [type="file"], [type="date"], [type="datetime-local"], [type="month"], [type="time"], [type="week"], [type="color"], [type="range"]')) {
+                return true;
+            }
+
+            if (field.disabled || field.readOnly || field.dataset.autofillGuardReady === 'true') {
+                return true;
+            }
+
+            return false;
+        }
+
+        function looksLikeSearchField(field) {
+            const bag = [
+                field.getAttribute('type') || '',
+                field.getAttribute('name') || '',
+                field.getAttribute('id') || '',
+                field.getAttribute('placeholder') || '',
+                field.getAttribute('aria-label') || ''
+            ].join(' ').toLowerCase();
+
+            return field.type === 'search'
+                || /search|filter|busca|buscar|pesquisa|pesquisar/.test(bag);
+        }
+
+        function clearSuspiciousAutofill(field) {
+            const value = String(field.value || '').trim();
+            if (!value) {
+                return;
+            }
+
+            if (looksLikeSearchField(field) && value.includes('@')) {
+                field.value = '';
+            }
+        }
+
+        function attachReadonlyGuard(field) {
+            if (field.dataset.noReadonlyGuard === 'true' || String(field.value || '').trim() !== '') {
+                return;
+            }
+
+            field.setAttribute('readonly', 'readonly');
+
+            const unlock = () => {
+                field.removeAttribute('readonly');
+                field.removeEventListener('focus', unlock, true);
+                field.removeEventListener('pointerdown', unlock, true);
+                field.removeEventListener('keydown', unlock, true);
+                field.removeEventListener('touchstart', unlock, true);
+            };
+
+            field.addEventListener('focus', unlock, true);
+            field.addEventListener('pointerdown', unlock, true);
+            field.addEventListener('keydown', unlock, true);
+            field.addEventListener('touchstart', unlock, true);
+        }
+
+        function prepareField(field) {
+            if (canSkipField(field)) {
+                return;
+            }
+
+            field.dataset.autofillGuardReady = 'true';
+            field.setAttribute('autocomplete', 'off');
+            field.setAttribute('autocapitalize', 'off');
+            field.setAttribute('autocorrect', 'off');
+            field.setAttribute('spellcheck', 'false');
+            field.setAttribute('data-lpignore', 'true');
+
+            clearSuspiciousAutofill(field);
+            attachReadonlyGuard(field);
+        }
+
+        function prepareRoot(root) {
+            if (!root) {
+                return;
+            }
+
+            if (root.matches && root.matches(FIELD_SELECTOR)) {
+                prepareField(root);
+            }
+
+            if (root.querySelectorAll) {
+                root.querySelectorAll(FIELD_SELECTOR).forEach(prepareField);
+            }
+        }
+
+        function installDecoyAutofillTrap() {
+            if (document.getElementById('app-autofill-decoy')) {
+                return;
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.id = 'app-autofill-decoy';
+            wrapper.setAttribute('aria-hidden', 'true');
+            wrapper.style.position = 'fixed';
+            wrapper.style.left = '-9999px';
+            wrapper.style.top = '-9999px';
+            wrapper.style.width = '1px';
+            wrapper.style.height = '1px';
+            wrapper.style.opacity = '0';
+            wrapper.style.pointerEvents = 'none';
+
+            wrapper.innerHTML = `
+                <form autocomplete="on" tabindex="-1">
+                    <input type="text" name="email" autocomplete="username email">
+                    <input type="password" name="fake_password" autocomplete="current-password">
+                </form>
+            `;
+
+            document.body.prepend(wrapper);
+        }
+
+        function init() {
+            installDecoyAutofillTrap();
+            prepareRoot(document.body);
+
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof HTMLElement) {
+                            prepareRoot(node);
+                        }
+                    });
+                });
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init, { once: true });
+        } else {
+            init();
+        }
+    })();
+    </script>
+
 
 </head>
 

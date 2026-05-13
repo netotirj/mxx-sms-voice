@@ -44,12 +44,14 @@ class CampaignVoice
     }
 
 
-    public static function getVoiceLists(?int $userId = null, ?string $tenancyId = null): array
+    public static function getVoiceLists(?int $userId = null, ?string $tenancyId = null, ?string $role = null): array
     {
         $userContext = [
             'tenancy_id'    => $tenancyId,
             'id'            => $userId,
-            'user_function' => is_null($userId) ? 'admin' : 'reseller'
+            'user_function' => $role !== null && $role !== ''
+                ? strtolower(trim($role))
+                : (is_null($userId) ? 'admin' : 'reseller')
         ];
 
         // O Helper já gera: "tenancy_id = X AND (user_id = Y...)"
@@ -64,12 +66,14 @@ class CampaignVoice
         return $results ?: [];
     }
 
-    public static function getVoiceListsDetail(?int $userId = null, ?string $tenancyId = null): array
+    public static function getVoiceListsDetail(?int $userId = null, ?string $tenancyId = null, ?string $role = null): array
     {
         $userContext = [
             'tenancy_id'    => $tenancyId,
             'id'            => $userId,
-            'user_function' => is_null($userId) ? 'admin' : 'reseller'
+            'user_function' => $role !== null && $role !== ''
+                ? strtolower(trim($role))
+                : (is_null($userId) ? 'admin' : 'reseller')
         ];
 
         $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id', 'campaign_voice');

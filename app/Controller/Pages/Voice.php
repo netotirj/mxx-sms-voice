@@ -166,7 +166,8 @@ class Voice extends ViewComponents
         try {
             $listVoice = CampaignVoice::getVoiceListsDetail(
                 $filterUserId,
-                $filterTenancy
+                $filterTenancy,
+                $role
             );
         } catch (\Throwable $e) {
             return new Response(500, [
@@ -441,17 +442,17 @@ class Voice extends ViewComponents
         if ($userFunc === 'super_admin') {
 
             // Super admin pode ver tudo
-            $lists = CampaignVoice::getVoiceLists();
+            $lists = CampaignVoice::getVoiceLists(null, null, 'super_admin');
 
         } elseif ($userFunc === 'admin') {
 
             // Admin vê apenas pelo tenancy
-            $lists = CampaignVoice::getVoiceLists(null, $tenancyId);
+            $lists = CampaignVoice::getVoiceLists(null, $tenancyId, 'admin');
 
         } else {
 
             // Usuário comum: filtra por tenancy e user_id
-            $lists = CampaignVoice::getVoiceLists($userId, $tenancyId);
+            $lists = CampaignVoice::getVoiceLists($userId, $tenancyId, (string)$userFunc);
         }
 
 

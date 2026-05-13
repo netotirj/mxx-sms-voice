@@ -2248,6 +2248,10 @@ class Reports extends ViewComponents
         $formatted = array_map(/**
          * @throws Exception
          */ function ($row) {
+            $displayNumber = self::normalizeVoiceCdrDisplayNumber($row['number'] ?? null);
+            $displayDestination = self::normalizeVoiceCdrDisplayNumber($row['destination'] ?? null);
+            $displayChannelNumber = self::normalizeVoiceCdrDisplayNumber($row['channel_number'] ?? null);
+
             return [
                 'id'                => $row['id'],
                 'channel_id'        => $row['channel_id'],
@@ -2255,10 +2259,10 @@ class Reports extends ViewComponents
                 'user_id'           => $row['user_id'],
                 'user_name'         => $row['user_name'] ?? null,
                 'user_account_code' => $row['user_account_code'] ?? null,
-                'number'            => $row['number'],
+                'number'            => $displayNumber,
                 'endpoints'         => $row['endpoints'],
-                'destination'       => (strlen($row['destination']) === 13) ? substr($row['destination'], 2) : $row['destination'],
-                'channelNumber'     => $row['number'],
+                'destination'       => $displayDestination,
+                'channelNumber'     => $displayChannelNumber,
                 'type'              => $row['type'],
                 'dialstatus'        => $row['dialstatus'],
                 'cause'             => $row['cause'],
@@ -2278,6 +2282,28 @@ class Reports extends ViewComponents
             'total'   => count($formatted),
             'data'    => $formatted
         ], 'application/json');
+    }
+
+    private static function normalizeVoiceCdrDisplayNumber(mixed $value): string
+    {
+        $raw = trim((string)($value ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $raw) ?: '';
+        if ($digits === '') {
+            return $raw;
+        }
+
+        if (str_starts_with($digits, '55')) {
+            $national = substr($digits, 2);
+            if (preg_match('/^\d{10,11}$/', $national)) {
+                return $national;
+            }
+        }
+
+        return $digits;
     }
 
 

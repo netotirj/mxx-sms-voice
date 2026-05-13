@@ -465,15 +465,21 @@ class ServicesMonitorService
             return false;
         }
 
-        $command = 'which ' . escapeshellarg($binary) . ' 2>/dev/null';
+        $command = 'sh -lc ' . escapeshellarg(
+            'command -v ' . escapeshellarg($binary) . ' >/dev/null 2>&1 || '
+            . 'test -x /bin/' . $binary . ' || '
+            . 'test -x /usr/bin/' . $binary . ' || '
+            . 'test -x /usr/sbin/' . $binary . ' || '
+            . 'test -x /sbin/' . $binary
+        );
 
         if (($profile['mode'] ?? 'local') === 'ssh') {
             $result = self::runSshCommand($profile, $command, false);
-            return $result['ok'] && trim((string)$result['output']) !== '';
+            return $result['ok'];
         }
 
         $result = self::runLocalCommand($command);
-        return $result['ok'] && trim((string)$result['output']) !== '';
+        return $result['ok'];
     }
 
     private static function runCommandForProfile(array $profile, string $command): array

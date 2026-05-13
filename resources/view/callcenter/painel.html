@@ -512,6 +512,8 @@
     let timerAnswerWatchdog = null;
     let ultimoHistoricoRegistrado = null;
     let ultimoDadosPlanilhaKey = null;
+    let ultimaChaveDtmfExibida = "";
+    let protocolosAtendimento = {};
 
 
     // --- VARIÁVEIS DE ESTADO WEBRTC ---
@@ -1008,9 +1010,43 @@
             balao.classList.add('opacity-0', 'scale-95');
             setTimeout(() => {
                 if (balao.parentNode) balao.remove();
-                memoriaSequenciaDtmf = "";
             }, 500);
         }, 15000);
+    }
+
+    function gerarProtocoloAtendimento(callId = '', numero = '') {
+        const callKey = String(callId || '').trim();
+        const phoneKey = String(numero || '').replace(/\D/g, '');
+        const storageKey = callKey || phoneKey || 'manual';
+
+        if (callKey) {
+            protocolosAtendimento[storageKey] = callKey;
+            return callKey;
+        }
+
+        if (protocolosAtendimento[storageKey]) {
+            return protocolosAtendimento[storageKey];
+        }
+
+        const agora = new Date();
+        const stamp = [
+            agora.getFullYear(),
+            String(agora.getMonth() + 1).padStart(2, '0'),
+            String(agora.getDate()).padStart(2, '0'),
+            String(agora.getHours()).padStart(2, '0'),
+            String(agora.getMinutes()).padStart(2, '0'),
+            String(agora.getSeconds()).padStart(2, '0')
+        ].join('');
+        const sufixo = (phoneKey.slice(-4) || '0000').padStart(4, '0');
+        const protocolo = `${stamp}.${sufixo}`;
+
+        protocolosAtendimento[storageKey] = protocolo;
+        return protocolo;
+    }
+
+    function mensagemProtocolo(nome, protocolo) {
+        const primeiroNome = String(nome || 'cliente').trim().split(/\s+/)[0] || 'cliente';
+        return `Ola ${primeiroNome}, seu protocolo: ${protocolo}`;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1987,8 +2023,14 @@
                 listaChamadas.forEach(c => {
                     if (chamadaRelacionadaAoAgente(c)) {
                         estouEmLinhaAgora = true;
-                        if (c.dtmf !== null && c.dtmf !== undefined && c.dtmf !== '' && memoriaSequenciaDtmf !== String(c.dtmf)) {
-                            memoriaSequenciaDtmf = String(c.dtmf);
+                        const dtmfAtual = String(c.dtmf ?? c.last_dtmf ?? '').trim();
+                        const dtmfMomento = String(c.last_dtmf_at || c.updated_at || c.id || '');
+                        const dtmfChave = `${String(c.call_id || c.id || '')}|${dtmfAtual}|${dtmfMomento}`;
+                        const balaoVisivel = !!document.getElementById('balao-interno-dtmf');
+
+                        if (dtmfAtual !== '' && (!balaoVisivel || ultimaChaveDtmfExibida !== dtmfChave || memoriaSequenciaDtmf !== dtmfAtual)) {
+                            memoriaSequenciaDtmf = dtmfAtual;
+                            ultimaChaveDtmfExibida = dtmfChave;
                             mostrarDTMFVoando(memoriaSequenciaDtmf);
                         }
                     }
@@ -1996,6 +2038,7 @@
 
                 if (!estouEmLinhaAgora) {
                     memoriaSequenciaDtmf = "";
+                    ultimaChaveDtmfExibida = "";
                     const containerPai = document.getElementById('balao-dtmf-container');
                     if (containerPai) containerPai.innerHTML = "";
                 }
@@ -2115,6 +2158,20 @@
         window.open(`https://wa.me/${numLimpo}?text=${mensagem}`, '_blank');
     }
 
+    function enviarProtocoloWhatsApp(numero, protocolo, nome, elementoBtn) {
+        if (!numero || !protocolo || protocolo === '---') return;
+
+        const numLimpo = String(numero).replace(/\D/g, '');
+        if (!numLimpo) return;
+
+        if (elementoBtn) {
+            elementoBtn.classList.replace('text-emerald-600', 'text-emerald-700');
+        }
+
+        const mensagem = encodeURIComponent(mensagemProtocolo(nome, protocolo));
+        window.open(`https://wa.me/${numLimpo}?text=${mensagem}`, '_blank');
+    }
+
     async function enviarProtocoloSMS(numero, protocolo, nome, elementoBtn) {
         if (!numero || !protocolo || protocolo === '---') return;
 
@@ -2122,7 +2179,7 @@
         elementoBtn.disabled = true;
         elementoBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
 
-        const mensagemSms = `Ola ${nome.split(' ')[0]}, seu protocolo: ${protocolo}`;
+        const mensagemSms = mensagemProtocolo(nome, protocolo);
 
         // 1. Limpa tudo que não for número
         let numeroLimpo = numero.replace(/\D/g, '');
@@ -2365,6 +2422,14 @@
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
+    }
+
+    function escaparJsInline(valor) {
+        return String(valor ?? '')
+            .replaceAll('\\', '\\\\')
+            .replaceAll("'", "\\'")
+            .replaceAll('\r', '\\r')
+            .replaceAll('\n', '\\n');
     }
 
     function cardResumoHtml(label, value) {
@@ -2671,6 +2736,7 @@
         const foneFormatado = f(numero || c.phone);
         const foneParaLinks = foneFormatado.replace(/\D/g, '');
         const nomeExibir = (c.name || "CLIENTE NÃO IDENTIFICADO").toUpperCase();
+        const protocoloAtendimento = gerarProtocoloAtendimento(callId, foneParaLinks);
 
         document.getElementById('clienteNome').innerText = nomeExibir;
         document.getElementById('clienteNumero').innerText = foneFormatado;
@@ -2681,15 +2747,19 @@
             const cardHtml = (label, valor, isProtocolo = false) => {
                 const val = valor || "---";
                 const v = String(val).toLowerCase();
+                const valJs = escaparJsInline(val);
+                const labelJs = escaparJsInline(label);
+                const nomeJs = escaparJsInline(nomeExibir);
+                const foneJs = escaparJsInline(foneParaLinks);
                 let cores = 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700';
                 if (['ativo', 'pago', 'sim'].includes(v)) cores = 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20';
                 if (['pendente', 'atraso', 'não', 'informado'].includes(v)) cores = 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20';
 
-                return `<div class="group relative p-3 rounded-xl border ${cores} shadow-sm transition-all hover:shadow-md"><div class="flex justify-between items-start mb-1"><p class="text-[9px] font-bold text-slate-400 uppercase leading-none">${label}</p><div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="copiarTexto('${val}', '${label}')" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-[10px]"><i class="fa fa-copy"></i></button>${isProtocolo ? `<button onclick="enviarProtocoloSMS('${foneParaLinks}', '${val}', '${nomeExibir}', this)" class="p-1 text-blue-600 rounded text-[10px]" title="Enviar SMS"><i class="fa fa-envelope"></i></button>` : ''}</div></div><p class="text-xs font-black truncate">${val}</p></div>`;
+                return `<div class="group relative p-3 rounded-xl border ${cores} shadow-sm transition-all hover:shadow-md"><div class="flex justify-between items-start mb-1"><p class="text-[9px] font-bold text-slate-400 uppercase leading-none">${label}</p><div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="copiarTexto('${valJs}', '${labelJs}')" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-[10px]"><i class="fa fa-copy"></i></button>${isProtocolo ? `<button onclick="enviarProtocoloSMS('${foneJs}', '${valJs}', '${nomeJs}', this)" class="p-1 text-blue-600 rounded text-[10px]" title="Enviar SMS"><i class="fa fa-envelope"></i></button><button onclick="enviarProtocoloWhatsApp('${foneJs}', '${valJs}', '${nomeJs}', this)" class="p-1 text-emerald-600 rounded text-[10px]" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></button>` : ''}</div></div><p class="text-xs font-black truncate">${val}</p></div>`;
             };
 
-            let h = `<div class="col-span-full bg-blue-600 p-3 rounded-xl shadow-lg flex items-center justify-between mb-2"><div class="flex items-center gap-3"><div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-white"><i class="fab fa-whatsapp text-xl"></i></div><div><p class="text-[10px] font-bold text-blue-100 uppercase leading-none">WhatsApp</p><p class="text-xs font-black text-white">Iniciar Conversa</p></div></div><button onclick="abrirWhatsApp('${foneParaLinks}', '${nomeExibir}')" class="bg-white text-blue-600 px-5 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-blue-50 transition-all">ABRIR CHAT</button></div>`;
-            h += cardHtml('CPF', c.cpf) + cardHtml('Protocolo', callId, true);
+            let h = `<div class="col-span-full bg-blue-600 p-3 rounded-xl shadow-lg flex items-center justify-between mb-2"><div class="flex items-center gap-3"><div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-white"><i class="fab fa-whatsapp text-xl"></i></div><div><p class="text-[10px] font-bold text-blue-100 uppercase leading-none">WhatsApp</p><p class="text-xs font-black text-white">Iniciar Conversa</p></div></div><button onclick="abrirWhatsApp('${escaparJsInline(foneParaLinks)}', '${escaparJsInline(nomeExibir)}')" class="bg-white text-blue-600 px-5 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-blue-50 transition-all">ABRIR CHAT</button></div>`;
+            h += cardHtml('CPF', c.cpf) + cardHtml('Protocolo', protocoloAtendimento, true);
             if (c.extra_data) {
                 try {
                     const ex = typeof c.extra_data === 'string' ? JSON.parse(c.extra_data) : c.extra_data;

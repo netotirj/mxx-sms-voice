@@ -2245,37 +2245,7 @@ class Reports extends ViewComponents
         // ==============================
         // 🔄 FORMATAÇÃO (Sua lógica original)
         // ==============================
-        $formatted = array_map(/**
-         * @throws Exception
-         */ function ($row) {
-            $displayNumber = self::normalizeVoiceCdrDisplayNumber($row['number'] ?? null);
-            $displayDestination = self::normalizeVoiceCdrDisplayNumber($row['destination'] ?? null);
-            $displayChannelNumber = self::normalizeVoiceCdrDisplayNumber($row['channel_number'] ?? null);
-
-            return [
-                'id'                => $row['id'],
-                'channel_id'        => $row['channel_id'],
-                'tenancy_id'        => $row['tenancy_id'],
-                'user_id'           => $row['user_id'],
-                'user_name'         => $row['user_name'] ?? null,
-                'user_account_code' => $row['user_account_code'] ?? null,
-                'number'            => $displayNumber,
-                'endpoints'         => $row['endpoints'],
-                'destination'       => $displayDestination,
-                'channelNumber'     => $displayChannelNumber,
-                'type'              => $row['type'],
-                'dialstatus'        => $row['dialstatus'],
-                'cause'             => $row['cause'],
-                'cause_txt'         => $row['cause_txt'],
-                'taxa'              => $row['taxa_of_service'],
-                'duration'          => (int)$row['duration'],
-                'value'             => (float)$row['value'],
-                'started'           => !empty($row['started']) ? (new DateTime($row['started']))->format('d-m-Y H:i:s') : '-',
-                'answered'          => $row['answered'],
-                'ended'             => $row['ended'],
-                'created_at'        => $row['created_at'],
-            ];
-        }, $cdr);
+        $formatted = self::aggregateVoiceCdrRows($cdr);
 
         return new Response(200, [
             'success' => true,
@@ -2304,6 +2274,168 @@ class Reports extends ViewComponents
         }
 
         return $digits;
+    }
+
+    private static function aggregateVoiceCdrRows(array $rows): array
+    {
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $callKey = trim((string)($row['call_id'] ?? ''));
+            if ($callKey === '') {
+                $callKey = trim((string)($row['channel_id'] ?? ''));
+            }
+            if ($callKey === '') {
+                $callKey = 'row:' . (string)($row['id'] ?? uniqid('', true));
+            }
+
+            $grouped[$callKey][] = $row;
+        }
+
+        $formatted = [];
+        foreach ($grouped as $callRows) {
+            $base = self::pickVoiceCdrRepresentativeRow($callRows);
+
+            $cid = self::pickVoiceCdrValue($callRows, 'number', false);
+            $destination = self::pickVoiceCdrValue($callRows, 'destination', false);
+            $channelNumber = self::pickVoiceCdrValue($callRows, 'channel_number', true);
+            $endpoints = self::pickVoiceCdrValue($callRows, 'endpoints', false);
+            $userName = self::pickAnyVoiceCdrValue($callRows, 'user_name');
+            $userAccountCode = self::pickAnyVoiceCdrValue($callRows, 'user_account_code');
+
+            $formatted[] = [
+                'id'                => $base['id'],
+                'channel_id'        => $base['channel_id'],
+                'tenancy_id'        => $base['tenancy_id'],
+                'user_id'           => $base['user_id'],
+                'user_name'         => $userName,
+                'user_account_code' => $userAccountCode,
+                'number'            => self::normalizeVoiceCdrDisplayNumber($cid),
+                'endpoints'         => $endpoints,
+                'destination'       => self::normalizeVoiceCdrDisplayNumber($destination),
+                'channelNumber'     => self::normalizeVoiceCdrDisplayNumber($channelNumber),
+                'type'              => $base['type'],
+                'dialstatus'        => $base['dialstatus'],
+                'cause'             => $base['cause'],
+                'cause_txt'         => $base['cause_txt'],
+                'taxa'              => (float)($base['taxa_of_service'] ?? 0),
+                'duration'          => (int)($base['duration'] ?? 0),
+                'value'             => (float)($base['value'] ?? 0),
+                'started'           => !empty($base['started']) ? (new DateTime($base['started']))->format('d-m-Y H:i:s') : '-',
+                'answered'          => $base['answered'],
+                'ended'             => $base['ended'],
+                'created_at'        => $base['created_at'],
+            ];
+        }
+
+        usort($formatted, static function (array $a, array $b): int {
+            return strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? ''));
+        });
+
+        return $formatted;
+    }
+
+    private static function pickVoiceCdrRepresentativeRow(array $rows): array
+    {
+        usort($rows, static function (array $a, array $b): int {
+            $scoreA = self::voiceCdrRowScore($a);
+            $scoreB = self::voiceCdrRowScore($b);
+
+            if ($scoreA === $scoreB) {
+                return strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? ''));
+            }
+
+            return $scoreB <=> $scoreA;
+        });
+
+        return $rows[0];
+    }
+
+    private static function voiceCdrRowScore(array $row): int
+    {
+        $score = 0;
+
+        if (strtoupper((string)($row['dialstatus'] ?? '')) === 'ANSWER') {
+            $score += 100;
+        }
+
+        if ((float)($row['value'] ?? 0) > 0) {
+            $score += 80;
+        }
+
+        if ((int)($row['duration'] ?? 0) > 0) {
+            $score += 40;
+        }
+
+        if (!self::isVoiceCdrExtensionValue($row['destination'] ?? null)) {
+            $score += 20;
+        }
+
+        if (!self::isVoiceCdrExtensionValue($row['number'] ?? null)) {
+            $score += 10;
+        }
+
+        return $score;
+    }
+
+    private static function pickVoiceCdrValue(array $rows, string $field, bool $preferExtension): string
+    {
+        $fallback = '';
+
+        foreach ($rows as $row) {
+            $value = trim((string)($row[$field] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $normalized = self::normalizeVoiceCdrDisplayNumber($value);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $isExtension = self::isVoiceCdrExtensionValue($normalized);
+            if ($preferExtension === $isExtension) {
+                return $normalized;
+            }
+
+            if ($fallback === '') {
+                $fallback = $normalized;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private static function pickAnyVoiceCdrValue(array $rows, string $field): ?string
+    {
+        foreach ($rows as $row) {
+            $value = trim((string)($row[$field] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isVoiceCdrExtensionValue(mixed $value): bool
+    {
+        $digits = preg_replace('/\D+/', '', (string)($value ?? '')) ?: '';
+        if ($digits === '') {
+            return false;
+        }
+
+        $normalized = ltrim($digits, '0');
+        if ($normalized === '') {
+            $normalized = '0';
+        }
+
+        $len = strlen($normalized);
+        return $len >= 3 && $len <= 8;
     }
 
 

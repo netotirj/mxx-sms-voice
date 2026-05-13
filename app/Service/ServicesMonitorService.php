@@ -367,6 +367,15 @@ class ServicesMonitorService
             ];
         }
 
+        if (($item['service_name'] ?? null) === 'maxx-voice-worker.service' && is_array($queueHealth)) {
+            if (array_key_exists('stasis_online', $queueHealth) && $queueHealth['stasis_online'] === false) {
+                $alerts[] = [
+                    'level' => 'critical',
+                    'message' => 'Stasis/active_calls monitor offline. O worker de voz aguarda heartbeat antes de consumir a fila.',
+                ];
+            }
+        }
+
         return $alerts;
     }
 
@@ -382,10 +391,28 @@ class ServicesMonitorService
 
         try {
             $voiceQueue = (int)$redis->llen('voice:queue');
+            $stasis = self::stasisMonitorSnapshot($redis);
+            $workerUnhealthy = self::heartbeatMissingOrStale('maxx-voice-worker.service');
+
+            $voiceMessage = $voiceQueue > 0
+                ? "Fila voice:queue pendente: {$voiceQueue}"
+                : 'Fila voice:queue vazia.';
+
+            if ($voiceQueue > 0 && !$stasis['online']) {
+                $voiceMessage .= ' Stasis/active_calls monitor offline; o worker de voz aguarda heartbeat.';
+            } elseif ($voiceQueue > 0 && $workerUnhealthy) {
+                $voiceMessage .= ' Heartbeat do worker de voz ausente ou atrasado.';
+            }
+
             $health['maxx-voice-worker.service'] = [
                 'queue_size' => $voiceQueue,
-                'stuck' => $voiceQueue > 0 && self::heartbeatStale('maxx-voice-worker.service'),
-                'message' => $voiceQueue > 0 ? "Fila voice:queue pendente: {$voiceQueue}" : 'Fila voice:queue vazia.',
+                'stuck' => $voiceQueue > 0 && (!$stasis['online'] || $workerUnhealthy),
+                'message' => $voiceMessage,
+                'stasis_online' => $stasis['online'],
+                'stasis_last_seen_at' => $stasis['last_seen_at'],
+                'stasis_last_error' => $stasis['last_error'],
+                'stasis_source' => $stasis['source'],
+                'active_calls_snapshot_age_s' => $stasis['active_calls_snapshot_age_s'],
             ];
         } catch (Throwable) {
         }
@@ -413,6 +440,49 @@ class ServicesMonitorService
 
         $seconds = self::secondsSince((string)($row['last_seen_at'] ?? ''));
         return $seconds !== null && $seconds > self::STALE_HEARTBEAT_SECONDS;
+    }
+
+    private static function heartbeatMissingOrStale(string $serviceName): bool
+    {
+        $map = WorkerHeartbeat::listByServices([$serviceName]);
+        $row = $map[$serviceName] ?? null;
+        if (!$row) {
+            return true;
+        }
+
+        $seconds = self::secondsSince((string)($row['last_seen_at'] ?? ''));
+        return $seconds === null || $seconds > self::STALE_HEARTBEAT_SECONDS;
+    }
+
+    private static function stasisMonitorSnapshot($redis): array
+    {
+        $hbRaw = $redis->get('voice:stasis:heartbeat');
+        $hb = $hbRaw ? json_decode((string)$hbRaw, true) : null;
+
+        $lastSeenAt = null;
+        $online = false;
+        if (is_array($hb)) {
+            $ts = (int)($hb['ts'] ?? 0);
+            if ($ts > 0) {
+                $lastSeenAt = date('Y-m-d H:i:s', $ts);
+                $online = (time() - $ts) <= 10;
+            }
+        }
+
+        $errRaw = $redis->get('voice:stasis:last_error');
+        $err = $errRaw ? json_decode((string)$errRaw, true) : null;
+
+        $activeRaw = $redis->get('asterisk:active_calls');
+        $active = $activeRaw ? json_decode((string)$activeRaw, true) : null;
+        $serverNow = is_array($active) ? (int)($active['server_now'] ?? $active['ts'] ?? 0) : 0;
+
+        return [
+            'online' => $online,
+            'last_seen_at' => $lastSeenAt,
+            'last_error' => is_array($err) ? (string)($err['msg'] ?? '') : null,
+            'source' => is_array($hb) ? (string)($hb['source'] ?? '') : null,
+            'active_calls_snapshot_age_s' => $serverNow > 0 ? max(0, time() - $serverNow) : null,
+        ];
     }
 
     private static function lastRelevantLogLine(array $profile, string $serviceName): ?string

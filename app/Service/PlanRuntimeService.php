@@ -526,7 +526,7 @@ class PlanRuntimeService
     private static function redis(): ?RedisClient
     {
         try {
-            return RedisConn::get();
+            return RedisConn::app();
         } catch (\Throwable) {
             return null;
         }

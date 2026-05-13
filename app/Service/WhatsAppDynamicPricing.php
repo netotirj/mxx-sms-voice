@@ -108,12 +108,12 @@ class WhatsAppDynamicPricing
     {
         self::seedDefaults();
         $currency = self::DEFAULT_CURRENCY;
-        $previous = self::currentExchangeRate(false);
+        $previous = self::storedExchangeRate();
         $rate = $manualRate !== null && $manualRate > 0 ? $manualRate : self::fetchUsdBrlRate();
         if ($rate <= 0) {
             return [
                 'success' => false,
-                'message' => 'API de câmbio falhou. Última cotação válida mantida.',
+                'message' => 'API de cambio falhou. Nenhuma nova cotacao USD/BRL foi confirmada.',
                 'data' => $previous,
             ];
         }
@@ -226,9 +226,9 @@ class WhatsAppDynamicPricing
 
     public static function refreshUsdRateIfStale(int $maxAgeSeconds = self::CACHE_TTL_SECONDS): array
     {
-        $current = self::currentExchangeRate(false);
+        $current = self::storedExchangeRate();
         $updatedAt = strtotime((string)($current['updated_at'] ?? '')) ?: 0;
-        if ($updatedAt > 0 && (time() - $updatedAt) <= max(60, $maxAgeSeconds)) {
+        if (is_array($current) && $updatedAt > 0 && (time() - $updatedAt) <= max(60, $maxAgeSeconds)) {
             return [
                 'success' => true,
                 'message' => 'Cotação ainda dentro da validade.',
@@ -237,7 +237,12 @@ class WhatsAppDynamicPricing
             ];
         }
 
-        return self::updateUsdRate(null, 'exchange_api_before_send');
+        $result = self::updateUsdRate(null, 'exchange_api_before_send');
+        if (!($result['success'] ?? false)) {
+            throw new \RuntimeException('Cotacao USD/BRL indisponivel. O envio/cobranca nao deve continuar sem confirmar a taxa atual.');
+        }
+
+        return $result;
     }
 
     public static function diagnoseExchangeApis(): array
@@ -350,22 +355,9 @@ class WhatsAppDynamicPricing
         }
 
         self::seedDefaults();
-        $row = (new Database('currency_exchange_rates'))
-            ->select('currency = :currency', [':currency' => self::DEFAULT_CURRENCY], '', '1')
-            ->fetch(\PDO::FETCH_ASSOC);
-
+        $row = self::storedExchangeRate();
         if (!$row) {
-            $fallback = (float)TelephonyConfig::env('WHATSAPP_USD_BRL_FALLBACK', 5.00);
-            $row = [
-                'currency' => self::DEFAULT_CURRENCY,
-                'rate_brl' => $fallback,
-                'safety_margin_percent' => self::exchangeSafetyMarginPercent(),
-                'effective_rate' => self::effectiveRate($fallback, self::exchangeSafetyMarginPercent()),
-                'daily_change_percent' => 0,
-                'alert_flag' => 0,
-                'source' => 'fallback',
-                'updated_at' => null,
-            ];
+            throw new \RuntimeException('Nenhuma cotacao USD/BRL armazenada. Atualize a cotacao antes de calcular precos.');
         }
 
         if ($cache) {
@@ -781,22 +773,6 @@ class WhatsAppDynamicPricing
 
         self::ensureVoicePricingSchema();
 
-        $rate = (float)TelephonyConfig::env('WHATSAPP_USD_BRL_FALLBACK', 5.00);
-        $safety = self::exchangeSafetyMarginPercent();
-
-        (new Database())->execute(
-            "INSERT INTO currency_exchange_rates
-                (currency, rate_brl, safety_margin_percent, effective_rate, daily_change_percent, alert_flag, source, updated_at)
-             VALUES (:currency, :rate_brl, :safety, :effective, 0, 0, 'seed', NOW())
-             ON DUPLICATE KEY UPDATE currency = currency",
-            [
-                ':currency' => self::DEFAULT_CURRENCY,
-                ':rate_brl' => $rate,
-                ':safety' => $safety,
-                ':effective' => self::effectiveRate($rate, $safety),
-            ]
-        );
-
         foreach (self::DEFAULT_USD_PRICES as $messageType => $priceUsd) {
             (new Database())->execute(
                 "INSERT INTO whatsapp_meta_message_prices
@@ -824,6 +800,15 @@ class WhatsAppDynamicPricing
         }
 
         $seeded = true;
+    }
+
+    private static function storedExchangeRate(): ?array
+    {
+        $row = (new Database('currency_exchange_rates'))
+            ->select('currency = :currency', [':currency' => self::DEFAULT_CURRENCY], 'updated_at DESC, id DESC', '1')
+            ->fetch(\PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
     }
 
     private static function syncMxxPlanWhatsappColumns(array $prices): void
@@ -973,7 +958,7 @@ class WhatsAppDynamicPricing
     private static function cacheGet(string $key): ?array
     {
         try {
-            $raw = RedisConn::get()->get($key);
+            $raw = RedisConn::app()->get($key);
             $decoded = $raw ? json_decode((string)$raw, true) : null;
             return is_array($decoded) ? $decoded : null;
         } catch (\Throwable $e) {
@@ -984,7 +969,7 @@ class WhatsAppDynamicPricing
     private static function cacheSet(string $key, array $value, int $ttl): void
     {
         try {
-            RedisConn::get()->setex($key, $ttl, json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            RedisConn::app()->setex($key, $ttl, json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         } catch (\Throwable $e) {
         }
     }
@@ -992,7 +977,7 @@ class WhatsAppDynamicPricing
     private static function cacheDelete(string $key): void
     {
         try {
-            RedisConn::get()->del([$key]);
+            RedisConn::app()->del([$key]);
         } catch (\Throwable $e) {
         }
     }

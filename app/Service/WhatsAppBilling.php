@@ -524,6 +524,9 @@ class WhatsAppBilling
             $dynamicPrice = round((float)($dynamicPricingPayload['final_price_brl'] ?? 0), 4);
         } catch (\Throwable $e) {
             error_log('[whatsapp_dynamic_pricing_fallback] ' . $e->getMessage());
+            if ($refreshExchange) {
+                throw $e;
+            }
         }
 
         if ($fallbackPrice === null || $fallbackPrice <= 0) {

@@ -80,7 +80,7 @@ class DashboardService
     private static function getJson(string $key): ?array
     {
         try {
-            $raw = RedisConn::get()->get($key);
+            $raw = RedisConn::app()->get($key);
             if (!$raw) {
                 return self::fileCacheGet($key);
             }
@@ -101,7 +101,7 @@ class DashboardService
     private static function setJson(string $key, array $payload, int $ttl): void
     {
         try {
-            RedisConn::get()->setex($key, $ttl, json_encode($payload, JSON_UNESCAPED_UNICODE));
+            RedisConn::app()->setex($key, $ttl, json_encode($payload, JSON_UNESCAPED_UNICODE));
         } catch (\Throwable $e) {
             error_log('[dashboard] redis_set_failed key=' . $key . ' error=' . $e->getMessage());
         }

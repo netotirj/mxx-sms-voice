@@ -17,7 +17,7 @@ class WhatsAppRedisRateLimiter
         }
 
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $now = time();
             $dailyTtl = max(60, strtotime('tomorrow 00:05:00') - $now);
             $minuteTtl = 60;

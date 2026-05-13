@@ -487,7 +487,7 @@
 
 <audio id="remoteAudio" autoplay playsinline></audio>
 
-<div id="balao-dtmf-container" class="fixed inset-x-0 top-12 z-[9999] flex justify-center pointer-events-none"></div>
+<div id="balao-dtmf-container" class="fixed inset-x-0 top-12 flex justify-center pointer-events-none" style="z-index:100080;"></div>
 
 
 
@@ -980,6 +980,7 @@
             balao = document.createElement('div');
             balao.id = 'balao-interno-dtmf';
             balao.className = "bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border border-red-500 flex flex-col items-center min-w-[200px] transition-all duration-500 transform animate-in fade-in slide-in-from-top-4 pointer-events-auto cursor-pointer hover:bg-white hover:scale-105 active:scale-95 group";
+            balao.style.zIndex = '100081';
 
             balao.onclick = function() {
                 const num = document.getElementById('dtmf-display-realtime').innerText.replace(/\s/g, '');

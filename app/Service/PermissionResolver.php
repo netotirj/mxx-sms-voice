@@ -461,7 +461,7 @@ class PermissionResolver
 
         $versionKey = self::TENANT_VERSION_PREFIX . $tenancyId;
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $redis->incr($versionKey);
             $redis->expire($versionKey, 86400 * 30);
         } catch (Throwable) {
@@ -478,7 +478,7 @@ class PermissionResolver
 
         $versionKey = self::USER_VERSION_PREFIX . $tenancyId . ':' . $userId;
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $redis->incr($versionKey);
             $redis->expire($versionKey, 86400 * 30);
         } catch (Throwable) {
@@ -492,7 +492,7 @@ class PermissionResolver
         }
 
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $value = $redis->get($key);
             return $value !== null ? $value : $default;
         } catch (Throwable) {
@@ -507,7 +507,7 @@ class PermissionResolver
         }
 
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $raw = $redis->get(self::REDIS_PREFIX . $key);
             if ($raw === null || $raw === '') {
                 return null;
@@ -527,7 +527,7 @@ class PermissionResolver
         }
 
         try {
-            $redis = RedisConn::get();
+            $redis = RedisConn::app();
             $redis->setex(
                 self::REDIS_PREFIX . $key,
                 self::REDIS_TTL,

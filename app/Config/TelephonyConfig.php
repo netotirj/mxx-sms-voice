@@ -151,12 +151,115 @@ class TelephonyConfig
 
     public static function redisConfig(): array
     {
-        return [
+        return self::telephonyRedisConfig();
+    }
+
+    public static function appRedisHost(): string
+    {
+        return (string) self::env('APP_REDIS_HOST', '127.0.0.1');
+    }
+
+    public static function appRedisPort(): int
+    {
+        return (int) self::env('APP_REDIS_PORT', 6379);
+    }
+
+    public static function appRedisPassword(): string
+    {
+        return (string) self::env('APP_REDIS_PASSWORD', '');
+    }
+
+    public static function appRedisDatabase(): int
+    {
+        return (int) self::env('APP_REDIS_DB', 0);
+    }
+
+    public static function appRedisTimeout(): float
+    {
+        return (float) self::env('APP_REDIS_TIMEOUT', 1.5);
+    }
+
+    public static function appRedisReadTimeout(): float
+    {
+        return (float) self::env('APP_REDIS_READ_TIMEOUT', 1.5);
+    }
+
+    public static function appRedisConfig(): array
+    {
+        return self::buildRedisConfig(
+            self::appRedisHost(),
+            self::appRedisPort(),
+            self::appRedisPassword(),
+            self::appRedisDatabase(),
+            self::appRedisTimeout(),
+            self::appRedisReadTimeout()
+        );
+    }
+
+    public static function telephonyRedisHost(): string
+    {
+        return (string) self::env('TELEPHONY_REDIS_HOST', self::redisHost());
+    }
+
+    public static function telephonyRedisPort(): int
+    {
+        return (int) self::env('TELEPHONY_REDIS_PORT', self::redisPort());
+    }
+
+    public static function telephonyRedisPassword(): string
+    {
+        return (string) self::env('TELEPHONY_REDIS_PASSWORD', self::redisPassword());
+    }
+
+    public static function telephonyRedisDatabase(): int
+    {
+        return (int) self::env('TELEPHONY_REDIS_DB', 0);
+    }
+
+    public static function telephonyRedisTimeout(): float
+    {
+        return (float) self::env('TELEPHONY_REDIS_TIMEOUT', 2.5);
+    }
+
+    public static function telephonyRedisReadTimeout(): float
+    {
+        return (float) self::env('TELEPHONY_REDIS_READ_TIMEOUT', 2.5);
+    }
+
+    public static function telephonyRedisConfig(): array
+    {
+        return self::buildRedisConfig(
+            self::telephonyRedisHost(),
+            self::telephonyRedisPort(),
+            self::telephonyRedisPassword(),
+            self::telephonyRedisDatabase(),
+            self::telephonyRedisTimeout(),
+            self::telephonyRedisReadTimeout()
+        );
+    }
+
+    private static function buildRedisConfig(
+        string $host,
+        int $port,
+        string $password,
+        int $database,
+        float $timeout,
+        float $readTimeout
+    ): array {
+        $config = [
             'scheme' => 'tcp',
-            'host' => self::redisHost(),
-            'port' => self::redisPort(),
-            'password' => self::redisPassword(),
+            'host' => $host,
+            'port' => $port,
+            'database' => $database,
+            'timeout' => $timeout,
+            'read_write_timeout' => $readTimeout,
         ];
+
+        if ($password !== '') {
+            $config['password'] = $password;
+        }
+
+        return $config;
     }
 
     public static function ftpHost(): string

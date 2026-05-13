@@ -1973,7 +1973,7 @@ class Dashboard extends ViewComponents
             if (!empty($resp['ok'])) {
                 return new Response(200, [
                     'success' => true,
-                    'message' => 'Plano alterado e Asterisk sincronizado com sucesso!',
+                    'message' => 'Plano alterado com sucesso.',
                     'data'    => $resp['data'] ?? []
                 ], 'application/json');
             }

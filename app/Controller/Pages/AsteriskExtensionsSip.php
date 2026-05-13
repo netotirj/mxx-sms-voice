@@ -217,7 +217,7 @@ class AsteriskExtensionsSip
             'status' => 200,
             'data' => [
                 'success' => true,
-                'message' => 'Configuracoes sincronizadas com sucesso.',
+                'message' => 'Configuracoes salvas com sucesso.',
                 'results' => $results,
             ],
         ];

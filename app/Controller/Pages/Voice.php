@@ -3225,16 +3225,23 @@ class Voice extends ViewComponents
             $effectiveStatus = 'f';
         } else {
             $knownCalls = self::countKnownCampaignCallIds($redis, $jobId);
+            $recoverablePayloads = self::countRecoverableCampaignPayloads($redis, $jobId);
 
-            if ($backupTotal > 0 && $knownCalls >= $backupTotal) {
+            if (
+                $queuedCalls === 0
+                && $activeCalls === 0
+                && $pausedCalls === 0
+                && $recoverablePayloads === 0
+            ) {
+                $effectiveStatus = 'f';
+            } elseif ($backupTotal > 0 && $knownCalls >= $backupTotal) {
                 $effectiveStatus = 'f';
             } else {
-                $recoverablePayloads = self::countRecoverableCampaignPayloads($redis, $jobId);
                 if ($recoverablePayloads > 0) {
                     $effectiveStatus = 'n';
                     $orphaned = true;
                 } elseif (in_array($dbStatus, ['p', 'y'], true) && $queuedCalls === 0 && $activeCalls === 0) {
-                    $effectiveStatus = 'n';
+                    $effectiveStatus = 'f';
                 }
             }
         }
@@ -4790,9 +4797,7 @@ class Voice extends ViewComponents
             return new Response(200, [
                 'ok' => true,
                 'status' => 'n',
-                'message' => $activeCalls > 0
-                    ? 'Campanha pausada. Novos originates foram interrompidos; chamadas já em andamento seguem até finalizar.'
-                    : 'Campanha pausada com sucesso.',
+                'message' => 'Campanha pausada com sucesso.',
                 'meta' => [
                     'moved_to_paused_queue' => $movedToPaused,
                     'active_calls' => $activeCalls,
@@ -4837,12 +4842,12 @@ class Voice extends ViewComponents
 
             $status = $runtime['effective_status'] ?? 'y';
             $message = $movedToMainQueue > 0
-                ? 'Campanha retomada e payloads devolvidos para a fila.'
+                ? 'Campanha retomada com sucesso.'
                 : ($recoveredPayloads > 0
-                    ? 'Campanha retomada e payloads órfãos foram reconstruídos.'
+                    ? 'Campanha retomada com sucesso.'
                     : (($status === 'f')
-                        ? 'Campanha reconciliada. Não havia mais payloads pendentes e ela foi marcada como finalizada.'
-                        : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.'));
+                        ? 'Campanha finalizada com sucesso.'
+                        : 'Campanha retomada com sucesso.'));
 
             return new Response(200, [
                 'ok' => true,

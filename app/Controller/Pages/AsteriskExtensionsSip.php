@@ -137,6 +137,7 @@ class AsteriskExtensionsSip
         $query = $this->normalizeQuery($query);
         $payload = $this->normalizePayload($payload, 'generic');
         $query['action'] = 'update_tariff';
+        $attemptErrors = [];
 
         foreach (['POST', 'PATCH', 'PUT'] as $method) {
             $response = $this->request($method, $query, $payload);
@@ -146,17 +147,38 @@ class AsteriskExtensionsSip
             }
 
             $status = (int)($response['status'] ?? 0);
-            $error = strtolower((string)($response['error'] ?? ''));
+            $error = strtolower(trim((string)($response['error'] ?? '')));
+            if ($error !== '') {
+                $attemptErrors[$method] = (string)$response['error'];
+            }
+
             $shouldRetry = $status === 405
                 || str_contains($error, 'acao put invalida')
                 || str_contains($error, 'ação put inválida')
+                || str_contains($error, 'acao post invalida')
+                || str_contains($error, 'ação post inválida')
                 || str_contains($error, 'acao patch invalida')
                 || str_contains($error, 'ação patch inválida')
+                || str_contains($error, 'acao invalida')
+                || str_contains($error, 'ação inválida')
                 || str_contains($error, 'method not allowed');
 
             if (!$shouldRetry) {
                 return $response;
             }
+        }
+
+        if ($attemptErrors !== []) {
+            return [
+                'ok' => false,
+                'status' => 400,
+                'error' => 'A API da telefonia nao implementa a acao update_tariff. Erros retornados: ' . implode(' | ', array_map(
+                    static fn (string $method, string $message): string => "{$method}: {$message}",
+                    array_keys($attemptErrors),
+                    $attemptErrors
+                )),
+                'data' => null,
+            ];
         }
 
         return $response ?? [

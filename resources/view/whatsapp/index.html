@@ -6378,6 +6378,7 @@
             const normalized = String(key || '').toLowerCase();
             if (['nome_cliente', 'cliente_nome', 'contact_name', 'customer_name'].includes(normalized)) return 'Ana';
             if (['valor', 'valor_plano', 'plano_valor', 'plan_value', 'plan_amount'].includes(normalized)) return 'R$ 99,90';
+            if (['protocolo_atendimento', 'protocolo', 'ticket_protocol', 'ticket.protocol'].includes(normalized)) return 'ATD-12345';
             if (normalized.includes('link') || normalized.includes('url')) return 'https://exemplo.com.br';
             if (normalized.includes('data') || normalized.includes('vencimento')) return '31/12/2026';
             if (normalized.includes('hora')) return '14:30';

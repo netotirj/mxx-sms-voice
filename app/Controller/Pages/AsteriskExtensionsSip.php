@@ -88,8 +88,48 @@ class AsteriskExtensionsSip
     {
         $query = $this->normalizeQuery($query);
         $payload = $this->normalizePayload($payload, 'generic');
-        $query['action'] = 'update_balance';
-        return $this->request('PUT', $query, $payload);
+        $attempts = [
+            ['method' => 'POST', 'action' => 'adjust_balance'],
+            ['method' => 'POST', 'action' => 'adjust_extension_balance'],
+            ['method' => 'PATCH', 'action' => 'adjust_balance'],
+            ['method' => 'PUT', 'action' => 'update_balance'],
+        ];
+
+        foreach ($attempts as $attempt) {
+            $attemptQuery = $query;
+            $attemptQuery['action'] = $attempt['action'];
+            $response = $this->request($attempt['method'], $attemptQuery, $payload);
+
+            if (!empty($response['ok'])) {
+                return $response;
+            }
+
+            $status = (int)($response['status'] ?? 0);
+            $error = strtolower((string)($response['error'] ?? ''));
+            $shouldRetry = $status === 405
+                || str_contains($error, 'acao post invalida')
+                || str_contains($error, 'ação post inválida')
+                || str_contains($error, 'acao put invalida')
+                || str_contains($error, 'ação put inválida')
+                || str_contains($error, 'acao patch invalida')
+                || str_contains($error, 'ação patch inválida')
+                || str_contains($error, 'acao post invalida')
+                || str_contains($error, 'ação post inválida')
+                || str_contains($error, 'acao post')
+                || str_contains($error, 'ação post')
+                || str_contains($error, 'method not allowed');
+
+            if (!$shouldRetry) {
+                return $response;
+            }
+        }
+
+        return $response ?? [
+            'ok' => false,
+            'status' => 0,
+            'error' => 'Falha ao sincronizar saldo com a API Asterisk.',
+            'data' => null,
+        ];
     }
 
     public function updateTariff(array $query, array $payload): array

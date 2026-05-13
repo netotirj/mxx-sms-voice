@@ -6,6 +6,21 @@ use App\Utils\View;
 
 class Legal
 {
+    private static function supportEmail(): string
+    {
+        $supportEmail = trim((string)getenv('SUPPORT_EMAIL'));
+        if (filter_var($supportEmail, FILTER_VALIDATE_EMAIL)) {
+            return $supportEmail;
+        }
+
+        $mailFrom = trim((string)getenv('MAIL_FROM'));
+        if (filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
+            return $mailFrom;
+        }
+
+        return 'sac@maxxsolutions.com.br';
+    }
+
     public static function getPrivacyPolicy(): string
     {
         return self::renderDocument(
@@ -46,7 +61,7 @@ class Legal
                 'A solicitacao sera analisada para validar a titularidade da conta e verificar obrigacoes legais, financeiras, antifraude ou regulatórias que possam exigir retencao temporaria.',
                 'Quando a exclusao for confirmada, dados pessoais nao essenciais serao removidos ou anonimizados dos sistemas ativos dentro de prazo razoavel.',
                 'Registros tecnicos, fiscais, transacionais ou de seguranca poderao ser mantidos pelo periodo exigido por lei ou necessario para defesa de direitos.',
-                'Canal de atendimento: netoacrj@outlook.com',
+                'Canal de atendimento: ' . self::supportEmail(),
             ]
         );
     }
@@ -63,7 +78,7 @@ class Legal
             'heading' => htmlspecialchars($heading, ENT_QUOTES, 'UTF-8'),
             'content' => $content,
             'updated_at' => date('d/m/Y'),
-            'contact_email' => 'netoacrj@outlook.com',
+            'contact_email' => self::supportEmail(),
         ]);
     }
 }

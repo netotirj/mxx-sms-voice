@@ -3125,6 +3125,8 @@ class Voice extends ViewComponents
                 (int)($queuedByJob[$jobId] ?? 0)
             );
 
+            self::synchronizeCampaignRuntimeState($redis, $jobId, $campaign, $runtime);
+
             $campaign['status'] = $runtime['effective_status'];
             $campaign['runtime'] = $runtime;
         }
@@ -3200,6 +3202,7 @@ class Voice extends ViewComponents
         $pausedCalls = (int)$redis->llen($pausedQueue);
         $pauseRequested = (bool)$redis->get($pauseKey);
         $finishedAt = (int)$redis->get($finishedKey);
+        $backupTotal = (int)$redis->llen("campaign:{$jobId}:payload_backup");
 
         $totalContacts = max(
             (int)($campaign['total_contacts'] ?? 0),
@@ -3211,14 +3214,34 @@ class Voice extends ViewComponents
         $dbTotalCalls = (int)($campaign['total_calls'] ?? 0);
 
         $effectiveStatus = $dbStatus;
+        $recoverablePayloads = 0;
+        $knownCalls = 0;
+        $orphaned = false;
         if ($pauseRequested || $pausedCalls > 0) {
             $effectiveStatus = 'n';
         } elseif ($queuedCalls > 0 || $activeCalls > 0) {
             $effectiveStatus = 'p';
         } elseif ($finishedAt > 0 || ($totalContacts > 0 && $dbTotalCalls >= $totalContacts)) {
             $effectiveStatus = 'f';
-        } elseif (in_array($dbStatus, ['p', 'y'], true) && $queuedCalls === 0 && $activeCalls === 0) {
-            $effectiveStatus = 'n';
+        } else {
+            $knownCalls = self::countKnownCampaignCallIds($redis, $jobId);
+
+            if ($backupTotal > 0 && $knownCalls >= $backupTotal) {
+                $effectiveStatus = 'f';
+            } else {
+                $recoverablePayloads = self::countRecoverableCampaignPayloads($redis, $jobId);
+                if ($recoverablePayloads > 0) {
+                    $effectiveStatus = 'n';
+                    $orphaned = true;
+                } elseif (in_array($dbStatus, ['p', 'y'], true) && $queuedCalls === 0 && $activeCalls === 0) {
+                    $effectiveStatus = 'n';
+                }
+            }
+        }
+
+        if ($effectiveStatus === 'f') {
+            $recoverablePayloads = 0;
+            $orphaned = false;
         }
 
         return [
@@ -3230,8 +3253,89 @@ class Voice extends ViewComponents
             'pause_requested' => $pauseRequested,
             'processed' => $processed,
             'total' => $totalContacts,
+            'backup_total' => $backupTotal,
+            'known_calls' => $knownCalls,
+            'recoverable_payloads' => $recoverablePayloads,
+            'orphaned' => $orphaned,
             'finished_at' => $finishedAt > 0 ? date('Y-m-d H:i:s', $finishedAt) : null,
         ];
+    }
+
+    private static function synchronizeCampaignRuntimeState(
+        RedisClient $redis,
+        string $jobId,
+        array $campaign,
+        array $runtime
+    ): void {
+        $effectiveStatus = strtolower(trim((string)($runtime['effective_status'] ?? '')));
+        if ($effectiveStatus === '') {
+            return;
+        }
+
+        $dbStatus = strtolower(trim((string)($campaign['status'] ?? '')));
+        if ($dbStatus !== $effectiveStatus) {
+            CampaignVoice::updateStatusByJob($jobId, $effectiveStatus);
+        }
+
+        $jobHashKey = "campaign:{$jobId}";
+        $finishedKey = "campaign:{$jobId}:finished";
+
+        if ($effectiveStatus === 'f') {
+            if (!$redis->get($finishedKey)) {
+                $redis->set($finishedKey, (string)time());
+                $redis->expire($finishedKey, 86400 * 7);
+            }
+
+            $redis->hset($jobHashKey, 'status', 'finished');
+            $redis->del("campaign:pause:job:{$jobId}");
+            return;
+        }
+
+        if ($effectiveStatus === 'n' && !empty($runtime['orphaned'])) {
+            $redis->hset($jobHashKey, 'status', 'paused_orphaned');
+            return;
+        }
+
+        if ($effectiveStatus === 'p') {
+            $redis->hset($jobHashKey, 'status', 'processing');
+        }
+    }
+
+    private static function countRecoverableCampaignPayloads(RedisClient $redis, string $jobId): int
+    {
+        $backupKey = "campaign:{$jobId}:payload_backup";
+        $backupItems = $redis->lrange($backupKey, 0, -1);
+        if (!is_array($backupItems) || $backupItems === []) {
+            return 0;
+        }
+
+        $knownCallIds = self::knownCampaignCallIds($redis, $jobId);
+        $recoverable = 0;
+
+        foreach ($backupItems as $raw) {
+            $payload = json_decode((string)$raw, true);
+            if (!is_array($payload)) {
+                continue;
+            }
+
+            if (trim((string)($payload['job_id'] ?? '')) !== $jobId) {
+                continue;
+            }
+
+            $callId = trim((string)($payload['call_id'] ?? ''));
+            if ($callId === '' || isset($knownCallIds[$callId])) {
+                continue;
+            }
+
+            $recoverable++;
+        }
+
+        return $recoverable;
+    }
+
+    private static function countKnownCampaignCallIds(RedisClient $redis, string $jobId): int
+    {
+        return count(self::knownCampaignCallIds($redis, $jobId));
     }
 
     private static function moveCampaignPayloadsBetweenQueues(
@@ -4722,17 +4826,33 @@ class Voice extends ViewComponents
                 $recoveredPayloads = self::recoverMissingCampaignPayloads($redis, $jobId);
             }
 
+            $runtime = self::campaignRuntimeSnapshot(
+                $redis,
+                $jobId,
+                $campaign,
+                (int)(self::activeCallsByJob($redis)[$jobId] ?? 0),
+                (int)(self::queuedCallsByJob($redis, 'voice:queue')[$jobId] ?? 0)
+            );
+            self::synchronizeCampaignRuntimeState($redis, $jobId, $campaign, $runtime);
+
+            $status = $runtime['effective_status'] ?? 'y';
+            $message = $movedToMainQueue > 0
+                ? 'Campanha retomada e payloads devolvidos para a fila.'
+                : ($recoveredPayloads > 0
+                    ? 'Campanha retomada e payloads órfãos foram reconstruídos.'
+                    : (($status === 'f')
+                        ? 'Campanha reconciliada. Não havia mais payloads pendentes e ela foi marcada como finalizada.'
+                        : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.'));
+
             return new Response(200, [
                 'ok' => true,
-                'status' => 'y',
-                'message' => $movedToMainQueue > 0
-                    ? 'Campanha retomada e payloads devolvidos para a fila.'
-                    : ($recoveredPayloads > 0
-                        ? 'Campanha retomada e payloads órfãos foram reconstruídos.'
-                        : 'Campanha retomada. Nenhum payload estava estacionado na fila pausada.'),
+                'status' => $status,
+                'message' => $message,
                 'meta' => [
                     'moved_to_main_queue' => $movedToMainQueue,
                     'recovered_payloads' => $recoveredPayloads,
+                    'orphaned' => (bool)($runtime['orphaned'] ?? false),
+                    'recoverable_payloads' => (int)($runtime['recoverable_payloads'] ?? 0),
                     'remaining_paused_queue' => (int)$redis->llen($pausedQueue),
                 ],
             ], 'application/json');

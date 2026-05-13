@@ -13,6 +13,12 @@
                             <p class="text-xs text-slate-400 dark:text-slate-500">Acompanhe os atendimentos abertos pela Lívia</p>
                         </div>
                     </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="mailto:{{SUPPORT_EMAIL}}" class="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700">
+                            <i class="fa fa-envelope"></i>
+                            {{SUPPORT_EMAIL}}
+                        </a>
+                    </div>
                     <div class="flex items-center gap-2">
                         <span id="supportLiveBadge" class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 border border-emerald-100">
                             <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
@@ -179,6 +185,10 @@
             <button type="button" onclick="closeCreateTicketModal()" class="text-slate-400"><i class="fa fa-times"></i></button>
         </div>
         <form id="createTicketForm" class="p-6 space-y-4">
+            <div class="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs text-sky-700">
+                Se preferir, você também pode falar com a equipe pelo e-mail
+                <a href="mailto:{{SUPPORT_EMAIL}}" class="font-bold underline">{{SUPPORT_EMAIL}}</a>.
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Tipo</label>

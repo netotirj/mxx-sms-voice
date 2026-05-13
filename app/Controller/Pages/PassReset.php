@@ -301,13 +301,12 @@ class PassReset extends ViewComponents
             return self::sendResetEmailViaSmtp($email, $code);
         }
 
-        $host = parse_url((string)(getenv('URL') ?: URL), PHP_URL_HOST) ?: 'maxxsolutions.com.br';
-        $from = getenv('MAIL_FROM') ?: 'no-reply@' . $host;
+        $from = self::systemMailFrom();
         $subject = 'Código de recuperação de senha - Maxx Solutions';
-        $body = "Olá,\n\nSeu código de recuperação de senha é: {$code}\n\nEle expira em 5 minutos. Se você não solicitou essa recuperação, ignore esta mensagem.\n\nMaxx Solutions";
+        $body = "Olá,\n\nSeu código de recuperação de senha é: {$code}\n\nEle expira em 5 minutos. Se você não solicitou essa recuperação, ignore esta mensagem.\n\nEm caso de dúvida, fale com " . self::systemContactEmail() . ".\n\nMaxx Solutions";
         $headers = [
             'From: Maxx Solutions <' . $from . '>',
-            'Reply-To: ' . $from,
+            'Reply-To: ' . self::systemContactEmail(),
             'MIME-Version: 1.0',
             'Content-Type: text/plain; charset=UTF-8',
             'X-Mailer: PHP/' . phpversion(),
@@ -323,7 +322,7 @@ class PassReset extends ViewComponents
         $secure = strtolower(trim((string)getenv('SMTP_SECURE')));
         $user = trim((string)getenv('SMTP_USER'));
         $pass = (string)getenv('SMTP_PASS');
-        $from = trim((string)(getenv('MAIL_FROM') ?: $user));
+        $from = trim((string)(getenv('MAIL_FROM') ?: self::systemContactEmail()));
         $fromName = trim((string)(getenv('MAIL_FROM_NAME') ?: 'Maxx Solutions'));
 
         if ($host === '' || $from === '') {
@@ -354,9 +353,10 @@ class PassReset extends ViewComponents
         }
 
         $subject = 'Código de recuperação de senha - Maxx Solutions';
-        $body = "Olá,\r\n\r\nSeu código de recuperação de senha é: {$code}\r\n\r\nEle expira em 5 minutos. Se você não solicitou essa recuperação, ignore esta mensagem.\r\n\r\nMaxx Solutions";
+        $body = "Olá,\r\n\r\nSeu código de recuperação de senha é: {$code}\r\n\r\nEle expira em 5 minutos. Se você não solicitou essa recuperação, ignore esta mensagem.\r\n\r\nEm caso de dúvida, fale com " . self::systemContactEmail() . ".\r\n\r\nMaxx Solutions";
         $headers = [
             'From: ' . self::formatEmailHeader($fromName, $from),
+            'Reply-To: <' . self::systemContactEmail() . '>',
             'To: <' . $email . '>',
             'Subject: ' . $subject,
             'MIME-Version: 1.0',
@@ -402,6 +402,31 @@ class PassReset extends ViewComponents
         $email = trim(str_replace(["\r", "\n"], '', $email));
 
         return $name !== '' ? sprintf('"%s" <%s>', addcslashes($name, '"\\'), $email) : '<' . $email . '>';
+    }
+
+    private static function systemContactEmail(): string
+    {
+        $supportEmail = trim((string)getenv('SUPPORT_EMAIL'));
+        if (filter_var($supportEmail, FILTER_VALIDATE_EMAIL)) {
+            return $supportEmail;
+        }
+
+        $mailFrom = trim((string)getenv('MAIL_FROM'));
+        if (filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
+            return $mailFrom;
+        }
+
+        return 'sac@maxxsolutions.com.br';
+    }
+
+    private static function systemMailFrom(): string
+    {
+        $mailFrom = trim((string)getenv('MAIL_FROM'));
+        if (filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
+            return $mailFrom;
+        }
+
+        return self::systemContactEmail();
     }
 
     private static function describeResetDestination(string $channel, object $account): string

@@ -67,7 +67,8 @@
                     <p id="servicesMonitorLogsMeta" class="text-xs font-semibold uppercase tracking-wide text-slate-400"></p>
                     <button type="button" id="servicesMonitorReloadLogs" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-50">Recarregar</button>
                 </div>
-                <pre id="servicesMonitorLogsBody" class="max-h-[60vh] overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-5 text-emerald-200">Carregando logs...</pre>
+                <div id="servicesMonitorLogsHint" class="hidden mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+                <pre id="servicesMonitorLogsBody" class="max-h-[60vh] overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-6 text-emerald-300 font-medium">Carregando logs...</pre>
             </div>
         </div>
     </div>
@@ -98,7 +99,7 @@
                 </div>
                 <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="servicesMonitor.closeRestart()" class="text-xs font-bold text-slate-400 uppercase">Cancelar</button>
-                    <button type="button" id="servicesMonitorRestartButton" onclick="servicesMonitor.confirmRestart()" class="bg-gradient-to-tr from-amber-600 to-orange-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2">
+                    <button type="button" id="servicesMonitorRestartButton" onclick="servicesMonitor.confirmRestart()" class="min-w-[160px] justify-center bg-gradient-to-tr from-amber-600 to-orange-500 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md uppercase flex items-center gap-2 hover:from-amber-500 hover:to-orange-400 disabled:opacity-100 disabled:from-slate-300 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none">
                         <i class="fa fa-rotate-right text-[10px]"></i> Reiniciar
                     </button>
                 </div>
@@ -296,6 +297,8 @@
             document.body.classList.add('overflow-hidden');
             document.getElementById('servicesMonitorLogsTitle').textContent = serviceName;
             document.getElementById('servicesMonitorLogsBody').textContent = 'Carregando logs...';
+            document.getElementById('servicesMonitorLogsHint').classList.add('hidden');
+            document.getElementById('servicesMonitorLogsHint').textContent = '';
             document.getElementById('servicesMonitorReloadLogs').onclick = () => this.fetchLogs(serviceName);
             await this.fetchLogs(serviceName);
         },
@@ -320,12 +323,22 @@
                 }
 
                 const data = result.data || {};
+                const hint = document.getElementById('servicesMonitorLogsHint');
                 document.getElementById('servicesMonitorLogsMeta').textContent = data.supported === false
                     ? 'Host sem suporte a journalctl'
-                    : `${(data.lines || []).length} linhas carregadas`;
+                    : (data.permission_denied ? 'Permissão insuficiente no journal' : `${(data.lines || []).length} linhas carregadas`);
+                if (data.permission_denied) {
+                    hint.classList.remove('hidden');
+                    hint.textContent = data.permission_hint || 'O usuário atual não tem acesso aos logs do journal.';
+                } else {
+                    hint.classList.add('hidden');
+                    hint.textContent = '';
+                }
                 document.getElementById('servicesMonitorLogsBody').textContent = (data.lines || []).join('\n') || 'Nenhum log recente encontrado.';
             } catch (error) {
                 document.getElementById('servicesMonitorLogsMeta').textContent = 'Erro';
+                document.getElementById('servicesMonitorLogsHint').classList.add('hidden');
+                document.getElementById('servicesMonitorLogsHint').textContent = '';
                 document.getElementById('servicesMonitorLogsBody').textContent = error.message || 'Falha ao carregar logs.';
             }
         },

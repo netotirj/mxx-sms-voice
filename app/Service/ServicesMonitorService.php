@@ -149,6 +149,7 @@ class ServicesMonitorService
         $result = self::runCommandForProfile($profile, $command);
         $rawLines = preg_split('/\r\n|\r|\n/', trim((string)$result['output'])) ?: [];
         $sanitized = array_values(array_filter(array_map([self::class, 'sanitizeLogLine'], $rawLines), static fn ($line): bool => $line !== ''));
+        $permissionDenied = self::containsJournalPermissionError($sanitized);
 
         return [
             'service' => $serviceName,
@@ -156,6 +157,10 @@ class ServicesMonitorService
             'server_label' => (string)$profile['label'],
             'supported' => true,
             'command_ok' => (bool)$result['ok'],
+            'permission_denied' => $permissionDenied,
+            'permission_hint' => $permissionDenied
+                ? 'Falta acesso ao journalctl. Libere sudo para o usuário do monitor ou adicione o usuário aos grupos systemd-journal/adm.'
+                : null,
             'lines' => $sanitized,
             'last_line' => self::lastMeaningfulLine($sanitized),
         ];
@@ -648,6 +653,30 @@ class ServicesMonitorService
         ];
 
         return preg_replace(array_keys($patterns), array_values($patterns), $line) ?? $line;
+    }
+
+    private static function containsJournalPermissionError(array $lines): bool
+    {
+        foreach ($lines as $line) {
+            $normalized = strtolower(trim((string)$line));
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (str_contains($normalized, 'no journal files were opened due to insufficient permissions')) {
+                return true;
+            }
+
+            if (str_contains($normalized, 'you are currently not seeing messages from other users and the system')) {
+                return true;
+            }
+
+            if (str_contains($normalized, 'members of the groups') && str_contains($normalized, 'can see all messages')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function parseServiceList(string $value): array

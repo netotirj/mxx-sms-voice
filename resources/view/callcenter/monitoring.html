@@ -436,6 +436,96 @@
         };
     }
 
+    let slaChart = null;
+
+    function updateSlaChart(pontosSLA, labelsSLA) {
+        const canvas = document.getElementById('slaTrendChart');
+        if (!canvas || !pontosSLA || pontosSLA.length === 0) return;
+
+        const ctx = canvas.getContext('2d');
+
+        let chartData = [...pontosSLA];
+        let chartLabels = [...labelsSLA];
+        if (chartData.length === 1) {
+            chartData.push(chartData[0]);
+            chartLabels.push(chartLabels[0]);
+        }
+
+        const ultimoValor = chartData[chartData.length - 1];
+        const isRed = (ultimoValor < 80);
+        const mainColor = isRed ? '#ef4444' : '#10b981';
+
+        if (!slaChart) {
+            slaChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'SLA',
+                        data: chartData,
+                        borderColor: mainColor,
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointBackgroundColor: mainColor,
+                        fill: true,
+                        tension: 0.4,
+                        spanGaps: true,
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+                            if (!chartArea) return 'transparent';
+                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                            if (isRed) {
+                                gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
+                                gradient.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
+                            } else {
+                                gradient.addColorStop(0, 'rgba(16, 185, 129, 0)');
+                                gradient.addColorStop(1, 'rgba(16, 185, 129, 0.2)');
+                            }
+                            return gradient;
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 110,
+                            display: false
+                        },
+                        x: { display: false }
+                    },
+                    animation: { duration: 500 }
+                }
+            });
+        } else {
+            slaChart.data.labels = chartLabels;
+            slaChart.data.datasets[0].data = chartData;
+            slaChart.data.datasets[0].borderColor = mainColor;
+            slaChart.data.datasets[0].pointBackgroundColor = mainColor;
+            slaChart.update();
+        }
+    }
+
+    function updateCdrStats(stats) {
+        if (!stats) return;
+
+        animateCountUp(document.getElementById('stat-bi-atendidas'), stats.atendidas || 0);
+        animateCountUp(document.getElementById('stat-bi-abandonadas'), stats.abandonadas || 0);
+
+        const tmaEl = document.getElementById('stat-bi-tma');
+        const tmeEl = document.getElementById('stat-bi-tme');
+
+        if (tmaEl) tmaEl.innerText = typeof stats.tma === 'number' ? formatTime(stats.tma) : stats.tma;
+        if (tmeEl) tmeEl.innerText = typeof stats.tme === 'number' ? formatTime(stats.tme) : stats.tme;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         startTimers();
         setupCallcenterListeningModal();
@@ -498,103 +588,6 @@
             selectsPopulados = true;
         }
 
-
-        // 1. DECLARAÇÃO GLOBAL (Essencial para o 'else' da função funcionar)
-        let slaChart = null;
-
-        function updateSlaChart(pontosSLA, labelsSLA) {
-            const canvas = document.getElementById('slaTrendChart');
-            if (!canvas || !pontosSLA || pontosSLA.length === 0) return;
-
-            const ctx = canvas.getContext('2d');
-
-            // Tratamento para garantir que sempre existam pelo menos 2 pontos
-            let chartData = [...pontosSLA];
-            let chartLabels = [...labelsSLA];
-            if (chartData.length === 1) {
-                chartData.push(chartData[0]);
-                chartLabels.push(chartLabels[0]);
-            }
-
-            const ultimoValor = chartData[chartData.length - 1];
-            const isRed = (ultimoValor < 80);
-            const mainColor = isRed ? '#ef4444' : '#10b981';
-
-            if (!slaChart) {
-                slaChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: chartLabels,
-                        datasets: [{
-                            label: 'SLA',
-                            data: chartData,
-                            borderColor: mainColor,
-                            borderWidth: 3,
-                            pointRadius: 3, // Aumentei um pouco para destaque
-                            pointBackgroundColor: mainColor,
-                            fill: true,
-                            tension: 0.4, // Curva suave
-                            spanGaps: true,
-                            // Gradiente dinâmico
-                            backgroundColor: (context) => {
-                                const chart = context.chart;
-                                const {ctx, chartArea} = chart;
-                                if (!chartArea) return 'transparent';
-                                const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                                if (isRed) {
-                                    gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
-                                    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
-                                } else {
-                                    gradient.addColorStop(0, 'rgba(16, 185, 129, 0)');
-                                    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.2)');
-                                }
-                                return gradient;
-                            }
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: { enabled: true } // Para você validar os dados ao passar o mouse
-                        },
-                        scales: {
-                            y: {
-                                min: 0,
-                                max: 110,
-                                display: false
-                            },
-                            x: { display: false }
-                        },
-                        animation: { duration: 500 }
-                    }
-                });
-            } else {
-                // Atualização fluida
-                slaChart.data.labels = chartLabels;
-                slaChart.data.datasets[0].data = chartData;
-                slaChart.data.datasets[0].borderColor = mainColor;
-                slaChart.data.datasets[0].pointBackgroundColor = mainColor;
-
-                // Importante: Recalcular o gradiente se a cor mudar
-                slaChart.update();
-            }
-        }
-
-        // 2. FUNÇÃO QUE ESTAVA FALTANDO (Para resolver o erro de ReferenceError)
-        function updateCdrStats(stats) {
-            if (!stats) return;
-
-            animateCountUp(document.getElementById('stat-bi-atendidas'), stats.atendidas || 0);
-            animateCountUp(document.getElementById('stat-bi-abandonadas'), stats.abandonadas || 0);
-
-            const tmaEl = document.getElementById('stat-bi-tma');
-            const tmeEl = document.getElementById('stat-bi-tme');
-
-            if (tmaEl) tmaEl.innerText = typeof stats.tma === 'number' ? formatTime(stats.tma) : stats.tma;
-            if (tmeEl) tmeEl.innerText = typeof stats.tme === 'number' ? formatTime(stats.tme) : stats.tme;
-        }
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {

@@ -136,56 +136,90 @@ class AsteriskExtensionsSip
     {
         $query = $this->normalizeQuery($query);
         $payload = $this->normalizePayload($payload, 'generic');
-        $query['action'] = 'update_tariff';
-        $attemptErrors = [];
-
-        foreach (['POST', 'PATCH', 'PUT'] as $method) {
-            $response = $this->request($method, $query, $payload);
-
-            if (!empty($response['ok'])) {
-                return $response;
-            }
-
-            $status = (int)($response['status'] ?? 0);
-            $error = strtolower(trim((string)($response['error'] ?? '')));
-            if ($error !== '') {
-                $attemptErrors[$method] = (string)$response['error'];
-            }
-
-            $shouldRetry = $status === 405
-                || str_contains($error, 'acao put invalida')
-                || str_contains($error, 'ação put inválida')
-                || str_contains($error, 'acao post invalida')
-                || str_contains($error, 'ação post inválida')
-                || str_contains($error, 'acao patch invalida')
-                || str_contains($error, 'ação patch inválida')
-                || str_contains($error, 'acao invalida')
-                || str_contains($error, 'ação inválida')
-                || str_contains($error, 'method not allowed');
-
-            if (!$shouldRetry) {
-                return $response;
-            }
-        }
-
-        if ($attemptErrors !== []) {
+        $tenantId = (string)($payload['tenant_id'] ?? $payload['tenancy_id'] ?? $query['tenant_id'] ?? $query['tenancy_id'] ?? '');
+        if ($tenantId === '') {
             return [
                 'ok' => false,
                 'status' => 400,
-                'error' => 'A API da telefonia nao implementa a acao update_tariff. Erros retornados: ' . implode(' | ', array_map(
-                    static fn (string $method, string $message): string => "{$method}: {$message}",
-                    array_keys($attemptErrors),
-                    $attemptErrors
-                )),
+                'error' => 'Informe tenant_id para sincronizar as configuracoes de tarifa.',
                 'data' => null,
             ];
         }
 
-        return $response ?? [
-            'ok' => false,
-            'status' => 0,
-            'error' => 'Falha ao sincronizar tarifa com a API Asterisk.',
-            'data' => null,
+        $syncTargets = [];
+
+        if (!empty($payload['admin']) && is_array($payload['admin'])) {
+            $syncTargets[] = $payload['admin'];
+        }
+
+        if (!empty($payload['resellers']) && is_array($payload['resellers'])) {
+            foreach ($payload['resellers'] as $reseller) {
+                if (is_array($reseller)) {
+                    $syncTargets[] = $reseller;
+                }
+            }
+        }
+
+        if ($syncTargets === []) {
+            $syncTargets[] = $payload;
+        }
+
+        $results = [];
+        $errors = [];
+
+        foreach ($syncTargets as $target) {
+            $userId = (string)($target['user_id'] ?? $target['owner_id'] ?? $query['user_id'] ?? $query['owner_id'] ?? '');
+            if ($userId === '') {
+                $errors[] = 'Um dos lotes de sincronizacao nao informou user_id.';
+                continue;
+            }
+
+            $configPayload = [
+                'user_id' => $userId,
+                'tenant_id' => $tenantId,
+            ];
+
+            foreach (['balance_admin', 'balance_reseller', 'call_minute_cost', 'service_fee'] as $field) {
+                if (array_key_exists($field, $target)) {
+                    $configPayload[$field] = $target[$field];
+                }
+            }
+
+            $configQuery = $query;
+            $configQuery['action'] = 'set_extension_config';
+            $configQuery['user_id'] = $userId;
+            $configQuery['tenant_id'] = $tenantId;
+
+            $response = $this->request('POST', $configQuery, $configPayload);
+            $results[] = [
+                'user_id' => $userId,
+                'ok' => !empty($response['ok']),
+                'status' => (int)($response['status'] ?? 0),
+                'error' => $response['error'] ?? null,
+            ];
+
+            if (empty($response['ok'])) {
+                $errors[] = "user_id {$userId}: " . ($response['error'] ?? 'Falha ao sincronizar configuracao.');
+            }
+        }
+
+        if ($errors !== []) {
+            return [
+                'ok' => false,
+                'status' => 400,
+                'error' => 'Falha ao sincronizar configuracoes na API Asterisk/Stasis: ' . implode(' | ', $errors),
+                'data' => ['results' => $results],
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'status' => 200,
+            'data' => [
+                'success' => true,
+                'message' => 'Configuracoes sincronizadas com sucesso.',
+                'results' => $results,
+            ],
         ];
     }
 

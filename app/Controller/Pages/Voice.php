@@ -4619,7 +4619,7 @@ final class VoiceCdrMapper
         $cdr->job_id = $tariff['job_id'] ?? null;
         $cdr->call_id = $tariff['call_id'] ?? null;
         $cdr->campaign_id = $tariff['campaign_id'] ?? null;
-        $cdr->campaign_type = $tariff['campaign_type'] ?? null;
+        $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
@@ -4668,6 +4668,20 @@ final class VoiceCdrMapper
         self::normalizeExtensionLeg($cdr);
 
         return $cdr;
+    }
+
+    private static function normalizeCampaignType(mixed $value): ?string
+    {
+        $type = strtolower(trim((string)($value ?? '')));
+        if ($type === '') {
+            return null;
+        }
+
+        return match ($type) {
+            'normal', 'voice' => 'voice',
+            'torpedo' => 'torpedo',
+            default => $type,
+        };
     }
 
     private static function timestampToDate(mixed $timestamp): ?string

@@ -446,14 +446,14 @@ class Callcenter extends ViewComponents
             echo "event: update\n";
             echo "data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n";
             flush();
-
-            usleep(500000);
+            exit;
 
         } catch (\Throwable $e) {
             echo "event: error\ndata: " . json_encode([
                     'message' => $e->getMessage()
                 ]) . "\n\n";
             flush();
+            exit;
         }
     }
 

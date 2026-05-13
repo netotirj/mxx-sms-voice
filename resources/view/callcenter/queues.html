@@ -866,7 +866,7 @@
         queueCardsEventSource.onerror = function() {
             const connectionState = queueCardsEventSource?.readyState;
             stopQueueCardsSse();
-            if (document.hidden || connectionState === EventSource.CONNECTING) {
+            if (document.hidden) {
                 return;
             }
 
@@ -878,7 +878,13 @@
 
             queueCardsReconnectTimer = setTimeout(() => {
                 queueCardsReconnectTimer = null;
-                iniciarMonitoramentoCards();
+                if (queueCardsCooldownUntil > 0 && queueCardsCooldownUntil <= Date.now()) {
+                    queueCardsCooldownUntil = 0;
+                    resetQueueCardsSseFailures();
+                }
+                if (!document.hidden) {
+                    iniciarMonitoramentoCards();
+                }
             }, delay);
         };
     }

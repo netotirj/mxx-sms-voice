@@ -517,7 +517,7 @@
             eventSource.onerror = function() {
                 const connectionState = eventSource?.readyState;
                 stopReportsSse();
-                if (document.hidden || connectionState === EventSource.CONNECTING) {
+                if (document.hidden) {
                     return;
                 }
 
@@ -529,7 +529,13 @@
 
                 reportsSseReconnectTimer = setTimeout(() => {
                     reportsSseReconnectTimer = null;
-                    connectSSE();
+                    if (reportsSseCooldownUntil > 0 && reportsSseCooldownUntil <= Date.now()) {
+                        reportsSseCooldownUntil = 0;
+                        resetReportsSseFailures();
+                    }
+                    if (!document.hidden) {
+                        connectSSE();
+                    }
                 }, delay);
             };
         }

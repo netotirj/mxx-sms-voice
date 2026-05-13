@@ -419,7 +419,7 @@
         agentSource.onerror = () => {
             const connectionState = agentSource?.readyState;
             safeCloseAgentSource();
-            if (document.hidden || connectionState === EventSource.CONNECTING) {
+            if (document.hidden) {
                 return;
             }
 
@@ -432,7 +432,13 @@
             if (reconnectTimer) clearTimeout(reconnectTimer);
             reconnectTimer = setTimeout(() => {
                 reconnectTimer = null;
-                connectAgentsSSE();
+                if (agentSseCooldownUntil > 0 && agentSseCooldownUntil <= Date.now()) {
+                    agentSseCooldownUntil = 0;
+                    resetAgentSseFailures();
+                }
+                if (!document.hidden) {
+                    connectAgentsSSE();
+                }
             }, delay);
         };
     }

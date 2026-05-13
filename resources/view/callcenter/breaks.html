@@ -455,7 +455,7 @@
             const connectionState = pauseSource?.readyState;
             if (pauseSource) { pauseSource.close(); pauseSource = null; }
 
-            if (document.hidden || connectionState === EventSource.CONNECTING) {
+            if (document.hidden) {
                 return;
             }
 
@@ -467,7 +467,13 @@
 
             pauseSseReconnectTimer = setTimeout(() => {
                 pauseSseReconnectTimer = null;
-                connectPausesSSE();
+                if (pauseSseCooldownUntil > 0 && pauseSseCooldownUntil <= Date.now()) {
+                    pauseSseCooldownUntil = 0;
+                    resetPauseSseFailures();
+                }
+                if (!document.hidden) {
+                    connectPausesSSE();
+                }
             }, delay);
         };
     }

@@ -419,7 +419,7 @@
             const connectionState = ccMonitoringSource?.readyState;
             stopCcMonitoringStream();
 
-            if (document.hidden || connectionState === EventSource.CONNECTING) {
+            if (document.hidden) {
                 return;
             }
 
@@ -431,7 +431,13 @@
 
             ccMonitoringReconnectTimer = setTimeout(() => {
                 ccMonitoringReconnectTimer = null;
-                connectCcMonitoringStream();
+                if (ccMonitoringCooldownUntil > 0 && ccMonitoringCooldownUntil <= Date.now()) {
+                    ccMonitoringCooldownUntil = 0;
+                    resetCcMonitoringFailures();
+                }
+                if (!document.hidden) {
+                    connectCcMonitoringStream();
+                }
             }, delay);
         };
     }

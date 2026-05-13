@@ -64,7 +64,7 @@ class WhatsAppTemplateBlueprintLibrary
 
     public static function list(?string $category = null): array
     {
-        self::ensureSchema();
+        self::seedDefaults();
         $where = 'active = 1';
         $params = [];
         $category = strtoupper(trim((string)$category));

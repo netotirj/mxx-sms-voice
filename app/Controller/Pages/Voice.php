@@ -5127,6 +5127,7 @@ final class VoiceCdrMapper
     public static function fromTariff(array $tariff): CdrVoice
     {
         $cdr = new CdrVoice();
+        $isManual = self::isManualTariff($tariff);
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5137,8 +5138,13 @@ final class VoiceCdrMapper
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
         $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? null;
-        $cdr->number = $tariff['number'] ?? null;
-        $cdr->destination = $tariff['destination'] ?? null;
+        if ($isManual) {
+            $cdr->number = $tariff['number'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? $tariff['destination'] ?? null;
+            $cdr->destination = $tariff['destination'] ?? $tariff['AGENT_RAMAL'] ?? $tariff['channel_number'] ?? $tariff['channelNumber'] ?? null;
+        } else {
+            $cdr->number = $tariff['number'] ?? null;
+            $cdr->destination = $tariff['destination'] ?? null;
+        }
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';
         $cdr->trunk = $tariff['trunk_name'] ?? $tariff['trunk'] ?? $tariff['TRUNK'] ?? null;
@@ -5196,6 +5202,18 @@ final class VoiceCdrMapper
             'torpedo' => 'torpedo',
             default => $type,
         };
+    }
+
+    private static function isManualTariff(array $tariff): bool
+    {
+        $callType = strtoupper(trim((string)($tariff['call_type'] ?? $tariff['CALL_TYPE'] ?? '')));
+        if ($callType === 'MANUAL') {
+            return true;
+        }
+
+        return empty($tariff['job_id'])
+            && empty($tariff['call_id'])
+            && empty($tariff['campaign_id']);
     }
 
     private static function timestampToDate(mixed $timestamp): ?string

@@ -896,10 +896,6 @@
                     if (result.debug) {
                         window.__cdrDebug = result.debug;
                         console.log("[CDR DEBUG] Resposta bruta e renderizada", result.debug);
-                        if (result.debug.redis_debug) {
-                            window.__cdrRedisDebug = result.debug.redis_debug;
-                            console.log("[CDR REDIS DEBUG]", result.debug.redis_debug);
-                        }
                     }
                     allItems = Array.isArray(result.data) ? result.data : [];
                     allItems = allItems.map(item => ({

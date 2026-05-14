@@ -5205,6 +5205,7 @@ final class VoiceCdrMapper
         $cdr = new CdrVoice();
         $resolvedEndpoint = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
         $resolvedCallerId = self::resolveCallerIdNumber($tariff);
+        $resolvedExternalNumber = self::resolveExternalNumber($tariff);
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5257,8 +5258,8 @@ final class VoiceCdrMapper
         $cdr->charged_at = $tariff['charged_at'] ?? $cdr->answered ?? $cdr->ended ?? $cdr->started ?? date('Y-m-d H:i:s');
 
         self::removeTechPrefix($cdr);
-        self::normalizeExtensionLeg($cdr);
-        self::normalizeCallerIdNum($cdr);
+        self::normalizeExtensionLeg($cdr, $resolvedExternalNumber);
+        self::normalizeCallerIdNum($cdr, $resolvedExternalNumber);
 
         return $cdr;
     }
@@ -5362,6 +5363,40 @@ final class VoiceCdrMapper
         };
     }
 
+    private static function resolveExternalNumber(array $tariff): ?string
+    {
+        $candidates = [
+            $tariff['callerid_num'] ?? null,
+            $tariff['caller_number'] ?? null,
+            $tariff['caller_id'] ?? null,
+            $tariff['callerid'] ?? null,
+            $tariff['CALLERID(num)'] ?? null,
+            $tariff['CALLERID_NUM'] ?? null,
+            $tariff['OUT_CLI'] ?? null,
+            $tariff['__OUT_CLI'] ?? null,
+            $tariff['source_number'] ?? null,
+            $tariff['source'] ?? null,
+            $tariff['src'] ?? null,
+            $tariff['caller'] ?? null,
+            $tariff['number'] ?? null,
+            $tariff['destination'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $normalized = self::normalizeCallerIdCandidate($candidate);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $digits = self::onlyDigits($normalized);
+            if ($digits !== '' && !self::isExtension($digits)) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
     private static function timestampToDate(mixed $timestamp): ?string
     {
         return !empty($timestamp) ? date('Y-m-d H:i:s', (int)$timestamp) : null;
@@ -5378,7 +5413,7 @@ final class VoiceCdrMapper
         }
     }
 
-    private static function normalizeExtensionLeg(CdrVoice $cdr): void
+    private static function normalizeExtensionLeg(CdrVoice $cdr, ?string $resolvedExternalNumber = null): void
     {
         $extension = self::onlyDigits($cdr->channel_number);
 
@@ -5390,13 +5425,18 @@ final class VoiceCdrMapper
         $destination = trim((string)($cdr->destination ?? ''));
         $numberDigits = self::onlyDigits($number);
         $destinationDigits = self::onlyDigits($destination);
+        $resolvedExternal = trim((string)($resolvedExternalNumber ?? ''));
+        $resolvedExternalDigits = self::onlyDigits($resolvedExternal);
 
         $numberLooksLikeExtension = $numberDigits !== '' && self::isExtension($numberDigits);
         $destinationLooksExternal = $destinationDigits !== '' && !self::isExtension($destinationDigits);
+        $resolvedLooksExternal = $resolvedExternalDigits !== '' && !self::isExtension($resolvedExternalDigits);
 
         // Na perna do ramal, o relatório deve manter o CID/cliente em number e o ramal em destination.
         if (($number === '' || $numberLooksLikeExtension) && $destinationLooksExternal) {
             $number = $destination;
+        } elseif (($number === '' || $numberLooksLikeExtension) && $resolvedLooksExternal) {
+            $number = $resolvedExternal;
         }
 
         if ($number === '') {
@@ -5408,19 +5448,27 @@ final class VoiceCdrMapper
         $cdr->destination = $extension;
     }
 
-    private static function normalizeCallerIdNum(CdrVoice $cdr): void
+    private static function normalizeCallerIdNum(CdrVoice $cdr, ?string $resolvedExternalNumber = null): void
     {
         $callerId = trim((string)($cdr->callerid_num ?? ''));
         $number = trim((string)($cdr->number ?? ''));
         $destination = trim((string)($cdr->destination ?? ''));
+        $resolvedExternal = trim((string)($resolvedExternalNumber ?? ''));
 
         $callerDigits = self::onlyDigits($callerId);
         $numberDigits = self::onlyDigits($number);
         $destinationDigits = self::onlyDigits($destination);
+        $resolvedDigits = self::onlyDigits($resolvedExternal);
 
         $callerLooksExtension = $callerDigits !== '' && self::isExtension($callerDigits);
         $numberLooksExternal = $numberDigits !== '' && !self::isExtension($numberDigits);
         $destinationLooksExternal = $destinationDigits !== '' && !self::isExtension($destinationDigits);
+        $resolvedLooksExternal = $resolvedDigits !== '' && !self::isExtension($resolvedDigits);
+
+        if (($callerId === '' || $callerLooksExtension) && $resolvedLooksExternal) {
+            $cdr->callerid_num = $resolvedExternal;
+            return;
+        }
 
         if (($callerId === '' || $callerLooksExtension) && $numberLooksExternal) {
             $cdr->callerid_num = $number;

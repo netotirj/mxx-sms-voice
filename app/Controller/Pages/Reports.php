@@ -2280,39 +2280,56 @@ class Reports extends ViewComponents
     {
         $formatted = [];
 
+        $grouped = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
 
-            $cid = self::resolveVoiceCdrRowCid($row);
-            $destination = self::resolveVoiceCdrRowDestination($row);
-            $channelNumber = self::resolveVoiceCdrRowSipUser($row);
+            $callKey = trim((string)($row['call_id'] ?? ''));
+            if ($callKey === '') {
+                $callKey = trim((string)($row['channel_id'] ?? ''));
+            }
+            if ($callKey === '') {
+                $callKey = 'row:' . (string)($row['id'] ?? uniqid('', true));
+            }
 
-            $formatted[] = [
-                'id'                => $row['id'] ?? null,
-                'channel_id'        => $row['channel_id'] ?? null,
-                'tenancy_id'        => $row['tenancy_id'] ?? null,
-                'user_id'           => $row['user_id'] ?? null,
-                'user_name'         => trim((string)($row['user_name'] ?? '')) ?: null,
-                'user_account_code' => trim((string)($row['user_account_code'] ?? '')) ?: null,
-                'number'            => self::normalizeVoiceCdrDisplayNumber($cid),
-                'endpoints'         => trim((string)($row['endpoints'] ?? '')) ?: '',
-                'destination'       => self::normalizeVoiceCdrDisplayNumber($destination),
-                'channelNumber'     => self::normalizeVoiceCdrDisplayNumber($channelNumber),
-                'type'              => $row['type'] ?? null,
-                'dialstatus'        => $row['dialstatus'] ?? null,
-                'cause'             => $row['cause'] ?? null,
-                'cause_txt'         => $row['cause_txt'] ?? null,
-                'taxa'              => (float)($row['taxa_of_service'] ?? 0),
-                'duration'          => (int)($row['duration'] ?? 0),
-                'value'             => (float)($row['value'] ?? 0),
-                'started'           => !empty($row['started']) ? (new DateTime($row['started']))->format('d-m-Y H:i:s') : '-',
-                'answered'          => $row['answered'] ?? null,
-                'ended'             => $row['ended'] ?? null,
-                'created_at'        => $row['created_at'] ?? null,
-                '_sort_ts'          => self::voiceCdrSortTimestamp([$row]),
-            ];
+            $grouped[$callKey][] = $row;
+        }
+
+        foreach ($grouped as $callRows) {
+            $context = self::buildVoiceCdrRowContext($callRows);
+
+            foreach ($callRows as $row) {
+                $cid = self::resolveVoiceCdrRowCid($row, $context);
+                $destination = self::resolveVoiceCdrRowDestination($row, $context);
+                $channelNumber = self::resolveVoiceCdrRowSipUser($row, $context);
+
+                $formatted[] = [
+                    'id'                => $row['id'] ?? null,
+                    'channel_id'        => $row['channel_id'] ?? null,
+                    'tenancy_id'        => $row['tenancy_id'] ?? null,
+                    'user_id'           => $row['user_id'] ?? null,
+                    'user_name'         => trim((string)($row['user_name'] ?? '')) ?: null,
+                    'user_account_code' => trim((string)($row['user_account_code'] ?? '')) ?: null,
+                    'number'            => self::normalizeVoiceCdrDisplayNumber($cid),
+                    'endpoints'         => trim((string)($row['endpoints'] ?? '')) ?: '',
+                    'destination'       => self::normalizeVoiceCdrDisplayNumber($destination),
+                    'channelNumber'     => self::normalizeVoiceCdrDisplayNumber($channelNumber),
+                    'type'              => $row['type'] ?? null,
+                    'dialstatus'        => $row['dialstatus'] ?? null,
+                    'cause'             => $row['cause'] ?? null,
+                    'cause_txt'         => $row['cause_txt'] ?? null,
+                    'taxa'              => (float)($row['taxa_of_service'] ?? 0),
+                    'duration'          => (int)($row['duration'] ?? 0),
+                    'value'             => (float)($row['value'] ?? 0),
+                    'started'           => !empty($row['started']) ? (new DateTime($row['started']))->format('d-m-Y H:i:s') : '-',
+                    'answered'          => $row['answered'] ?? null,
+                    'ended'             => $row['ended'] ?? null,
+                    'created_at'        => $row['created_at'] ?? null,
+                    '_sort_ts'          => self::voiceCdrSortTimestamp([$row]),
+                ];
+            }
         }
 
         usort($formatted, static function (array $a, array $b): int {
@@ -2332,10 +2349,51 @@ class Reports extends ViewComponents
         }, $formatted);
     }
 
-    private static function resolveVoiceCdrRowCid(array $row): string
+    private static function buildVoiceCdrRowContext(array $rows): array
+    {
+        $external = '';
+        $extension = '';
+
+        foreach ($rows as $row) {
+            foreach ([
+                $row['callerid_num'] ?? null,
+                $row['number'] ?? null,
+                $row['destination'] ?? null,
+            ] as $candidate) {
+                $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+                if ($normalized !== '' && !self::isVoiceCdrExtensionValue($normalized)) {
+                    $external = $normalized;
+                    break 2;
+                }
+            }
+        }
+
+        foreach ($rows as $row) {
+            foreach ([
+                $row['channel_number'] ?? null,
+                $row['endpoints'] ?? null,
+                $row['destination'] ?? null,
+                $row['number'] ?? null,
+            ] as $candidate) {
+                $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+                if ($normalized !== '' && self::isVoiceCdrExtensionValue($normalized)) {
+                    $extension = $normalized;
+                    break 2;
+                }
+            }
+        }
+
+        return [
+            'external' => $external,
+            'extension' => $extension,
+        ];
+    }
+
+    private static function resolveVoiceCdrRowCid(array $row, array $context = []): string
     {
         $candidates = [
             $row['callerid_num'] ?? null,
+            ($context['external'] ?? '') !== '' ? $context['external'] : null,
             $row['number'] ?? null,
             $row['user_account_code'] ?? null,
             $row['channel_number'] ?? null,
@@ -2344,6 +2402,14 @@ class Reports extends ViewComponents
         foreach ($candidates as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
             if ($normalized !== '') {
+                if (
+                    self::isVoiceCdrExtensionValue($normalized) &&
+                    ($context['external'] ?? '') !== '' &&
+                    $normalized !== (string)$context['external']
+                ) {
+                    continue;
+                }
+
                 return $normalized;
             }
         }
@@ -2351,10 +2417,11 @@ class Reports extends ViewComponents
         return '';
     }
 
-    private static function resolveVoiceCdrRowDestination(array $row): string
+    private static function resolveVoiceCdrRowDestination(array $row, array $context = []): string
     {
         $candidates = [
             $row['destination'] ?? null,
+            ($context['extension'] ?? '') !== '' ? $context['extension'] : null,
             $row['number'] ?? null,
             $row['channel_number'] ?? null,
         ];
@@ -2369,12 +2436,12 @@ class Reports extends ViewComponents
         return '';
     }
 
-    private static function resolveVoiceCdrRowSipUser(array $row): string
+    private static function resolveVoiceCdrRowSipUser(array $row, array $context = []): string
     {
         $candidates = [
             $row['channel_number'] ?? null,
             $row['endpoints'] ?? null,
-            $row['user_account_code'] ?? null,
+            ($context['extension'] ?? '') !== '' ? $context['extension'] : null,
         ];
 
         foreach ($candidates as $candidate) {

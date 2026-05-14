@@ -5137,9 +5137,9 @@ final class VoiceCdrMapper
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
-        $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? null;
+        $cdr->callerid_num = self::normalizeNullable($tariff['callerid_num'] ?? $tariff['CALLERID(num)'] ?? $tariff['CALLERID_NUM'] ?? null);
         if ($isManual) {
-            $cdr->number = $tariff['number'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? $tariff['destination'] ?? null;
+            $cdr->number = $tariff['number'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? null;
             $cdr->destination = $tariff['destination'] ?? $tariff['AGENT_RAMAL'] ?? $tariff['channel_number'] ?? $tariff['channelNumber'] ?? null;
         } else {
             $cdr->number = $tariff['number'] ?? null;
@@ -5219,6 +5219,13 @@ final class VoiceCdrMapper
     private static function timestampToDate(mixed $timestamp): ?string
     {
         return !empty($timestamp) ? date('Y-m-d H:i:s', (int)$timestamp) : null;
+    }
+
+    private static function normalizeNullable(mixed $value): ?string
+    {
+        $normalized = trim((string)($value ?? ''));
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private static function removeTechPrefix(CdrVoice $cdr): void

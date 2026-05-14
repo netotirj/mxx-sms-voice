@@ -5127,6 +5127,7 @@ final class VoiceCdrMapper
     public static function fromTariff(array $tariff): CdrVoice
     {
         $cdr = new CdrVoice();
+        $resolvedEndpoint = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5135,7 +5136,7 @@ final class VoiceCdrMapper
         $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
-        $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
+        $cdr->channel_number = self::resolveChannelNumber($tariff, $resolvedEndpoint);
         $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? $tariff['number'] ?? null;
         $cdr->number = $tariff['number'] ?? null;
         $cdr->destination = $tariff['destination'] ?? null;
@@ -5145,7 +5146,7 @@ final class VoiceCdrMapper
         $cdr->trunk_id = $tariff['trunk_id'] ?? $tariff['TRUNK_ID'] ?? null;
         $cdr->trunk_billing_type = $tariff['trunk_billing_type'] ?? $tariff['TRUNK_BILLING_TYPE'] ?? null;
         $cdr->plan_id = $tariff['plan_id'] ?? $tariff['PLAN_ID'] ?? null;
-        $cdr->endpoints = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
+        $cdr->endpoints = $resolvedEndpoint;
 
         $cdr->type = strtolower((string)($tariff['type'] ?? 'normal'));
         $cdr->taxa_of_service = round((float)($tariff['taxa_of_service'] ?? 0), 4);
@@ -5182,6 +5183,40 @@ final class VoiceCdrMapper
         self::normalizeExtensionLeg($cdr);
 
         return $cdr;
+    }
+
+    private static function resolveChannelNumber(array $tariff, mixed $resolvedEndpoint): ?string
+    {
+        $preferredCandidates = [
+            $resolvedEndpoint,
+            $tariff['ramal'] ?? null,
+            $tariff['extension'] ?? null,
+            $tariff['agent_id'] ?? null,
+            $tariff['AGENT_ID'] ?? null,
+            $tariff['__RAMAL'] ?? null,
+            $tariff['__ENDPOINT'] ?? null,
+        ];
+
+        foreach ($preferredCandidates as $candidate) {
+            $extension = self::extractExtensionCandidate($candidate);
+            if ($extension !== null) {
+                return $extension;
+            }
+        }
+
+        $fallbackCandidates = [
+            $tariff['channelNumber'] ?? null,
+            $tariff['channel_number'] ?? null,
+        ];
+
+        foreach ($fallbackCandidates as $candidate) {
+            $extension = self::extractExtensionCandidate($candidate);
+            if ($extension !== null) {
+                return $extension;
+            }
+        }
+
+        return $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
     }
 
     private static function normalizeCampaignType(mixed $value): ?string
@@ -5247,6 +5282,25 @@ final class VoiceCdrMapper
     private static function onlyDigits(mixed $value): string
     {
         return preg_replace('/\D+/', '', (string)($value ?? '')) ?: '';
+    }
+
+    private static function extractExtensionCandidate(mixed $value): ?string
+    {
+        $raw = trim((string)($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/(?:^|\/)(\d{3,8})(?:-|@|$)/', $raw, $matches)) {
+            return $matches[1];
+        }
+
+        $digits = self::onlyDigits($raw);
+        if ($digits !== '' && self::isExtension($digits)) {
+            return $digits;
+        }
+
+        return null;
     }
 
     private static function isExtension(string $value): bool

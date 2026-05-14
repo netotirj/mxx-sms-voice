@@ -82,7 +82,10 @@ class Database
             return;
         }
 
-        $shouldSync = filter_var((string)getenv('DB_FORCE_SESSION_TIMEZONE'), FILTER_VALIDATE_BOOLEAN);
+        $forceSyncRaw = getenv('DB_FORCE_SESSION_TIMEZONE');
+        $shouldSync = ($forceSyncRaw === false || trim((string)$forceSyncRaw) === '')
+            ? true
+            : filter_var((string)$forceSyncRaw, FILTER_VALIDATE_BOOLEAN);
         $configuredTimezone = trim((string)getenv('DB_SESSION_TIMEZONE'));
 
         if (!$shouldSync && $configuredTimezone === '') {

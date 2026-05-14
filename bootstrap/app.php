@@ -11,6 +11,10 @@ use App\Http\Middleware\Queue as MiddlewareQueue;
 // 1. Carrega o Ambiente
 Environment::load(__DIR__.'/../');
 
+// 1.1 Define o timezone base da aplicacao antes da primeira conexao com o banco.
+$appTimezone = getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo';
+date_default_timezone_set($appTimezone);
+
 // 2. Define a URL
 define('URL', getenv('URL') ?: 'https://maxxsolutions.com.br/painel');
 define('VIEW_URL', buildCurrentViewUrl(URL));
@@ -30,7 +34,7 @@ $obUser = PHP_SAPI === 'cli' ? null : SessionUser::getLogged();
 
 if ($obUser) {
     // Calibra o fuso do PHP
-    $timezone = $obUser['timezone'] ?? 'America/Sao_Paulo';
+    $timezone = $obUser['timezone'] ?? $appTimezone;
     date_default_timezone_set($timezone);
 }
 

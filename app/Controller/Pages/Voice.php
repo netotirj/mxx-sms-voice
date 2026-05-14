@@ -5139,8 +5139,13 @@ final class VoiceCdrMapper
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
         $cdr->callerid_num = self::normalizeNullable($tariff['callerid_num'] ?? $tariff['CALLERID(num)'] ?? $tariff['CALLERID_NUM'] ?? null);
         if ($isManual) {
-            $cdr->number = $tariff['number'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? null;
-            $cdr->destination = $tariff['destination'] ?? $tariff['AGENT_RAMAL'] ?? $tariff['channel_number'] ?? $tariff['channelNumber'] ?? null;
+            $cdr->channel_number = $cdr->channel_number
+                ?? $tariff['AGENT_RAMAL']
+                ?? $tariff['endpoint']
+                ?? $tariff['endpoints']
+                ?? null;
+            $cdr->number = $tariff['number'] ?? $tariff['destination'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? null;
+            $cdr->destination = $tariff['destination'] ?? $tariff['number'] ?? null;
         } else {
             $cdr->number = $tariff['number'] ?? null;
             $cdr->destination = $tariff['destination'] ?? null;

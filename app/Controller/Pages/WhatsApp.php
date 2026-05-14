@@ -4224,7 +4224,7 @@ HTML;
         $contactName = self::nullableString($input['name'] ?? null);
         $protocolReferenceInput = trim((string)($input['protocol_reference'] ?? ''));
         $companyNameInput = self::nullableString($input['company_name'] ?? null);
-        $templateName = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE', 'util_confirmacao_atendimento_01'));
+        $templateName = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE', 'util_protocolo_atendimento_01'));
         $templateLanguage = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_LANGUAGE', 'pt_BR')) ?: 'pt_BR';
 
         if (strlen($to) < 8 || strlen($to) > 15) {

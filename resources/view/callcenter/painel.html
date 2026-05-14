@@ -515,6 +515,7 @@
     let ultimoHistoricoRegistrado = null;
     let ultimoDadosPlanilhaKey = null;
     let ultimaChaveDtmfExibida = "";
+    let ultimoStatusAgente = null;
     let protocolosAtendimento = {};
 
     function normalizarDtmfValor(valor) {
@@ -1151,7 +1152,7 @@
                 contactUri: configuration.contact_uri
             });
             atualizarBadgeStatus(true);
-            sincronizarAgenteLivreSilencioso();
+            setTimeout(() => sincronizarAgenteLivreSilencioso(), 1200);
             consumirChamadaPendenteWhatsApp('ua-registered');
         });
 
@@ -1278,7 +1279,15 @@
     }
 
     async function sincronizarAgenteLivreSilencioso() {
-        if (!ramalLogado) return;
+        if (!ramalLogado || !ultimoStatusAgente) return;
+
+        const statusAtual = String(ultimoStatusAgente.status || '').toUpperCase();
+        const devePreservarStatus = ['PAUSA', 'CHAMADA', 'OCUPADO', 'RESERVADO', 'BUSY', 'DIALING']
+            .some(fragmento => statusAtual.includes(fragmento));
+
+        if (devePreservarStatus || !statusAtual.includes('OFFLINE')) {
+            return;
+        }
 
         try {
             await fetch(`${baseUrl}/callcenter/agent-set-status`, {
@@ -2131,7 +2140,10 @@
                 }
 
                 const meuStatus = listaAgentes.find(a => String(a.ramal) === String(ramal));
-                if (meuStatus) atualizarInterfaceStatus(meuStatus);
+                if (meuStatus) {
+                    ultimoStatusAgente = meuStatus;
+                    atualizarInterfaceStatus(meuStatus);
+                }
 
                 if (chamadaParaMim) {
                     const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
@@ -3176,7 +3188,7 @@
     async function resetCheckin() {
         if (confirm("Deseja realmente encerrar sua jornada?")) {
             if (ramalLogado) {
-                try { await fetch(`${baseUrl}/callcenter/agent-set-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ramal: ramalLogado, status: 'LIVRE' }) }); } catch (e) { }
+                try { await fetch(`${baseUrl}/callcenter/agent-set-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ramal: ramalLogado, status: 'OFFLINE' }) }); } catch (e) { }
             }
             localStorage.removeItem('agente_sessao');
             localStorage.removeItem('agente_historico');

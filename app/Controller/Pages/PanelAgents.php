@@ -345,6 +345,9 @@ class PanelAgents extends ViewComponents
             $currentData = $rawCurrent ? json_decode($rawCurrent, true) : [];
             $currentData = is_array($currentData) ? $currentData : [];
 
+            $statusNormalizado = strtoupper((string)$status);
+            $forcarOffline = in_array($statusNormalizado, ['OFFLINE', 'LOGOFF'], true);
+
             if ($status === 'pausa' && $pausaId) {
                 $config = PauseConfig::getBreakById($pausaId, $tenancy);
 
@@ -357,6 +360,10 @@ class PanelAgents extends ViewComponents
                 $currentData['status']       = 'PAUSA';
                 $currentData['status_name']  = strtoupper($config['name'] ?? 'PAUSA');
                 $currentData['color']        = $config['color_theme'] ?? 'orange';
+            } elseif ($forcarOffline) {
+                $currentData['status']       = 'OFFLINE';
+                $currentData['status_name']  = null;
+                $currentData['color']        = 'slate';
             } else {
                 // ✅ CORREÇÃO AQUI: Para sair da pausa, status_name DEVE ser null
                 // Isso avisa ao AgentManager que a regra de negócio acabou.
@@ -369,7 +376,7 @@ class PanelAgents extends ViewComponents
             $currentData['user_id'] = (int)$obUser['id'];
             $currentData['tenancy_id'] = (string)$tenancy;
             $currentData['status_since'] = time();
-            $currentData['online']       = true;
+            $currentData['online']       = !$forcarOffline;
             $currentData['updated']      = time();
             $currentData['last_update_by'] = 'setAgentStatus_manual';
 

@@ -889,10 +889,14 @@
         </tr>`;
             }
 
-          await  fetch(`${baseUrl}/reports/list-cdr`)
+          await  fetch(`${baseUrl}/reports/list-cdr?debug=1`)
                 .then(r => r.json())
                 .then(result => {
                     errorCount = 0; // reset erro
+                    if (result.debug) {
+                        window.__cdrDebug = result.debug;
+                        console.log("[CDR DEBUG] Resposta bruta e renderizada", result.debug);
+                    }
                     allItems = Array.isArray(result.data) ? result.data : [];
                     allItems = allItems.map(item => ({
                         ...item,

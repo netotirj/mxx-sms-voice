@@ -2242,16 +2242,66 @@ class Reports extends ViewComponents
             ], 'application/json');
         }
 
+        $debugEnabled = isset($_GET['debug']) && (string)$_GET['debug'] === '1';
+
         // ==============================
         // 🔄 FORMATAÇÃO (Sua lógica original)
         // ==============================
         $formatted = self::formatVoiceCdrRows($cdr);
 
-        return new Response(200, [
+        $response = [
             'success' => true,
             'total'   => count($formatted),
             'data'    => $formatted
-        ], 'application/json');
+        ];
+
+        if ($debugEnabled) {
+            $response['debug'] = [
+                'filters' => $filters,
+                'raw_total' => count($cdr),
+                'raw_rows' => array_map(static function ($row): array {
+                    if (!is_array($row)) {
+                        return ['invalid' => true];
+                    }
+
+                    return [
+                        'id' => $row['id'] ?? null,
+                        'channel_id' => $row['channel_id'] ?? null,
+                        'call_id' => $row['call_id'] ?? null,
+                        'job_id' => $row['job_id'] ?? null,
+                        'campaign_id' => $row['campaign_id'] ?? null,
+                        'type' => $row['type'] ?? null,
+                        'direction' => $row['direction'] ?? null,
+                        'channel_number' => $row['channel_number'] ?? null,
+                        'endpoints' => $row['endpoints'] ?? null,
+                        'callerid_num' => $row['callerid_num'] ?? null,
+                        'number' => $row['number'] ?? null,
+                        'destination' => $row['destination'] ?? null,
+                        'source' => $row['source'] ?? null,
+                        'src' => $row['src'] ?? null,
+                        'dst' => $row['dst'] ?? null,
+                        'caller_number' => $row['caller_number'] ?? null,
+                        'user_account_code' => $row['user_account_code'] ?? null,
+                        'started' => $row['started'] ?? null,
+                        'answered' => $row['answered'] ?? null,
+                        'ended' => $row['ended'] ?? null,
+                        'created_at' => $row['created_at'] ?? null,
+                    ];
+                }, $cdr),
+                'rendered_rows' => array_map(static function ($row): array {
+                    return [
+                        'id' => $row['id'] ?? null,
+                        'cid_rendered' => $row['number'] ?? null,
+                        'destination_rendered' => $row['destination'] ?? null,
+                        'sipuser_rendered' => $row['channelNumber'] ?? null,
+                        'type' => $row['type'] ?? null,
+                        'started' => $row['started'] ?? null,
+                    ];
+                }, $formatted),
+            ];
+        }
+
+        return new Response(200, $response, 'application/json');
     }
 
     private static function normalizeVoiceCdrDisplayNumber(mixed $value): string

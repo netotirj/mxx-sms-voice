@@ -2335,20 +2335,11 @@ class Reports extends ViewComponents
     private static function resolveVoiceCdrRowCid(array $row): string
     {
         $candidates = [
-            $row['number'] ?? null,
             $row['callerid_num'] ?? null,
-            $row['destination'] ?? null,
+            $row['number'] ?? null,
+            $row['user_account_code'] ?? null,
             $row['channel_number'] ?? null,
         ];
-
-        foreach ($candidates as $candidate) {
-            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
-            if ($normalized === '' || self::isVoiceCdrExtensionValue($normalized)) {
-                continue;
-            }
-
-            return $normalized;
-        }
 
         foreach ($candidates as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
@@ -2364,9 +2355,8 @@ class Reports extends ViewComponents
     {
         $candidates = [
             $row['destination'] ?? null,
-            $row['channel_number'] ?? null,
-            $row['callerid_num'] ?? null,
             $row['number'] ?? null,
+            $row['channel_number'] ?? null,
         ];
 
         foreach ($candidates as $candidate) {
@@ -2383,13 +2373,9 @@ class Reports extends ViewComponents
     {
         $candidates = [
             $row['channel_number'] ?? null,
-            $row['destination'] ?? null,
-            $row['callerid_num'] ?? null,
             $row['endpoints'] ?? null,
-            $row['number'] ?? null,
+            $row['user_account_code'] ?? null,
         ];
-
-        $fallback = '';
 
         foreach ($candidates as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
@@ -2397,16 +2383,10 @@ class Reports extends ViewComponents
                 continue;
             }
 
-            if (self::isVoiceCdrExtensionValue($normalized)) {
-                return $normalized;
-            }
-
-            if ($fallback === '') {
-                $fallback = $normalized;
-            }
+            return $normalized;
         }
 
-        return $fallback;
+        return '';
     }
 
     private static function aggregateVoiceCdrRows(array $rows): array

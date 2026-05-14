@@ -2230,7 +2230,7 @@ class Reports extends ViewComponents
         }
 
         // Processa o Redis para garantir que a chamada que acabou de cair apareça
-        Voice::processCdrFromRedis();
+        $redisDebug = Voice::processCdrFromRedis($debugEnabled);
 
         try {
             // Chamada ao Model que já corrigimos (usando user_id como 3º parâmetro no Helper)
@@ -2258,6 +2258,7 @@ class Reports extends ViewComponents
         if ($debugEnabled) {
             $response['debug'] = [
                 'filters' => $filters,
+                'redis_debug' => $redisDebug,
                 'raw_total' => count($cdr),
                 'raw_rows' => array_map(static function ($row): array {
                     if (!is_array($row)) {

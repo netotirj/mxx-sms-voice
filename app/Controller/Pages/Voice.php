@@ -3128,9 +3128,9 @@ class Voice extends ViewComponents
      *
      * Mantido como fachada para não quebrar chamadas existentes em rotas/telas.
      */
-    public static function processCdrFromRedis(bool $emitDebug = false): void
+    public static function processCdrFromRedis(bool $emitDebug = false): array
     {
-        VoiceCdrRedisProcessor::process(null, $emitDebug);
+        return VoiceCdrRedisProcessor::process(null, $emitDebug);
     }
 
     private static function applyCampaignRuntimeState(RedisClient $redis, array $campaigns): array
@@ -5055,8 +5055,13 @@ final class VoiceCdrRedisProcessor
 {
     private const QUEUE_KEY = 'asterisk:tarifacoes';
 
-    public static function process(?RedisClient $redis = null, bool $emitDebug = true): void
+    public static function process(?RedisClient $redis = null, bool $emitDebug = true): array
     {
+        $debug = [
+            'queue_key' => self::QUEUE_KEY,
+            'items' => [],
+        ];
+
         try {
             $redis ??= self::redis();
 
@@ -5070,6 +5075,10 @@ final class VoiceCdrRedisProcessor
 
                 $tariff = json_decode((string)$json, true);
                 if (!is_array($tariff) || empty($tariff['channel_id'])) {
+                    $debug['items'][] = [
+                        'stage' => 'invalid_payload',
+                        'raw_json' => (string)$json,
+                    ];
                     VoiceCdrDebug::send([
                         'skip' => true,
                         'reason' => 'invalid_tariff_payload',
@@ -5077,20 +5086,55 @@ final class VoiceCdrRedisProcessor
                     continue;
                 }
 
-                self::processPayload($redis, $tariff, $emitDebug);
+                $debug['items'][] = [
+                    'stage' => 'decoded_from_redis',
+                    'manual' => self::isManualPayload($tariff),
+                    'raw_tariff' => self::debugTariffSnapshot($tariff),
+                ];
+
+                self::processPayload($redis, $tariff, $emitDebug, $debug['items']);
             }
         } catch (Throwable $e) {
+            $debug['items'][] = [
+                'stage' => 'exception',
+                'message' => $e->getMessage(),
+            ];
             VoiceCdrDebug::send([
                 'erro' => true,
                 'mensagem' => 'Erro ao gravar CDR',
                 'detalhes' => $e->getMessage(),
             ], $emitDebug);
         }
+
+        return $debug;
     }
 
-    private static function processPayload(RedisClient $redis, array $tariff, bool $emitDebug): void
+    private static function processPayload(RedisClient $redis, array $tariff, bool $emitDebug, array &$debugItems): void
     {
+        $debugItems[] = [
+            'stage' => 'before_mapping',
+            'raw_tariff' => self::debugTariffSnapshot($tariff),
+        ];
+
         $cdr = VoiceCdrMapper::fromTariff($tariff);
+
+        $debugItems[] = [
+            'stage' => 'after_mapping',
+            'mapped_cdr' => [
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'job_id' => $cdr->job_id,
+                'campaign_id' => $cdr->campaign_id,
+                'callerid_num' => $cdr->callerid_num,
+                'number' => $cdr->number,
+                'destination' => $cdr->destination,
+                'channel_number' => $cdr->channel_number,
+                'direction' => $cdr->direction,
+                'type' => $cdr->type,
+                'dialstatus' => $cdr->dialstatus,
+                'cause_txt' => $cdr->cause_txt,
+            ],
+        ];
 
         VoiceCdrUserSnapshot::apply($cdr);
         $cdr->insertCdr();
@@ -5109,6 +5153,42 @@ final class VoiceCdrRedisProcessor
             'status' => $cdr->dialstatus,
             'motivo' => $cdr->cause_txt,
         ], $emitDebug);
+    }
+
+    private static function isManualPayload(array $tariff): bool
+    {
+        $callType = strtoupper(trim((string)($tariff['call_type'] ?? $tariff['CALL_TYPE'] ?? '')));
+        if ($callType === 'MANUAL') {
+            return true;
+        }
+
+        return empty($tariff['job_id'])
+            && empty($tariff['call_id'])
+            && empty($tariff['campaign_id']);
+    }
+
+    private static function debugTariffSnapshot(array $tariff): array
+    {
+        return [
+            'channel_id' => $tariff['channel_id'] ?? null,
+            'call_type' => $tariff['call_type'] ?? $tariff['CALL_TYPE'] ?? null,
+            'job_id' => $tariff['job_id'] ?? null,
+            'call_id' => $tariff['call_id'] ?? null,
+            'campaign_id' => $tariff['campaign_id'] ?? null,
+            'direction' => $tariff['direction'] ?? null,
+            'type' => $tariff['type'] ?? null,
+            'callerid_num' => $tariff['callerid_num'] ?? null,
+            'caller_number' => $tariff['caller_number'] ?? null,
+            'number' => $tariff['number'] ?? null,
+            'destination' => $tariff['destination'] ?? null,
+            'channel_number' => $tariff['channel_number'] ?? null,
+            'channelNumber' => $tariff['channelNumber'] ?? null,
+            'endpoints' => $tariff['endpoints'] ?? null,
+            'AGENT_RAMAL' => $tariff['AGENT_RAMAL'] ?? null,
+            'EXTENSION' => $tariff['EXTENSION'] ?? null,
+            'CALLERID(num)' => $tariff['CALLERID(num)'] ?? null,
+            'CALLERID_NUM' => $tariff['CALLERID_NUM'] ?? null,
+        ];
     }
 
     private static function redis(): RedisClient

@@ -5136,7 +5136,7 @@ final class VoiceCdrMapper
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
-        $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? $tariff['number'] ?? null;
+        $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? null;
         $cdr->number = $tariff['number'] ?? null;
         $cdr->destination = $tariff['destination'] ?? null;
         $cdr->techprefix = $tariff['techprefix'] ?? null;
@@ -5222,26 +5222,11 @@ final class VoiceCdrMapper
             return;
         }
 
-        $number = trim((string)($cdr->number ?? ''));
-        $destination = trim((string)($cdr->destination ?? ''));
-        $numberDigits = self::onlyDigits($number);
-        $destinationDigits = self::onlyDigits($destination);
-
-        $numberLooksLikeExtension = $numberDigits !== '' && self::isExtension($numberDigits);
-        $destinationLooksExternal = $destinationDigits !== '' && !self::isExtension($destinationDigits);
-
-        // Na perna do ramal, o relatório deve manter o CID/cliente em number e o ramal em destination.
-        if (($number === '' || $numberLooksLikeExtension) && $destinationLooksExternal) {
-            $number = $destination;
-        }
-
-        if ($number === '') {
-            $number = (string)($cdr->user_account_code ?? $cdr->channel_number ?? $extension);
+        if (trim((string)($cdr->destination ?? '')) === '') {
+            $cdr->destination = $extension;
         }
 
         $cdr->channel_number = $extension;
-        $cdr->number = $number;
-        $cdr->destination = $extension;
     }
 
     private static function onlyDigits(mixed $value): string

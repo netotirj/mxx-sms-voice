@@ -2245,7 +2245,7 @@ class Reports extends ViewComponents
         // ==============================
         // 🔄 FORMATAÇÃO (Sua lógica original)
         // ==============================
-        $formatted = self::aggregateVoiceCdrRows($cdr);
+        $formatted = self::formatVoiceCdrRows($cdr);
 
         return new Response(200, [
             'success' => true,
@@ -2274,6 +2274,66 @@ class Reports extends ViewComponents
         }
 
         return $digits;
+    }
+
+    private static function formatVoiceCdrRows(array $rows): array
+    {
+        $formatted = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $cid = trim((string)($row['callerid_num'] ?? ''));
+            if ($cid === '') {
+                $cid = trim((string)($row['number'] ?? $row['channel_number'] ?? ''));
+            }
+
+            $destination = trim((string)($row['destination'] ?? ''));
+            $channelNumber = trim((string)($row['channel_number'] ?? $row['number'] ?? ''));
+
+            $formatted[] = [
+                'id'                => $row['id'] ?? null,
+                'channel_id'        => $row['channel_id'] ?? null,
+                'tenancy_id'        => $row['tenancy_id'] ?? null,
+                'user_id'           => $row['user_id'] ?? null,
+                'user_name'         => trim((string)($row['user_name'] ?? '')) ?: null,
+                'user_account_code' => trim((string)($row['user_account_code'] ?? '')) ?: null,
+                'number'            => self::normalizeVoiceCdrDisplayNumber($cid),
+                'endpoints'         => trim((string)($row['endpoints'] ?? '')) ?: '',
+                'destination'       => self::normalizeVoiceCdrDisplayNumber($destination),
+                'channelNumber'     => self::normalizeVoiceCdrDisplayNumber($channelNumber),
+                'type'              => $row['type'] ?? null,
+                'dialstatus'        => $row['dialstatus'] ?? null,
+                'cause'             => $row['cause'] ?? null,
+                'cause_txt'         => $row['cause_txt'] ?? null,
+                'taxa'              => (float)($row['taxa_of_service'] ?? 0),
+                'duration'          => (int)($row['duration'] ?? 0),
+                'value'             => (float)($row['value'] ?? 0),
+                'started'           => !empty($row['started']) ? (new DateTime($row['started']))->format('d-m-Y H:i:s') : '-',
+                'answered'          => $row['answered'] ?? null,
+                'ended'             => $row['ended'] ?? null,
+                'created_at'        => $row['created_at'] ?? null,
+                '_sort_ts'          => self::voiceCdrSortTimestamp([$row]),
+            ];
+        }
+
+        usort($formatted, static function (array $a, array $b): int {
+            $sortA = (int)($a['_sort_ts'] ?? 0);
+            $sortB = (int)($b['_sort_ts'] ?? 0);
+
+            if ($sortA === $sortB) {
+                return strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? ''));
+            }
+
+            return $sortB <=> $sortA;
+        });
+
+        return array_map(static function (array $row): array {
+            unset($row['_sort_ts']);
+            return $row;
+        }, $formatted);
     }
 
     private static function aggregateVoiceCdrRows(array $rows): array

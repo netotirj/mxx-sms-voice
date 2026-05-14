@@ -32,6 +32,7 @@ use App\Service\WhatsAppTemplateVariableResolver;
 use App\Session\User as SessionUser;
 use App\Utils\AsteriskEnv;
 use App\Support\RequestCache;
+use App\Utils\CampaignNameCode;
 use App\Utils\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use WilliamCosta\DatabaseManager\Database;
@@ -3351,13 +3352,30 @@ HTML;
             ]);
         }
 
-        $name = trim((string)($input['name'] ?? ''));
-        if ($name === '') {
+        $baseName = trim((string)($input['name'] ?? ''));
+        if ($baseName === '') {
             return self::json(422, [
                 'success' => false,
                 'message' => 'Informe o nome da campanha.',
             ]);
         }
+        $name = CampaignNameCode::generate(
+            $baseName,
+            static function (string $candidate) use ($obUser): bool {
+                return (bool) (new Database('whatsapp_campaigns'))
+                    ->select(
+                        'tenancy_id = :tenancy_id AND name = :name',
+                        [
+                            ':tenancy_id' => (string)$obUser['tenancy_id'],
+                            ':name' => $candidate,
+                        ],
+                        '',
+                        '1',
+                        ['id']
+                    )
+                    ->fetch(\PDO::FETCH_ASSOC);
+            }
+        );
 
         $messageType = strtolower((string)($input['message_type'] ?? 'template'));
         if (!in_array($messageType, ['text', 'template'], true)) {
@@ -3459,6 +3477,7 @@ HTML;
                 'success' => true,
                 'message' => 'Campanha WhatsApp criada.',
                 'id' => $campaignId,
+                'name' => $name,
                 'total_recipients' => count($recipients),
             ]);
         } catch (\Throwable $e) {

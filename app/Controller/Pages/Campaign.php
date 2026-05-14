@@ -9,6 +9,7 @@ use App\Model\Entity\ContactsSearch;
 use App\Session\User as SessionUser;
 use App\Http\Response;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Utils\CampaignNameCode;
 
 
 class Campaign extends ViewComponents
@@ -152,19 +153,37 @@ class Campaign extends ViewComponents
 
             $postVars = $request->getPostVars();
 
-            $name    = trim($postVars['campaignName'] ?? '');
+            $baseName = trim($postVars['campaignName'] ?? '');
             $message = trim($postVars['messageInput'] ?? '');
             $status  = trim($postVars['status'] ?? 'y');
             $type_msg = trim($postVars['sender_type'] ?? '');
             $charset_msg = trim($postVars['charset'] ?? '');
 
-            if (!$name || !$message || !$status) {
+            if (!$baseName || !$message || !$status) {
                 return new Response(422, [
                     'success' => false,
                     'status'  => 422,
                     'message' => 'Preencha todos os campos obrigatórios.'
                 ], 'application/json');
             }
+
+            $name = CampaignNameCode::generate(
+                $baseName,
+                static function (string $candidate) use ($obUser): bool {
+                    return (bool) (new \WilliamCosta\DatabaseManager\Database('campaign'))
+                        ->select(
+                            'tenancy_id = :tenancy_id AND name = :name',
+                            [
+                                ':tenancy_id' => (string)$obUser['tenancy_id'],
+                                ':name' => $candidate,
+                            ],
+                            '',
+                            '1',
+                            ['id']
+                        )
+                        ->fetch(\PDO::FETCH_ASSOC);
+                }
+            );
 
 
 
@@ -184,7 +203,8 @@ class Campaign extends ViewComponents
                 'success' => true,
                 'status' => 200,
                 'message' => 'Campanha criada com sucesso!',
-                'campaign_id' => $obCampaign->id
+                'campaign_id' => $obCampaign->id,
+                'name' => $name,
             ], 'application/json');
 
         } catch (\Exception $e) {

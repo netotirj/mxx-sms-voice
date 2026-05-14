@@ -23,6 +23,7 @@ use GuzzleHttp\Client;
 use Predis\Client as RedisClient;
 use App\Http\Response;
 use App\Session\User as SessionUser;
+use App\Utils\CampaignNameCode;
 use App\Utils\View;
 use App\Model\Entity\CampaignVoice;
 use App\Model\Entity\CampaignVoiceSchedule;
@@ -963,7 +964,41 @@ class Voice extends ViewComponents
         $audioFiles = $_FILES['audios'] ?? null;
         $audiosOrigin = $data['audios_origin'] ?? [];
         $rate = max(1, (int)($data['rate'] ?? 1));
-        $name = $data['campaign_name'] ?? '';
+        $baseName = trim((string)($data['campaign_name'] ?? ''));
+        $name = CampaignNameCode::generate(
+            $baseName,
+            static function (string $candidate) use ($tenantId): bool {
+                $voiceExists = (new \WilliamCosta\DatabaseManager\Database('campaign_voice'))
+                    ->select(
+                        'tenancy_id = :tenancy_id AND name = :name',
+                        [
+                            ':tenancy_id' => (string)$tenantId,
+                            ':name' => $candidate,
+                        ],
+                        '',
+                        '1',
+                        ['id']
+                    )
+                    ->fetch(\PDO::FETCH_ASSOC);
+
+                if ($voiceExists) {
+                    return true;
+                }
+
+                return (bool) (new \WilliamCosta\DatabaseManager\Database('campaign_voice_schedules'))
+                    ->select(
+                        'tenancy_id = :tenancy_id AND name = :name',
+                        [
+                            ':tenancy_id' => (string)$tenantId,
+                            ':name' => $candidate,
+                        ],
+                        '',
+                        '1',
+                        ['id']
+                    )
+                    ->fetch(\PDO::FETCH_ASSOC);
+            }
+        );
         $sip_trunk = (string)($data['sip_trunk'] ?? '');
         $queueId = $data['queue_id'] ?? null;
         $strategy = (string)$data['dial_strategy']?? 'rrmemory';

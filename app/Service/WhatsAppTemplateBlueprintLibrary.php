@@ -162,8 +162,9 @@ class WhatsAppTemplateBlueprintLibrary
             $map[$position] = [
                 'key' => (string)($variable['key'] ?? 'variavel_' . $position),
                 'label' => (string)($variable['label'] ?? 'Variável ' . $position),
-                'description' => (string)($variable['label'] ?? 'Variável ' . $position),
+                'description' => (string)($variable['description'] ?? $variable['label'] ?? 'Variável ' . $position),
                 'type' => (string)($variable['type'] ?? 'text'),
+                'source' => (string)($variable['source'] ?? 'contact_or_sheet'),
             ];
         }
 
@@ -184,9 +185,23 @@ class WhatsAppTemplateBlueprintLibrary
         return is_array($decoded) ? $decoded : [];
     }
 
-    private static function v(int $position, string $key, string $label, string $type = 'text'): array
+    private static function v(
+        int $position,
+        string $key,
+        string $label,
+        string $type = 'text',
+        string $source = 'contact_or_sheet',
+        ?string $description = null
+    ): array
     {
-        return compact('position', 'key', 'label', 'type');
+        return [
+            'position' => $position,
+            'key' => $key,
+            'label' => $label,
+            'type' => $type,
+            'source' => $source,
+            'description' => $description ?: $label,
+        ];
     }
 
     public static function defaults(): array
@@ -220,7 +235,7 @@ class WhatsAppTemplateBlueprintLibrary
             ['key' => 'marketing_agendamento_comercial', 'name' => 'marketing_agendamento_comercial', 'category' => 'MARKETING', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, podemos te apresentar {{2}} em uma conversa rápida. Escolha um horário aqui: {{3}}', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'solucao', 'Solução/oferta'), self::v(3, 'link_agendamento', 'Link de agendamento')]],
             ['key' => 'marketing_indicacao', 'name' => 'marketing_indicacao', 'category' => 'MARKETING', 'language' => 'pt_BR', 'body' => '{{1}}, indique um amigo e receba {{2}}. Veja como participar: {{3}}', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'recompensa', 'Recompensa'), self::v(3, 'link', 'Link')]],
             ['key' => 'utility_confirmacao_pedido', 'name' => 'utility_confirmacao_pedido', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, seu pedido {{2}} foi confirmado com sucesso. Acompanhe aqui: {{3}}', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'numero_pedido', 'Número do pedido'), self::v(3, 'link_acompanhamento', 'Link de acompanhamento')]],
-            ['key' => 'utility_protocolo_atendimento', 'name' => 'util_protocolo_atendimento_01', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, seu protocolo de atendimento é: {{2}}.', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'protocolo_atendimento', 'Protocolo do atendimento')]],
+            ['key' => 'utility_protocolo_atendimento', 'name' => 'util_protocolo_atendimento_01', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, seu protocolo de atendimento é: {{2}}.', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente', 'text', 'system', 'Preenchido automaticamente pelo sistema no envio do protocolo.'), self::v(2, 'protocolo_atendimento', 'Protocolo do atendimento', 'text', 'system', 'Gerado automaticamente pelo sistema no momento do atendimento.')]],
             ['key' => 'utility_status_pedido', 'name' => 'utility_status_pedido', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, o status do pedido {{2}} foi atualizado para: {{3}}.', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'numero_pedido', 'Número do pedido'), self::v(3, 'status', 'Status')]],
             ['key' => 'utility_envio_rastreamento', 'name' => 'utility_envio_rastreamento', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, seu pedido {{2}} foi enviado. Código de rastreio: {{3}}. Acompanhe: {{4}}', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'numero_pedido', 'Número do pedido'), self::v(3, 'codigo_rastreio', 'Código de rastreio'), self::v(4, 'link_rastreio', 'Link de rastreio')]],
             ['key' => 'utility_pagamento_confirmado', 'name' => 'utility_pagamento_confirmado', 'category' => 'UTILITY', 'language' => 'pt_BR', 'body' => 'Olá {{1}}, recebemos o pagamento de {{2}} referente a {{3}}. Obrigado!', 'variables' => [self::v(1, 'nome_cliente', 'Nome do cliente'), self::v(2, 'valor', 'Valor'), self::v(3, 'referencia', 'Referência')]],

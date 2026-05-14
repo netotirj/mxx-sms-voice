@@ -4812,7 +4812,17 @@
                 `;
             }).join('');
 
+            const hasSystemVariables = positions.some((position) => {
+                const meta = currentMap[position] || {};
+                const key = meta.key || suggestedVariableKey(position);
+                const source = meta.source || suggestedVariableSource(key);
+                return source === 'system';
+            });
+
             editor.innerHTML = rows
+                + (hasSystemVariables
+                    ? '<p class="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mb-2">Variáveis marcadas como <strong>Automático do sistema</strong> são preenchidas pelo sistema no envio e não precisam ser informadas manualmente.</p>'
+                    : '')
                 + '<p class="text-[11px] text-slate-500 mb-0">Exemplo de planilha: telefone;nome_cliente;valor_plano;link_ativacao. Se a origem for banco pelo plan_id, inclua a coluna plan_id na campanha.</p>';
             syncTemplateVariableMapFromEditor();
         }

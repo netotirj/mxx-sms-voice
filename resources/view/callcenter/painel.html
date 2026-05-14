@@ -499,6 +499,8 @@
     let currentCallId = null;
     let currentAnswerChannelId = null;
     let sseSource = null;
+    let sseReconnectTimer = null;
+    let sseReconnectAttempts = 0;
     let travaCliqueStatus = false;
     let callHistory = JSON.parse(localStorage.getItem('agente_historico')) || [];
     let memoriaSequenciaDtmf = "";
@@ -2012,9 +2014,46 @@
         }, 3000);
     }
 
+    function limparReconnectSSE() {
+        if (sseReconnectTimer) {
+            clearTimeout(sseReconnectTimer);
+            sseReconnectTimer = null;
+        }
+    }
+
+    function fecharEscutaSSE() {
+        limparReconnectSSE();
+        if (sseSource) {
+            sseSource.close();
+            sseSource = null;
+        }
+    }
+
+    function agendarReconexaoSSE() {
+        if (!ramalLogado || document.hidden || sseReconnectTimer) {
+            return;
+        }
+
+        const delay = Math.min(3000 * Math.max(1, Math.pow(2, sseReconnectAttempts)), 30000);
+        sseReconnectAttempts += 1;
+
+        sseReconnectTimer = setTimeout(() => {
+            sseReconnectTimer = null;
+            iniciarEscutaSSE(ramalLogado);
+        }, delay);
+    }
+
     function iniciarEscutaSSE(ramal) {
-        if (sseSource) sseSource.close();
+        if (!ramal) return;
+
+        fecharEscutaSSE();
         sseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+
+        sseSource.addEventListener('open', function () {
+            sseReconnectAttempts = 0;
+            limparReconnectSSE();
+        });
+
         sseSource.addEventListener('update', function (e) {
             try {
                 const data = JSON.parse(e.data);
@@ -2137,7 +2176,33 @@
                 }
             } catch (err) { /* Erro monitoramento */ }
         });
+
+        sseSource.addEventListener('auth', function () {
+            fecharEscutaSSE();
+        });
+
+        sseSource.addEventListener('error', function () {
+            fecharEscutaSSE();
+            agendarReconexaoSSE();
+        });
     }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!ramalLogado) return;
+
+        if (document.hidden) {
+            fecharEscutaSSE();
+            return;
+        }
+
+        if (!sseSource) {
+            iniciarEscutaSSE(ramalLogado);
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        fecharEscutaSSE();
+    });
 
     function registrarNoHistorico(numero, nome, duracao, campanha) {
         const agora = new Date();

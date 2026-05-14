@@ -422,6 +422,15 @@ class VoiceWorker
                         'tenant_id'    => $data['tenant_id'] ?? '0', // 🚀 Essencial para o caminho da pasta
                         'user_id'      => $data['user_id'] ?? '0',   // 🚀 Essencial para o caminho da pasta
                         'record_calls' => (int)($data['record_calls'] ?? 0), // 🚀 O gatilho!
+                        'callerid_num' => $data['CALLERID(num)'] ?? $data['CALLERID_NUM'] ?? $data['callerid_num'] ?? null,
+                        'callerid_name' => $data['CALLERID(name)'] ?? $data['CALLERID_NAME'] ?? $data['callerid_name'] ?? null,
+                        'extension'    => $data['EXTENSION'] ?? $data['extension'] ?? null,
+                        'destination'  => $data['DESTINATION'] ?? $data['destination'] ?? null,
+                        'number'       => $data['number'] ?? $data['NUMBER'] ?? null,
+                        'queue_id'     => $data['QUEUE_ID'] ?? $data['queue_id'] ?? null,
+                        'campaign_id'  => $data['CAMPAIGN_ID'] ?? $data['campaign_id'] ?? null,
+                        'voice_list_id' => $data['VOICE_LIST_ID'] ?? $data['voice_list_id'] ?? null,
+                        'vars'         => $data,
                         'ts'           => time(),
                     ], JSON_UNESCAPED_UNICODE)
                 );
@@ -1118,6 +1127,26 @@ class VoiceWorker
         $ctx['reserved_by']    = 'transfer_worker';
         $ctx['decided_at']     = time();
         $ctx['rr_mem_key']     = $memKey;
+
+        if (!isset($ctx['vars']) && !empty($callCtx['vars'])) {
+            $ctx['vars'] = $callCtx['vars'];
+        }
+
+        if (!isset($ctx['callerid_num']) && !empty($callCtx['callerid_num'])) {
+            $ctx['callerid_num'] = $callCtx['callerid_num'];
+        }
+
+        if (!isset($ctx['callerid_name']) && !empty($callCtx['callerid_name'])) {
+            $ctx['callerid_name'] = $callCtx['callerid_name'];
+        }
+
+        if (!isset($ctx['extension']) && !empty($callCtx['extension'])) {
+            $ctx['extension'] = $callCtx['extension'];
+        }
+
+        if (!isset($ctx['destination']) && !empty($callCtx['destination'])) {
+            $ctx['destination'] = $callCtx['destination'];
+        }
 
         $this->redis->setex("voice:channel_context:{$channelId}", 60, json_encode($ctx, JSON_UNESCAPED_UNICODE));
 

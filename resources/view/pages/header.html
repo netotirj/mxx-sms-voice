@@ -716,16 +716,16 @@
         }
 
         function startHeaderRealtime() {
-            if (supportTicketsList?.dataset.loaded === '1' && !headerSupportTicketsTimer) {
+            if (supportTicketsList && !headerSupportTicketsTimer) {
                 headerSupportTicketsTimer = window.setInterval(() => {
                     if (!document.hidden) loadSupportTickets();
-                }, 180000);
+                }, 60000);
             }
 
-            if (productUpdatesList?.dataset.loaded === '1' && !headerProductUpdatesTimer) {
+            if (productUpdatesList && !headerProductUpdatesTimer) {
                 headerProductUpdatesTimer = window.setInterval(() => {
                     if (!document.hidden) loadProductUpdates();
-                }, 180000);
+                }, 60000);
             }
         }
 
@@ -752,6 +752,15 @@
         document.addEventListener('support:tickets-updated', loadSupportTickets);
 
         // --- SSE PARA NOTIFICAÇÕES EM TEMPO REAL ---
+        if (supportTicketsList) {
+            loadSupportTickets();
+        }
+
+        if (productUpdatesList) {
+            loadProductUpdates();
+        }
+
+        startHeaderRealtime();
         connectNotificationsSse();
 
         document.addEventListener('visibilitychange', () => {

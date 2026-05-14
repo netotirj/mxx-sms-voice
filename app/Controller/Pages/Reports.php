@@ -2285,9 +2285,13 @@ class Reports extends ViewComponents
                 continue;
             }
 
-            $cid = self::resolveVoiceCdrRowCid($row);
-            $destination = self::resolveVoiceCdrRowDestination($row);
-            $channelNumber = self::resolveVoiceCdrRowSipUser($row);
+            $cid = trim((string)($row['callerid_num'] ?? ''));
+            if ($cid === '') {
+                $cid = trim((string)($row['number'] ?? $row['channel_number'] ?? ''));
+            }
+
+            $destination = trim((string)($row['destination'] ?? ''));
+            $channelNumber = trim((string)($row['channel_number'] ?? $row['number'] ?? ''));
 
             $formatted[] = [
                 'id'                => $row['id'] ?? null,
@@ -2330,83 +2334,6 @@ class Reports extends ViewComponents
             unset($row['_sort_ts']);
             return $row;
         }, $formatted);
-    }
-
-    private static function resolveVoiceCdrRowCid(array $row): string
-    {
-        $candidates = [
-            $row['number'] ?? null,
-            $row['callerid_num'] ?? null,
-            $row['destination'] ?? null,
-            $row['channel_number'] ?? null,
-        ];
-
-        foreach ($candidates as $candidate) {
-            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
-            if ($normalized === '' || self::isVoiceCdrExtensionValue($normalized)) {
-                continue;
-            }
-
-            return $normalized;
-        }
-
-        foreach ($candidates as $candidate) {
-            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
-            if ($normalized !== '') {
-                return $normalized;
-            }
-        }
-
-        return '';
-    }
-
-    private static function resolveVoiceCdrRowDestination(array $row): string
-    {
-        $candidates = [
-            $row['destination'] ?? null,
-            $row['channel_number'] ?? null,
-            $row['callerid_num'] ?? null,
-            $row['number'] ?? null,
-        ];
-
-        foreach ($candidates as $candidate) {
-            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
-            if ($normalized !== '') {
-                return $normalized;
-            }
-        }
-
-        return '';
-    }
-
-    private static function resolveVoiceCdrRowSipUser(array $row): string
-    {
-        $candidates = [
-            $row['channel_number'] ?? null,
-            $row['destination'] ?? null,
-            $row['callerid_num'] ?? null,
-            $row['endpoints'] ?? null,
-            $row['number'] ?? null,
-        ];
-
-        $fallback = '';
-
-        foreach ($candidates as $candidate) {
-            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
-            if ($normalized === '') {
-                continue;
-            }
-
-            if (self::isVoiceCdrExtensionValue($normalized)) {
-                return $normalized;
-            }
-
-            if ($fallback === '') {
-                $fallback = $normalized;
-            }
-        }
-
-        return $fallback;
     }
 
     private static function aggregateVoiceCdrRows(array $rows): array

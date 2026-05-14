@@ -2394,20 +2394,18 @@ class Reports extends ViewComponents
     {
         foreach ([
             $row['callerid_num'] ?? null,
-            $context['external'] ?? null,
-            $row['number'] ?? null,
-            $row['user_account_code'] ?? null,
+            $row['caller_number'] ?? null,
+            $row['source'] ?? null,
+            $row['src'] ?? null,
         ] as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
             if ($normalized === '') {
                 continue;
             }
 
-            if (self::isVoiceCdrExtensionValue($normalized) && !empty($context['external'])) {
-                continue;
+            if (!self::isVoiceCdrExtensionValue($normalized)) {
+                return $normalized;
             }
-
-            return $normalized;
         }
 
         return '';
@@ -2418,18 +2416,17 @@ class Reports extends ViewComponents
         $fallback = '';
 
         foreach ([
-            $row['destination'] ?? null,
-            $context['extension'] ?? null,
-            $row['channel_number'] ?? null,
-            $row['endpoints'] ?? null,
             $row['number'] ?? null,
+            $row['destination'] ?? null,
+            $row['dialedpeernumber'] ?? null,
+            $row['dst'] ?? null,
         ] as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
             if ($normalized === '') {
                 continue;
             }
 
-            if (self::isVoiceCdrExtensionValue($normalized)) {
+            if (!self::isVoiceCdrExtensionValue($normalized)) {
                 return $normalized;
             }
 
@@ -2449,7 +2446,6 @@ class Reports extends ViewComponents
             $row['channel_number'] ?? null,
             $row['endpoints'] ?? null,
             $context['extension'] ?? null,
-            $row['user_account_code'] ?? null,
         ] as $candidate) {
             $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
             if ($normalized === '') {

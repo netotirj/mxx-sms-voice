@@ -2921,6 +2921,7 @@ class Voice extends ViewComponents
                 $call['role'] = $call['role'] ?? $id['role'];
                 $call['dtmf'] = self::dtmfString($call['dtmf'] ?? $call['last_dtmf'] ?? null);
                 $call['last_dtmf'] = self::dtmfString($call['last_dtmf'] ?? null);
+                $call['display_status'] = self::normalizeLiveCallDisplayStatus($call);
                 unset($call['vars']); // resposta mais leve
                 return $call;
             }, $filtered);
@@ -3076,6 +3077,81 @@ class Voice extends ViewComponents
         }
 
         return preg_replace('/[^\d#*ABCD]/i', '', (string)$value) ?? '';
+    }
+
+    private static function normalizeLiveCallDisplayStatus(array $call): string
+    {
+        $statusOriginal = trim((string)($call['status'] ?? ''));
+        $statusNormalized = strtolower($statusOriginal);
+        $state = strtolower(trim((string)($call['state'] ?? '')));
+
+        foreach ([
+            $call['ended'] ?? null,
+            $call['finalizada'] ?? null,
+            $call['hungup'] ?? null,
+            $call['is_hungup'] ?? null,
+        ] as $indicator) {
+            if (self::isTruthyLiveCallFlag($indicator)) {
+                return 'Finalizada';
+            }
+        }
+
+        if (in_array($statusNormalized, ['finalizada', 'finalizado', 'encerrada', 'encerrado', 'hungup'], true)) {
+            return 'Finalizada';
+        }
+
+        foreach ([
+            $call['answered'] ?? null,
+            $call['is_answered'] ?? null,
+            $call['is_up'] ?? null,
+        ] as $indicator) {
+            if (self::isTruthyLiveCallFlag($indicator)) {
+                return 'Atendida';
+            }
+        }
+
+        if ($state === 'up') {
+            return 'Atendida';
+        }
+
+        if (in_array($state, ['ring', 'ringing'], true) || in_array($statusNormalized, ['chamando', 'ring', 'ringing'], true)) {
+            return 'Chamando';
+        }
+
+        if (
+            in_array($state, ['down', 'dialing', 'progress', 'proceeding'], true)
+            || in_array($statusNormalized, ['transferindo...', 'transferindo', 'em transferencia', 'em transferência'], true)
+        ) {
+            return 'Transferindo...';
+        }
+
+        return $statusOriginal !== '' ? $statusOriginal : '—';
+    }
+
+    private static function isTruthyLiveCallFlag(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (float)$value > 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if ($normalized === '') {
+                return false;
+            }
+
+            if (ctype_digit($normalized)) {
+                return (int)$normalized > 0;
+            }
+
+            return in_array($normalized, ['1', 'true', 'yes', 'sim', 'up', 'answered', 'hungup', 'finalizada', 'finalizado'], true);
+        }
+
+        return !empty($value);
     }
 
     private static function onlyDigits(?string $v): string
@@ -5128,6 +5204,7 @@ final class VoiceCdrMapper
     {
         $cdr = new CdrVoice();
         $resolvedEndpoint = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
+        $resolvedCallerId = self::resolveCallerIdNumber($tariff);
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5137,7 +5214,7 @@ final class VoiceCdrMapper
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = self::resolveChannelNumber($tariff, $resolvedEndpoint);
-        $cdr->callerid_num = $tariff['callerid_num'] ?? $tariff['caller_number'] ?? $tariff['number'] ?? null;
+        $cdr->callerid_num = $resolvedCallerId;
         $cdr->number = $tariff['number'] ?? null;
         $cdr->destination = $tariff['destination'] ?? null;
         $cdr->techprefix = $tariff['techprefix'] ?? null;
@@ -5181,6 +5258,7 @@ final class VoiceCdrMapper
 
         self::removeTechPrefix($cdr);
         self::normalizeExtensionLeg($cdr);
+        self::normalizeCallerIdNum($cdr);
 
         return $cdr;
     }
@@ -5191,10 +5269,19 @@ final class VoiceCdrMapper
             $resolvedEndpoint,
             $tariff['ramal'] ?? null,
             $tariff['extension'] ?? null,
+            $tariff['agent_ramal'] ?? null,
+            $tariff['AGENT_RAMAL'] ?? null,
             $tariff['agent_id'] ?? null,
             $tariff['AGENT_ID'] ?? null,
+            $tariff['reserved_agent'] ?? null,
+            $tariff['reserved_ramal'] ?? null,
+            $tariff['requested_ramal'] ?? null,
             $tariff['__RAMAL'] ?? null,
             $tariff['__ENDPOINT'] ?? null,
+            $tariff['channel_name'] ?? null,
+            $tariff['name'] ?? null,
+            $tariff['channel'] ?? null,
+            $tariff['peer'] ?? null,
         ];
 
         foreach ($preferredCandidates as $candidate) {
@@ -5217,6 +5304,48 @@ final class VoiceCdrMapper
         }
 
         return $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
+    }
+
+    private static function resolveCallerIdNumber(array $tariff): ?string
+    {
+        $preferredCandidates = [
+            $tariff['callerid_num'] ?? null,
+            $tariff['caller_number'] ?? null,
+            $tariff['caller_id'] ?? null,
+            $tariff['callerid'] ?? null,
+            $tariff['CALLERID(num)'] ?? null,
+            $tariff['CALLERID_NUM'] ?? null,
+            $tariff['OUT_CLI'] ?? null,
+            $tariff['__OUT_CLI'] ?? null,
+            $tariff['source_number'] ?? null,
+            $tariff['source'] ?? null,
+            $tariff['src'] ?? null,
+            $tariff['caller'] ?? null,
+        ];
+
+        foreach ($preferredCandidates as $candidate) {
+            $normalized = self::normalizeCallerIdCandidate($candidate);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $digits = self::onlyDigits($normalized);
+            if ($digits === '' || !self::isExtension($digits)) {
+                return $normalized;
+            }
+        }
+
+        foreach (array_merge($preferredCandidates, [
+            $tariff['number'] ?? null,
+            $tariff['destination'] ?? null,
+        ]) as $candidate) {
+            $normalized = self::normalizeCallerIdCandidate($candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return null;
     }
 
     private static function normalizeCampaignType(mixed $value): ?string
@@ -5279,9 +5408,47 @@ final class VoiceCdrMapper
         $cdr->destination = $extension;
     }
 
+    private static function normalizeCallerIdNum(CdrVoice $cdr): void
+    {
+        $callerId = trim((string)($cdr->callerid_num ?? ''));
+        $number = trim((string)($cdr->number ?? ''));
+        $destination = trim((string)($cdr->destination ?? ''));
+
+        $callerDigits = self::onlyDigits($callerId);
+        $numberDigits = self::onlyDigits($number);
+        $destinationDigits = self::onlyDigits($destination);
+
+        $callerLooksExtension = $callerDigits !== '' && self::isExtension($callerDigits);
+        $numberLooksExternal = $numberDigits !== '' && !self::isExtension($numberDigits);
+        $destinationLooksExternal = $destinationDigits !== '' && !self::isExtension($destinationDigits);
+
+        if (($callerId === '' || $callerLooksExtension) && $numberLooksExternal) {
+            $cdr->callerid_num = $number;
+            return;
+        }
+
+        if ($callerId === '' && $destinationLooksExternal) {
+            $cdr->callerid_num = $destination;
+        }
+    }
+
     private static function onlyDigits(mixed $value): string
     {
         return preg_replace('/\D+/', '', (string)($value ?? '')) ?: '';
+    }
+
+    private static function normalizeCallerIdCandidate(mixed $value): ?string
+    {
+        $raw = trim((string)($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/<\s*([^>]+)\s*>/', $raw, $matches)) {
+            $raw = trim((string)$matches[1]);
+        }
+
+        return $raw !== '' ? $raw : null;
     }
 
     private static function extractExtensionCandidate(mixed $value): ?string

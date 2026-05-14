@@ -357,6 +357,8 @@
                 .trim();
         };
 
+        const getDisplayStatus = (call) => cleanText(call?.display_status || call?.status);
+
 
         // 🔢 PAGINAÇÃO + BUSCA: renderiza a tabela baseado em currentCalls
         function renderCallsTable() {
@@ -368,7 +370,7 @@
                     const fields = [
                         c.number,
                         c.destination,
-                        c.status,
+                        getDisplayStatus(c),
                         c.trunk,
                         c.variable_type,
                         c.dtmf,
@@ -404,7 +406,7 @@
 
                     // ✅ normaliza campos que podem vir com \n, <br>, tabs etc.
                     const trunkTxt  = cleanText(call.trunk);
-                    const statusTxt = cleanText(call.status);
+                    const statusTxt = getDisplayStatus(call);
                     const destTxt   = cleanText(call.destination);
                     const numberTxt = cleanText(call.number);
                     const dtmfTxt   = cleanText(call.dtmf);
@@ -609,7 +611,7 @@
             const chamadas = Array.isArray(payload.chamadas) ? payload.chamadas : [];
             currentCalls = chamadas;
 
-            const atendidas = chamadas.filter(c => (c.status || '').includes('Atendida')).length;
+            const atendidas = chamadas.filter(c => getDisplayStatus(c).includes('Atendida')).length;
 
             // 🟢 Badge de atendidas
             if (badgeAtendidas) {
@@ -698,7 +700,7 @@
             }
 
             currentCalls
-                .filter(c => (c.status || '').includes('Atendida'))
+                .filter(c => getDisplayStatus(c).includes('Atendida'))
                 .forEach(call => {
                     const callId = String(call.id ?? call.name ?? '');
                     const selected = isListening && listeningCallId === callId;
@@ -717,7 +719,7 @@
                             ${call.destination ?? '—'}
                         </span>
                         <span class="text-xs text-slate-500">
-                            ${call.status ?? '—'} — ${call.trunk ?? ''}
+                            ${getDisplayStatus(call) || '—'} — ${call.trunk ?? ''}
                         </span>
                     </div>
 
@@ -989,7 +991,7 @@
             const term = (searchInput?.value || '').toLowerCase();
             const filtered = term
                 ? chamadas.filter(c => {
-                    const fields = [c.number, c.destination, c.status, c.trunk, c.variable_type, c.dtmf];
+                    const fields = [c.number, c.destination, getDisplayStatus(c), c.trunk, c.variable_type, c.dtmf];
                     return fields.some(v => (v || '').toString().toLowerCase().includes(term));
                 })
                 : chamadas;

@@ -1043,6 +1043,191 @@
     window.notyf = window.notyf || notyf;
     </script>
 
+    <script>
+    (function () {
+        if (typeof window === 'undefined' || typeof document === 'undefined') {
+            return;
+        }
+
+        const MANAGED_ATTR = 'data-app-modal-root';
+        const HOISTED_ATTR = 'data-app-modal-hoisted';
+        const managedModals = new Set();
+
+        function isModalRoot(element) {
+            if (!(element instanceof HTMLElement)) {
+                return false;
+            }
+
+            const id = (element.id || '').toLowerCase();
+            const role = (element.getAttribute('role') || '').toLowerCase();
+            const className = typeof element.className === 'string'
+                ? element.className.toLowerCase()
+                : '';
+
+            const looksLikeModal =
+                role === 'dialog'
+                || element.getAttribute('aria-modal') === 'true'
+                || id.includes('modal')
+                || className.includes(' modal');
+
+            const isFullscreenLayer =
+                element.classList.contains('fixed')
+                || className.includes('fixed')
+                || className.includes('inset-0');
+
+            return looksLikeModal && isFullscreenLayer;
+        }
+
+        function applyModalChrome(modal) {
+            modal.setAttribute(MANAGED_ATTR, 'true');
+            modal.style.zIndex = '100050';
+            modal.style.position = 'fixed';
+            modal.style.inset = '0';
+            modal.style.isolation = 'isolate';
+
+            if (!modal.classList.contains('overflow-y-auto')) {
+                modal.classList.add('overflow-y-auto');
+            }
+
+            const panel = modal.firstElementChild;
+            if (panel instanceof HTMLElement && !panel.style.zIndex) {
+                panel.style.position = panel.style.position || 'relative';
+                panel.style.zIndex = '100051';
+            }
+
+            managedModals.add(modal);
+        }
+
+        function hoistModal(modal) {
+            if (!(modal instanceof HTMLElement)) {
+                return;
+            }
+
+            applyModalChrome(modal);
+
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+
+            modal.setAttribute(HOISTED_ATTR, 'true');
+        }
+
+        function syncBodyModalState() {
+            const hasOpenModal = Array.from(managedModals).some((modal) => {
+                if (!document.body.contains(modal)) {
+                    managedModals.delete(modal);
+                    return false;
+                }
+
+                return !modal.classList.contains('hidden')
+                    && window.getComputedStyle(modal).display !== 'none';
+            });
+
+            document.body.classList.toggle('overflow-hidden', hasOpenModal);
+        }
+
+        function closeModal(modal) {
+            if (!(modal instanceof HTMLElement)) {
+                return;
+            }
+
+            const closeButton = modal.querySelector(
+                '[data-modal-close], [data-pc-modal-dismiss], button[onclick*="close"], button[onclick*="Close"], .modal-close'
+            );
+
+            if (closeButton instanceof HTMLElement) {
+                closeButton.click();
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            window.setTimeout(syncBodyModalState, 0);
+        }
+
+        function wireModal(modal) {
+            if (!(modal instanceof HTMLElement) || modal.dataset.appModalWired === 'true') {
+                return;
+            }
+
+            hoistModal(modal);
+
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    closeModal(modal);
+                }
+            });
+
+            modal.dataset.appModalWired = 'true';
+        }
+
+        function collectModals(root = document) {
+            root.querySelectorAll('*').forEach((element) => {
+                if (isModalRoot(element)) {
+                    wireModal(element);
+                }
+            });
+
+            syncBodyModalState();
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            const openModals = Array.from(managedModals).filter((modal) =>
+                document.body.contains(modal)
+                && !modal.classList.contains('hidden')
+                && window.getComputedStyle(modal).display !== 'none'
+            );
+
+            const topModal = openModals.at(-1);
+            if (topModal) {
+                closeModal(topModal);
+            }
+        });
+
+        const observer = new MutationObserver((mutations) => {
+            let shouldSync = false;
+
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof HTMLElement) {
+                            if (isModalRoot(node)) {
+                                wireModal(node);
+                            }
+                            collectModals(node);
+                        }
+                    });
+                    shouldSync = true;
+                    return;
+                }
+
+                if (mutation.target instanceof HTMLElement && managedModals.has(mutation.target)) {
+                    applyModalChrome(mutation.target);
+                    shouldSync = true;
+                }
+            });
+
+            if (shouldSync) {
+                syncBodyModalState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            collectModals(document);
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'style']
+            });
+        });
+    })();
+    </script>
+
 <script>
         const flashErrorFromUrl = new URLSearchParams(window.location.search).get('flash_error');
         const flashError = localStorage.getItem('flash_error');

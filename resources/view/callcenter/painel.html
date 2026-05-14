@@ -315,10 +315,10 @@
     </div>
 </div>
 
-<div id="drawerClienteOverlay" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[120] opacity-0 transition-all duration-300">
+<div id="drawerClienteOverlay" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[120] opacity-0 transition-all duration-300" style="z-index:100120;">
 </div>
 
-<div id="drawerClienteDetalhes" class="hidden fixed top-0 right-0 h-full w-full max-w-3xl bg-white dark:bg-slate-900 shadow-[-12px_0_35px_rgba(0,0,0,0.18)] z-[121] translate-x-full transition-transform duration-300 border-l border-slate-200 dark:border-slate-800 flex flex-col">
+<div id="drawerClienteDetalhes" class="hidden fixed top-0 right-0 h-full w-full max-w-3xl bg-white dark:bg-slate-900 shadow-[-12px_0_35px_rgba(0,0,0,0.18)] z-[121] translate-x-full transition-transform duration-300 border-l border-slate-200 dark:border-slate-800 flex flex-col" style="z-index:100121;">
 
     <button onclick="toggleDrawerClienteDetalhes(false)"
             class="absolute -left-6 top-1/2 -translate-y-1/2 w-6 h-16 bg-white dark:bg-slate-900 border-l border-t border-b border-slate-200 dark:border-slate-800 rounded-l-xl flex items-center justify-center text-slate-400 hover:text-blue-600 shadow-[-5px_0_15px_rgba(0,0,0,0.05)] transition-all">
@@ -514,6 +514,54 @@
     let ultimoDadosPlanilhaKey = null;
     let ultimaChaveDtmfExibida = "";
     let protocolosAtendimento = {};
+
+    function normalizarDtmfValor(valor) {
+        return String(valor ?? '').trim();
+    }
+
+    function obterCarimboDtmf(chamada = {}) {
+        const bruto = chamada.last_dtmf_at ?? chamada.updated_at ?? chamada.started ?? chamada.id ?? 0;
+        const numerico = Number(bruto);
+        return Number.isFinite(numerico) ? numerico : String(bruto || '');
+    }
+
+    function obterChaveDtmf(chamada = {}, dtmfAtual = '') {
+        const callVars = chamada.vars || {};
+        const raiz = String(
+            chamada.call_id
+            || callVars.CALL_ID
+            || callVars.__CALL_ID
+            || chamada.linkedid
+            || chamada.id
+            || ''
+        );
+
+        return `${raiz}|${dtmfAtual}|${String(obterCarimboDtmf(chamada))}`;
+    }
+
+    function escolherMelhorFonteDtmf(chamadas = [], chamadaPrincipal = null) {
+        const candidatas = Array.isArray(chamadas) ? chamadas.slice() : [];
+
+        if (chamadaPrincipal && !candidatas.includes(chamadaPrincipal)) {
+            candidatas.unshift(chamadaPrincipal);
+        }
+
+        return candidatas
+            .map(chamada => ({
+                chamada,
+                dtmf: normalizarDtmfValor(chamada?.dtmf ?? chamada?.last_dtmf ?? ''),
+                carimbo: obterCarimboDtmf(chamada)
+            }))
+            .filter(item => item.dtmf !== '')
+            .sort((a, b) => {
+                const carimboA = typeof a.carimbo === 'number' ? a.carimbo : 0;
+                const carimboB = typeof b.carimbo === 'number' ? b.carimbo : 0;
+
+                if (carimboA !== carimboB) return carimboB - carimboA;
+                if (a.dtmf.length !== b.dtmf.length) return b.dtmf.length - a.dtmf.length;
+                return String(b.chamada?.id || '').localeCompare(String(a.chamada?.id || ''));
+            })[0] || null;
+    }
 
 
     // --- VARIÁVEIS DE ESTADO WEBRTC ---
@@ -2020,21 +2068,21 @@
                         || (peer && peerMinha && channelBase(peer) === channelBase(peerMinha));
                 };
 
-                listaChamadas.forEach(c => {
-                    if (chamadaRelacionadaAoAgente(c)) {
-                        estouEmLinhaAgora = true;
-                        const dtmfAtual = String(c.dtmf ?? c.last_dtmf ?? '').trim();
-                        const dtmfMomento = String(c.last_dtmf_at || c.updated_at || c.id || '');
-                        const dtmfChave = `${String(c.call_id || c.id || '')}|${dtmfAtual}|${dtmfMomento}`;
-                        const balaoVisivel = !!document.getElementById('balao-interno-dtmf');
+                const chamadasRelacionadas = listaChamadas.filter(chamadaRelacionadaAoAgente);
+                estouEmLinhaAgora = chamadasRelacionadas.length > 0;
 
-                        if (dtmfAtual !== '' && (!balaoVisivel || ultimaChaveDtmfExibida !== dtmfChave || memoriaSequenciaDtmf !== dtmfAtual)) {
-                            memoriaSequenciaDtmf = dtmfAtual;
-                            ultimaChaveDtmfExibida = dtmfChave;
-                            mostrarDTMFVoando(memoriaSequenciaDtmf);
-                        }
+                const melhorFonteDtmf = escolherMelhorFonteDtmf(chamadasRelacionadas, chamadaParaMim);
+                if (melhorFonteDtmf) {
+                    const dtmfAtual = melhorFonteDtmf.dtmf;
+                    const dtmfChave = obterChaveDtmf(melhorFonteDtmf.chamada, dtmfAtual);
+                    const balaoVisivel = !!document.getElementById('balao-interno-dtmf');
+
+                    if (!balaoVisivel || ultimaChaveDtmfExibida !== dtmfChave || memoriaSequenciaDtmf !== dtmfAtual) {
+                        memoriaSequenciaDtmf = dtmfAtual;
+                        ultimaChaveDtmfExibida = dtmfChave;
+                        mostrarDTMFVoando(memoriaSequenciaDtmf);
                     }
-                });
+                }
 
                 if (!estouEmLinhaAgora) {
                     memoriaSequenciaDtmf = "";

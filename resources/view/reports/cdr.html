@@ -742,6 +742,32 @@
         // ========= Filtros & busca =========
         const normalize = str => (str || "").toString().toLowerCase();
 
+        function parseCdrDateValue(value) {
+            const raw = String(value || '').trim();
+            if (!raw) return 0;
+
+            const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+            const parsed = new Date(normalized).getTime();
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function cdrTimestamp(item) {
+            return Math.max(
+                parseCdrDateValue(item.ended),
+                parseCdrDateValue(item.answered),
+                parseCdrDateValue(item.started),
+                parseCdrDateValue(item.created_at)
+            );
+        }
+
+        function sortCdrItemsByLatest(items) {
+            return items.sort((a, b) => {
+                const diff = cdrTimestamp(b) - cdrTimestamp(a);
+                if (diff !== 0) return diff;
+                return String(b.id || b.channel_id || '').localeCompare(String(a.id || a.channel_id || ''));
+            });
+        }
+
         function applyFilters() {
             const q        = normalize(search.value);
             const typeVal  = (typeFilter.value || "").toLowerCase();
@@ -779,6 +805,8 @@
                 }
                 return true;
             });
+
+            sortCdrItemsByLatest(filteredItems);
 
             currentPage = 1;
             renderPage();
@@ -875,6 +903,7 @@
                         taxa: Number(item.taxa) || 0,
                         duration: Number(item.duration) || 0
                     }));
+                    sortCdrItemsByLatest(allItems);
                     applyFilters();
                 })
                 .catch(() => {

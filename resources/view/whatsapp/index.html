@@ -8411,6 +8411,54 @@
             savePendingMessages(next, conversationId);
         }
 
+        function messageTimestampMs(message) {
+            const raw = String(message?.created_at || '').trim();
+            if (!raw) return 0;
+
+            const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+            const parsed = Date.parse(normalized);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function optimisticMatchesServerMessage(pendingMessage, serverMessage) {
+            if (!pendingMessage || !serverMessage) return false;
+
+            if (String(serverMessage?.direction || '') !== String(pendingMessage?.direction || '')) {
+                return false;
+            }
+
+            if (String(serverMessage?.message_type || '') !== String(pendingMessage?.message_type || '')) {
+                return false;
+            }
+
+            const pendingType = String(pendingMessage?.message_type || '').toLowerCase();
+            const pendingBody = String(pendingMessage?.body || '');
+            const serverBody = String(serverMessage?.body || '');
+
+            if (pendingType !== 'template') {
+                return serverBody === pendingBody;
+            }
+
+            const pendingTs = messageTimestampMs(pendingMessage);
+            const serverTs = messageTimestampMs(serverMessage);
+            const withinWindow = pendingTs > 0
+                && serverTs > 0
+                && Math.abs(serverTs - pendingTs) <= (5 * 60 * 1000);
+
+            if (!withinWindow) {
+                return false;
+            }
+
+            const serverLooksLikeTemplate = Boolean(
+                serverMessage?.template_name
+                || String(serverMessage?.message_type || '').toLowerCase() === 'template'
+                || String(serverMessage?.body || '').startsWith('[Template]')
+                || String(serverMessage?.preview_body || '').startsWith('[Template]')
+            );
+
+            return serverLooksLikeTemplate;
+        }
+
         function mergeConversationMessages(serverMessages, conversationId = selectedConversation?.id) {
             const server = Array.isArray(serverMessages) ? [...serverMessages] : [];
             const pending = loadPendingMessages(conversationId);
@@ -8422,9 +8470,7 @@
             pending.forEach((pendingMessage) => {
                 const serverIndex = server.findIndex((serverMessage, index) => {
                     if (matched.has(index)) return false;
-                    return String(serverMessage?.direction || '') === String(pendingMessage?.direction || '')
-                        && String(serverMessage?.message_type || '') === String(pendingMessage?.message_type || '')
-                        && String(serverMessage?.body || '') === String(pendingMessage?.body || '');
+                    return optimisticMatchesServerMessage(pendingMessage, serverMessage);
                 });
 
                 if (serverIndex >= 0) {

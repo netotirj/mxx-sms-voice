@@ -1992,9 +1992,10 @@
         lista.classList.contains('hidden') ? mostrarListaAudios() : mostrarTecladoNumerico();
     }
 
-    async function discarHistorico(numero) {
+    async function discarHistorico(numero, nome = '') {
         // 1. Limpeza: mantém apenas os números
         let numeroLimpo = numero.replace(/\D/g, '');
+        const nomeConhecido = normalizarNomeConhecido(nome) || obterNomeConhecidoPorNumero(numeroLimpo);
 
         // 2. Busca o prefixo do banco (Ex: "25" ou vazio)
         const prefixoBanco = await buscarPrefixoInteligente();
@@ -2028,6 +2029,18 @@
             const microfoneLiberado = await garantirMicrofoneLiberado();
             if (!microfoneLiberado) return;
             const localStream = await obterStreamLocal();
+
+            currentCallCustomerData = mesclarDadosClienteAtual(
+                nomeConhecido ? { name: nomeConhecido } : {},
+                { phone: numeroLimpo, campaign_name: 'MANUAL' }
+            );
+            if (nomeConhecido) {
+                clienteManualAtual = {
+                    ...(clienteManualAtual || {}),
+                    name: nomeConhecido,
+                    phone: numeroLimpo
+                };
+            }
 
             ua.call(`sip:${numeroFinal}@${servidor}`, obterOpcoesMidia(localStream));
             pendingOutboundCallerId = null;
@@ -2761,6 +2774,37 @@
         registrarNoHistorico(numero, nome || "Cliente Desconhecido", duracao, campanha);
     }
 
+    function normalizarNomeConhecido(valor) {
+        const nome = String(valor || '').trim();
+        if (!nome) return '';
+
+        const nomeUpper = nome.toUpperCase();
+        if (['CLIENTE NÃO IDENTIFICADO', 'CLIENTE NAO IDENTIFICADO', 'CLIENTE DESCONHECIDO', 'DESCONHECIDO', 'SEM NOME'].includes(nomeUpper)) {
+            return '';
+        }
+
+        return nome;
+    }
+
+    function obterNomeConhecidoPorNumero(numero) {
+        const numeroLimpo = String(numero || '').replace(/\D/g, '');
+        if (!numeroLimpo) return '';
+
+        const atualNumero = String(currentCallCustomerData?.phone || '').replace(/\D/g, '');
+        const atualNome = normalizarNomeConhecido(currentCallCustomerData?.name || '');
+        if (atualNome && atualNumero && (atualNumero === numeroLimpo || atualNumero.endsWith(numeroLimpo) || numeroLimpo.endsWith(atualNumero))) {
+            return atualNome;
+        }
+
+        const historico = Array.isArray(callHistory) ? callHistory : [];
+        const encontrado = historico.find(item => {
+            const itemNumero = String(item?.numero || '').replace(/\D/g, '');
+            return itemNumero && (itemNumero === numeroLimpo || itemNumero.endsWith(numeroLimpo) || numeroLimpo.endsWith(itemNumero));
+        });
+
+        return normalizarNomeConhecido(encontrado?.nome || '');
+    }
+
     function renderizarHistorico() {
         const list = document.getElementById('historyList');
         if (!list) return;
@@ -2769,7 +2813,7 @@
             return;
         }
         list.innerHTML = callHistory.map(item => `
-        <div onclick="discarHistorico('${item.numero}')" class="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer group relative overflow-hidden flex items-center">
+        <div onclick="discarHistorico('${escaparJsInline(item.numero)}', '${escaparJsInline(item.nome)}')" class="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer group relative overflow-hidden flex items-center">
             <div class="flex-1 pr-0 group-hover:pr-8 transition-all duration-300">
                 <div class="flex justify-between items-start mb-1"><span class="text-[9px] font-black text-blue-500 uppercase">${item.horario}</span><span class="text-[8px] font-bold text-slate-400 uppercase">${item.duracao}</span></div>
                 <h6 class="text-[11px] font-black dark:text-white mb-0 truncate">${item.nome}</h6>

@@ -855,13 +855,6 @@ HTML;
             return $obUser;
         }
 
-        if (!self::canManageWhatsAppNumbers($obUser)) {
-            return self::json(403, [
-                'success' => false,
-                'message' => 'Ação permitida apenas para administrador.',
-            ]);
-        }
-
         $account = WhatsAppAccount::getForUser((int)$id, $obUser);
         if (!$account) {
             return self::json(404, [
@@ -891,6 +884,13 @@ HTML;
                 || in_array($currentMetaDisplayNameStatus, ['REJECTED', 'DECLINED', 'DENIED'], true)
             );
         $shouldActivateVoice = $hasActivateVoiceInput && $activateVoice && !$voiceAlreadyActive;
+
+        if ($shouldActivateVoice && !self::canManageWhatsAppNumbers($obUser)) {
+            return self::json(403, [
+                'success' => false,
+                'message' => 'A ativação de voz deste número continua restrita ao administrador.',
+            ]);
+        }
 
         try {
             if ($shouldUpdateLabel) {
@@ -947,13 +947,6 @@ HTML;
         $obUser = self::requireUser();
         if ($obUser instanceof Response) {
             return $obUser;
-        }
-
-        if (!self::canManageWhatsAppNumbers($obUser)) {
-            return self::json(403, [
-                'success' => false,
-                'message' => 'Ação permitida apenas para administrador.',
-            ]);
         }
 
         $account = WhatsAppAccount::getForUser((int)$id, $obUser);

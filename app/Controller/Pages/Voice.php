@@ -5129,6 +5129,20 @@ final class VoiceCdrRedisProcessor
         $channelContext = null;
         $isRamalLeg = self::isManualTariff($tariff) || (float)($tariff['value'] ?? 0) <= 0.0000;
 
+        if (empty($tariff['channel_number'])) {
+            $tariff['channel_number'] = $tariff['channelNumber']
+                ?? $tariff['endpoint']
+                ?? $tariff['endpoints']
+                ?? null;
+        }
+
+        if (empty($tariff['endpoints'])) {
+            $tariff['endpoints'] = $tariff['endpoint']
+                ?? $tariff['channelNumber']
+                ?? $tariff['channel_number']
+                ?? null;
+        }
+
         $callId = trim((string)($tariff['call_id'] ?? ''));
         if ($callId !== '') {
             $callContext = self::decodeRedisJson($redis->get("voice:call_context:{$callId}"));
@@ -5222,7 +5236,6 @@ final class VoiceCdrMapper
     {
         $cdr = new CdrVoice();
         $isManual = self::isManualTariff($tariff);
-        $isRamalLeg = $isManual || (float)($tariff['value'] ?? 0) <= 0.0000;
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5231,21 +5244,16 @@ final class VoiceCdrMapper
         $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
-        $ramal = $tariff['channel_number'] ?? null;
-        $destination = $tariff['destination'] ?? null;
-        $clientNumber = $tariff['number'] ?? null;
-        $callerId = $tariff['callerid_num'] ?? null;
+        $ramal = self::resolveAgentExtension($tariff);
+        $destination = self::resolveDestination($tariff, $isManual);
+        $clientNumber = self::resolveClientNumber($tariff, $isManual);
+        $callerId = self::resolveCallerId($tariff);
 
         $cdr->channel_number = $ramal;
         $cdr->endpoints = $ramal;
         $cdr->callerid_num = $callerId;
-        if ($isManual) {
-            $cdr->number = $clientNumber;
-            $cdr->destination = $destination;
-        } else {
-            $cdr->number = $clientNumber;
-            $cdr->destination = $destination;
-        }
+        $cdr->number = $clientNumber;
+        $cdr->destination = $destination;
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';
         $cdr->trunk = $tariff['trunk_name'] ?? $tariff['trunk'] ?? $tariff['TRUNK'] ?? null;
@@ -5326,6 +5334,67 @@ final class VoiceCdrMapper
         $normalized = trim((string)($value ?? ''));
 
         return $normalized === '' ? null : $normalized;
+    }
+
+    private static function resolveAgentExtension(array $tariff): ?string
+    {
+        return self::firstNonEmpty([
+            $tariff['channel_number'] ?? null,
+            $tariff['channelNumber'] ?? null,
+            $tariff['endpoint'] ?? null,
+            $tariff['endpoints'] ?? null,
+            $tariff['AGENT_RAMAL'] ?? null,
+        ]);
+    }
+
+    private static function resolveClientNumber(array $tariff, bool $isManual): ?string
+    {
+        $candidates = [
+            $tariff['number'] ?? null,
+            $tariff['NUMBER'] ?? null,
+            $tariff['client_number'] ?? null,
+            $tariff['customer_number'] ?? null,
+            $tariff['phone'] ?? null,
+        ];
+
+        if (!$isManual) {
+            $candidates[] = $tariff['destination'] ?? null;
+            $candidates[] = $tariff['DESTINATION'] ?? null;
+        }
+
+        return self::firstExternalNumber($candidates) ?? self::firstNonEmpty($candidates);
+    }
+
+    private static function resolveDestination(array $tariff, bool $isManual): ?string
+    {
+        $candidates = [
+            $tariff['destination'] ?? null,
+            $tariff['DESTINATION'] ?? null,
+        ];
+
+        if ($isManual) {
+            $candidates[] = $tariff['number'] ?? null;
+            $candidates[] = $tariff['NUMBER'] ?? null;
+        } else {
+            $candidates[] = $tariff['client_number'] ?? null;
+            $candidates[] = $tariff['customer_number'] ?? null;
+            $candidates[] = $tariff['number'] ?? null;
+            $candidates[] = $tariff['NUMBER'] ?? null;
+            $candidates[] = $tariff['phone'] ?? null;
+        }
+
+        return self::firstExternalNumber($candidates) ?? self::firstNonEmpty($candidates);
+    }
+
+    private static function resolveCallerId(array $tariff): ?string
+    {
+        return self::firstNonEmpty([
+            $tariff['callerid_num'] ?? null,
+            $tariff['CALLERID(num)'] ?? null,
+            $tariff['CALLERID_NUM'] ?? null,
+            $tariff['caller_number'] ?? null,
+            $tariff['caller_id'] ?? null,
+        ]);
     }
 
     private static function firstExternalNumber(array $candidates): ?string

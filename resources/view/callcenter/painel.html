@@ -517,6 +517,20 @@
     let ultimaChaveDtmfExibida = "";
     let ultimoStatusAgente = null;
     let protocolosAtendimento = {};
+    let currentCallStableId = null;
+    let currentCallCustomerData = null;
+    let currentCallLookupToken = 0;
+    let currentCallCloseTimer = null;
+    let currentCallLastSeenAt = 0;
+    let currentTimerStableId = null;
+    const ACTIVE_CALL_SSE_GRACE_MS = 4000;
+    const DEBUG_AGENT_PANEL = (() => {
+        try {
+            return localStorage.getItem('agent_panel_debug') !== '0';
+        } catch (e) {
+            return true;
+        }
+    })();
 
     function normalizarDtmfValor(valor) {
         return String(valor ?? '').trim();
@@ -564,6 +578,134 @@
                 if (a.dtmf.length !== b.dtmf.length) return b.dtmf.length - a.dtmf.length;
                 return String(b.chamada?.id || '').localeCompare(String(a.chamada?.id || ''));
             })[0] || null;
+    }
+
+    function logAgentPanel(scope, message, details = null) {
+        if (!DEBUG_AGENT_PANEL) return;
+
+        if (details === null) {
+            console.debug(`[AgentPanel][${scope}] ${message}`);
+            return;
+        }
+
+        console.debug(`[AgentPanel][${scope}] ${message}`, details);
+    }
+
+    function warnAgentPanel(scope, message, details = null) {
+        if (!DEBUG_AGENT_PANEL) return;
+
+        if (details === null) {
+            console.warn(`[AgentPanel][${scope}] ${message}`);
+            return;
+        }
+
+        console.warn(`[AgentPanel][${scope}] ${message}`, details);
+    }
+
+    function obterChavesRelacionamentoChamada(chamada = {}) {
+        const vars = chamada.vars || {};
+        const valores = [
+            chamada.call_id,
+            vars.CALL_ID,
+            vars.__CALL_ID,
+            chamada.linkedid,
+            chamada.peer,
+            chamada.id
+        ];
+
+        const chaves = [];
+
+        valores.forEach((valor) => {
+            const texto = String(valor || '').trim();
+            if (!texto) return;
+
+            chaves.push(texto);
+
+            const base = texto.replace(/\.\d+$/, '');
+            if (base && base !== texto) {
+                chaves.push(base);
+            }
+        });
+
+        return [...new Set(chaves)];
+    }
+
+    function obterChaveEstavelChamada(chamada = {}) {
+        return obterChavesRelacionamentoChamada(chamada)[0] || '';
+    }
+
+    function limparFechamentoPendenteChamada() {
+        if (!currentCallCloseTimer) return;
+        clearTimeout(currentCallCloseTimer);
+        currentCallCloseTimer = null;
+    }
+
+    function resetarEstadoClienteAtual() {
+        currentCallStableId = null;
+        currentCallCustomerData = null;
+        currentCallLookupToken = 0;
+        currentCallLastSeenAt = 0;
+        currentTimerStableId = null;
+    }
+
+    function mesclarDadosClienteAtual(incomingCliente = {}, fallback = {}) {
+        const anterior = currentCallCustomerData && typeof currentCallCustomerData === 'object'
+            ? currentCallCustomerData
+            : {};
+        const proximo = incomingCliente && typeof incomingCliente === 'object'
+            ? incomingCliente
+            : {};
+
+        const merged = {
+            ...anterior,
+            ...proximo
+        };
+
+        if (!merged.phone && fallback.phone) {
+            merged.phone = fallback.phone;
+        }
+
+        if (!merged.campaign_name && fallback.campaign_name) {
+            merged.campaign_name = fallback.campaign_name;
+        }
+
+        return merged;
+    }
+
+    function agendarFechamentoPassivoChamada(reason = 'sse-missing') {
+        if (currentCallCloseTimer || currentCallId === null) return;
+
+        currentCallCloseTimer = setTimeout(() => {
+            currentCallCloseTimer = null;
+
+            if (existeChamadaWebRTCAtiva()) {
+                logAgentPanel('SSE', 'Fechamento passivo cancelado porque a sessão WebRTC segue ativa.', {
+                    reason,
+                    currentCallId,
+                    currentCallStableId
+                });
+                return;
+            }
+
+            const ageMs = Date.now() - currentCallLastSeenAt;
+            if (ageMs < ACTIVE_CALL_SSE_GRACE_MS) {
+                logAgentPanel('SSE', 'Fechamento passivo adiado porque a chamada voltou dentro da janela de tolerância.', {
+                    reason,
+                    ageMs,
+                    currentCallId,
+                    currentCallStableId
+                });
+                return;
+            }
+
+            warnAgentPanel('SSE', 'Fechando UI da chamada após janela de tolerância do SSE.', {
+                reason,
+                ageMs,
+                currentCallId,
+                currentCallStableId
+            });
+            fecharCardCliente({ terminateSession: false, reason });
+        }, ACTIVE_CALL_SSE_GRACE_MS);
     }
 
 
@@ -1121,9 +1263,112 @@
         }
     });
 
+    function limparMidiaLocalWebRTC(reason = 'unknown') {
+        if (!localMediaStream) return;
+
+        try {
+            localMediaStream.getTracks().forEach(track => track.stop());
+            logAgentPanel('WebRTC', 'Stream local encerrado.', {
+                reason,
+                tracks: localMediaStream.getTracks().map(track => ({
+                    kind: track.kind,
+                    readyState: track.readyState
+                }))
+            });
+        } catch (e) {
+            warnAgentPanel('WebRTC', 'Falha ao encerrar stream local.', { reason, e });
+        }
+
+        localMediaStream = null;
+    }
+
+    function limparRuntimeWebRTC(options = {}) {
+        const {
+            reason = 'unknown',
+            stopUa = false,
+            terminateSession = false,
+            stopLocalStream = false,
+            resetUi = false
+        } = options;
+
+        logAgentPanel('WebRTC', 'Iniciando limpeza de runtime WebRTC.', {
+            reason,
+            stopUa,
+            terminateSession,
+            stopLocalStream,
+            resetUi,
+            hasUa: !!ua,
+            hasSession: !!sessaoVoz
+        });
+
+        limparWatchdogAtendimento();
+
+        if (terminateSession && sessaoVoz) {
+            try {
+                sessaoVoz.terminate();
+            } catch (e) {
+                warnAgentPanel('WebRTC', 'Falha ao encerrar sessão durante cleanup.', { reason, e });
+            }
+        }
+
+        if (stopUa && ua) {
+            try {
+                ua.stop();
+            } catch (e) {
+                warnAgentPanel('WebRTC', 'Falha ao parar UA durante cleanup.', { reason, e });
+            }
+            ua = null;
+        }
+
+        if (stopUa) {
+            sessaoVoz = null;
+            incomingAnswerInFlight = false;
+            chamadaWebRTCAceita = false;
+            incomingWebrtcMeta = null;
+        }
+
+        if (stopLocalStream) {
+            limparMidiaLocalWebRTC(reason);
+        }
+
+        const remoteAudio = document.getElementById('remoteAudio');
+        if (remoteAudio) {
+            try {
+                remoteAudio.pause();
+                remoteAudio.srcObject = null;
+            } catch (e) {
+                warnAgentPanel('WebRTC', 'Falha ao limpar remoteAudio.', { reason, e });
+            }
+        }
+
+        if (resetUi) {
+            limparEstadoChamadaWebRTC();
+        }
+    }
+
     function conectarWebRTC() {
         const sessaoStorage = localStorage.getItem('agente_sessao');
         if (!sessaoStorage) return;
+
+        if (ua) {
+            const jaRegistrado = typeof ua.isRegistered === 'function' && ua.isRegistered();
+            const jaConectado = typeof ua.isConnected === 'function' && ua.isConnected();
+
+            logAgentPanel('WebRTC', 'conectarWebRTC chamado com UA já existente.', {
+                jaRegistrado,
+                jaConectado
+            });
+
+            if (jaRegistrado || jaConectado) {
+                return;
+            }
+
+            limparRuntimeWebRTC({
+                reason: 'recreate-ua-before-connect',
+                stopUa: true,
+                stopLocalStream: true
+            });
+        }
 
         const dados = JSON.parse(sessaoStorage);
         const ramal = dados.ramal;
@@ -1143,6 +1388,18 @@
         };
 
         ua = new JsSIP.UA(configuration);
+
+        ua.on('connected', () => {
+            logAgentPanel('WebRTC', 'Transporte SIP conectado.', { ramal, servidor, portaWebrtc });
+        });
+
+        ua.on('disconnected', (event) => {
+            warnAgentPanel('WebRTC', 'Transporte SIP desconectado.', {
+                ramal,
+                code: event?.code ?? null,
+                reason: event?.reason ?? null
+            });
+        });
 
         ua.on('registered', () => {
             logWebRTC('[WebRTC] UA registrado', {
@@ -1167,6 +1424,18 @@
         });
 
         ua.on('newRTCSession', (data) => {
+            const sessaoAnteriorAtiva = !!sessaoVoz
+                && sessaoVoz !== data.session
+                && typeof sessaoVoz.isEnded === 'function'
+                && !sessaoVoz.isEnded();
+
+            if (sessaoAnteriorAtiva) {
+                warnAgentPanel('WebRTC', 'Nova sessão RTC chegou enquanto outra sessão ainda estava ativa.', {
+                    sessaoAnteriorId: sessaoVoz?.id || null,
+                    novaSessaoId: data.session?.id || null
+                });
+            }
+
             sessaoVoz = data.session;
             logWebRTC('[WebRTC] newRTCSession', {
                 originator: data.originator,
@@ -1307,6 +1576,15 @@
         const visorNumero = document.getElementById('visor-numero');
         const input = document.getElementById('numDiscar');
 
+        logAgentPanel('Timer', 'gerenciarVisor acionado.', {
+            acao,
+            msg,
+            currentCallId,
+            currentCallStableId,
+            timerCronometroChamadaAtivo: !!timerCronometroChamada,
+            timerVisorAtivo: !!timerVisor
+        });
+
         if (acao === 'timer') {
             visorAtivo.classList.remove('hidden');
             const timerPainel = document.getElementById('meuTimer');
@@ -1383,15 +1661,28 @@
     }
 
     function limparEstadoChamadaWebRTC() {
+        logAgentPanel('WebRTC', 'Limpando estado visual/logico da chamada WebRTC.', {
+            currentCallId,
+            currentCallStableId,
+            currentAnswerChannelId,
+            hasSession: !!sessaoVoz
+        });
+
         registrarHistoricoCardAtual();
         incomingAnswerInFlight = false;
         chamadaWebRTCAceita = false;
         limparWatchdogAtendimento();
         incomingWebrtcMeta = null;
         currentCallId = null;
+        currentCallStableId = null;
         currentAnswerChannelId = null;
         ultimoDadosPlanilhaKey = null;
         window.channelIdParaARI = null;
+        limparFechamentoPendenteChamada();
+        currentCallCustomerData = null;
+        currentCallLookupToken = 0;
+        currentCallLastSeenAt = 0;
+        currentTimerStableId = null;
 
         const btnPrincipal = document.getElementById('btn-acao-chamada');
         if (btnPrincipal) btnPrincipal.disabled = false;
@@ -2057,10 +2348,12 @@
 
         fecharEscutaSSE();
         sseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+        logAgentPanel('SSE', 'Conectando stream de monitoramento do agente.', { ramal });
 
         sseSource.addEventListener('open', function () {
             sseReconnectAttempts = 0;
             limparReconnectSSE();
+            logAgentPanel('SSE', 'Stream SSE conectado.', { ramal });
         });
 
         sseSource.addEventListener('update', function (e) {
@@ -2146,13 +2439,33 @@
                 }
 
                 if (chamadaParaMim) {
+                    limparFechamentoPendenteChamada();
+                    currentCallLastSeenAt = Date.now();
+
                     const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
                     let telefoneReal = (limparEContar(chamadaParaMim.dest) === 8) ? chamadaParaMim.caller : chamadaParaMim.dest;
                     if (limparEContar(telefoneReal) > 8 && telefoneReal !== "—") {
+                        const stableId = obterChaveEstavelChamada(chamadaParaMim) || String(chamadaParaMim.id || '');
                         const campanhaAtual = document.getElementById('campanhaNome')?.innerText || '';
                         const aguardandoCampanha = campanhaAtual.toUpperCase().includes('AGUARDANDO CAMPANHA');
+                        const callTrocou = currentCallStableId !== null && currentCallStableId !== stableId;
+
+                        if (callTrocou) {
+                            logAgentPanel('SSE', 'Chave estável da chamada mudou; resetando estado persistido do cliente.', {
+                                previousStableId: currentCallStableId,
+                                nextStableId: stableId,
+                                previousCallId: currentCallId,
+                                nextCallId: chamadaParaMim.id || null
+                            });
+                            currentCallCustomerData = null;
+                            detalhesClienteManual = null;
+                            clienteManualAtual = null;
+                            currentTimerStableId = null;
+                        }
+
+                        currentCallStableId = stableId;
                         const dadosPlanilhaKey = [
-                            chamadaParaMim.id || '',
+                            stableId,
                             chamadaParaMim.voice_list_id || '',
                             telefoneReal || '',
                             chamadaParaMim.campanha_nome || ''
@@ -2160,40 +2473,90 @@
                         const precisaAtualizarDados =
                             currentCallId !== chamadaParaMim.id
                             || ultimoDadosPlanilhaKey !== dadosPlanilhaKey
-                            || aguardandoCampanha;
+                            || aguardandoCampanha
+                            || !currentCallCustomerData;
+
+                        currentCallId = chamadaParaMim.id;
+                        const pernaDoAgente = listaChamadas.find(c =>
+                            chamadaPertenceAoAgente(c)
+                            && String(c.dest) === String(ramal)
+                            && c.id !== chamadaParaMim.id
+                        );
+                        const idParaOARI = pernaDoAgente ? pernaDoAgente.id : chamadaParaMim.id;
+                        currentAnswerChannelId = idParaOARI;
 
                         if (precisaAtualizarDados) {
-                            currentCallId = chamadaParaMim.id;
                             ultimoDadosPlanilhaKey = dadosPlanilhaKey;
-                            const pernaDoAgente = listaChamadas.find(c =>
-                                chamadaPertenceAoAgente(c)
-                                && String(c.dest) === String(ramal)
-                                && c.id !== chamadaParaMim.id
-                            );
-                            const idParaOARI = pernaDoAgente ? pernaDoAgente.id : chamadaParaMim.id;
-                            currentAnswerChannelId = idParaOARI;
+                            const lookupToken = ++currentCallLookupToken;
+
+                            logAgentPanel('SSE', 'Atualizando dados do cliente a partir do SSE.', {
+                                stableId,
+                                callId: chamadaParaMim.id || null,
+                                answerChannelId: idParaOARI || null,
+                                telefoneReal,
+                                campanha: chamadaParaMim.campanha_nome || null,
+                                voiceListId: chamadaParaMim.voice_list_id || null,
+                                lookupToken,
+                                precisaAtualizarDados
+                            });
+
                             buscarDadosPlanilha(chamadaParaMim.voice_list_id, telefoneReal).then(dadosPlanilha => {
-                                exibirDadosCliente(telefoneReal, chamadaParaMim.id, chamadaParaMim.campanha_nome, dadosPlanilha, idParaOARI);
+                                if (lookupToken !== currentCallLookupToken) {
+                                    logAgentPanel('SSE', 'Ignorando resposta atrasada de lookup do cliente.', {
+                                        stableId,
+                                        lookupToken,
+                                        currentCallLookupToken
+                                    });
+                                    return;
+                                }
+
+                                if (currentCallStableId !== stableId) {
+                                    logAgentPanel('SSE', 'Ignorando resposta de lookup porque a chamada ativa mudou.', {
+                                        expectedStableId: stableId,
+                                        currentCallStableId
+                                    });
+                                    return;
+                                }
+
+                                exibirDadosCliente(
+                                    telefoneReal,
+                                    chamadaParaMim.id,
+                                    chamadaParaMim.campanha_nome,
+                                    dadosPlanilha,
+                                    idParaOARI
+                                );
+                            });
+                        } else {
+                            logAgentPanel('SSE', 'Atualização SSE parcial preservada sem rerender destrutivo do card.', {
+                                stableId,
+                                callId: chamadaParaMim.id || null,
+                                currentCallId,
+                                currentAnswerChannelId
                             });
                         }
                     }
                     if (typeof sincronizarTimerComChamada === "function") sincronizarTimerComChamada(chamadaParaMim.duracao);
-                } else if (currentCallId !== null) {
-                    fecharCardCliente();
-                    const btnAtender = document.getElementById('btnAtender');
-                    if (btnAtender) btnAtender.classList.add('hidden');
-                    currentCallId = null;
-                    currentAnswerChannelId = null;
-                    ultimoDadosPlanilhaKey = null;
+                } else if (currentCallId !== null || existeChamadaWebRTCAtiva()) {
+                    logAgentPanel('SSE', 'SSE veio sem chamada principal; preservando estado atual durante janela de tolerância.', {
+                        currentCallId,
+                        currentCallStableId,
+                        hasWebRTCSession: existeChamadaWebRTCAtiva()
+                    });
+                    agendarFechamentoPassivoChamada('sse-missing-call');
                 }
             } catch (err) { /* Erro monitoramento */ }
         });
 
         sseSource.addEventListener('auth', function () {
+            warnAgentPanel('SSE', 'SSE encerrou por autenticação inválida.');
             fecharEscutaSSE();
         });
 
         sseSource.addEventListener('error', function () {
+            warnAgentPanel('SSE', 'Erro no stream SSE; agendando reconexão.', {
+                attempts: sseReconnectAttempts,
+                readyState: sseSource?.readyState ?? null
+            });
             fecharEscutaSSE();
             agendarReconexaoSSE();
         });
@@ -2214,6 +2577,41 @@
 
     window.addEventListener('beforeunload', () => {
         fecharEscutaSSE();
+        limparRuntimeWebRTC({
+            reason: 'beforeunload',
+            stopUa: true,
+            stopLocalStream: true
+        });
+    });
+
+    window.addEventListener('pagehide', () => {
+        fecharEscutaSSE();
+        limparRuntimeWebRTC({
+            reason: 'pagehide',
+            stopUa: true,
+            stopLocalStream: true
+        });
+    });
+
+    window.addEventListener('pageshow', () => {
+        if (!localStorage.getItem('agente_sessao')) return;
+
+        logAgentPanel('WebRTC', 'pageshow detectado; validando reidratação do painel.', {
+            hasUa: !!ua,
+            hasSession: !!sessaoVoz
+        });
+
+        if (!ua) {
+            conectarWebRTC();
+        }
+
+        if (sessaoVoz) {
+            tentarAnexarAudioRemotoDaSessao(sessaoVoz, 'pageshow');
+        }
+
+        if (ramalLogado && !sseSource && !document.hidden) {
+            iniciarEscutaSSE(ramalLogado);
+        }
     });
 
     function registrarNoHistorico(numero, nome, duracao, campanha) {
@@ -2859,6 +3257,7 @@
         const btnAcaoCard = document.getElementById('btnAtender');
         const eDiscador = campanha && !campanha.toLowerCase().includes('manual');
         const estaEmLinha = sessaoVoz && sessaoVoz.isEstablished();
+        const stableIdAtual = currentCallStableId || String(callId || '');
 
         const buscaManualBemSucedida = !!detalhesClienteManual;
 
@@ -2879,7 +3278,12 @@
             }
         }
 
-        const c = (dados && dados.cliente) ? dados.cliente : {};
+        const incomingCliente = (dados && dados.cliente) ? dados.cliente : {};
+        currentCallCustomerData = mesclarDadosClienteAtual(incomingCliente, {
+            phone: numero,
+            campaign_name: campanha
+        });
+        const c = currentCallCustomerData || {};
         const f = (num) => {
             let l = String(num || "").replace(/\D/g, '');
             if (l.length > 11) l = l.slice(-11);
@@ -2890,6 +3294,17 @@
         const foneParaLinks = foneFormatado.replace(/\D/g, '');
         const nomeExibir = (c.name || "CLIENTE NÃO IDENTIFICADO").toUpperCase();
         const protocoloAtendimento = gerarProtocoloAtendimento(callId, foneParaLinks);
+
+        logAgentPanel('CallState', 'Renderizando card principal da chamada.', {
+            stableIdAtual,
+            callId,
+            currentCallId,
+            currentAnswerChannelId,
+            campanha,
+            telefone: foneParaLinks,
+            hasIncomingCustomerData: !!(incomingCliente && Object.keys(incomingCliente).length),
+            preservedCustomerKeys: Object.keys(c || {})
+        });
 
         document.getElementById('clienteNome').innerText = nomeExibir;
         document.getElementById('clienteNumero').innerText = foneFormatado;
@@ -2925,7 +3340,12 @@
         document.getElementById('activeCallContainer').classList.remove('hidden');
     }
 
-    function fecharCardCliente() {
+    function fecharCardCliente(options = {}) {
+        const {
+            terminateSession = false,
+            reason = 'manual'
+        } = options;
+
         try {
             const n = document.getElementById('clienteNome'),
                 num = document.getElementById('clienteNumero'),
@@ -2935,14 +3355,33 @@
             registrarHistoricoCardAtual();
         } catch (e) {}
 
-        if (sessaoVoz) {
-            sessaoVoz.terminate();
+        logAgentPanel('CallState', 'Fechando card do cliente.', {
+            reason,
+            terminateSession,
+            currentCallId,
+            currentCallStableId,
+            currentAnswerChannelId,
+            hasSession: !!sessaoVoz
+        });
+
+        if (terminateSession && sessaoVoz) {
+            try {
+                sessaoVoz.terminate();
+            } catch (e) {
+                warnAgentPanel('CallState', 'Falha ao encerrar sessão durante fechamento do card.', { reason, e });
+            }
             sessaoVoz = null;
         }
 
         currentCallId = null;
+        currentCallStableId = null;
         currentAnswerChannelId = null;
         ultimoDadosPlanilhaKey = null;
+        currentCallCustomerData = null;
+        currentCallLookupToken = 0;
+        currentCallLastSeenAt = 0;
+        currentTimerStableId = null;
+        limparFechamentoPendenteChamada();
         document.getElementById('activeCallContainer').classList.add('hidden');
 
         const btnAtender = document.getElementById('btnAtender');
@@ -3000,9 +3439,23 @@
         const t = document.getElementById('meuTimer');
         const segundos = segundosDaDuracao(duracao);
         if (!t) return;
-        t.dataset.seconds = segundos;
-        t.innerText = duracao;
-        atualizarCronometroTeclado(segundos);
+        const segundosAtuais = parseInt(t.dataset.seconds, 10) || 0;
+        const mudouDeChamada = currentTimerStableId !== currentCallStableId;
+        const segundosFinal = mudouDeChamada ? segundos : Math.max(segundosAtuais, segundos);
+
+        currentTimerStableId = currentCallStableId;
+        t.dataset.seconds = segundosFinal;
+        t.innerText = formatTime(segundosFinal);
+        atualizarCronometroTeclado(segundosFinal);
+
+        logAgentPanel('Timer', 'Sincronizando timer principal com dados da chamada.', {
+            duracaoOriginal: duracao,
+            segundosRecebidos: segundos,
+            segundosAtuais,
+            segundosFinal,
+            currentCallStableId,
+            mudouDeChamada
+        });
     }
 
     function segundosDaDuracao(duracao) {
@@ -3022,6 +3475,7 @@
 
     function startTimers() {
         if (timersStarted) return; timersStarted = true;
+        logAgentPanel('Timer', 'Inicializando timer global do painel do agente.');
         setInterval(() => {
             const el = document.getElementById('meuTimer'), label = document.getElementById('timerLabel');
             if (el) {
@@ -3187,6 +3641,13 @@
 
     async function resetCheckin() {
         if (confirm("Deseja realmente encerrar sua jornada?")) {
+            limparRuntimeWebRTC({
+                reason: 'reset-checkin',
+                stopUa: true,
+                stopLocalStream: true,
+                terminateSession: true
+            });
+
             if (ramalLogado) {
                 try { await fetch(`${baseUrl}/callcenter/agent-set-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ramal: ramalLogado, status: 'OFFLINE' }) }); } catch (e) { }
             }

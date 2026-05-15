@@ -2542,6 +2542,19 @@ class Reports extends ViewComponents
 
     private static function isVoiceCdrAgentLeg(array $row, array $context = []): bool
     {
+        $jobId = trim((string)($row['job_id'] ?? ''));
+        $campaignId = trim((string)($row['campaign_id'] ?? ''));
+        $type = strtolower(trim((string)($row['type'] ?? '')));
+
+        $isDialerFlow = $jobId !== '' || $campaignId !== '';
+        if (!$isDialerFlow) {
+            return false;
+        }
+
+        if (in_array($type, ['outbound', 'inbound'], true)) {
+            return false;
+        }
+
         $channel = self::normalizeVoiceCdrDisplayNumber($row['channel_number'] ?? $row['endpoints'] ?? '');
         if ($channel === '' || !self::isVoiceCdrExtensionValue($channel)) {
             return false;

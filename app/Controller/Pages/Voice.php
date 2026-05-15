@@ -5137,7 +5137,22 @@ final class VoiceCdrMapper
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
         $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
-        $cdr->callerid_num = self::normalizeNullable($tariff['callerid_num'] ?? $tariff['CALLERID(num)'] ?? $tariff['CALLERID_NUM'] ?? null);
+        $cdr->callerid_num = $isManual
+            ? self::firstExternalNumber([
+                $tariff['callerid_num'] ?? null,
+                $tariff['CALLERID(num)'] ?? null,
+                $tariff['CALLERID_NUM'] ?? null,
+                $tariff['number'] ?? null,
+                $tariff['destination'] ?? null,
+            ])
+            : self::firstExternalNumber([
+                $tariff['callerid_num'] ?? null,
+                $tariff['CALLERID(num)'] ?? null,
+                $tariff['CALLERID_NUM'] ?? null,
+                $tariff['number'] ?? null,
+                $tariff['destination'] ?? null,
+                $tariff['caller_number'] ?? null,
+            ]);
         if ($isManual) {
             $cdr->channel_number = $cdr->channel_number
                 ?? $tariff['AGENT_RAMAL']
@@ -5242,6 +5257,22 @@ final class VoiceCdrMapper
         $normalized = trim((string)($value ?? ''));
 
         return $normalized === '' ? null : $normalized;
+    }
+
+    private static function firstExternalNumber(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $normalized = self::normalizeNullable($candidate);
+            if ($normalized === null) {
+                continue;
+            }
+
+            if (!self::isExtension(self::onlyDigits($normalized))) {
+                return $normalized;
+            }
+        }
+
+        return null;
     }
 
     private static function removeTechPrefix(CdrVoice $cdr): void

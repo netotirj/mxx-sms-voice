@@ -5133,6 +5133,8 @@ final class VoiceCdrRedisProcessor
             $tariff['channel_number'] = $tariff['channelNumber']
                 ?? $tariff['endpoint']
                 ?? $tariff['endpoints']
+                ?? $tariff['reserved_ramal']
+                ?? $tariff['ramal']
                 ?? null;
         }
 
@@ -5140,6 +5142,8 @@ final class VoiceCdrRedisProcessor
             $tariff['endpoints'] = $tariff['endpoint']
                 ?? $tariff['channelNumber']
                 ?? $tariff['channel_number']
+                ?? $tariff['reserved_ramal']
+                ?? $tariff['ramal']
                 ?? null;
         }
 
@@ -5186,18 +5190,26 @@ final class VoiceCdrRedisProcessor
             }
 
             if ($isRamalLeg && empty($tariff['channelNumber']) && empty($tariff['channel_number'])) {
-                foreach (['channel_number', 'channelNumber', 'endpoint', 'endpoints', 'AGENT_RAMAL'] as $alias) {
+                foreach (['channel_number', 'channelNumber', 'endpoint', 'endpoints', 'AGENT_RAMAL', 'reserved_ramal', 'ramal'] as $alias) {
                     if (!empty($context[$alias])) {
-                        $tariff['channelNumber'] = $context[$alias];
+                        $value = $context[$alias];
+                        if (is_array($value)) {
+                            $value = $value[0] ?? null;
+                        }
+                        $tariff['channelNumber'] = $value;
                         break;
                     }
                 }
             }
 
             if ($isRamalLeg && empty($tariff['endpoints'])) {
-                foreach (['endpoints', 'endpoint', 'AGENT_RAMAL'] as $alias) {
+                foreach (['endpoints', 'endpoint', 'AGENT_RAMAL', 'reserved_ramal', 'ramal'] as $alias) {
                     if (!empty($context[$alias])) {
-                        $tariff['endpoints'] = $context[$alias];
+                        $value = $context[$alias];
+                        if (is_array($value)) {
+                            $value = $value[0] ?? null;
+                        }
+                        $tariff['endpoints'] = $value;
                         break;
                     }
                 }
@@ -5345,6 +5357,8 @@ final class VoiceCdrMapper
             $tariff['endpoint'] ?? null,
             $tariff['endpoints'] ?? null,
             $tariff['AGENT_RAMAL'] ?? null,
+            $tariff['reserved_ramal'] ?? null,
+            $tariff['ramal'] ?? null,
         ]);
     }
 
@@ -5407,6 +5421,8 @@ final class VoiceCdrMapper
             $tariff['endpoint_name'] ?? null,
             $tariff['channel'] ?? null,
             $tariff['channel_name'] ?? null,
+            $tariff['reserved_ramal'] ?? null,
+            $tariff['ramal'] ?? null,
         ]);
 
         if ($raw !== null) {

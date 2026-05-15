@@ -556,7 +556,7 @@
             const taxaHtml   = costBadge(item.taxa);
             const statusHtml = statusBadge(item.dialstatus);
             const started    = escapeHtml(item.started || "-");
-            const cid        = escapeHtml(formatCdrPhone(item.cid_display ?? item.number));
+            const cid        = escapeHtml(formatCdrPhone(item.cid_display ?? item.callerid_num ?? item.number));
             const dest       = escapeHtml(formatCdrPhone(item.destination_display ?? item.destination));
             const channel    = escapeHtml(formatCdrPhone(item.channel_display ?? item.channelNumber ?? ""));
             const cause      = escapeHtml(item.cause_txt || "-");
@@ -792,6 +792,7 @@
                         item.dialstatus,
                         item.type,
                         item.cause_txt,
+                        formatCdrPhone(item.callerid_num),
                         formatCdrPhone(item.number),
                         formatCdrPhone(item.destination),
                         formatCdrPhone(item.channelNumber),
@@ -824,7 +825,7 @@
 
                 return [
                     item.started || "",
-                    formatCdrPhone(item.cid_display ?? item.number),
+                    formatCdrPhone(item.cid_display ?? item.callerid_num ?? item.number),
                     formatCdrPhone(item.destination_display ?? item.destination),
                     formatCdrPhone(item.channel_display ?? item.channelNumber),
                     item.duration || 0,
@@ -990,7 +991,7 @@
         const html = `
         <p><strong>Data:</strong> ${escapeHtml(item.started ?? "-")}</p>
         <p><strong>Tipo:</strong> ${escapeHtml(item.type ?? "-")}</p>
-        <p><strong>CID:</strong> ${escapeHtml(formatCdrPhone(item.cid_display ?? item.number))}</p>
+        <p><strong>CID:</strong> ${escapeHtml(formatCdrPhone(item.cid_display ?? item.callerid_num ?? item.number))}</p>
         <p><strong>Destino:</strong> ${escapeHtml(formatCdrPhone(item.destination_display ?? item.destination))}</p>
         <p><strong>Ramal/SIP:</strong> ${escapeHtml(formatCdrPhone(item.channel_display ?? item.channelNumber ?? ""))}</p>
         <p><strong>Duração:</strong> ${item.duration ?? 0} s</p>

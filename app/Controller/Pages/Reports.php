@@ -2295,7 +2295,7 @@ class Reports extends ViewComponents
                 'rendered_rows' => array_map(static function ($row): array {
                     return [
                         'id' => $row['id'] ?? null,
-                        'cid_rendered' => $row['number'] ?? null,
+                        'cid_rendered' => $row['callerid_num'] ?? null,
                         'destination_rendered' => $row['destination'] ?? null,
                         'sipuser_rendered' => $row['channelNumber'] ?? null,
                         'type' => $row['type'] ?? null,
@@ -2365,7 +2365,8 @@ class Reports extends ViewComponents
                     'cid_display'       => self::resolveVoiceCdrDisplayCid($row, $context),
                     'destination_display'=> self::resolveVoiceCdrDisplayDestination($row, $context),
                     'channel_display'   => self::resolveVoiceCdrDisplayChannel($row, $context),
-                    'number'            => self::normalizeVoiceCdrDisplayNumber($row['callerid_num'] ?? ''),
+                    'callerid_num'      => self::normalizeVoiceCdrDisplayNumber($row['callerid_num'] ?? ''),
+                    'number'            => self::normalizeVoiceCdrDisplayNumber($row['number'] ?? ''),
                     'endpoints'         => trim((string)($row['endpoints'] ?? '')) ?: '',
                     'destination'       => self::normalizeVoiceCdrDisplayNumber($row['destination'] ?? ''),
                     'channelNumber'     => self::normalizeVoiceCdrDisplayNumber($row['channel_number'] ?? $row['endpoints'] ?? ''),
@@ -2404,18 +2405,19 @@ class Reports extends ViewComponents
 
     private static function buildVoiceCdrDisplayContext(array $rows): array
     {
-        $external = '';
+        $callerId = '';
         $extension = '';
 
         foreach ($rows as $row) {
             foreach ([
                 $row['callerid_num'] ?? null,
-                $row['number'] ?? null,
                 $row['caller_number'] ?? null,
+                $row['src'] ?? null,
+                $row['source'] ?? null,
             ] as $candidate) {
                 $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
                 if ($normalized !== '' && !self::isVoiceCdrExtensionValue($normalized)) {
-                    $external = $normalized;
+                    $callerId = $normalized;
                     break 2;
                 }
             }
@@ -2437,21 +2439,20 @@ class Reports extends ViewComponents
         }
 
         return [
-            'external' => $external,
+            'callerid' => $callerId,
             'extension' => $extension,
         ];
     }
 
     private static function resolveVoiceCdrDisplayCid(array $row, array $context = []): string
     {
-        $external = trim((string)($context['external'] ?? ''));
-        if ($external !== '') {
-            return $external;
+        $callerId = trim((string)($context['callerid'] ?? ''));
+        if ($callerId !== '') {
+            return $callerId;
         }
 
         foreach ([
             $row['callerid_num'] ?? null,
-            $row['number'] ?? null,
             $row['caller_number'] ?? null,
             $row['src'] ?? null,
             $row['source'] ?? null,
@@ -2469,6 +2470,7 @@ class Reports extends ViewComponents
     {
         foreach ([
             $row['destination'] ?? null,
+            $row['number'] ?? null,
             $row['dst'] ?? null,
             $row['EXTENSION'] ?? null,
             $row['extension'] ?? null,

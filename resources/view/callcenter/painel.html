@@ -523,6 +523,7 @@
     let currentCallCloseTimer = null;
     let currentCallLastSeenAt = 0;
     let currentTimerStableId = null;
+    let currentCallAnswered = false;
     const ACTIVE_CALL_SSE_GRACE_MS = 4000;
     const DEBUG_AGENT_PANEL = (() => {
         try {
@@ -631,7 +632,14 @@
     }
 
     function obterChaveEstavelChamada(chamada = {}) {
-        return obterChavesRelacionamentoChamada(chamada)[0] || '';
+        const chaves = obterChavesRelacionamentoChamada(chamada);
+        if (!chaves.length) return '';
+
+        if (currentCallStableId && chaves.includes(currentCallStableId)) {
+            return currentCallStableId;
+        }
+
+        return chaves[0] || '';
     }
 
     function limparFechamentoPendenteChamada() {
@@ -646,6 +654,7 @@
         currentCallLookupToken = 0;
         currentCallLastSeenAt = 0;
         currentTimerStableId = null;
+        currentCallAnswered = false;
     }
 
     function mesclarDadosClienteAtual(incomingCliente = {}, fallback = {}) {
@@ -914,6 +923,7 @@
     function finalizarUiAtendimentoWebRTC() {
         incomingAnswerInFlight = false;
         chamadaWebRTCAceita = true;
+        currentCallAnswered = true;
         limparWatchdogAtendimento();
         resetarBotaoAtenderWebRTC();
         manterCardChamadaAtiva();
@@ -1683,6 +1693,7 @@
         currentCallLookupToken = 0;
         currentCallLastSeenAt = 0;
         currentTimerStableId = null;
+        currentCallAnswered = false;
 
         const btnPrincipal = document.getElementById('btn-acao-chamada');
         if (btnPrincipal) btnPrincipal.disabled = false;
@@ -2441,14 +2452,16 @@
                 if (chamadaParaMim) {
                     limparFechamentoPendenteChamada();
                     currentCallLastSeenAt = Date.now();
+                    currentCallAnswered = !!chamadaParaMim.is_up || existeChamadaWebRTCAtiva();
 
                     const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
                     let telefoneReal = (limparEContar(chamadaParaMim.dest) === 8) ? chamadaParaMim.caller : chamadaParaMim.dest;
                     if (limparEContar(telefoneReal) > 8 && telefoneReal !== "—") {
+                        const previousStableId = currentCallStableId;
                         const stableId = obterChaveEstavelChamada(chamadaParaMim) || String(chamadaParaMim.id || '');
                         const campanhaAtual = document.getElementById('campanhaNome')?.innerText || '';
                         const aguardandoCampanha = campanhaAtual.toUpperCase().includes('AGUARDANDO CAMPANHA');
-                        const callTrocou = currentCallStableId !== null && currentCallStableId !== stableId;
+                        const callTrocou = previousStableId !== null && previousStableId !== stableId;
 
                         if (callTrocou) {
                             logAgentPanel('SSE', 'Chave estável da chamada mudou; resetando estado persistido do cliente.', {
@@ -2471,7 +2484,7 @@
                             chamadaParaMim.campanha_nome || ''
                         ].join('|');
                         const precisaAtualizarDados =
-                            currentCallId !== chamadaParaMim.id
+                            previousStableId !== stableId
                             || ultimoDadosPlanilhaKey !== dadosPlanilhaKey
                             || aguardandoCampanha
                             || !currentCallCustomerData;
@@ -3395,7 +3408,7 @@
     function atualizarInterfaceStatus(dados) {
         const badge = document.getElementById('statusBadge'), timerEl = document.getElementById('meuTimer'), label = document.getElementById('timerLabel'), contAtivo = document.getElementById('activeCallContainer'), grid = document.getElementById('clienteDetalhesGrid'), botoes = document.querySelectorAll('#gridAcoesAgente button');
 
-        if (currentCallId !== null || existeChamadaWebRTCAtiva()) {
+        if (currentCallAnswered || existeChamadaWebRTCAtiva()) {
             if (badge) { badge.innerText = "EM ATENDIMENTO"; badge.className = "bg-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm"; }
             if (label) label.innerText = "DURAÇÃO DA CHAMADA";
             manterCardChamadaAtiva();
@@ -3431,12 +3444,21 @@
         if (timerEl && dados.tempo_segundos !== undefined) {
             timerEl.dataset.seconds = dados.tempo_segundos;
             timerEl.innerText = dados.tempo || formatTime(dados.tempo_segundos);
-            if (currentCallId !== null) atualizarCronometroTeclado(parseInt(dados.tempo_segundos) || 0);
+            if (currentCallAnswered) atualizarCronometroTeclado(parseInt(dados.tempo_segundos) || 0);
         }
     }
 
     function sincronizarTimerComChamada(duracao) {
         const t = document.getElementById('meuTimer');
+        if (!currentCallAnswered) {
+            if (t) {
+                t.dataset.seconds = 0;
+                t.innerText = '00:00:00';
+            }
+            atualizarCronometroTeclado(0);
+            return;
+        }
+
         const segundos = segundosDaDuracao(duracao);
         if (!t) return;
         const segundosAtuais = parseInt(t.dataset.seconds, 10) || 0;
@@ -3479,9 +3501,19 @@
         setInterval(() => {
             const el = document.getElementById('meuTimer'), label = document.getElementById('timerLabel');
             if (el) {
+                if (currentCallId !== null && !currentCallAnswered) {
+                    el.dataset.seconds = 0;
+                    el.innerText = '00:00:00';
+                    if (label && label.innerText !== "AGUARDANDO ATENDIMENTO") {
+                        label.innerText = "AGUARDANDO ATENDIMENTO";
+                    }
+                    atualizarCronometroTeclado(0);
+                    return;
+                }
+
                 let sec = parseInt(el.dataset.seconds) || 0;
                 sec++; el.dataset.seconds = sec; el.innerText = formatTime(sec);
-                if (currentCallId !== null) { if (label.innerText !== "DURAÇÃO DA CHAMADA") label.innerText = "DURAÇÃO DA CHAMADA"; atualizarCronometroTeclado(sec); }
+                if (currentCallAnswered) { if (label.innerText !== "DURAÇÃO DA CHAMADA") label.innerText = "DURAÇÃO DA CHAMADA"; atualizarCronometroTeclado(sec); }
                 else { if (label.innerText !== "DURAÇÃO NO STATUS") label.innerText = "DURAÇÃO NO STATUS"; }
             }
         }, 1000);

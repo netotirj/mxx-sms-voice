@@ -2369,7 +2369,9 @@ class Reports extends ViewComponents
         $formatted = [];
         foreach ($grouped as $callRows) {
             if (self::isDialerVoiceCdrGroup($callRows)) {
-                $formatted[] = self::buildDialerVoiceCdrRow($callRows);
+                foreach (self::buildDialerVoiceCdrRows($callRows) as $dialerRow) {
+                    $formatted[] = $dialerRow;
+                }
                 continue;
             }
 
@@ -2449,7 +2451,7 @@ class Reports extends ViewComponents
         return false;
     }
 
-    private static function buildDialerVoiceCdrRow(array $rows): array
+    private static function buildDialerVoiceCdrRows(array $rows): array
     {
         $external = self::pickDialerExternalLeg($rows);
         $internal = self::pickDialerInternalLeg($rows, $external);
@@ -2469,7 +2471,7 @@ class Reports extends ViewComponents
             trim((string)($context['external_destination'] ?? '')),
         ]) ?: '-';
 
-        return [
+        $externalRow = [
             'id'                => $external['id'] ?? null,
             'channel_id'        => $external['channel_id'] ?? null,
             'call_id'           => $external['call_id'] ?? null,
@@ -2503,6 +2505,48 @@ class Reports extends ViewComponents
             'created_at'        => $external['created_at'] ?? null,
             '_sort_ts'          => self::voiceCdrSortTimestamp([$external]),
         ];
+
+        if (($internal['id'] ?? null) === ($external['id'] ?? null)) {
+            return [$externalRow];
+        }
+
+        $internalCid = $destination;
+        $internalDestination = $sipUser !== '' ? $sipUser : '-';
+        $internalStarted = !empty($internal['started']) ? (new DateTime($internal['started']))->format('d-m-Y H:i:s') : '-';
+
+        $internalRow = [
+            'id'                => $internal['id'] ?? null,
+            'channel_id'        => $internal['channel_id'] ?? null,
+            'call_id'           => $internal['call_id'] ?? null,
+            'job_id'            => $internal['job_id'] ?? null,
+            'campaign_id'       => $internal['campaign_id'] ?? null,
+            'tenancy_id'        => $internal['tenancy_id'] ?? null,
+            'user_id'           => $internal['user_id'] ?? $external['user_id'] ?? null,
+            'user_name'         => trim((string)($internal['user_name'] ?? $external['user_name'] ?? '')) ?: null,
+            'user_account_code' => trim((string)($internal['user_account_code'] ?? $external['user_account_code'] ?? '')) ?: null,
+            'cid_display'       => $internalCid,
+            'destination_display'=> $internalDestination,
+            'channel_display'   => $sipUser,
+            'callerid_num'      => $internalCid,
+            'number'            => $internalCid,
+            'endpoints'         => trim((string)($internal['endpoints'] ?? $external['endpoints'] ?? '')) ?: '',
+            'destination'       => $internalDestination,
+            'channelNumber'     => $sipUser,
+            'type'              => $internal['type'] ?? null,
+            'dialstatus'        => $internal['dialstatus'] ?? $external['dialstatus'] ?? null,
+            'cause'             => $internal['cause'] ?? $external['cause'] ?? null,
+            'cause_txt'         => $internal['cause_txt'] ?? $external['cause_txt'] ?? null,
+            'taxa'              => (float)($internal['taxa_of_service'] ?? 0),
+            'duration'          => (int)($internal['billsec'] ?? $internal['duration'] ?? 0),
+            'value'             => (float)($internal['value'] ?? 0),
+            'started'           => $internalStarted,
+            'answered'          => $internal['answered'] ?? null,
+            'ended'             => $internal['ended'] ?? null,
+            'created_at'        => $internal['created_at'] ?? null,
+            '_sort_ts'          => self::voiceCdrSortTimestamp([$internal]),
+        ];
+
+        return [$externalRow, $internalRow];
     }
 
     private static function pickDialerExternalLeg(array $rows): array

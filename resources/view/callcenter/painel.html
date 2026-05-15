@@ -528,9 +528,9 @@
     const ACTIVE_CALL_SSE_GRACE_MS = 4000;
     const DEBUG_AGENT_PANEL = (() => {
         try {
-            return localStorage.getItem('agent_panel_debug') !== '0';
+            return localStorage.getItem('agent_panel_debug') === '1';
         } catch (e) {
-            return true;
+            return false;
         }
     })();
 

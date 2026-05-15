@@ -4275,7 +4275,11 @@ HTML;
                 ]);
             }
 
-            $template = WhatsAppTemplate::getByNameForUser($templateName, $templateLanguage, $obUser);
+            $template = WhatsAppTemplate::getByNameForTenant(
+                $templateName,
+                $templateLanguage,
+                (string)$account['tenancy_id']
+            );
             if (!$template) {
                 return self::json(404, [
                     'success' => false,
@@ -4332,6 +4336,12 @@ HTML;
                     'contact_name_fallback' => self::templateContactFallback(),
                     'contact_phone' => $to,
                 ], [
+                    '1' => $contactName,
+                    '2' => $protocolReference,
+                    'var_1' => $contactName,
+                    'var_2' => $protocolReference,
+                    'variavel_1' => $contactName,
+                    'variavel_2' => $protocolReference,
                     'nome_cliente' => $contactName,
                     'contact_name' => $contactName,
                     'protocolo_atendimento' => $protocolReference,
@@ -4903,12 +4913,15 @@ HTML;
     private static function resolveProtocolAccountForUser(array $user, int $accountId = 0): ?array
     {
         if ($accountId > 0) {
-            return WhatsAppAccount::getForUser($accountId, $user);
+            return self::getConversationAccountForUser($accountId, $user);
         }
 
-        $accounts = WhatsAppAccount::listForUser($user);
+        $accounts = self::canViewWhatsAppSupportAccounts($user)
+            ? WhatsAppAccount::listSupportVisibleForUser($user)
+            : WhatsAppAccount::listForUser($user);
+
         foreach ($accounts as $listedAccount) {
-            $resolved = WhatsAppAccount::getForUser((int)($listedAccount['id'] ?? 0), $user);
+            $resolved = self::getConversationAccountForUser((int)($listedAccount['id'] ?? 0), $user);
             if ($resolved) {
                 return $resolved;
             }

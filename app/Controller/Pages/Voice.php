@@ -3079,7 +3079,7 @@ class Voice extends ViewComponents
                 continue;
             }
 
-            if (!self::isAnsweredLiveCall($call)) {
+            if (!self::isConnectedLiveCall($call)) {
                 continue;
             }
 
@@ -3104,7 +3104,7 @@ class Voice extends ViewComponents
 
             $root = $find($keysByIndex[$i][0]);
             $groupAnswered = $answeredByRoot[$root] ?? null;
-            if (!$groupAnswered || self::isAnsweredLiveCall($call) || !self::isLikelyAgentLiveCallLeg($call)) {
+            if (!$groupAnswered || self::hasAnsweredStatusLabel($call) || !self::isLikelyAgentLiveCallLeg($call)) {
                 continue;
             }
 
@@ -3123,13 +3123,32 @@ class Voice extends ViewComponents
         return $calls;
     }
 
-    private static function isAnsweredLiveCall(array $call): bool
+    private static function isConnectedLiveCall(array $call): bool
     {
         $state = strtolower(trim((string)($call['state'] ?? '')));
         if ($state === 'up') {
             return true;
         }
 
+        if (!empty($call['in_bridge'])) {
+            return true;
+        }
+
+        $agentStatus = strtolower(trim((string)($call['agent_call_status'] ?? '')));
+        if (in_array($agentStatus, ['answered', 'up', 'bridged'], true)) {
+            return true;
+        }
+
+        if (!empty($call['agent_answered_at']) || !empty($call['answered'])) {
+            return true;
+        }
+
+        $status = mb_strtolower(trim((string)($call['status'] ?? '')));
+        return str_contains($status, 'atendida');
+    }
+
+    private static function hasAnsweredStatusLabel(array $call): bool
+    {
         $status = mb_strtolower(trim((string)($call['status'] ?? '')));
         return str_contains($status, 'atendida');
     }

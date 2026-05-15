@@ -5248,6 +5248,7 @@ final class VoiceCdrMapper
     {
         $cdr = new CdrVoice();
         $isManual = self::isManualTariff($tariff);
+        $shouldAttachAgentLeg = self::shouldAttachAgentLeg($tariff, $isManual);
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5256,11 +5257,11 @@ final class VoiceCdrMapper
         $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
-        $ramal = self::resolveAgentExtension($tariff);
+        $ramal = $shouldAttachAgentLeg ? self::resolveAgentExtension($tariff) : null;
         $destination = self::resolveDestination($tariff, $isManual);
         $clientNumber = self::resolveClientNumber($tariff, $isManual);
         $callerId = self::resolveCallerId($tariff);
-        $endpointIdentity = self::resolveEndpointIdentity($tariff, $ramal);
+        $endpointIdentity = $shouldAttachAgentLeg ? self::resolveEndpointIdentity($tariff, $ramal) : null;
 
         $cdr->channel_number = $ramal;
         $cdr->endpoints = $endpointIdentity;
@@ -5323,6 +5324,55 @@ final class VoiceCdrMapper
             'torpedo' => 'torpedo',
             default => $type,
         };
+    }
+
+    private static function shouldAttachAgentLeg(array $tariff, bool $isManual): bool
+    {
+        if ($isManual) {
+            return true;
+        }
+
+        $hasCampaignContext = !empty($tariff['job_id']) || !empty($tariff['campaign_id']);
+        if (!$hasCampaignContext) {
+            return true;
+        }
+
+        $value = round((float)($tariff['value'] ?? 0), 4);
+        if ($value <= 0.0001) {
+            return true;
+        }
+
+        $channel = self::onlyDigits(
+            $tariff['channel_number']
+            ?? $tariff['channelNumber']
+            ?? $tariff['endpoint']
+            ?? $tariff['endpoints']
+            ?? $tariff['reserved_ramal']
+            ?? $tariff['ramal']
+            ?? ''
+        );
+
+        $callerId = self::onlyDigits(
+            $tariff['callerid_num']
+            ?? $tariff['CALLERID(num)']
+            ?? $tariff['CALLERID_NUM']
+            ?? $tariff['caller_number']
+            ?? $tariff['caller_id']
+            ?? ''
+        );
+
+        $destination = self::onlyDigits($tariff['destination'] ?? $tariff['number'] ?? '');
+
+        if ($channel !== '' && self::isExtension($channel)) {
+            $callerIsExtension = $callerId !== '' && self::isExtension($callerId);
+            $destinationIsExtension = $destination !== '' && self::isExtension($destination);
+
+            if (!$callerIsExtension && !$destinationIsExtension && $value > 0.0001) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function isManualTariff(array $tariff): bool

@@ -5136,45 +5136,48 @@ final class VoiceCdrMapper
         $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
-        $cdr->channel_number = $tariff['channelNumber'] ?? $tariff['channel_number'] ?? null;
+        $ramal = self::firstNonEmpty([
+            $tariff['channelNumber'] ?? null,
+            $tariff['channel_number'] ?? null,
+            $tariff['endpoint'] ?? null,
+            $tariff['endpoints'] ?? null,
+            $tariff['AGENT_RAMAL'] ?? null,
+        ]);
+        $destination = self::firstExternalNumber([
+            $tariff['destination'] ?? null,
+            $tariff['dst'] ?? null,
+            $tariff['EXTENSION'] ?? null,
+            $tariff['extension'] ?? null,
+        ]);
+
+        $cdr->channel_number = $ramal;
+        $cdr->endpoints = $ramal;
         $cdr->callerid_num = $isManual
             ? self::firstExternalNumber([
                 $tariff['callerid_num'] ?? null,
                 $tariff['CALLERID(num)'] ?? null,
                 $tariff['CALLERID_NUM'] ?? null,
                 $tariff['number'] ?? null,
-                $tariff['destination'] ?? null,
             ])
             : self::firstExternalNumber([
                 $tariff['callerid_num'] ?? null,
                 $tariff['CALLERID(num)'] ?? null,
                 $tariff['CALLERID_NUM'] ?? null,
-                $tariff['number'] ?? null,
-                $tariff['destination'] ?? null,
-                $tariff['caller_number'] ?? null,
             ]);
         if ($isManual) {
-            $cdr->channel_number = $cdr->channel_number
-                ?? $tariff['AGENT_RAMAL']
-                ?? $tariff['endpoint']
-                ?? $tariff['endpoints']
-                ?? null;
-            $cdr->number = $tariff['number'] ?? $tariff['destination'] ?? $tariff['EXTENSION'] ?? $tariff['extension'] ?? null;
-            $cdr->destination = $tariff['destination'] ?? $tariff['number'] ?? null;
+            $cdr->number = self::firstExternalNumber([
+                $cdr->callerid_num,
+                $tariff['number'] ?? null,
+                $destination,
+            ]);
+            $cdr->destination = $destination;
         } else {
-            $cdr->channel_number = $cdr->channel_number
-                ?? $tariff['endpoint']
-                ?? $tariff['endpoints']
-                ?? $tariff['AGENT_RAMAL']
-                ?? null;
-            $cdr->number = $tariff['number'] ?? $tariff['destination'] ?? null;
-            $cdr->destination = $tariff['endpoint']
-                ?? $tariff['endpoints']
-                ?? $tariff['channelNumber']
-                ?? $tariff['channel_number']
-                ?? $tariff['AGENT_RAMAL']
-                ?? $tariff['destination']
-                ?? null;
+            $cdr->number = self::firstExternalNumber([
+                $cdr->callerid_num,
+                $tariff['number'] ?? null,
+                $destination,
+            ]);
+            $cdr->destination = $destination;
         }
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';
@@ -5182,7 +5185,6 @@ final class VoiceCdrMapper
         $cdr->trunk_id = $tariff['trunk_id'] ?? $tariff['TRUNK_ID'] ?? null;
         $cdr->trunk_billing_type = $tariff['trunk_billing_type'] ?? $tariff['TRUNK_BILLING_TYPE'] ?? null;
         $cdr->plan_id = $tariff['plan_id'] ?? $tariff['PLAN_ID'] ?? null;
-        $cdr->endpoints = $tariff['endpoint'] ?? $tariff['endpoints'] ?? null;
 
         $cdr->type = strtolower((string)($tariff['type'] ?? 'normal'));
         $cdr->taxa_of_service = round((float)($tariff['taxa_of_service'] ?? 0), 4);
@@ -5268,6 +5270,18 @@ final class VoiceCdrMapper
             }
 
             if (!self::isExtension(self::onlyDigits($normalized))) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private static function firstNonEmpty(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $normalized = self::normalizeNullable($candidate);
+            if ($normalized !== null) {
                 return $normalized;
             }
         }

@@ -5248,9 +5248,10 @@ final class VoiceCdrMapper
         $destination = self::resolveDestination($tariff, $isManual);
         $clientNumber = self::resolveClientNumber($tariff, $isManual);
         $callerId = self::resolveCallerId($tariff);
+        $endpointIdentity = self::resolveEndpointIdentity($tariff, $ramal);
 
         $cdr->channel_number = $ramal;
-        $cdr->endpoints = $ramal;
+        $cdr->endpoints = $endpointIdentity;
         $cdr->callerid_num = $callerId;
         $cdr->number = $clientNumber;
         $cdr->destination = $destination;
@@ -5395,6 +5396,24 @@ final class VoiceCdrMapper
             $tariff['caller_number'] ?? null,
             $tariff['caller_id'] ?? null,
         ]);
+    }
+
+    private static function resolveEndpointIdentity(array $tariff, ?string $ramal): ?string
+    {
+        $raw = self::firstNonEmpty([
+            $tariff['endpoints'] ?? null,
+            $tariff['endpoint'] ?? null,
+            $tariff['channel_endpoint'] ?? null,
+            $tariff['endpoint_name'] ?? null,
+            $tariff['channel'] ?? null,
+            $tariff['channel_name'] ?? null,
+        ]);
+
+        if ($raw !== null) {
+            return $raw;
+        }
+
+        return $ramal;
     }
 
     private static function firstExternalNumber(array $candidates): ?string

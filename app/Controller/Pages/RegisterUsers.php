@@ -256,7 +256,12 @@ class RegisterUsers extends ViewComponents
                 $invoiceNumber,
                 0.85,
                 0.35,
-                0.70
+                0.70,
+                null,
+                null,
+                null,
+                null,
+                'bootstrap:' . $invoiceNumber
             );
             RegisterTenancies::updateActivePlan($tenancyId, self::BOOTSTRAP_PLAN_ID);
 

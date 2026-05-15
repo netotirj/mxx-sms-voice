@@ -14,6 +14,7 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\RegisterTenancies;
+use App\Service\AsteriskBalanceSyncService;
 use App\Service\PixService;
 use Random\RandomException;
 
@@ -515,27 +516,25 @@ class Refills extends ViewComponents
         // Atualiza saldo no MySQL
         $updated = $reseller->updateRefillReseller($value);
 
-        // Pega dados para o Asterisk
-        $resellerData = UserSearch::getUserById($refill->tenancy_id, $refill->user_id);
-        $roleReseller = $resellerData['user_function'] ?? 'reseller';
+        $syncQueued = false;
+        if ($updated) {
+            $syncResult = AsteriskBalanceSyncService::enqueueAndProcess([
+                'sync_key' => 'manual_refill:' . $transactionId,
+                'tenancy_id' => $refill->tenancy_id,
+                'user_id' => $refill->user_id,
+                'wallet' => 'reseller',
+                'source' => 'manual_refill',
+                'amount' => $value,
+                'metadata' => [
+                    'transaction_id' => $transactionId,
+                    'notes' => $notes,
+                    'mutation' => 'credit',
+                ],
+            ]);
+            $syncQueued = !empty($syncResult['ok']);
+        }
 
-        $query = [
-            'user_id' => $refill->user_id,
-            'tenant_id' => $refill->tenancy_id,
-        ];
-
-        $payload = [
-            'user_id' => $refill->user_id,
-            'tenant_id' => $refill->tenancy_id,
-            'balance_reseller' => $value,
-            'role' => $roleReseller
-        ];
-
-        // 🔗 Sincroniza com Asterisk
-        $asterisk = new AsteriskExtensionsSip();
-        $responseAsterisk = $asterisk->updateBalance($query, $payload);
-
-        if ($updated && $responseAsterisk) {
+        if ($updated && $syncQueued) {
             Notifications::insertNotifications(
                 $refill->tenancy_id,
                 $refill->user_id,

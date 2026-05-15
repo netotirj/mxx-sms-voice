@@ -31,6 +31,7 @@ use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\CdrVoice;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserSearch;
+use App\Service\AsteriskBalanceSyncService;
 use App\Service\FinancialReconciliationService;
 use App\Service\FinancialTransactionService;
 use App\Service\WhatsAppBilling;
@@ -58,6 +59,7 @@ final class ControlledFinancialValidation
     public function run(): array
     {
         FinancialTransactionService::ensureSchema();
+        AsteriskBalanceSyncService::ensureSchema();
         $this->bootstrapFixture();
 
         $this->report = [
@@ -71,7 +73,7 @@ final class ControlledFinancialValidation
             'reconciliation' => [],
             'notes' => [
                 'Provider-integrated sends/calls were not executed to avoid live operational impact.',
-                'Voice synchronization with Asterisk was validated only as a safe fail path using a loopback-invalid endpoint.',
+                'Asterisk sync was validated with a controllable dispatcher stub to prove success and retry paths without touching telephony production.',
                 'This report proves hardening behavior in the financial core, replay handling, and transaction boundaries on controlled fixtures.',
             ],
         ];
@@ -81,6 +83,9 @@ final class ControlledFinancialValidation
         $this->report['scenarios'][] = $this->validateSmsCallbackBilling();
         $this->report['scenarios'][] = $this->validateWhatsAppDeliveredBilling();
         $this->report['scenarios'][] = $this->validateWhatsAppVoiceBilling();
+        $this->report['scenarios'][] = $this->validateAdminCreditSync();
+        $this->report['scenarios'][] = $this->validateResellerManualRefillSync();
+        $this->report['scenarios'][] = $this->validateAdminRefundSync();
         $this->report['scenarios'][] = $this->validateConcurrency();
         $this->report['scenarios'][] = $this->validateCrashRetry();
         $this->report['reconciliation'] = [
@@ -182,8 +187,13 @@ final class ControlledFinancialValidation
 
     private function validateVoiceManual(): array
     {
-        putenv('ASTERISK_API_BASE_URL=http://127.0.0.1:9');
-        putenv('ARI_HOST=127.0.0.1');
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return [
+                'ok' => false,
+                'status' => 503,
+                'error' => 'validation forced sync failure',
+            ];
+        });
 
         $callId = $this->runId . '_voice_manual';
         $before = $this->adminBalance();
@@ -216,6 +226,8 @@ final class ControlledFinancialValidation
 
         $after = $this->adminBalance();
         $opKey = sprintf('voice:%s:%s:%s:%d', $callId, 'voice', 'admin', $this->adminUserId);
+        $ledger = $this->ledgerByOperationKey($opKey);
+        $queue = isset($ledger[0]['id']) ? $this->syncQueueByLedgerId((int)$ledger[0]['id']) : [];
 
         return [
             'scenario' => 'voice_manual',
@@ -225,22 +237,25 @@ final class ControlledFinancialValidation
             'saldo_antes' => $before,
             'saldo_depois' => $after,
             'valor_debitado' => round($before - $after, 4),
-            'ledger' => $this->ledgerByOperationKey($opKey),
+            'ledger' => $ledger,
+            'asterisk_sync_queue' => $queue,
             'legacy_log' => $this->legacyLogsForReference($callId),
             'cdr' => $this->rows('SELECT id, call_id, channel_id, user_id, value, dialstatus, duration, created_at FROM cdr WHERE call_id = :call_id ORDER BY id DESC', [':call_id' => $callId]),
             'worker_logs' => $workerLog,
             'assertions' => [
-                'single_ledger_row' => count($this->ledgerByOperationKey($opKey)) === 1,
+                'single_ledger_row' => count($ledger) === 1,
                 'single_legacy_log' => count($this->legacyLogsForReference($callId)) === 1,
                 'single_charge_only' => round($before - $after, 4) === 1.20,
+                'sync_pending_for_retry' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'pending',
             ],
         ];
     }
 
     private function validateVoiceDialerReplayGuard(): array
     {
-        putenv('ASTERISK_API_BASE_URL=http://127.0.0.1:9');
-        putenv('ARI_HOST=127.0.0.1');
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
 
         $callId = $this->runId . '_voice_discador';
         $ownerBefore = $this->adminBalance();
@@ -313,6 +328,10 @@ final class ControlledFinancialValidation
 
     private function validateSmsCallbackBilling(): array
     {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
         $batchId = CampaignBatch::create([
             'campaign_id' => null,
             'user_id' => $this->adminUserId,
@@ -346,6 +365,8 @@ final class ControlledFinancialValidation
         $after = $this->adminBalance();
 
         $opKey = sprintf('sms:batch:%d:owner:%d', $batchId, $this->adminUserId);
+        $ledger = $this->ledgerByOperationKey($opKey);
+        $queue = isset($ledger[0]['id']) ? $this->syncQueueByLedgerId((int)$ledger[0]['id']) : [];
 
         return [
             'scenario' => 'sms_callback',
@@ -356,19 +377,25 @@ final class ControlledFinancialValidation
             'saldo_apos_primeiro_callback' => $mid,
             'saldo_depois_replay' => $after,
             'valor_debitado' => round($before - $after, 4),
-            'ledger' => $this->ledgerByOperationKey($opKey),
+            'ledger' => $ledger,
+            'asterisk_sync_queue' => $queue,
             'legacy_log' => $this->legacyLogsForReference('#' . $batchId),
             'callback_rows' => $this->rows('SELECT id, batch_id, phone_sms, status_sms, value_sms, id_partner, update_date FROM callback WHERE batch_id = :batch_id ORDER BY id ASC', [':batch_id' => $batchId]),
             'campaign_batch' => $this->rows('SELECT id, charged, tenancy_id, user_id, created_at FROM campaign_batches WHERE id = :id', [':id' => $batchId]),
             'assertions' => [
-                'single_ledger_row' => count($this->ledgerByOperationKey($opKey)) === 1,
+                'single_ledger_row' => count($ledger) === 1,
                 'single_charge_only' => round($before - $after, 4) === 0.50,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
             ],
         ];
     }
 
     private function validateWhatsAppDeliveredBilling(): array
     {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
         $wamid = $this->runId . '_wamid_1';
         $before = $this->adminBalance();
 
@@ -394,6 +421,8 @@ final class ControlledFinancialValidation
         $second = WhatsAppBilling::billDeliveredByWamid($wamid);
         $after = $this->adminBalance();
         $opKey = 'whatsapp:delivered:' . $wamid;
+        $ledger = $this->ledgerByOperationKey($opKey);
+        $queue = isset($ledger[0]['id']) ? $this->syncQueueByLedgerId((int)$ledger[0]['id']) : [];
 
         return [
             'scenario' => 'whatsapp_delivered',
@@ -405,18 +434,24 @@ final class ControlledFinancialValidation
             'valor_debitado' => round($before - $after, 4),
             'first_status' => $first,
             'second_status' => $second,
-            'ledger' => $this->ledgerByOperationKey($opKey),
+            'ledger' => $ledger,
+            'asterisk_sync_queue' => $queue,
             'legacy_log' => $this->legacyLogsForReference($wamid),
             'whatsapp_cdr' => $this->rows('SELECT id, wamid, status, billed, delivered_at, price_brl, created_at FROM whatsapp_message_cdr WHERE wamid = :wamid', [':wamid' => $wamid]),
             'assertions' => [
-                'single_ledger_row' => count($this->ledgerByOperationKey($opKey)) === 1,
+                'single_ledger_row' => count($ledger) === 1,
                 'single_charge_only' => round($before - $after, 4) === 0.80,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
             ],
         ];
     }
 
     private function validateWhatsAppVoiceBilling(): array
     {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
         $callId = $this->runId . '_wa_voice';
         $before = $this->adminBalance();
 
@@ -446,6 +481,8 @@ final class ControlledFinancialValidation
 
         $after = $this->adminBalance();
         $opKey = 'whatsapp_voice:' . $callId;
+        $ledger = $this->ledgerByOperationKey($opKey);
+        $queue = isset($ledger[0]['id']) ? $this->syncQueueByLedgerId((int)$ledger[0]['id']) : [];
 
         return [
             'scenario' => 'whatsapp_voice',
@@ -455,12 +492,156 @@ final class ControlledFinancialValidation
             'saldo_antes' => $before,
             'saldo_depois' => $after,
             'valor_debitado' => round($before - $after, 4),
-            'ledger' => $this->ledgerByOperationKey($opKey),
+            'ledger' => $ledger,
+            'asterisk_sync_queue' => $queue,
             'legacy_log' => $this->legacyLogsForReference($callId),
             'whatsapp_voice_cdr' => $this->rows('SELECT id, call_id, final_price, balance_debited_at, charge_lock_token, updated_at FROM whatsapp_call_cdr WHERE call_id = :call_id', [':call_id' => $callId]),
             'assertions' => [
-                'single_ledger_row' => count($this->ledgerByOperationKey($opKey)) === 1,
+                'single_ledger_row' => count($ledger) === 1,
                 'single_charge_only' => round($before - $after, 4) === 1.40,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
+            ],
+        ];
+    }
+
+    private function validateAdminCreditSync(): array
+    {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
+        $invoice = $this->runId . '_credit_invoice';
+        $before = $this->adminBalance();
+
+        BalanceSms::insertBalance(
+            $this->adminUserId,
+            $this->planId,
+            $this->tenantId,
+            5.00,
+            0.50,
+            0.75,
+            0.75,
+            $invoice,
+            0.75,
+            0.75,
+            0.60,
+            0.00,
+            null,
+            'Validation Credit',
+            'monthly',
+            5.00,
+            'validation_credit:' . $invoice
+        );
+
+        $after = $this->adminBalance();
+        $queue = $this->syncQueueByKey('admin:credit:validation_credit:' . $invoice);
+
+        return [
+            'scenario' => 'admin_credit_sync',
+            'status' => 'validated',
+            'invoice' => $invoice,
+            'saldo_antes' => $before,
+            'saldo_depois' => $after,
+            'valor_creditado' => round($after - $before, 4),
+            'asterisk_sync_queue' => $queue,
+            'assertions' => [
+                'credit_applied' => round($after - $before, 4) === 5.00,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
+            ],
+        ];
+    }
+
+    private function validateAdminRefundSync(): array
+    {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
+        $invoice = $this->runId . '_refund_invoice';
+        BalanceSms::insertBalance(
+            $this->adminUserId,
+            $this->planId,
+            $this->tenantId,
+            4.00,
+            0.50,
+            0.75,
+            0.75,
+            $invoice,
+            0.75,
+            0.75,
+            0.60,
+            0.00,
+            null,
+            'Validation Refund',
+            'monthly',
+            4.00,
+            'validation_refund_credit:' . $invoice
+        );
+
+        $before = $this->adminBalance();
+        BalanceSms::decrementBalance($this->adminUserId, $this->tenantId, 4.00, $invoice);
+        $after = $this->adminBalance();
+        $queue = $this->syncQueueByKey(sprintf('admin:debit:%s:%d:%s', $invoice, $this->adminUserId, number_format(4.00, 4, '.', '')));
+
+        return [
+            'scenario' => 'admin_refund_sync',
+            'status' => 'validated',
+            'invoice' => $invoice,
+            'saldo_antes_estorno' => $before,
+            'saldo_depois_estorno' => $after,
+            'valor_estornado' => round($before - $after, 4),
+            'asterisk_sync_queue' => $queue,
+            'assertions' => [
+                'refund_applied' => round($before - $after, 4) === 4.00,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
+            ],
+        ];
+    }
+
+    private function validateResellerManualRefillSync(): array
+    {
+        AsteriskBalanceSyncService::setDispatcher(static function (): array {
+            return ['ok' => true, 'status' => 200, 'data' => ['success' => true]];
+        });
+
+        $before = $this->resellerBalance();
+        $value = 3.25;
+        $syncKey = 'validation_manual_refill:' . $this->runId;
+
+        $reseller = new UserSearch();
+        $reseller->id = $this->resellerUserId;
+        $reseller->tenancy_id = $this->tenantId;
+        $updated = $reseller->updateRefillReseller($value);
+
+        $sync = null;
+        if ($updated) {
+            $sync = AsteriskBalanceSyncService::enqueueAndProcess([
+                'sync_key' => $syncKey,
+                'tenancy_id' => $this->tenantId,
+                'user_id' => $this->resellerUserId,
+                'wallet' => 'reseller',
+                'source' => 'validation_manual_refill',
+                'amount' => $value,
+                'metadata' => [
+                    'mutation' => 'credit',
+                ],
+            ]);
+        }
+
+        $after = $this->resellerBalance();
+        $queue = $this->syncQueueByKey($syncKey);
+
+        return [
+            'scenario' => 'reseller_manual_refill_sync',
+            'status' => 'validated',
+            'saldo_antes' => $before,
+            'saldo_depois' => $after,
+            'valor_creditado' => round($after - $before, 4),
+            'sync_result' => $sync,
+            'asterisk_sync_queue' => $queue,
+            'assertions' => [
+                'credit_applied' => round($after - $before, 4) === $value,
+                'sync_succeeded' => count($queue) === 1 && ($queue[0]['status'] ?? '') === 'synced',
             ],
         ];
     }
@@ -617,6 +798,28 @@ PHP
              WHERE operation_key = :operation_key
              ORDER BY id ASC',
             [':operation_key' => $operationKey]
+        );
+    }
+
+    private function syncQueueByLedgerId(int $ledgerId): array
+    {
+        return $this->rows(
+            'SELECT id, sync_key, ledger_id, tenancy_id, user_id, wallet, source, status, attempts, balance_snapshot, last_error, next_retry_at, synced_at, created_at
+             FROM asterisk_balance_sync_queue
+             WHERE ledger_id = :ledger_id
+             ORDER BY id ASC',
+            [':ledger_id' => $ledgerId]
+        );
+    }
+
+    private function syncQueueByKey(string $syncKey): array
+    {
+        return $this->rows(
+            'SELECT id, sync_key, ledger_id, tenancy_id, user_id, wallet, source, status, attempts, balance_snapshot, last_error, next_retry_at, synced_at, created_at
+             FROM asterisk_balance_sync_queue
+             WHERE sync_key = :sync_key
+             ORDER BY id ASC',
+            [':sync_key' => $syncKey]
         );
     }
 

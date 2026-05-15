@@ -5,7 +5,6 @@ namespace App\Controller\Pages;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
-use App\Model\Entity\UserSearch;
 
 class PaymentProcessor
 {
@@ -99,26 +98,7 @@ class PaymentProcessor
             );
 
             // =====================================================
-            // 2) 🔻 Estorno no saldo SIP (AsteriskExtensionsSip) = retirar saldo
-            // =====================================================
-            $adminAsterisk = UserSearch::getUserById($tenantId, $adminId);
-            $adminRole = $adminAsterisk['user_function'] ?? 'admin';
-
-            (new AsteriskExtensionsSip())->updateBalance(
-                [
-                    'user_id' => $adminId,
-                    'tenant_id' => $tenantId,
-                ],
-                [
-                    'user_id' => $adminId,
-                    'tenant_id' => $tenantId,
-                    'balance_admin' => -$value, // ✅ estorno = débito
-                    'role' => $adminRole
-                ]
-            );
-
-            // =====================================================
-            // 3) 🔔 Notificação
+            // 2) 🔔 Notificação
             // =====================================================
             Notifications::insertNotifications(
                 $tenantId,

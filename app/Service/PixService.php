@@ -2,14 +2,12 @@
 
 namespace App\Service;
 
-use App\Controller\Pages\AsteriskExtensionsSip;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\PixSearch;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
-use App\Model\Entity\UserSearch;
 
 class PixService
 {
@@ -253,8 +251,6 @@ class PixService
         RegisterTenancies::updateActivePlan((string)$planInfo->tenancy_id, (int)$planInfo->plan_id);
         PlanRuntimeService::refreshPlanRuntime((string)$planInfo->tenancy_id);
 
-        self::syncAdminBalance((int)$planInfo->user_id, (string)$planInfo->tenancy_id, (float)$pix->value);
-
         Notifications::insertNotifications(
             (string)$planInfo->tenancy_id,
             (int)$planInfo->user_id,
@@ -307,8 +303,6 @@ class PixService
         }
 
         BalanceSms::decrementBalance((int)$pix->user_id, (string)$pix->tenancy_id, (float)$pix->value, $paymentReference);
-        self::syncAdminBalance((int)$pix->user_id, (string)$pix->tenancy_id, -1 * (float)$pix->value);
-
         $planInfo = UserPlans::getUserPlanInfo(
             (int)$pix->user_plain_id,
             (int)$pix->user_id,
@@ -373,30 +367,6 @@ class PixService
         }
 
         return 37;
-    }
-
-    private static function syncAdminBalance(int $userId, string $tenancyId, float $amount): void
-    {
-        $admin = UserSearch::getUserById($tenancyId, $userId);
-        $role = $admin['user_function'] ?? 'admin';
-
-        try {
-            (new AsteriskExtensionsSip())->updateBalance(
-                ['user_id' => $userId, 'tenant_id' => $tenancyId],
-                [
-                    'user_id' => $userId,
-                    'tenant_id' => $tenancyId,
-                    'balance_admin' => $amount,
-                    'role' => $role,
-                ]
-            );
-        } catch (\Throwable $e) {
-            self::log('asterisk_balance_sync_failed', [
-                'user_id' => $userId,
-                'tenancy_id' => $tenancyId,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     private static function sanitizeLogContext(array $context): array

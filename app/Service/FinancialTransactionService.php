@@ -144,6 +144,8 @@ class FinancialTransactionService
 
             $db->commit();
 
+            self::dispatchAsteriskBalanceSync($normalized, $ledgerId, $balanceAfter);
+
             return [
                 'ok' => true,
                 'already_applied' => false,
@@ -417,5 +419,36 @@ class FinancialTransactionService
     {
         $value = trim((string)($value ?? ''));
         return $value === '' ? null : $value;
+    }
+
+    private static function dispatchAsteriskBalanceSync(array $normalized, int $ledgerId, float $balanceAfter): void
+    {
+        try {
+            AsteriskBalanceSyncService::enqueueAndProcess([
+                'sync_key' => 'ledger:' . $ledgerId,
+                'ledger_id' => $ledgerId,
+                'tenancy_id' => $normalized['tenancy_id'],
+                'user_id' => $normalized['user_id'],
+                'wallet' => $normalized['wallet'],
+                'source' => $normalized['source'],
+                'amount' => $normalized['amount'],
+                'metadata' => [
+                    'operation_key' => $normalized['operation_key'],
+                    'direction' => 'debit',
+                    'balance_after' => $balanceAfter,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            error_log(json_encode([
+                'event' => 'financial_transaction_asterisk_sync_dispatch_failed',
+                'ledger_id' => $ledgerId,
+                'operation_key' => $normalized['operation_key'] ?? null,
+                'source' => $normalized['source'] ?? null,
+                'tenancy_id' => $normalized['tenancy_id'] ?? null,
+                'user_id' => $normalized['user_id'] ?? null,
+                'wallet' => $normalized['wallet'] ?? null,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
     }
 }

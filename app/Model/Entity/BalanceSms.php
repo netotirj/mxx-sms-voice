@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Model\Entity;
+
+use App\Service\AsteriskBalanceSyncService;
 use PDO;
 use WilliamCosta\DatabaseManager\Database;
 
@@ -159,7 +161,25 @@ class BalanceSms
             ':plan_id' => $planId
         ];
 
-        return (new Database())->execute($query, $params)->rowCount() > 0;
+        $updated = (new Database())->execute($query, $params)->rowCount() > 0;
+
+        if ($updated) {
+            self::dispatchAsteriskSync([
+                'sync_key' => sprintf('admin:set:%s:%d:%d:%s', $tenancyId, $userId, $planId, number_format($newBalance, 4, '.', '')),
+                'tenancy_id' => $tenancyId,
+                'user_id' => $userId,
+                'wallet' => 'admin',
+                'source' => 'balance_update',
+                'amount' => $newBalance,
+                'metadata' => [
+                    'plan_id' => $planId,
+                    'new_balance' => round($newBalance, 4),
+                    'mutation' => 'set',
+                ],
+            ]);
+        }
+
+        return $updated;
     }
 
     public static function insertBalance(
@@ -178,7 +198,8 @@ class BalanceSms
         ?string $snapshotJson = null,
         ?string $appliedPlanName = null,
         ?string $appliedBillingCycle = null,
-        ?float $appliedAmountPlan = null
+        ?float $appliedAmountPlan = null,
+        ?string $syncReference = null
     ): bool {
         // Se tiver invoice, verificar se já foi inserido
         if (!empty($paymentInvoice)) {
@@ -236,7 +257,28 @@ class BalanceSms
             $data['applied_amount_plan'] = $appliedAmountPlan;
         }
 
-        return (new Database('tenancy_balance'))->insert($data);
+        $inserted = (new Database('tenancy_balance'))->insert($data);
+
+        if ($inserted) {
+            $reference = trim((string)($syncReference ?: $paymentInvoice ?: ''));
+            self::dispatchAsteriskSync([
+                'sync_key' => $reference !== ''
+                    ? 'admin:credit:' . $reference
+                    : sprintf('admin:credit:%s:%d:%d:%s', $tenancyId, $userId, $planId, number_format($amountPlan, 4, '.', '')),
+                'tenancy_id' => $tenancyId,
+                'user_id' => $userId,
+                'wallet' => 'admin',
+                'source' => 'balance_insert',
+                'amount' => $amountPlan,
+                'metadata' => [
+                    'plan_id' => $planId,
+                    'payment_invoice' => $paymentInvoice,
+                    'mutation' => 'credit',
+                ],
+            ]);
+        }
+
+        return $inserted;
     }
 
     private static function columnExists(string $table, string $column): bool
@@ -313,7 +355,29 @@ class BalanceSms
             ]
         );
 
-        return $updated->rowCount() > 0;
+        $success = $updated->rowCount() > 0;
+
+        if ($success) {
+            self::dispatchAsteriskSync([
+                'sync_key' => sprintf(
+                    'admin:debit:%s:%d:%s',
+                    $invoiceNumber,
+                    $userId,
+                    number_format($value, 4, '.', '')
+                ),
+                'tenancy_id' => $tenancyId,
+                'user_id' => $userId,
+                'wallet' => 'admin',
+                'source' => 'balance_decrement',
+                'amount' => $value,
+                'metadata' => [
+                    'payment_invoice' => $invoiceNumber,
+                    'mutation' => 'debit',
+                ],
+            ]);
+        }
+
+        return $success;
     }
 
     public static function getByInvoice(string $invoiceNumber): ?self
@@ -341,7 +405,28 @@ class BalanceSms
         $db = new Database();
         $stmt = $db->execute($query, $params);
 
-        return $stmt->rowCount() > 0;
+        $success = $stmt->rowCount() > 0;
+
+        if ($success) {
+            self::dispatchAsteriskSync([
+                'sync_key' => sprintf(
+                    'reseller:debit:%s:%d:%s',
+                    $tenancyId,
+                    $userId,
+                    number_format($amount, 4, '.', '')
+                ),
+                'tenancy_id' => $tenancyId,
+                'user_id' => $userId,
+                'wallet' => 'reseller',
+                'source' => 'reseller_balance_decrement',
+                'amount' => $amount,
+                'metadata' => [
+                    'mutation' => 'debit',
+                ],
+            ]);
+        }
+
+        return $success;
     }
 
     public static function sumAdminServiceFeeFromLogs(string $tenancyId, int $adminUserId): float
@@ -364,6 +449,19 @@ class BalanceSms
     return (float)($row->total ?? 0);
 }
 
-
-
+    private static function dispatchAsteriskSync(array $payload): void
+    {
+        try {
+            AsteriskBalanceSyncService::enqueueAndProcess($payload);
+        } catch (\Throwable $e) {
+            error_log(json_encode([
+                'event' => 'balance_sms_asterisk_sync_dispatch_failed',
+                'sync_key' => $payload['sync_key'] ?? null,
+                'tenancy_id' => $payload['tenancy_id'] ?? null,
+                'user_id' => $payload['user_id'] ?? null,
+                'wallet' => $payload['wallet'] ?? null,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+    }
 }

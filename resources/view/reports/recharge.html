@@ -261,7 +261,10 @@
                     <td class="px-4 py-3 text-xxs font-bold text-slate-400 font-mono">#${r.id}</td>
                     <td class="px-4 py-3 text-left">
                         <div class="text-xs font-bold text-slate-700">${r.email}</div>
-                        <div class="text-[10px] text-slate-400">${r.client_ip || 'IP não registrado'}</div>
+                        <div class="text-[10px] text-slate-400">
+                            ${r.ip_masked || 'IP não registrado'}
+                            ${r.can_view_full_ip && r.ip_full ? `<button type="button" class="ml-2 font-bold text-emerald-600 hover:underline" onclick="toggleRefillIp(this)">Visualizar IP completo</button><span class="ml-2 hidden" data-full-ip>${r.ip_full}</span>` : ''}
+                        </div>
                     </td>
                     <td class="px-4 py-3 font-bold ${valor >= 0 ? 'text-emerald-600' : 'text-red-600'}">
                         ${valorFormatado}
@@ -336,5 +339,12 @@
 
         fetchRefills();
     });
+
+    function toggleRefillIp(button) {
+        const fullIp = button?.parentElement?.querySelector('[data-full-ip]');
+        if (!fullIp) return;
+        fullIp.classList.toggle('hidden');
+        button.textContent = fullIp.classList.contains('hidden') ? 'Visualizar IP completo' : 'Ocultar IP completo';
+    }
 </script>
 

@@ -16,7 +16,6 @@ use WilliamCosta\DatabaseManager\Database;
 class PublicDemo
 {
     private const CHANNELS = ['sms', 'whatsapp', 'call'];
-    private const CTA_URL = '/register';
     private const CTA_LABEL = 'Fazer cadastro no painel';
 
     public static function send($request, string $channel): Response
@@ -843,7 +842,7 @@ class PublicDemo
     {
         return [
             'label' => self::CTA_LABEL,
-            'url' => self::CTA_URL,
+            'url' => self::appUrl('APP_REGISTER_URL', '/register'),
         ];
     }
 
@@ -854,6 +853,21 @@ class PublicDemo
         $host = (string)(parse_url($baseUrl, PHP_URL_HOST) ?: '');
 
         return $host !== '' ? $scheme . '://' . $host : '';
+    }
+
+    private static function appUrl(string $envKey, string $fallbackPath = ''): string
+    {
+        $configured = trim((string)getenv($envKey));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $baseUrl = rtrim((string)(defined('URL') ? URL : ''), '/');
+        if ($baseUrl === '') {
+            $baseUrl = self::sameOriginBase();
+        }
+
+        return $baseUrl . $fallbackPath;
     }
 
     private static function originMatches(string $origin, string ...$allowedOrigins): bool

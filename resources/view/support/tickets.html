@@ -463,6 +463,15 @@
                             <div class="min-w-0">
                                 <p class="text-sm font-semibold text-slate-700">${escapeTicketHtml(formatAuditActor(entry))}</p>
                                 <p class="text-xs text-slate-500">${escapeTicketHtml(describeAuditEntry(entry))}</p>
+                                ${entry.ip_masked ? `
+                                    <div class="mt-2 text-[11px] text-slate-500">
+                                        <span class="font-semibold">IP:</span> ${escapeTicketHtml(entry.ip_masked)}
+                                        ${entry.can_view_full_ip && entry.ip_full ? `
+                                            <button type="button" class="ml-2 font-bold text-emerald-600 hover:underline" onclick="toggleTicketAuditIp(this)">Visualizar IP completo</button>
+                                            <span class="ml-2 hidden" data-full-ip>${escapeTicketHtml(entry.ip_full)}</span>
+                                        ` : ''}
+                                    </div>
+                                ` : ''}
                             </div>
                             <span class="shrink-0 text-xs text-slate-400">${escapeTicketHtml(formatTicketDate(entry.created_at))}</span>
                         </div>
@@ -471,6 +480,13 @@
             </div>
         `;
         container.classList.remove('hidden');
+    }
+
+    function toggleTicketAuditIp(button) {
+        const fullIp = button?.parentElement?.querySelector('[data-full-ip]');
+        if (!fullIp) return;
+        fullIp.classList.toggle('hidden');
+        button.textContent = fullIp.classList.contains('hidden') ? 'Visualizar IP completo' : 'Ocultar IP completo';
     }
 
     function flashLiveBadge() {

@@ -11,6 +11,7 @@ use App\Model\Entity\WhatsAppAccount;
 use App\RedisConn;
 use App\Session\User as SessionUser;
 use App\Service\MetaWhatsAppCloudApi;
+use App\Utils\Privacy;
 use App\Utils\View;
 use GuzzleHttp\Client;
 
@@ -132,7 +133,9 @@ class SupportTickets extends ViewComponents
             'success' => true,
             'ticket' => $ticket,
             'data' => SupportTicket::listMessagesForUser((int)$id, $user),
-            'audit' => SupportTicket::listAuditForUser((int)$id, $user),
+            'audit' => array_map(static function (array $entry) use ($user): array {
+                return array_merge($entry, Privacy::disclosure((string)($entry['ip_address'] ?? ''), $user));
+            }, SupportTicket::listAuditForUser((int)$id, $user)),
             'permissions' => [
                 'reply' => SupportTicket::can($user, 'reply', $ticket),
                 'change_status' => SupportTicket::can($user, 'change_status', $ticket),

@@ -11,7 +11,21 @@ $obRouter->get('/politica-de-privacidade', [
     }
 ]);
 
+$obRouter->get('/politica-de-cookies', [
+    'middlewares' => [],
+    function () {
+        return new Response(200, Pages\Legal::getCookiePolicy());
+    }
+]);
+
 $obRouter->get('/termos-de-servico', [
+    'middlewares' => [],
+    function () {
+        return new Response(200, Pages\Legal::getTerms());
+    }
+]);
+
+$obRouter->get('/termos-de-uso', [
     'middlewares' => [],
     function () {
         return new Response(200, Pages\Legal::getTerms());

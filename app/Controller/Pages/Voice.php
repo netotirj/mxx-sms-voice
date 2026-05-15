@@ -5202,6 +5202,18 @@ final class VoiceCdrRedisProcessor
         $decoded = json_decode($value, true);
         return is_array($decoded) ? $decoded : null;
     }
+
+    private static function isManualTariff(array $tariff): bool
+    {
+        $callType = strtoupper(trim((string)($tariff['call_type'] ?? $tariff['CALL_TYPE'] ?? '')));
+        if ($callType === 'MANUAL') {
+            return true;
+        }
+
+        return empty($tariff['job_id'])
+            && empty($tariff['call_id'])
+            && empty($tariff['campaign_id']);
+    }
 }
 
 final class VoiceCdrMapper
@@ -5219,53 +5231,19 @@ final class VoiceCdrMapper
         $cdr->campaign_type = self::normalizeCampaignType($tariff['campaign_type'] ?? null);
         $cdr->tenancy_id = $tariff['tenant_id'] ?? $tariff['tenancy_id'] ?? null;
         $cdr->user_id = $tariff['owner_id'] ?? $tariff['user_id'] ?? null;
-        $ramal = self::firstNonEmpty([
-            $tariff['channelNumber'] ?? null,
-            $tariff['channel_number'] ?? null,
-        ]);
-        if ($ramal === null && $isRamalLeg) {
-            $ramal = self::firstNonEmpty([
-                $tariff['endpoint'] ?? null,
-                $tariff['endpoints'] ?? null,
-                $tariff['AGENT_RAMAL'] ?? null,
-            ]);
-        }
-        $destination = self::firstExternalNumber([
-            $tariff['destination'] ?? null,
-            $tariff['dst'] ?? null,
-            $tariff['client_number'] ?? null,
-            $tariff['customer_number'] ?? null,
-        ]);
-        $clientNumber = self::firstExternalNumber([
-            $tariff['number'] ?? null,
-            $tariff['NUMBER'] ?? null,
-            $tariff['destination'] ?? null,
-            $tariff['dst'] ?? null,
-            $tariff['client_number'] ?? null,
-            $tariff['customer_number'] ?? null,
-        ]);
-        $callerId = self::firstExternalNumber([
-            $tariff['callerid_num'] ?? null,
-            $tariff['CALLERID(num)'] ?? null,
-            $tariff['CALLERID_NUM'] ?? null,
-            $tariff['caller_number'] ?? null,
-            $tariff['caller_id'] ?? null,
-            $tariff['cid'] ?? null,
-            $tariff['from_number'] ?? null,
-        ]);
+        $ramal = $tariff['channel_number'] ?? null;
+        $destination = $tariff['destination'] ?? null;
+        $clientNumber = $tariff['number'] ?? null;
+        $callerId = $tariff['callerid_num'] ?? null;
 
         $cdr->channel_number = $ramal;
         $cdr->endpoints = $ramal;
         $cdr->callerid_num = $callerId;
         if ($isManual) {
-            $cdr->number = self::firstExternalNumber([
-                $tariff['number'] ?? null,
-                $destination,
-                $cdr->callerid_num,
-            ]);
+            $cdr->number = $clientNumber;
             $cdr->destination = $destination;
         } else {
-            $cdr->number = $clientNumber ?? $destination;
+            $cdr->number = $clientNumber;
             $cdr->destination = $destination;
         }
         $cdr->techprefix = $tariff['techprefix'] ?? null;

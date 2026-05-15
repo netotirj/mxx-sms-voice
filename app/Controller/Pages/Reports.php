@@ -18,6 +18,7 @@ use App\Service\PixService;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
 use App\Session\User as SessionUser;
+use App\Utils\Privacy;
 use App\Utils\View;
 use DateTime;
 use Exception;
@@ -1894,6 +1895,9 @@ class Reports extends ViewComponents
 
         // 3. Busca os dados usando o seu novo método do Model
         $data = RefillsResellers::getTransactions($filters);
+        $data = array_map(static function (array $row) use ($obUser): array {
+            return array_merge($row, Privacy::disclosure((string)($row['client_ip'] ?? ''), $obUser));
+        }, $data);
 
         // 4. Retorna a resposta no padrão Pix (JSON limpo para o JS)
         return new Response(200, [

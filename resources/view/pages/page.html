@@ -8,6 +8,20 @@
     <meta name="permissions-sync-url" content="{{permissionsSyncUrl}}">
     <meta name="permissions-version-key" content="{{permissionsVersionKey}}">
     <title>{{title}}</title>
+    <script>
+        window.MAXX_SYSTEM_PRIVACY_CONFIG = {
+            consentRequired: false,
+            essentialCookiesOnly: true,
+            providers: {
+                googleAnalytics: { enabled: false, consentCategory: 'analytics' },
+                metaPixel: { enabled: false, consentCategory: 'marketing' },
+                googleAds: { enabled: false, consentCategory: 'marketing' },
+                tikTokPixel: { enabled: false, consentCategory: 'marketing' },
+                hotjar: { enabled: false, consentCategory: 'analytics' },
+                clarity: { enabled: false, consentCategory: 'analytics' }
+            }
+        };
+    </script>
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="76x76" href="{{URL}}/resources/assets/img/apple-icon.png" />

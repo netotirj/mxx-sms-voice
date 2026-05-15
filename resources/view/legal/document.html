@@ -59,6 +59,33 @@
             font-size: 14px;
         }
 
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 0 0 28px;
+        }
+
+        .links a {
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .links a:hover {
+            text-decoration: underline;
+        }
+
+        .section + .section {
+            margin-top: 24px;
+        }
+
+        h2 {
+            margin: 0 0 10px;
+            font-size: 20px;
+        }
+
         p {
             margin: 0 0 16px;
         }
@@ -77,6 +104,7 @@
         <p class="brand">Maxx Solutions</p>
         <h1>{{heading}}</h1>
         <p class="updated">Ultima atualizacao: {{updated_at}}</p>
+        <nav class="links">{{document_links}}</nav>
         {{content}}
         <p class="contact">Contato: {{contact_email}}</p>
     </main>

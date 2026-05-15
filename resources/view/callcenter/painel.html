@@ -1624,6 +1624,7 @@
         const txtCron = document.getElementById('cronometro-visor');
         const visorNumero = document.getElementById('visor-numero');
         const input = document.getElementById('numDiscar');
+        const timerPainel = document.getElementById('meuTimer');
 
         logAgentPanel('Timer', 'gerenciarVisor acionado.', {
             acao,
@@ -1636,17 +1637,12 @@
 
         if (acao === 'timer') {
             visorAtivo.classList.remove('hidden');
-            const timerPainel = document.getElementById('meuTimer');
-            segsChamada = currentCallId !== null ? (parseInt(timerPainel?.dataset.seconds) || 0) : 0;
+            segsChamada = parseInt(timerPainel?.dataset.seconds, 10) || 0;
             atualizarCronometroTeclado(segsChamada);
             if (timerCronometroChamada) clearInterval(timerCronometroChamada);
             if (timerVisor) clearInterval(timerVisor);
-            if (currentCallId === null) {
-                timerCronometroChamada = setInterval(() => {
-                    segsChamada++;
-                    atualizarCronometroTeclado(segsChamada);
-                }, 1000);
-            }
+            timerCronometroChamada = null;
+            timerVisor = null;
         } else if (acao === 'fechar') {
             visorAtivo.classList.add('hidden');
             clearInterval(timerCronometroChamada);
@@ -1666,17 +1662,12 @@
             visorAtivo.classList.remove('hidden');
             if (msg) txtProgresso.innerText = msg;
             if (visorNumero) visorNumero.innerText = input?.value || visorNumero.innerText || '';
-            const timerPainel = document.getElementById('meuTimer');
-            segsChamada = currentCallId !== null ? (parseInt(timerPainel?.dataset.seconds) || 0) : 0;
+            segsChamada = parseInt(timerPainel?.dataset.seconds, 10) || 0;
             atualizarCronometroTeclado(segsChamada);
             clearInterval(timerCronometroChamada);
             clearInterval(timerVisor);
-            if (currentCallId === null) {
-                timerVisor = setInterval(() => {
-                    segsChamada++;
-                    atualizarCronometroTeclado(segsChamada);
-                }, 1000);
-            }
+            timerCronometroChamada = null;
+            timerVisor = null;
         } else {
             visorAtivo.classList.add('hidden');
             clearInterval(timerCronometroChamada);

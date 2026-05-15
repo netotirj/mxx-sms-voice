@@ -5127,6 +5127,7 @@ final class VoiceCdrRedisProcessor
     {
         $callContext = null;
         $channelContext = null;
+        $isRamalLeg = self::isManualTariff($tariff) || (float)($tariff['value'] ?? 0) <= 0.0000;
 
         $callId = trim((string)($tariff['call_id'] ?? ''));
         if ($callId !== '') {
@@ -5170,7 +5171,7 @@ final class VoiceCdrRedisProcessor
                 }
             }
 
-            if (empty($tariff['channelNumber']) && empty($tariff['channel_number'])) {
+            if ($isRamalLeg && empty($tariff['channelNumber']) && empty($tariff['channel_number'])) {
                 foreach (['channel_number', 'channelNumber', 'endpoint', 'endpoints', 'AGENT_RAMAL'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['channelNumber'] = $context[$alias];
@@ -5179,7 +5180,7 @@ final class VoiceCdrRedisProcessor
                 }
             }
 
-            if (empty($tariff['endpoints'])) {
+            if ($isRamalLeg && empty($tariff['endpoints'])) {
                 foreach (['endpoints', 'endpoint', 'AGENT_RAMAL'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['endpoints'] = $context[$alias];
@@ -5209,6 +5210,7 @@ final class VoiceCdrMapper
     {
         $cdr = new CdrVoice();
         $isManual = self::isManualTariff($tariff);
+        $isRamalLeg = $isManual || (float)($tariff['value'] ?? 0) <= 0.0000;
 
         $cdr->channel_id = (string)($tariff['channel_id'] ?? '');
         $cdr->job_id = $tariff['job_id'] ?? null;
@@ -5220,10 +5222,14 @@ final class VoiceCdrMapper
         $ramal = self::firstNonEmpty([
             $tariff['channelNumber'] ?? null,
             $tariff['channel_number'] ?? null,
-            $tariff['endpoint'] ?? null,
-            $tariff['endpoints'] ?? null,
-            $tariff['AGENT_RAMAL'] ?? null,
         ]);
+        if ($ramal === null && $isRamalLeg) {
+            $ramal = self::firstNonEmpty([
+                $tariff['endpoint'] ?? null,
+                $tariff['endpoints'] ?? null,
+                $tariff['AGENT_RAMAL'] ?? null,
+            ]);
+        }
         $destination = self::firstExternalNumber([
             $tariff['destination'] ?? null,
             $tariff['dst'] ?? null,

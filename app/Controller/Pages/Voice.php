@@ -3105,7 +3105,16 @@ class Voice extends ViewComponents
 
             $root = $find($keysByIndex[$i][0]);
             $groupAnswered = $answeredByRoot[$root] ?? null;
-            if (!$groupAnswered || self::hasAnsweredStatusLabel($call) || !self::isLikelyAgentLiveCallLeg($call)) {
+            $agentStatus = strtolower(trim((string)($call['agent_call_status'] ?? '')));
+            $agentConfirmed = in_array($agentStatus, ['answered', 'up', 'bridged'], true)
+                || !empty($call['agent_answered_at']);
+
+            if (
+                !$groupAnswered
+                || self::hasAnsweredStatusLabel($call)
+                || !self::isLikelyAgentLiveCallLeg($call)
+                || !$agentConfirmed
+            ) {
                 continue;
             }
 

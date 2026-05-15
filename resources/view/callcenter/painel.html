@@ -658,6 +658,35 @@
         currentCallAnswered = false;
     }
 
+    function chamadaAtendidaDeFato(chamada = {}) {
+        const agentStatus = String(chamada.agent_call_status || '').toLowerCase().trim();
+        if (['answered', 'up', 'bridged'].includes(agentStatus)) {
+            return true;
+        }
+
+        const agentAnsweredAt = Number(chamada.agent_answered_at || 0);
+        if (agentAnsweredAt > 0) {
+            return true;
+        }
+
+        const answeredAt = Number(chamada.answered || 0);
+        if (answeredAt <= 0) {
+            return false;
+        }
+
+        const vars = (chamada && typeof chamada.vars === 'object' && chamada.vars) ? chamada.vars : {};
+        const hasAgentHints = Boolean(
+            chamada.agente
+            || chamada.agent_id
+            || chamada.agent_channel_id
+            || vars.AGENT_ID
+            || vars.AGENT_RAMAL
+            || vars.__RAMAL
+        );
+
+        return !hasAgentHints;
+    }
+
     function mesclarDadosClienteAtual(incomingCliente = {}, fallback = {}) {
         const anterior = currentCallCustomerData && typeof currentCallCustomerData === 'object'
             ? currentCallCustomerData
@@ -2509,7 +2538,9 @@
                 if (chamadaParaMim) {
                     limparFechamentoPendenteChamada();
                     currentCallLastSeenAt = Date.now();
-                    currentCallAnswered = currentCallAnswered || !!chamadaParaMim.is_up || existeChamadaWebRTCAtiva();
+                    currentCallAnswered = currentCallAnswered
+                        || chamadaAtendidaDeFato(chamadaParaMim)
+                        || existeChamadaWebRTCAtiva();
 
                     const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
                     let telefoneReal = (limparEContar(chamadaParaMim.dest) === 8) ? chamadaParaMim.caller : chamadaParaMim.dest;

@@ -336,6 +336,32 @@
             return `${m}:${ss}`;
         };
 
+        const isAnsweredCall = (call = {}) => {
+            const agentStatus = String(call.agent_call_status || '').toLowerCase().trim();
+            if (['answered', 'up', 'bridged'].includes(agentStatus)) {
+                return true;
+            }
+
+            if (Number(call.agent_answered_at || 0) > 0) {
+                return true;
+            }
+
+            if (Number(call.answered || 0) <= 0) {
+                return false;
+            }
+
+            const vars = (call && typeof call.vars === 'object' && call.vars) ? call.vars : {};
+            const hasAgentHints = Boolean(
+                call.agent_id
+                || call.agent_channel_id
+                || vars.AGENT_ID
+                || vars.AGENT_RAMAL
+                || vars.__RAMAL
+            );
+
+            return !hasAgentHints;
+        };
+
         const computeSkewMs = (payload) => {
             if (payload && typeof payload.server_now === 'number') {
                 return Date.now() - payload.server_now * 1000;
@@ -410,7 +436,7 @@
                     const dtmfTxt   = cleanText(call.dtmf);
 
                     // ✅ status class baseado no texto limpo
-                    const statusClass = statusTxt.includes('Atendida')
+                    const statusClass = (isAnsweredCall(call) || statusTxt.includes('Atendida'))
                         ? 'text-emerald-600'
                         : statusTxt.includes('Ocupada')
                             ? 'text-red-500'
@@ -609,7 +635,7 @@
             const chamadas = Array.isArray(payload.chamadas) ? payload.chamadas : [];
             currentCalls = chamadas;
 
-            const atendidas = chamadas.filter(c => (c.status || '').includes('Atendida')).length;
+            const atendidas = chamadas.filter(c => isAnsweredCall(c)).length;
 
             // 🟢 Badge de atendidas
             if (badgeAtendidas) {
@@ -646,7 +672,7 @@
                 const startedEpoch = (call.started ?? 0) * 1000;
                 const answeredEpoch = typeof call.answered === 'number' ? call.answered * 1000 : null;
 
-                if (call.state === 'up') {
+                if (call.state === 'up' && isAnsweredCall(call)) {
                     const baseMs = (answeredEpoch ?? startedEpoch) - skewMs;
 
                     if (!timeAnchors.has(id)) {
@@ -698,7 +724,7 @@
             }
 
             currentCalls
-                .filter(c => (c.status || '').includes('Atendida'))
+                .filter(c => isAnsweredCall(c))
                 .forEach(call => {
                     const callId = String(call.id ?? call.name ?? '');
                     const selected = isListening && listeningCallId === callId;

@@ -5471,6 +5471,7 @@ final class VoiceCdrMapper
 
         self::removeTechPrefix($cdr);
         self::normalizeExtensionLeg($cdr);
+        self::normalizeAnsweredOutcome($cdr, $tariff);
 
         return $cdr;
     }
@@ -5695,6 +5696,49 @@ final class VoiceCdrMapper
         $cdr->channel_number = $extension;
     }
 
+    private static function normalizeAnsweredOutcome(CdrVoice $cdr, array $tariff): void
+    {
+        $dialstatus = strtoupper(trim((string)($cdr->dialstatus ?? '')));
+        if ($dialstatus === 'ANSWER') {
+            return;
+        }
+
+        $cause = (int)($cdr->cause ?? 0);
+        $sipCode = trim((string)($cdr->sip_code ?? ''));
+        $billsec = (int)($cdr->billsec ?? 0);
+        $billedSeconds = (int)($cdr->billed_seconds ?? 0);
+        $answeredAt = trim((string)($cdr->answered ?? ''));
+        $state = strtolower(trim((string)($cdr->state ?? '')));
+        $agentStatus = strtolower(trim((string)($tariff['agent_call_status'] ?? $tariff['agent_call_outcome'] ?? '')));
+        $inBridge = (bool)($tariff['in_bridge'] ?? false);
+        $agentAnsweredAt = (int)($tariff['agent_answered_at'] ?? 0);
+        $externalLeg = !Voice::isRamalCdr($cdr->channel_number, $cdr->number, $cdr->destination);
+
+        if (!$externalLeg) {
+            return;
+        }
+
+        $answeredSignals = [
+            $billsec > 0,
+            $billedSeconds > 0,
+            $answeredAt !== '' && $answeredAt !== '0000-00-00 00:00:00',
+            $sipCode === '200',
+            $cause === 16,
+            $state === 'up',
+            $inBridge,
+            in_array($agentStatus, ['answered', 'up', 'bridged'], true),
+            $agentAnsweredAt > 0,
+        ];
+
+        if (in_array(true, $answeredSignals, true)) {
+            $cdr->dialstatus = 'ANSWER';
+
+            if (empty($cdr->cause_txt) && ($cause === 16 || $sipCode === '200')) {
+                $cdr->cause_txt = 'Normal Clearing';
+            }
+        }
+    }
+
     private static function onlyDigits(mixed $value): string
     {
         return preg_replace('/\D+/', '', (string)($value ?? '')) ?: '';
@@ -5791,7 +5835,7 @@ final class VoiceCampaignCdrUpdater
 {
     public static function update(CdrVoice $cdr): void
     {
-        if (empty($cdr->campaign_id) || empty($cdr->dialstatus)) {
+        if (empty($cdr->campaign_id)) {
             return;
         }
 
@@ -5799,10 +5843,38 @@ final class VoiceCampaignCdrUpdater
             return;
         }
 
+        $status = self::normalizeCampaignDialstatus($cdr);
+
         CampaignVoice::incrementCampaignCounters(
             (int)$cdr->campaign_id,
-            (string)$cdr->dialstatus
+            $status
         );
+    }
+
+    private static function normalizeCampaignDialstatus(CdrVoice $cdr): string
+    {
+        $dialstatus = strtoupper(trim((string)($cdr->dialstatus ?? '')));
+        if ($dialstatus === 'ANSWER') {
+            return 'ANSWER';
+        }
+
+        $answeredAt = trim((string)($cdr->answered ?? ''));
+        $billsec = (int)($cdr->billsec ?? 0);
+        $billedSeconds = (int)($cdr->billed_seconds ?? 0);
+        $sipCode = trim((string)($cdr->sip_code ?? ''));
+        $cause = (int)($cdr->cause ?? 0);
+
+        if (
+            ($answeredAt !== '' && $answeredAt !== '0000-00-00 00:00:00')
+            || $billsec > 0
+            || $billedSeconds > 0
+            || $sipCode === '200'
+            || $cause === 16
+        ) {
+            return 'ANSWER';
+        }
+
+        return $dialstatus !== '' ? $dialstatus : 'FAILED';
     }
 }
 

@@ -292,8 +292,32 @@ class CampaignVoice
         $sql = "
             SELECT
                 COUNT(*) AS total_calls,
-                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) = 'ANSWER' THEN 1 ELSE 0 END) AS answered_calls,
-                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) = 'ANSWER' THEN 0 ELSE 1 END) AS failed_calls
+                SUM(
+                    CASE
+                        WHEN (
+                            UPPER(COALESCE(dialstatus, '')) = 'ANSWER'
+                            OR COALESCE(NULLIF(answered, '0000-00-00 00:00:00'), '') <> ''
+                            OR COALESCE(billsec, 0) > 0
+                            OR COALESCE(billed_seconds, 0) > 0
+                            OR COALESCE(sip_code, '') = '200'
+                            OR COALESCE(cause, 0) = 16
+                        ) THEN 1
+                        ELSE 0
+                    END
+                ) AS answered_calls,
+                SUM(
+                    CASE
+                        WHEN (
+                            UPPER(COALESCE(dialstatus, '')) = 'ANSWER'
+                            OR COALESCE(NULLIF(answered, '0000-00-00 00:00:00'), '') <> ''
+                            OR COALESCE(billsec, 0) > 0
+                            OR COALESCE(billed_seconds, 0) > 0
+                            OR COALESCE(sip_code, '') = '200'
+                            OR COALESCE(cause, 0) = 16
+                        ) THEN 0
+                        ELSE 1
+                    END
+                ) AS failed_calls
             FROM cdr
             WHERE campaign_id = :campaign_id
               AND (:job_id = '' OR job_id = :job_id)

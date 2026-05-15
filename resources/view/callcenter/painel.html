@@ -2816,7 +2816,16 @@
                 })
             });
 
-            const result = await response.json();
+            const text = await response.text();
+            let result;
+
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                warnWebRTC("Resposta bruta do servidor (WhatsApp protocolo):", text);
+                throw new Error("Erro interno no servidor. Verifique os logs do PHP/Apache.");
+            }
+
             if (!response.ok || !result.success) {
                 throw new Error(result.message || 'Falha ao enviar protocolo por WhatsApp.');
             }

@@ -219,25 +219,7 @@ class CdrVoice
 
     private static function ensureCallerIdColumn(): void
     {
-        static $checked = false;
-
-        if ($checked) {
-            return;
-        }
-
-        $checked = true;
-
-        if (self::hasColumn('callerid_num')) {
-            return;
-        }
-
-        try {
-            (new Database())->execute(
-                "ALTER TABLE cdr ADD COLUMN callerid_num VARCHAR(32) NULL AFTER endpoints"
-            );
-        } catch (\Throwable) {
-            // segue sem derrubar o fluxo; a coluna pode já ter sido criada em paralelo
-        }
+        // Mantido como no-op: o fluxo de CDR nao deve alterar a estrutura do banco.
     }
 
 

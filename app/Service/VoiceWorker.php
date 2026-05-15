@@ -414,6 +414,7 @@ class VoiceWorker
                     "voice:call_context:{$callId}",
                     300,
                     json_encode([
+                        'phone'        => $data['phone'] ?? null,
                         'endpoints'    => $endpoints,
                         'ramal'        => $ramal,
                         'strategy'     => $strategy,
@@ -422,11 +423,17 @@ class VoiceWorker
                         'tenant_id'    => $data['tenant_id'] ?? '0', // 🚀 Essencial para o caminho da pasta
                         'user_id'      => $data['user_id'] ?? '0',   // 🚀 Essencial para o caminho da pasta
                         'record_calls' => (int)($data['record_calls'] ?? 0), // 🚀 O gatilho!
-                        'callerid_num' => $data['CALLERID(num)'] ?? $data['CALLERID_NUM'] ?? $data['callerid_num'] ?? null,
+                        'caller_id'    => $data['caller_id'] ?? null,
+                        'callerid_num' => $data['CALLERID(num)'] ?? $data['CALLERID_NUM'] ?? $data['callerid_num'] ?? $data['caller_id'] ?? null,
+                        'CALLERID(num)' => $data['CALLERID(num)'] ?? $data['CALLERID_NUM'] ?? $data['callerid_num'] ?? $data['caller_id'] ?? null,
+                        'CALLERID_NUM' => $data['CALLERID_NUM'] ?? $data['CALLERID(num)'] ?? $data['callerid_num'] ?? $data['caller_id'] ?? null,
+                        'caller_number' => $data['CALLERID(num)'] ?? $data['CALLERID_NUM'] ?? $data['callerid_num'] ?? $data['caller_id'] ?? null,
                         'callerid_name' => $data['CALLERID(name)'] ?? $data['CALLERID_NAME'] ?? $data['callerid_name'] ?? null,
-                        'extension'    => $data['EXTENSION'] ?? $data['extension'] ?? null,
-                        'destination'  => $data['DESTINATION'] ?? $data['destination'] ?? null,
-                        'number'       => $data['number'] ?? $data['NUMBER'] ?? null,
+                        'extension'    => $data['EXTENSION'] ?? $data['extension'] ?? $data['phone'] ?? null,
+                        'destination'  => $data['DESTINATION'] ?? $data['destination'] ?? $data['phone'] ?? null,
+                        'number'       => $data['number'] ?? $data['NUMBER'] ?? $data['phone'] ?? null,
+                        'client_number' => $data['client_number'] ?? $data['customer_number'] ?? $data['number'] ?? $data['NUMBER'] ?? $data['phone'] ?? null,
+                        'customer_number' => $data['customer_number'] ?? $data['client_number'] ?? $data['number'] ?? $data['NUMBER'] ?? $data['phone'] ?? null,
                         'queue_id'     => $data['QUEUE_ID'] ?? $data['queue_id'] ?? null,
                         'campaign_id'  => $data['CAMPAIGN_ID'] ?? $data['campaign_id'] ?? null,
                         'voice_list_id' => $data['VOICE_LIST_ID'] ?? $data['voice_list_id'] ?? null,
@@ -1146,6 +1153,18 @@ class VoiceWorker
 
         if (!isset($ctx['destination']) && !empty($callCtx['destination'])) {
             $ctx['destination'] = $callCtx['destination'];
+        }
+
+        if (!isset($ctx['number']) && !empty($callCtx['number'])) {
+            $ctx['number'] = $callCtx['number'];
+        }
+
+        if (!isset($ctx['client_number']) && !empty($callCtx['client_number'])) {
+            $ctx['client_number'] = $callCtx['client_number'];
+        }
+
+        if (!isset($ctx['customer_number']) && !empty($callCtx['customer_number'])) {
+            $ctx['customer_number'] = $callCtx['customer_number'];
         }
 
         $this->redis->setex("voice:channel_context:{$channelId}", 60, json_encode($ctx, JSON_UNESCAPED_UNICODE));

@@ -5145,7 +5145,7 @@ final class VoiceCdrRedisProcessor
             }
 
             if (empty($tariff['callerid_num'])) {
-                foreach (['callerid_num', 'CALLERID(num)', 'CALLERID_NUM', 'caller_number'] as $alias) {
+                foreach (['callerid_num', 'CALLERID(num)', 'CALLERID_NUM', 'caller_number', 'caller_id'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['callerid_num'] = $context[$alias];
                         break;
@@ -5154,7 +5154,7 @@ final class VoiceCdrRedisProcessor
             }
 
             if (empty($tariff['number'])) {
-                foreach (['number', 'NUMBER', 'callerid_num', 'CALLERID(num)', 'CALLERID_NUM', 'caller_number'] as $alias) {
+                foreach (['number', 'NUMBER', 'destination', 'DESTINATION', 'dst', 'client_number', 'customer_number', 'EXTENSION', 'extension', 'phone'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['number'] = $context[$alias];
                         break;
@@ -5163,7 +5163,7 @@ final class VoiceCdrRedisProcessor
             }
 
             if (empty($tariff['destination'])) {
-                foreach (['destination', 'DESTINATION', 'dst', 'EXTENSION', 'extension'] as $alias) {
+                foreach (['destination', 'DESTINATION', 'dst', 'client_number', 'customer_number', 'EXTENSION', 'extension', 'number', 'NUMBER', 'phone'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['destination'] = $context[$alias];
                         break;
@@ -5233,38 +5233,44 @@ final class VoiceCdrMapper
         $destination = self::firstExternalNumber([
             $tariff['destination'] ?? null,
             $tariff['dst'] ?? null,
+            $tariff['client_number'] ?? null,
+            $tariff['customer_number'] ?? null,
             $tariff['EXTENSION'] ?? null,
             $tariff['extension'] ?? null,
+        ]);
+        $clientNumber = self::firstExternalNumber([
+            $tariff['number'] ?? null,
+            $tariff['NUMBER'] ?? null,
+            $tariff['destination'] ?? null,
+            $tariff['dst'] ?? null,
+            $tariff['client_number'] ?? null,
+            $tariff['customer_number'] ?? null,
+            $tariff['EXTENSION'] ?? null,
+            $tariff['extension'] ?? null,
+        ]);
+        $callerId = self::firstExternalNumber([
+            $tariff['callerid_num'] ?? null,
+            $tariff['CALLERID(num)'] ?? null,
+            $tariff['CALLERID_NUM'] ?? null,
+            $tariff['caller_number'] ?? null,
+            $tariff['caller_id'] ?? null,
+            $tariff['cid'] ?? null,
+            $tariff['from_number'] ?? null,
         ]);
 
         $cdr->channel_number = $ramal;
         $cdr->endpoints = $ramal;
-        $cdr->callerid_num = $isManual
-            ? self::firstExternalNumber([
-                $tariff['callerid_num'] ?? null,
-                $tariff['CALLERID(num)'] ?? null,
-                $tariff['CALLERID_NUM'] ?? null,
-                $tariff['number'] ?? null,
-            ])
-            : self::firstExternalNumber([
-                $tariff['callerid_num'] ?? null,
-                $tariff['CALLERID(num)'] ?? null,
-                $tariff['CALLERID_NUM'] ?? null,
-            ]);
+        $cdr->callerid_num = $callerId;
         if ($isManual) {
             $cdr->number = self::firstExternalNumber([
-                $cdr->callerid_num,
                 $tariff['number'] ?? null,
                 $destination,
+                $cdr->callerid_num,
             ]);
             $cdr->destination = $destination;
         } else {
-            $cdr->number = self::firstExternalNumber([
-                $cdr->callerid_num,
-                $tariff['number'] ?? null,
-                $destination,
-            ]);
-            $cdr->destination = $destination;
+            $cdr->number = $clientNumber ?? $destination;
+            $cdr->destination = $destination ?? $clientNumber;
         }
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';
@@ -5393,10 +5399,6 @@ final class VoiceCdrMapper
 
         if ($extension === '' || !self::isExtension($extension)) {
             return;
-        }
-
-        if (trim((string)($cdr->destination ?? '')) === '') {
-            $cdr->destination = $extension;
         }
 
         $cdr->channel_number = $extension;

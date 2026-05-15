@@ -942,6 +942,15 @@
         return estabelecida || incomingAnswerInFlight || chamadaWebRTCAceita;
     }
 
+    function existeSessaoWebRTCEmCurso() {
+        if (!sessaoVoz) return false;
+
+        const encerrada = typeof sessaoVoz.isEnded === 'function' && sessaoVoz.isEnded();
+        if (encerrada) return false;
+
+        return true;
+    }
+
     function manterCardChamadaAtiva() {
         const activeCallContainer = document.getElementById('activeCallContainer');
         if (activeCallContainer) activeCallContainer.classList.remove('hidden');
@@ -2483,7 +2492,7 @@
                 if (chamadaParaMim) {
                     limparFechamentoPendenteChamada();
                     currentCallLastSeenAt = Date.now();
-                    currentCallAnswered = !!chamadaParaMim.is_up || existeChamadaWebRTCAtiva();
+                    currentCallAnswered = currentCallAnswered || !!chamadaParaMim.is_up || existeChamadaWebRTCAtiva();
 
                     const limparEContar = (val) => String(val || "").replace(/\D/g, '').length;
                     let telefoneReal = (limparEContar(chamadaParaMim.dest) === 8) ? chamadaParaMim.caller : chamadaParaMim.dest;
@@ -2520,7 +2529,9 @@
                             || aguardandoCampanha
                             || !currentCallCustomerData;
 
-                        currentCallId = chamadaParaMim.id;
+                        if (!currentCallId || previousStableId !== stableId) {
+                            currentCallId = chamadaParaMim.id;
+                        }
                         const pernaDoAgente = listaChamadas.find(c =>
                             chamadaPertenceAoAgente(c)
                             && String(c.dest) === String(ramal)
@@ -3438,13 +3449,15 @@
 
     function atualizarInterfaceStatus(dados) {
         const badge = document.getElementById('statusBadge'), timerEl = document.getElementById('meuTimer'), label = document.getElementById('timerLabel'), contAtivo = document.getElementById('activeCallContainer'), grid = document.getElementById('clienteDetalhesGrid'), botoes = document.querySelectorAll('#gridAcoesAgente button');
+        const chamadaEmCursoNoPainel = currentCallId !== null || currentCallStableId !== null;
+        const sessaoWebrtcEmCurso = existeSessaoWebRTCEmCurso();
 
         ultimoStatusAgente = dados || ultimoStatusAgente;
         atualizarEstadoBotoesStatus();
 
-        if (currentCallAnswered || existeChamadaWebRTCAtiva()) {
+        if (chamadaEmCursoNoPainel || sessaoWebrtcEmCurso) {
             if (badge) { badge.innerText = "EM ATENDIMENTO"; badge.className = "bg-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm"; }
-            if (label) label.innerText = "DURAÇÃO DA CHAMADA";
+            if (label) label.innerText = currentCallAnswered ? "DURAÇÃO DA CHAMADA" : "AGUARDANDO ATENDIMENTO";
             manterCardChamadaAtiva();
             return;
         }

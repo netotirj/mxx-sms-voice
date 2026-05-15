@@ -2407,6 +2407,7 @@ class Reports extends ViewComponents
     {
         $callerId = '';
         $extension = '';
+        $externalDestination = '';
 
         foreach ($rows as $row) {
             foreach ([
@@ -2418,6 +2419,20 @@ class Reports extends ViewComponents
                 $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
                 if ($normalized !== '' && !self::isVoiceCdrExtensionValue($normalized)) {
                     $callerId = $normalized;
+                    break 2;
+                }
+            }
+        }
+
+        foreach ($rows as $row) {
+            foreach ([
+                $row['destination'] ?? null,
+                $row['number'] ?? null,
+                $row['dst'] ?? null,
+            ] as $candidate) {
+                $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+                if ($normalized !== '' && !self::isVoiceCdrExtensionValue($normalized)) {
+                    $externalDestination = $normalized;
                     break 2;
                 }
             }
@@ -2441,6 +2456,7 @@ class Reports extends ViewComponents
         return [
             'callerid' => $callerId,
             'extension' => $extension,
+            'external_destination' => $externalDestination,
         ];
     }
 
@@ -2468,6 +2484,13 @@ class Reports extends ViewComponents
 
     private static function resolveVoiceCdrDisplayDestination(array $row, array $context = []): string
     {
+        if (self::isVoiceCdrAgentLeg($row, $context)) {
+            $extension = trim((string)($context['extension'] ?? ''));
+            if ($extension !== '') {
+                return $extension;
+            }
+        }
+
         foreach ([
             $row['destination'] ?? null,
             $row['number'] ?? null,
@@ -2515,6 +2538,34 @@ class Reports extends ViewComponents
 
         $len = strlen($normalized);
         return $len >= 3 && $len <= 8;
+    }
+
+    private static function isVoiceCdrAgentLeg(array $row, array $context = []): bool
+    {
+        $channel = self::normalizeVoiceCdrDisplayNumber($row['channel_number'] ?? $row['endpoints'] ?? '');
+        if ($channel === '' || !self::isVoiceCdrExtensionValue($channel)) {
+            return false;
+        }
+
+        $rowCallerId = self::normalizeVoiceCdrDisplayNumber($row['callerid_num'] ?? $row['caller_number'] ?? '');
+        $rowDestination = self::normalizeVoiceCdrDisplayNumber($row['destination'] ?? $row['number'] ?? $row['dst'] ?? '');
+        $contextCallerId = trim((string)($context['callerid'] ?? ''));
+        $contextExternalDestination = trim((string)($context['external_destination'] ?? ''));
+        $value = (float)($row['value'] ?? 0);
+
+        if ($value <= 0.0001) {
+            return true;
+        }
+
+        if ($rowCallerId === '' && $contextCallerId !== '') {
+            return true;
+        }
+
+        if ($rowDestination !== '' && $contextExternalDestination !== '' && $rowDestination === $contextExternalDestination) {
+            return true;
+        }
+
+        return false;
     }
 
     private static function voiceCdrSortTimestamp(array $rows): int

@@ -2881,6 +2881,7 @@ class Voice extends ViewComponents
             $payload = $data ? json_decode($data, true) : null;
             $calls = $payload['chamadas'] ?? [];
             $calls = self::hydrateDtmfAcrossRelatedCalls(is_array($calls) ? $calls : []);
+            $calls = self::hydrateAnsweredStateAcrossRelatedCalls($calls);
 
             // ===== Normaliza dados do usuário =====
             $userRole = strtolower((string)($user['function'] ?? 'reseller'));
@@ -3037,6 +3038,118 @@ class Voice extends ViewComponents
         return $calls;
     }
 
+    private static function hydrateAnsweredStateAcrossRelatedCalls(array $calls): array
+    {
+        $parent = [];
+        $find = static function (string $key) use (&$parent, &$find): string {
+            if (!isset($parent[$key])) {
+                $parent[$key] = $key;
+            }
+            if ($parent[$key] !== $key) {
+                $parent[$key] = $find($parent[$key]);
+            }
+            return $parent[$key];
+        };
+        $union = static function (string $a, string $b) use (&$parent, $find): void {
+            $ra = $find($a);
+            $rb = $find($b);
+            if ($ra !== $rb) {
+                $parent[$rb] = $ra;
+            }
+        };
+
+        $keysByIndex = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call)) {
+                $keysByIndex[$i] = [];
+                continue;
+            }
+
+            $keys = self::callRelationKeys($call);
+            $keysByIndex[$i] = $keys;
+
+            for ($j = 1; $j < count($keys); $j++) {
+                $union($keys[0], $keys[$j]);
+            }
+        }
+
+        $answeredByRoot = [];
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+
+            if (!self::isAnsweredLiveCall($call)) {
+                continue;
+            }
+
+            $root = $find($keysByIndex[$i][0]);
+            $answeredAt = (int)($call['answered'] ?? 0);
+            $startedAt = (int)($call['started'] ?? 0);
+            $score = max($answeredAt, $startedAt);
+
+            if (!isset($answeredByRoot[$root]) || $score >= $answeredByRoot[$root]['score']) {
+                $answeredByRoot[$root] = [
+                    'score' => $score,
+                    'answered' => $answeredAt,
+                    'started' => $startedAt,
+                ];
+            }
+        }
+
+        foreach ($calls as $i => $call) {
+            if (!is_array($call) || empty($keysByIndex[$i])) {
+                continue;
+            }
+
+            $root = $find($keysByIndex[$i][0]);
+            $groupAnswered = $answeredByRoot[$root] ?? null;
+            if (!$groupAnswered || self::isAnsweredLiveCall($call) || !self::isLikelyAgentLiveCallLeg($call)) {
+                continue;
+            }
+
+            $calls[$i]['status'] = 'Atendida';
+            $calls[$i]['state'] = 'up';
+
+            if (empty($calls[$i]['answered']) && !empty($groupAnswered['answered'])) {
+                $calls[$i]['answered'] = $groupAnswered['answered'];
+            }
+
+            if (empty($calls[$i]['started']) && !empty($groupAnswered['started'])) {
+                $calls[$i]['started'] = $groupAnswered['started'];
+            }
+        }
+
+        return $calls;
+    }
+
+    private static function isAnsweredLiveCall(array $call): bool
+    {
+        $state = strtolower(trim((string)($call['state'] ?? '')));
+        if ($state === 'up') {
+            return true;
+        }
+
+        $status = mb_strtolower(trim((string)($call['status'] ?? '')));
+        return str_contains($status, 'atendida');
+    }
+
+    private static function isLikelyAgentLiveCallLeg(array $call): bool
+    {
+        $trunk = strtoupper(trim((string)($call['trunk'] ?? '')));
+        if ($trunk === 'RAMAL') {
+            return true;
+        }
+
+        $destination = self::onlyDigits((string)($call['destination'] ?? ''));
+        if ($destination !== '' && self::isExtension($destination)) {
+            return true;
+        }
+
+        $number = self::onlyDigits((string)($call['number'] ?? ''));
+        return $number !== '' && self::isExtension($number);
+    }
+
     private static function callRelationKeys(array $call): array
     {
         $vars = is_array($call['vars'] ?? null) ? $call['vars'] : [];
@@ -3159,6 +3272,8 @@ class Voice extends ViewComponents
                 (int)($activeCallsByJob[$jobId] ?? 0),
                 (int)($queuedByJob[$jobId] ?? 0)
             );
+
+            $campaign = self::reconcileCampaignCountersFromCdr($campaign, $runtime);
 
             self::synchronizeCampaignRuntimeState($redis, $jobId, $campaign, $runtime);
 
@@ -3301,6 +3416,35 @@ class Voice extends ViewComponents
             'orphaned' => $orphaned,
             'finished_at' => $finishedAt > 0 ? date('Y-m-d H:i:s', $finishedAt) : null,
         ];
+    }
+
+    private static function reconcileCampaignCountersFromCdr(array $campaign, array $runtime): array
+    {
+        if (($campaign['source'] ?? 'campaign') !== 'campaign') {
+            return $campaign;
+        }
+
+        $campaignId = (int)($campaign['id'] ?? 0);
+        $jobId = trim((string)($campaign['job_id'] ?? ''));
+        if ($campaignId <= 0 || $jobId === '') {
+            return $campaign;
+        }
+
+        $dbTotalCalls = (int)($campaign['total_calls'] ?? 0);
+        $effectiveStatus = strtolower(trim((string)($runtime['effective_status'] ?? '')));
+        $shouldSync = $dbTotalCalls === 0
+            || $effectiveStatus === 'f';
+
+        if (!$shouldSync) {
+            return $campaign;
+        }
+
+        $counts = CampaignVoice::syncCountersFromCdr($campaignId, $jobId);
+        $campaign['total_calls'] = (int)($counts['total_calls'] ?? 0);
+        $campaign['answered_calls'] = (int)($counts['answered_calls'] ?? 0);
+        $campaign['failed_calls'] = (int)($counts['failed_calls'] ?? 0);
+
+        return $campaign;
     }
 
     private static function synchronizeCampaignRuntimeState(

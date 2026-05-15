@@ -287,6 +287,59 @@ class CampaignVoice
         return true;
     }
 
+    public static function syncCountersFromCdr(int $campaignId, ?string $jobId = null): array
+    {
+        $sql = "
+            SELECT
+                COUNT(*) AS total_calls,
+                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) = 'ANSWER' THEN 1 ELSE 0 END) AS answered_calls,
+                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) = 'ANSWER' THEN 0 ELSE 1 END) AS failed_calls
+            FROM cdr
+            WHERE campaign_id = :campaign_id
+              AND (:job_id = '' OR job_id = :job_id)
+              AND COALESCE(type, '') <> 'service_fee'
+              AND (channel_number IS NULL OR TRIM(channel_number) = '')
+        ";
+
+        $params = [
+            ':campaign_id' => $campaignId,
+            ':job_id'      => trim((string)($jobId ?? '')),
+        ];
+
+        $row = (new Database())->execute($sql, $params)->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $totalCalls = (int)($row['total_calls'] ?? 0);
+        $answeredCalls = (int)($row['answered_calls'] ?? 0);
+        $failedCalls = (int)($row['failed_calls'] ?? 0);
+
+        (new Database('campaign_voice'))->execute(
+            "
+                UPDATE campaign_voice
+                   SET total_calls = :total_calls,
+                       answered_calls = :answered_calls,
+                       failed_calls = :failed_calls,
+                       status = CASE
+                           WHEN status NOT IN ('c', 'n') AND :total_calls >= total_contacts THEN 'f'
+                           ELSE status
+                       END,
+                       updated_at = NOW()
+                 WHERE id = :campaign_id
+            ",
+            [
+                ':campaign_id'    => $campaignId,
+                ':total_calls'    => $totalCalls,
+                ':answered_calls' => $answeredCalls,
+                ':failed_calls'   => $failedCalls,
+            ]
+        );
+
+        return [
+            'total_calls' => $totalCalls,
+            'answered_calls' => $answeredCalls,
+            'failed_calls' => $failedCalls,
+        ];
+    }
+
     public static function getById(int $id): ?array
     {
         // Aqui, como não recebemos tenancy_id no parâmetro, o ideal é que

@@ -501,6 +501,7 @@
     let sseSource = null;
     let sseReconnectTimer = null;
     let sseReconnectAttempts = 0;
+    let sseSourceSerial = 0;
     let travaCliqueStatus = false;
     let callHistory = JSON.parse(localStorage.getItem('agente_historico')) || [];
     let memoriaSequenciaDtmf = "";
@@ -2375,7 +2376,12 @@
     function fecharEscutaSSE() {
         limparReconnectSSE();
         if (sseSource) {
-            sseSource.close();
+            try {
+                sseSource.__agentPanelClosed = true;
+                sseSource.close();
+            } catch (e) {
+                warnAgentPanel('SSE', 'Falha ao encerrar stream SSE.', { e });
+            }
             sseSource = null;
         }
     }
@@ -2398,16 +2404,27 @@
         if (!ramal) return;
 
         fecharEscutaSSE();
-        sseSource = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
-        logAgentPanel('SSE', 'Conectando stream de monitoramento do agente.', { ramal });
-
-        sseSource.addEventListener('open', function () {
-            sseReconnectAttempts = 0;
-            limparReconnectSSE();
-            logAgentPanel('SSE', 'Stream SSE conectado.', { ramal });
+        const source = new EventSource(`${baseUrl}/callcenter/monitoring-calls`);
+        source.__agentPanelSerial = ++sseSourceSerial;
+        source.__agentPanelClosed = false;
+        sseSource = source;
+        logAgentPanel('SSE', 'Conectando stream de monitoramento do agente.', {
+            ramal,
+            serial: source.__agentPanelSerial
         });
 
-        sseSource.addEventListener('update', function (e) {
+        source.addEventListener('open', function () {
+            if (sseSource !== source) return;
+            sseReconnectAttempts = 0;
+            limparReconnectSSE();
+            logAgentPanel('SSE', 'Stream SSE conectado.', {
+                ramal,
+                serial: source.__agentPanelSerial
+            });
+        });
+
+        source.addEventListener('update', function (e) {
+            if (sseSource !== source) return;
             try {
                 const data = JSON.parse(e.data);
                 const listaChamadas = data.chamadas || [];
@@ -2602,15 +2619,33 @@
             } catch (err) { /* Erro monitoramento */ }
         });
 
-        sseSource.addEventListener('auth', function () {
+        source.addEventListener('auth', function () {
+            if (sseSource !== source) return;
             warnAgentPanel('SSE', 'SSE encerrou por autenticação inválida.');
             fecharEscutaSSE();
         });
 
-        sseSource.addEventListener('error', function () {
+        source.addEventListener('error', function () {
+            if (sseSource !== source) {
+                logAgentPanel('SSE', 'Ignorando erro de stream SSE antigo.', {
+                    serial: source.__agentPanelSerial,
+                    activeSerial: sseSource?.__agentPanelSerial ?? null,
+                    readyState: source.readyState
+                });
+                return;
+            }
+
+            if (source.__agentPanelClosed) {
+                logAgentPanel('SSE', 'Ignorando erro após fechamento intencional do stream SSE.', {
+                    serial: source.__agentPanelSerial
+                });
+                return;
+            }
+
             warnAgentPanel('SSE', 'Erro no stream SSE; agendando reconexão.', {
                 attempts: sseReconnectAttempts,
-                readyState: sseSource?.readyState ?? null
+                readyState: source.readyState,
+                serial: source.__agentPanelSerial
             });
             fecharEscutaSSE();
             agendarReconexaoSSE();

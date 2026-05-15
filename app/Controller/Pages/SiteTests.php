@@ -5,7 +5,6 @@ namespace App\Controller\Pages;
 use App\Http\Response;
 use App\Model\Entity\SiteServiceTest;
 use App\Session\User as SessionUser;
-use App\Utils\Privacy;
 use App\Utils\View;
 
 class SiteTests
@@ -84,16 +83,13 @@ class SiteTests
         foreach ($rows as $row) {
             $provider = self::prettyJson($row['provider_response'] ?? null);
             $payload = self::prettyJson($row['request_payload'] ?? null);
-            $fullIp = (string)($row['ip_address'] ?? '');
-            $maskedIp = Privacy::maskIp($fullIp);
-            $ipDisclosureId = 'site-test-ip-' . (int)$row['id'];
             $html .= '<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 border-b border-slate-100 dark:border-slate-700 align-top">
                 <td class="px-6 py-4 text-xs font-bold text-slate-400">#' . self::e((string)$row['id']) . '</td>
                 <td class="px-6 py-4 text-sm font-semibold text-slate-800 dark:text-white">' . self::e((string)$row['email']) . '</td>
                 <td class="px-6 py-4">' . self::badge((string)$row['service_type']) . '</td>
                 <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">' . self::e((string)($row['destination'] ?? '')) . '</td>
                 <td class="px-6 py-4">' . self::statusBadge((string)$row['status']) . '</td>
-                <td class="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">' . self::e($maskedIp) . '</td>
+                <td class="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">' . self::e((string)($row['ip_address'] ?? '')) . '</td>
                 <td class="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">' . self::e((string)($row['provider'] ?? '')) . '<br><span class="text-xxs text-slate-400">' . self::e((string)($row['provider_message_id'] ?? '')) . '</span></td>
                 <td class="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">' . self::e((string)($row['created_at'] ?? '')) . '<br>' . self::e((string)($row['sent_at'] ?? '')) . '</td>
                 <td class="px-6 py-4 text-center">
@@ -101,12 +97,7 @@ class SiteTests
                         <summary class="cursor-pointer rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 dark:bg-blue-900/40 dark:text-blue-200">Ver</summary>
                         <div class="mt-3 grid gap-3 md:grid-cols-2">
                             <pre class="max-h-72 w-[min(36rem,80vw)] overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">' . self::e($provider) . '</pre>
-                            <div class="max-h-72 w-[min(36rem,80vw)] overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
-                                <p><strong>IP mascarado:</strong> ' . self::e($maskedIp) . '</p>
-                                <button type="button" onclick="(function(){var el=document.getElementById(\'' . self::e($ipDisclosureId) . '\'); if(el){el.classList.toggle(\'hidden\');}})()" class="mt-2 rounded-md bg-slate-800 px-2 py-1 text-[11px] font-bold text-slate-100">Visualizar IP completo</button>
-                                <p id="' . self::e($ipDisclosureId) . '" class="mt-2 hidden"><strong>IP completo:</strong> ' . self::e($fullIp) . '</p>
-                                <pre class="mt-3 whitespace-pre-wrap">' . self::e($payload . "\n\nErro:\n" . (string)($row['error_message'] ?? '')) . '</pre>
-                            </div>
+                            <pre class="max-h-72 w-[min(36rem,80vw)] overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">' . self::e($payload . "\n\nErro:\n" . (string)($row['error_message'] ?? '')) . '</pre>
                         </div>
                     </details>
                 </td>

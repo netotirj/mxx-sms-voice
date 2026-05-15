@@ -32,7 +32,7 @@ class PublicDemo
         $ip = self::clientIp();
         $phone = self::normalizePhone((string)($input['phone'] ?? ''));
         if ($channel === 'call') {
-            $phone = self::siteTestVoicePhone();
+            $phone = $phone !== '' ? $phone : self::siteTestVoicePhone();
         }
         $email = strtolower(trim((string)($input['email'] ?? '')));
         $consent = filter_var($input['consent'] ?? false, FILTER_VALIDATE_BOOL);
@@ -61,7 +61,7 @@ class PublicDemo
             return self::json(403, ['success' => false, 'message' => $turnstile['message']]);
         }
 
-        $availability = self::availabilityStatus($email, $phone, $ip);
+        $availability = self::availabilityStatus($email, $phone, $ip, $serviceType);
         if (!$availability['available']) {
             return self::json(($availability['reason'] ?? '') === 'ip' ? 429 : 409, [
                 'success' => false,
@@ -173,10 +173,10 @@ class PublicDemo
         $ip = self::clientIp();
 
         if ($channel === 'call') {
-            $phone = self::siteTestVoicePhone();
+            $phone = $phone !== '' ? $phone : self::siteTestVoicePhone();
         }
 
-        $availability = self::availabilityStatus($email, $phone, $ip);
+        $availability = self::availabilityStatus($email, $phone, $ip, self::serviceType($channel));
 
         return self::json(200, [
             'success' => true,
@@ -206,29 +206,29 @@ class PublicDemo
         return $count > 120;
     }
 
-    private static function availabilityStatus(string $email, string $phone, string $ip): array
+    private static function availabilityStatus(string $email, string $phone, string $ip, string $serviceType): array
     {
-        if ($email !== '' && SiteServiceTest::findByEmail($email)) {
+        if ($email !== '' && SiteServiceTest::findByEmailAndService($email, $serviceType)) {
             return [
                 'available' => false,
                 'reason' => 'email',
-                'message' => 'Este e-mail já utilizou o teste do site.',
+                'message' => 'Este e-mail já utilizou este teste do site.',
             ];
         }
 
-        if ($phone !== '' && SiteServiceTest::findByDestination($phone)) {
+        if ($phone !== '' && SiteServiceTest::findByDestinationAndService($phone, $serviceType)) {
             return [
                 'available' => false,
                 'reason' => 'phone',
-                'message' => 'Este número já utilizou o teste do site.',
+                'message' => 'Este número já utilizou este teste do site.',
             ];
         }
 
-        if ($ip !== '' && SiteServiceTest::findByIp($ip)) {
+        if ($ip !== '' && SiteServiceTest::findByIpAndService($ip, $serviceType)) {
             return [
                 'available' => false,
                 'reason' => 'ip',
-                'message' => 'Este acesso já utilizou o teste do site.',
+                'message' => 'Este acesso já utilizou este teste do site.',
             ];
         }
 
@@ -444,7 +444,7 @@ class PublicDemo
         $stasisApp = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_STASIS_APP', TelephonyConfig::stasisApp()));
         $techPrefix = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TECH_PREFIX', ''));
         $trunkBillingType = trim((string)TelephonyConfig::env('PUBLIC_DEMO_VOICE_TRUNK_BILLING_TYPE', 'cli_aberta'));
-        $effectivePhone = self::siteTestVoicePhone() ?: $phone;
+        $effectivePhone = $phone !== '' ? $phone : self::siteTestVoicePhone();
 
         if ($trunk === '') {
             self::registerSiteVoiceCdr($effectivePhone, 'FAILED', null, 'Tronco de chamada de demonstração não configurado.', $trunk, $trunkBillingType);

@@ -89,6 +89,27 @@ class SiteServiceTest
         return is_array($row) ? $row : null;
     }
 
+    public static function findByDestinationAndService(string $destination, string $serviceType): ?array
+    {
+        self::ensureSchema();
+
+        $destination = preg_replace('/\D+/', '', $destination);
+        if ($destination === '') {
+            return null;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'destination = :destination AND service_type = :service_type',
+                [':destination' => $destination, ':service_type' => $serviceType],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
     public static function findByIp(string $ipAddress): ?array
     {
         self::ensureSchema();
@@ -101,6 +122,26 @@ class SiteServiceTest
             ->select(
                 'ip_address = :ip',
                 [':ip' => $ipAddress],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function findByIpAndService(string $ipAddress, string $serviceType): ?array
+    {
+        self::ensureSchema();
+
+        if (trim($ipAddress) === '') {
+            return null;
+        }
+
+        $row = (new Database('site_service_tests'))
+            ->select(
+                'ip_address = :ip AND service_type = :service_type',
+                [':ip' => $ipAddress, ':service_type' => $serviceType],
                 'id DESC',
                 '1'
             )

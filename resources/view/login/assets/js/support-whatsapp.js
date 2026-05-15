@@ -48,54 +48,113 @@
     icon.textContent = 'L';
   }
 
-  function isBusinessOpen(date) {
-    const day = date.getDay();
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    return day >= 1 && day <= 5 && minutes >= 540 && minutes < 1080;
+  const SUPPORT_TIME_ZONE = 'America/Sao_Paulo';
+  const SUPPORT_WEEKDAY_INDEX = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6
+  };
+  const SUPPORT_WEEKDAY_LABELS = [
+    'domingo',
+    'segunda-feira',
+    'terca-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sabado'
+  ];
+
+  function getSupportTimeParts(referenceDate = new Date()) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: SUPPORT_TIME_ZONE,
+      weekday: 'short',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+
+    const parts = formatter.formatToParts(referenceDate).reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+    return {
+      weekday: SUPPORT_WEEKDAY_INDEX[parts.weekday] ?? 0,
+      year: Number(parts.year),
+      month: Number(parts.month),
+      day: Number(parts.day),
+      hour: Number(parts.hour),
+      minute: Number(parts.minute),
+      second: Number(parts.second)
+    };
   }
 
-  function getNextBusinessOpening(date) {
-    const next = new Date(date);
-    next.setHours(9, 0, 0, 0);
+  function addSupportCalendarDays(parts, daysToAdd) {
+    const nextDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    nextDate.setUTCDate(nextDate.getUTCDate() + daysToAdd);
 
-    if (date.getDay() >= 1 && date.getDay() <= 5 && date.getHours() < 9) {
-      return next;
+    return {
+      year: nextDate.getUTCFullYear(),
+      month: nextDate.getUTCMonth() + 1,
+      day: nextDate.getUTCDate(),
+      weekday: nextDate.getUTCDay()
+    };
+  }
+
+  function isSameSupportDate(left, right) {
+    return left.year === right.year && left.month === right.month && left.day === right.day;
+  }
+
+  function formatSupportHour(hour, minute) {
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+
+  function isBusinessOpen(parts) {
+    const minutes = parts.hour * 60 + parts.minute;
+    return parts.weekday >= 1 && parts.weekday <= 5 && minutes >= 540 && minutes < 1080;
+  }
+
+  function getNextBusinessOpening(parts) {
+    if (parts.weekday >= 1 && parts.weekday <= 5 && parts.hour < 9) {
+      return { ...parts, hour: 9, minute: 0, second: 0 };
     }
 
-    do {
-      next.setDate(next.getDate() + 1);
-      next.setHours(9, 0, 0, 0);
-    } while (next.getDay() === 0 || next.getDay() === 6);
+    let next = addSupportCalendarDays(parts, 1);
 
-    return next;
+    do {
+      if (next.weekday >= 1 && next.weekday <= 5) {
+        return { ...next, hour: 9, minute: 0, second: 0 };
+      }
+      next = addSupportCalendarDays(next, 1);
+    } while (true);
   }
 
-  function formatNextBusinessOpening(date) {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
+  function formatNextBusinessOpening(nextParts, nowParts) {
+    const tomorrow = addSupportCalendarDays(nowParts, 1);
+    const time = formatSupportHour(nextParts.hour, nextParts.minute);
 
-    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    if (date.toDateString() === now.toDateString()) return `hoje às ${time}`;
-    if (date.toDateString() === tomorrow.toDateString()) return `amanhã às ${time}`;
+    if (isSameSupportDate(nextParts, nowParts)) return `hoje às ${time}`;
+    if (isSameSupportDate(nextParts, tomorrow)) return `amanhã às ${time}`;
 
-    return date.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return `${SUPPORT_WEEKDAY_LABELS[nextParts.weekday]}, ${String(nextParts.day).padStart(2, '0')}/${String(nextParts.month).padStart(2, '0')} às ${time}`;
   }
 
   function getSupportAvailability() {
-    const now = new Date();
+    const now = getSupportTimeParts();
     const online = isBusinessOpen(now);
     const nextOpening = getNextBusinessOpening(now);
 
     return {
       online,
-      nextOpeningText: formatNextBusinessOpening(nextOpening)
+      nextOpeningText: formatNextBusinessOpening(nextOpening, now)
     };
   }
 

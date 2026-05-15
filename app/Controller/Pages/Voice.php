@@ -5839,7 +5839,7 @@ final class VoiceCampaignCdrUpdater
             return;
         }
 
-        if (Voice::isRamalCdr($cdr->channel_number, $cdr->number, $cdr->destination)) {
+        if (!self::shouldCountCampaignCdr($cdr)) {
             return;
         }
 
@@ -5875,6 +5875,16 @@ final class VoiceCampaignCdrUpdater
         }
 
         return $dialstatus !== '' ? $dialstatus : 'FAILED';
+    }
+
+    private static function shouldCountCampaignCdr(CdrVoice $cdr): bool
+    {
+        $value = round((float)($cdr->value ?? 0), 4);
+        if ($value > 0.0001) {
+            return true;
+        }
+
+        return !Voice::isRamalCdr($cdr->channel_number, $cdr->number, $cdr->destination);
     }
 }
 

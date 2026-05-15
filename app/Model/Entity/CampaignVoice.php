@@ -322,7 +322,12 @@ class CampaignVoice
             WHERE campaign_id = :campaign_id
               AND (:job_id = '' OR job_id = :job_id)
               AND COALESCE(type, '') <> 'service_fee'
-              AND (channel_number IS NULL OR TRIM(channel_number) = '')
+              AND (
+                    COALESCE(value, 0) > 0
+                    OR channel_number IS NULL
+                    OR TRIM(channel_number) IN ('', '-')
+                    OR TRIM(channel_number) NOT REGEXP '^[0-9]{3,8}$'
+                  )
         ";
 
         $params = [

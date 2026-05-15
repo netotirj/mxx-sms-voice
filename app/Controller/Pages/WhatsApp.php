@@ -2732,6 +2732,10 @@ HTML;
                     continue;
                 }
 
+                if (self::isAwaitingMetaTemplateReview($template)) {
+                    continue;
+                }
+
                 if (!self::canSubmitTemplateStatus((string)($template['status'] ?? ''))) {
                     continue;
                 }
@@ -2831,6 +2835,17 @@ HTML;
                 WhatsAppTemplate::updateMetaStatusForUser((int)$template['id'], $obUser, (string)($metaTemplate['status'] ?? 'pending'), $metaTemplate);
                 return self::json(200, ['success' => true, 'message' => 'Template sincronizado.', 'data' => $metaTemplate]);
             }
+        }
+
+        if (self::isAwaitingMetaTemplateReview($template)) {
+            return self::json(202, [
+                'success' => true,
+                'message' => 'Template ainda pendente de análise na Meta. Aguarde a revisão antes de reenviar.',
+                'data' => [
+                    'status' => (string)($template['status'] ?? 'pending'),
+                    'meta_template_id' => $template['meta_template_id'] ?? null,
+                ],
+            ]);
         }
 
         if (self::canSubmitTemplateStatus((string)($template['status'] ?? ''))) {
@@ -6397,7 +6412,15 @@ HTML;
 
     private static function canSubmitTemplateStatus(string $status): bool
     {
-        return in_array($status, ['draft', 'pending', 'rejected', 'READY_TO_SUBMIT'], true);
+        return in_array($status, ['draft', 'rejected', 'READY_TO_SUBMIT'], true);
+    }
+
+    private static function isAwaitingMetaTemplateReview(array $template): bool
+    {
+        $status = strtolower(trim((string)($template['status'] ?? '')));
+        $metaTemplateId = trim((string)($template['meta_template_id'] ?? ''));
+
+        return $metaTemplateId !== '' && in_array($status, ['pending', 'review_manual'], true);
     }
 
     private static function jsonColumnToArray(mixed $value): ?array

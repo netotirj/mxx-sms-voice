@@ -184,10 +184,11 @@ class WhatsAppTemplate
         }
 
         $status = self::normalizeMetaStatus($status);
+        $metaStatusDetail = self::metaStatusDetail($meta, $status, $error);
         $values = [
             'status' => $status,
             'template_last_sync_at' => date('Y-m-d H:i:s'),
-            'template_last_error' => $error,
+            'template_last_error' => $metaStatusDetail,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
@@ -554,6 +555,35 @@ class WhatsAppTemplate
             if ($value !== '') {
                 return $value;
             }
+        }
+
+        return null;
+    }
+
+    private static function metaStatusDetail(array $meta, string $status, ?string $error = null): ?string
+    {
+        $error = trim((string)$error);
+        if ($error !== '') {
+            return $error;
+        }
+
+        $reason = self::metaRejectedReason($meta);
+        $qualityScore = strtoupper(trim((string)($meta['quality_score']['score'] ?? '')));
+
+        if ($status === 'rejected' && $reason !== null) {
+            return 'Rejeitado pela Meta: ' . $reason;
+        }
+
+        if ($status === 'review_manual' && $reason !== null) {
+            return 'Em revisão manual na Meta: ' . $reason;
+        }
+
+        if ($status === 'paused' && $qualityScore !== '') {
+            return 'Template pausado pela Meta. Qualidade: ' . $qualityScore . '.';
+        }
+
+        if ($reason !== null) {
+            return $reason;
         }
 
         return null;

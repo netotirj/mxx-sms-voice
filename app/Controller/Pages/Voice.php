@@ -5154,7 +5154,7 @@ final class VoiceCdrRedisProcessor
             }
 
             if (empty($tariff['number'])) {
-                foreach (['number', 'NUMBER', 'destination', 'DESTINATION', 'dst', 'client_number', 'customer_number', 'EXTENSION', 'extension', 'phone'] as $alias) {
+                foreach (['number', 'NUMBER', 'client_number', 'customer_number', 'phone'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['number'] = $context[$alias];
                         break;
@@ -5163,7 +5163,7 @@ final class VoiceCdrRedisProcessor
             }
 
             if (empty($tariff['destination'])) {
-                foreach (['destination', 'DESTINATION', 'dst', 'client_number', 'customer_number', 'EXTENSION', 'extension', 'number', 'NUMBER', 'phone'] as $alias) {
+                foreach (['destination', 'DESTINATION', 'dst', 'client_number', 'customer_number', 'phone'] as $alias) {
                     if (!empty($context[$alias])) {
                         $tariff['destination'] = $context[$alias];
                         break;
@@ -5235,8 +5235,6 @@ final class VoiceCdrMapper
             $tariff['dst'] ?? null,
             $tariff['client_number'] ?? null,
             $tariff['customer_number'] ?? null,
-            $tariff['EXTENSION'] ?? null,
-            $tariff['extension'] ?? null,
         ]);
         $clientNumber = self::firstExternalNumber([
             $tariff['number'] ?? null,
@@ -5245,8 +5243,6 @@ final class VoiceCdrMapper
             $tariff['dst'] ?? null,
             $tariff['client_number'] ?? null,
             $tariff['customer_number'] ?? null,
-            $tariff['EXTENSION'] ?? null,
-            $tariff['extension'] ?? null,
         ]);
         $callerId = self::firstExternalNumber([
             $tariff['callerid_num'] ?? null,
@@ -5270,7 +5266,7 @@ final class VoiceCdrMapper
             $cdr->destination = $destination;
         } else {
             $cdr->number = $clientNumber ?? $destination;
-            $cdr->destination = $destination ?? $clientNumber;
+            $cdr->destination = $destination;
         }
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';

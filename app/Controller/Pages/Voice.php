@@ -5152,8 +5152,14 @@ final class VoiceCdrMapper
                 ?? $tariff['endpoints']
                 ?? $tariff['AGENT_RAMAL']
                 ?? null;
-            $cdr->number = $tariff['number'] ?? null;
-            $cdr->destination = $tariff['destination'] ?? null;
+            $cdr->number = $tariff['number'] ?? $tariff['destination'] ?? null;
+            $cdr->destination = $tariff['endpoint']
+                ?? $tariff['endpoints']
+                ?? $tariff['channelNumber']
+                ?? $tariff['channel_number']
+                ?? $tariff['AGENT_RAMAL']
+                ?? $tariff['destination']
+                ?? null;
         }
         $cdr->techprefix = $tariff['techprefix'] ?? null;
         $cdr->direction = $tariff['direction'] ?? 'outbound';

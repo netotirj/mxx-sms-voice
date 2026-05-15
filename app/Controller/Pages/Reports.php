@@ -2480,11 +2480,6 @@ class Reports extends ViewComponents
 
     private static function resolveVoiceCdrDisplayChannel(array $row, array $context = []): string
     {
-        $extension = trim((string)($context['extension'] ?? ''));
-        if ($extension !== '') {
-            return $extension;
-        }
-
         foreach ([
             $row['channel_number'] ?? null,
             $row['endpoints'] ?? null,
@@ -2497,7 +2492,7 @@ class Reports extends ViewComponents
             }
         }
 
-        return '-';
+        return '';
     }
 
     private static function isVoiceCdrExtensionValue(mixed $value): bool

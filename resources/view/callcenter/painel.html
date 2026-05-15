@@ -104,12 +104,12 @@
 
                     <div class="px-6 pb-8">
                         <div id="gridAcoesAgente" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <button onclick="mudarStatus('disponivel')" id="btn-disponivel" class="p-5 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-all hover:scale-[1.02] active:scale-95 group shadow-sm">
+                            <button onclick="mudarStatus('disponivel')" id="btn-disponivel" data-status-action="disponivel" class="p-5 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-all hover:scale-[1.02] active:scale-95 group shadow-sm">
                                 <i class="ni ni-check-bold block text-2xl mb-2 group-hover:scale-110"></i>
                                 <span class="text-[10px] font-black uppercase">Ficar Livre</span>
                             </button>
 
-                            <button onclick="resetCheckin()" id="btn-offline" class="p-5 rounded-2xl border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 transition-all hover:scale-[1.02] shadow-sm">
+                            <button onclick="resetCheckin()" id="btn-offline" data-status-action="offline" class="p-5 rounded-2xl border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 transition-all hover:scale-[1.02] shadow-sm">
                                 <i class="ni ni-button-power block text-2xl mb-2"></i>
                                 <span class="text-[10px] font-black uppercase">Logoff</span>
                             </button>
@@ -2294,20 +2294,51 @@
                     const config = configPorTipo[pausa.type] || configPorTipo['Default'];
                     const btn = document.createElement('button');
                     btn.dataset.nome = pausa.name.toUpperCase();
+                    btn.dataset.statusAction = 'pausa';
+                    btn.dataset.pausaId = String(pausa.id || '');
                     btn.className = `btn-pausa-dinamica p-5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95 shadow-sm flex flex-col items-center justify-center text-center group ${config.classes}`;
                     btn.onclick = () => mudarStatus('pausa', pausa.id);
                     btn.innerHTML = `<i class="ni ${pausa.icon || config.iconPadrao} block text-2xl mb-2 group-hover:scale-110 transition-transform"></i><span class="text-[10px] font-black uppercase tracking-wider">${pausa.name}</span>`;
                     btnOffline ? container.insertBefore(btn, btnOffline) : container.appendChild(btn);
                 });
+
+                atualizarEstadoBotoesStatus();
             }
         } catch (e) { /* Erro pausas */ }
+    }
+
+    function atualizarEstadoBotoesStatus() {
+        const botoes = document.querySelectorAll('#gridAcoesAgente button');
+        const statusAtual = String(ultimoStatusAgente?.status || '').toUpperCase();
+        const nomeStatusAtual = String(ultimoStatusAgente?.status_name || '').toUpperCase();
+        const emPausa = statusAtual.includes('PAUSA');
+        const livre = statusAtual.includes('LIVRE') || statusAtual.includes('DISPONIVEL');
+
+        botoes.forEach((btn) => {
+            const action = String(btn.dataset.statusAction || '').toLowerCase();
+            const nomeBotao = String(btn.dataset.nome || '').toUpperCase();
+
+            let disabled = !!travaCliqueStatus;
+
+            if (!disabled) {
+                if (emPausa && action === 'pausa' && nomeBotao === nomeStatusAtual) {
+                    disabled = true;
+                } else if (livre && action === 'disponivel') {
+                    disabled = true;
+                }
+            }
+
+            btn.disabled = disabled;
+            btn.classList.toggle('opacity-50', disabled);
+            btn.classList.toggle('cursor-not-allowed', disabled);
+            btn.classList.toggle('pointer-events-none', disabled);
+        });
     }
 
     async function mudarStatus(novoStatus, pausaId = null) {
         if (!ramalLogado || travaCliqueStatus) return;
         travaCliqueStatus = true;
-        const botoes = document.querySelectorAll('#gridAcoesAgente button');
-        botoes.forEach(btn => { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); });
+        atualizarEstadoBotoesStatus();
 
         try {
             const response = await fetch(`${baseUrl}/callcenter/agent-set-status`, {
@@ -2321,7 +2352,7 @@
 
         setTimeout(() => {
             travaCliqueStatus = false;
-            botoes.forEach(btn => { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); });
+            atualizarEstadoBotoesStatus();
         }, 3000);
     }
 
@@ -3407,6 +3438,9 @@
 
     function atualizarInterfaceStatus(dados) {
         const badge = document.getElementById('statusBadge'), timerEl = document.getElementById('meuTimer'), label = document.getElementById('timerLabel'), contAtivo = document.getElementById('activeCallContainer'), grid = document.getElementById('clienteDetalhesGrid'), botoes = document.querySelectorAll('#gridAcoesAgente button');
+
+        ultimoStatusAgente = dados || ultimoStatusAgente;
+        atualizarEstadoBotoesStatus();
 
         if (currentCallAnswered || existeChamadaWebRTCAtiva()) {
             if (badge) { badge.innerText = "EM ATENDIMENTO"; badge.className = "bg-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm"; }

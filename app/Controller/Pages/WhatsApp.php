@@ -4253,11 +4253,9 @@ HTML;
             if (!str_starts_with($to, '55') && strlen($to) >= 10 && strlen($to) <= 11) {
                 $to = '55' . $to;
             }
-            $contactName = self::nullableString($input['name'] ?? null);
+            $contactName = self::normalizeProtocolRecipientName($input['name'] ?? null);
             $protocolReferenceInput = trim((string)($input['protocol_reference'] ?? ''));
             $companyNameInput = self::nullableString($input['company_name'] ?? null);
-            $templateName = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE', 'util_protocolo_atendimento_01'));
-            $templateLanguage = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_LANGUAGE', 'pt_BR')) ?: 'pt_BR';
 
             if (strlen($to) < 8 || strlen($to) > 15) {
                 return self::json(422, [
@@ -4290,6 +4288,17 @@ HTML;
                 ]);
             }
 
+            $contactContext = self::findContactContextByPhone((string)$account['tenancy_id'], $to);
+            $contactName = $contactName
+                ?: self::normalizeProtocolRecipientName($contactContext['name'] ?? null);
+            $companyName = $companyNameInput
+                ?: self::nullableString($account['label'] ?? null)
+                ?: self::tenantName((string)$account['tenancy_id'])
+                ?: 'Maxx Solutions';
+            $templateConfig = self::protocolTemplateConfig($contactName);
+            $templateName = $templateConfig['name'];
+            $templateLanguage = $templateConfig['language'];
+
             $template = WhatsAppTemplate::getByNameForTenant(
                 $templateName,
                 $templateLanguage,
@@ -4298,7 +4307,7 @@ HTML;
             if (!$template) {
                 return self::json(404, [
                     'success' => false,
-                    'message' => 'Template de protocolo não encontrado.',
+                    'message' => $templateConfig['missing_message'],
                 ]);
             }
 
@@ -4312,18 +4321,9 @@ HTML;
             if ((string)($template['status'] ?? '') !== 'approved') {
                 return self::json(422, [
                     'success' => false,
-                    'message' => 'Template de protocolo ainda não aprovado pela Meta.',
+                    'message' => $templateConfig['pending_message'],
                 ]);
             }
-
-            $contactContext = self::findContactContextByPhone((string)$account['tenancy_id'], $to);
-            $contactName = $contactName
-                ?: self::nullableString($contactContext['name'] ?? null)
-                ?: self::templateContactFallback();
-            $companyName = $companyNameInput
-                ?: self::nullableString($account['label'] ?? null)
-                ?: self::tenantName((string)$account['tenancy_id'])
-                ?: 'Maxx Solutions';
 
             $conversationId = WhatsAppConversation::findOrCreate([
                 'tenancy_id' => $account['tenancy_id'],
@@ -4343,6 +4343,7 @@ HTML;
             );
 
             try {
+                $templateInputVariables = self::protocolTemplateVariables($templateConfig['mode'], $contactName, $protocolReference, $companyName);
                 $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
                     'tenancy_id' => (string)$account['tenancy_id'],
                     'tenant_name' => $companyName,
@@ -4350,22 +4351,7 @@ HTML;
                     'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
                     'contact_name_fallback' => self::templateContactFallback(),
                     'contact_phone' => $to,
-                ], [
-                    '1' => $contactName,
-                    '2' => $protocolReference,
-                    'var_1' => $contactName,
-                    'var_2' => $protocolReference,
-                    'variavel_1' => $contactName,
-                    'variavel_2' => $protocolReference,
-                    'nome_cliente' => $contactName,
-                    'contact_name' => $contactName,
-                    'protocolo_atendimento' => $protocolReference,
-                    'protocolo' => $protocolReference,
-                    'ticket_protocol' => $protocolReference,
-                    'ticket.protocol' => $protocolReference,
-                    'nome_empresa' => $companyName,
-                    'tenant_name' => $companyName,
-                ]);
+                ], $templateInputVariables);
             } catch (\Throwable $e) {
                 return self::json(422, [
                     'success' => false,
@@ -5936,6 +5922,85 @@ HTML;
     {
         $value = trim((string)(getenv('WHATSAPP_TEMPLATE_CONTACT_FALLBACK') ?: 'cliente'));
         return $value !== '' ? $value : 'cliente';
+    }
+
+    private static function normalizeProtocolRecipientName(mixed $value): ?string
+    {
+        $name = self::nullableString($value);
+        if ($name === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', strtr($name, [
+            'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A',
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a',
+            'É' => 'E', 'Ê' => 'E', 'é' => 'e', 'ê' => 'e',
+            'Í' => 'I', 'í' => 'i',
+            'Ó' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o',
+            'Ú' => 'U', 'ú' => 'u',
+            'Ç' => 'C', 'ç' => 'c',
+        ]))));
+
+        if (in_array($normalized, ['cliente nao identificado', 'nao identificado', 'sem nome', 'desconhecido', 'unknown'], true)) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private static function protocolTemplateConfig(?string $contactName): array
+    {
+        $language = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_LANGUAGE', 'pt_BR')) ?: 'pt_BR';
+        if (self::nullableString($contactName) !== null) {
+            $name = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE', 'util_protocolo_atendimento_01'));
+            return [
+                'mode' => 'with_name',
+                'name' => $name,
+                'language' => $language,
+                'missing_message' => 'Template de protocolo com nome não encontrado.',
+                'pending_message' => 'Template de protocolo com nome ainda não aprovado pela Meta.',
+            ];
+        }
+
+        $name = trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_NO_NAME', 'mxx_protocolo_de_atendimento'));
+        return [
+            'mode' => 'without_name',
+            'name' => $name,
+            'language' => trim((string)TelephonyConfig::env('WHATSAPP_SUPPORT_PROTOCOL_TEMPLATE_NO_NAME_LANGUAGE', $language)) ?: $language,
+            'missing_message' => 'Template de protocolo sem nome não encontrado.',
+            'pending_message' => 'Template de protocolo sem nome ainda não aprovado pela Meta.',
+        ];
+    }
+
+    private static function protocolTemplateVariables(string $mode, ?string $contactName, string $protocolReference, string $companyName): array
+    {
+        $variables = [
+            'protocolo_atendimento' => $protocolReference,
+            'protocolo' => $protocolReference,
+            'ticket_protocol' => $protocolReference,
+            'ticket.protocol' => $protocolReference,
+            'nome_empresa' => $companyName,
+            'tenant_name' => $companyName,
+        ];
+
+        if ($mode === 'without_name') {
+            return $variables + [
+                '1' => $protocolReference,
+                'var_1' => $protocolReference,
+                'variavel_1' => $protocolReference,
+            ];
+        }
+
+        return $variables + [
+            '1' => (string)$contactName,
+            '2' => $protocolReference,
+            'var_1' => (string)$contactName,
+            'var_2' => $protocolReference,
+            'variavel_1' => (string)$contactName,
+            'variavel_2' => $protocolReference,
+            'nome_cliente' => (string)$contactName,
+            'contact_name' => (string)$contactName,
+        ];
     }
 
     private static function auditTemplateWindowEvent(string $event, array $context): void

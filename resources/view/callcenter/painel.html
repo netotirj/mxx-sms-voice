@@ -3413,7 +3413,8 @@
 
         const foneFormatado = f(numero || c.phone);
         const foneParaLinks = foneFormatado.replace(/\D/g, '');
-        const nomeExibir = (c.name || "CLIENTE NÃO IDENTIFICADO").toUpperCase();
+        const nomeClienteReal = String(c.name || '').trim();
+        const nomeExibir = (nomeClienteReal || "CLIENTE NÃO IDENTIFICADO").toUpperCase();
         const protocoloAtendimento = gerarProtocoloAtendimento(callId, foneParaLinks);
 
         logAgentPanel('CallState', 'Renderizando card principal da chamada.', {
@@ -3438,7 +3439,7 @@
                 const v = String(val).toLowerCase();
                 const valJs = escaparJsInline(val);
                 const labelJs = escaparJsInline(label);
-                const nomeJs = escaparJsInline(nomeExibir);
+                const nomeJs = escaparJsInline(nomeClienteReal);
                 const foneJs = escaparJsInline(foneParaLinks);
                 let cores = 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700';
                 if (['ativo', 'pago', 'sim'].includes(v)) cores = 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20';

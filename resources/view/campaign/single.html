@@ -290,12 +290,44 @@
         }
     }
 
+    async function parseJsonResponseSafe(response) {
+        const text = await response.text();
+        if (!text) {
+            return { payload: {}, validJson: true };
+        }
+
+        try {
+            return { payload: JSON.parse(text), validJson: true };
+        } catch (error) {
+            console.error("Resposta não JSON:", text);
+            return {
+                payload: {
+                    status: response.status,
+                    message: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || 'Resposta inválida do servidor.'
+                },
+                validJson: false
+            };
+        }
+    }
+
+    function lockResendTemporarily(button, seconds = 15) {
+        if (!button) return;
+
+        button.disabled = true;
+        setTimeout(() => {
+            toggleButtonSpinner(button, false);
+        }, Math.max(1, seconds) * 1000);
+    }
+
     // ===================== BOTÃO ENVIAR =====================
     const sendBtn = document.querySelector("#sendBtnUnique"); // usei id único no botão
     if (sendBtn) {
         sendBtn.addEventListener("click", async () => {
+            if (sendBtn.disabled) return;
+
             // mostra loading
             toggleButtonSpinner(sendBtn, true);
+            let keepLockedAfterResponse = false;
 
             const group1Active = document.querySelector("#group1 .option-btn[data-active='true']") ||
                 document.querySelector("#group1 .option-btn");
@@ -327,25 +359,31 @@
                     body: formData,
                 });
 
-                const data = await response.json();
+                const { payload: data, validJson } = await parseJsonResponseSafe(response);
 
-                if (data.status === 200) {
+                if (response.ok && Number(data.status || response.status) === 200) {
                     notyf.success(data.message || "SMS(s) enviado(s) com sucesso!");
                     setTimeout(() => {
                         window.location.href = `${baseURL}/reports`;
                     }, 4000);
+                } else if (!validJson) {
+                    keepLockedAfterResponse = true;
+                    notyf.error("O servidor respondeu de forma inválida após o envio. Confira os relatórios antes de reenviar.");
+                    lockResendTemporarily(sendBtn, 15);
                 } else {
                     notyf.error(data.message || "Não foi possível enviar os SMS.");
                 }
             } catch (err) {
                 console.error("Erro:", err);
-                notyf.error("Erro de conexão ao enviar os SMS.");
+                keepLockedAfterResponse = true;
+                notyf.error("Falha ao confirmar o retorno do envio. Aguarde e confira os relatórios antes de reenviar.");
+                lockResendTemporarily(sendBtn, 15);
             } finally {
-                // sempre esconde o spinner no final
-                toggleButtonSpinner(sendBtn, false);
+                if (!keepLockedAfterResponse) {
+                    toggleButtonSpinner(sendBtn, false);
+                }
             }
         });
     }
 
 </script>
-

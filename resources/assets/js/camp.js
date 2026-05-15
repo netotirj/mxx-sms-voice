@@ -31,17 +31,31 @@ window.notyf = window.notyf || new Notyf({
 
 async function parseJsonResponse(response) {
     const text = await response.text();
-    if (!text) return {};
+    if (!text) return { __valid_json: true };
 
     try {
-        return JSON.parse(text);
+        const payload = JSON.parse(text);
+        if (payload && typeof payload === 'object') {
+            payload.__valid_json = true;
+        }
+        return payload;
     } catch (error) {
         console.error('Resposta não JSON:', text);
         return {
             status: response.status,
-            message: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || 'Resposta inválida do servidor.'
+            message: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || 'Resposta inválida do servidor.',
+            __valid_json: false
         };
     }
+}
+
+function lockResendTemporarily(button, seconds = 15) {
+    if (!button || !button.length) return;
+
+    button.prop('disabled', true);
+    setTimeout(() => {
+        toggleButtonSpinner(button, false);
+    }, Math.max(1, seconds) * 1000);
 }
 
 function showSuccess(message) {
@@ -415,9 +429,11 @@ $(document).on('click', '.btn-send', function () {
     const campaignId = button.data('id');
 
     if (!campaignId) return showError('ID da campanha não encontrado.');
+    if (button.prop('disabled')) return;
 
     const runSend = () => {
         toggleButtonSpinner(button, true);
+        let keepLockedAfterResponse = false;
 
         fetch(`${baseUrl}/campaign/${campaignId}/send`, {
             method: 'POST',
@@ -428,6 +444,10 @@ $(document).on('click', '.btn-send', function () {
                 if (res.ok && Number(data.status || res.status) === 200) {
                     showSuccess(data.message || 'Campanha enviada com sucesso!');
                     refreshCampaigns();
+                } else if (data.__valid_json === false) {
+                    keepLockedAfterResponse = true;
+                    showError('O servidor respondeu de forma inválida após o envio. Confira os relatórios antes de reenviar.');
+                    lockResendTemporarily(button, 15);
                 } else {
                     const msg = data.message || 'Erro ao enviar campanha.';
                     showError(msg);
@@ -438,10 +458,14 @@ $(document).on('click', '.btn-send', function () {
                 }
             })
             .catch(() => {
-                showError('Erro na comunicação com o servidor.');
+                keepLockedAfterResponse = true;
+                showError('Falha ao confirmar o retorno do envio. Aguarde e confira os relatórios antes de reenviar.');
+                lockResendTemporarily(button, 15);
             })
             .finally(() => {
-                toggleButtonSpinner(button, false);
+                if (!keepLockedAfterResponse) {
+                    toggleButtonSpinner(button, false);
+                }
             });
     };
 

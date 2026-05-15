@@ -2326,6 +2326,58 @@ class Reports extends ViewComponents
         return $digits;
     }
 
+    private static function resolveVoiceCdrDisplayCid(array $row): string
+    {
+        foreach ([
+            $row['callerid_num'] ?? null,
+            $row['number'] ?? null,
+            $row['caller_number'] ?? null,
+            $row['src'] ?? null,
+            $row['source'] ?? null,
+        ] as $candidate) {
+            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '-';
+    }
+
+    private static function resolveVoiceCdrDisplayDestination(array $row): string
+    {
+        foreach ([
+            $row['destination'] ?? null,
+            $row['dst'] ?? null,
+            $row['EXTENSION'] ?? null,
+            $row['extension'] ?? null,
+        ] as $candidate) {
+            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '-';
+    }
+
+    private static function resolveVoiceCdrDisplayChannel(array $row): string
+    {
+        foreach ([
+            $row['channel_number'] ?? null,
+            $row['endpoints'] ?? null,
+            $row['endpoint'] ?? null,
+            $row['AGENT_RAMAL'] ?? null,
+        ] as $candidate) {
+            $normalized = self::normalizeVoiceCdrDisplayNumber($candidate);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '-';
+    }
+
     private static function formatVoiceCdrRows(array $rows): array
     {
         $formatted = [];
@@ -2341,6 +2393,9 @@ class Reports extends ViewComponents
                 'user_id'           => $row['user_id'] ?? null,
                 'user_name'         => trim((string)($row['user_name'] ?? '')) ?: null,
                 'user_account_code' => trim((string)($row['user_account_code'] ?? '')) ?: null,
+                'cid_display'       => self::resolveVoiceCdrDisplayCid($row),
+                'destination_display'=> self::resolveVoiceCdrDisplayDestination($row),
+                'channel_display'   => self::resolveVoiceCdrDisplayChannel($row),
                 'number'            => self::normalizeVoiceCdrDisplayNumber($row['callerid_num'] ?? ''),
                 'endpoints'         => trim((string)($row['endpoints'] ?? '')) ?: '',
                 'destination'       => self::normalizeVoiceCdrDisplayNumber($row['destination'] ?? ''),

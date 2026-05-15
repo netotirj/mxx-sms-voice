@@ -4228,11 +4228,12 @@ HTML;
         if (!self::canUseSupportAccount($obUser)) {
             return self::json(403, [
                 'success' => false,
-                'message' => 'Você não tem permissão para enviar pela conta central de suporte.',
+                'message' => 'Você não tem permissão para enviar protocolo por WhatsApp.',
             ]);
         }
         try {
             $input = self::jsonInput();
+            $accountId = (int)($input['account_id'] ?? 0);
             $to = self::normalizePhone((string)($input['to'] ?? ''));
             if (!str_starts_with($to, '55') && strlen($to) >= 10 && strlen($to) <= 11) {
                 $to = '55' . $to;
@@ -4257,11 +4258,11 @@ HTML;
                 ]);
             }
 
-            $account = WhatsAppAccount::getSupportAccount();
+            $account = self::resolveProtocolAccountForUser($obUser, $accountId);
             if (!$account) {
                 return self::json(404, [
                     'success' => false,
-                    'message' => 'Conta WhatsApp central do suporte não configurada.',
+                    'message' => 'Nenhuma conta WhatsApp ativa foi encontrada para esta empresa.',
                 ]);
             }
 
@@ -4392,7 +4393,7 @@ HTML;
             if ($accessToken === '' || $phoneNumberId === '') {
                 return self::json(409, [
                     'success' => false,
-                    'message' => 'Conta WhatsApp central sem credenciais completas para envio.',
+                    'message' => 'A conta WhatsApp da empresa está sem credenciais completas para envio.',
                 ]);
             }
 
@@ -4897,6 +4898,23 @@ HTML;
         }
 
         return WhatsAppAccount::getForUser($accountId, $user);
+    }
+
+    private static function resolveProtocolAccountForUser(array $user, int $accountId = 0): ?array
+    {
+        if ($accountId > 0) {
+            return WhatsAppAccount::getForUser($accountId, $user);
+        }
+
+        $accounts = WhatsAppAccount::listForUser($user);
+        foreach ($accounts as $listedAccount) {
+            $resolved = WhatsAppAccount::getForUser((int)($listedAccount['id'] ?? 0), $user);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        return null;
     }
 
     private static function logSupportAccess(string $event, array $user, array $context = []): void

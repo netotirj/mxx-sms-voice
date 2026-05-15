@@ -4343,6 +4343,8 @@ HTML;
             ]);
         }
 
+        $previewBody = (string)($resolvedTemplate['preview_body'] ?? ('Seu protocolo de atendimento é: ' . $protocolReference));
+
         $planned = self::withWhatsAppBilling([
             'tenancy_id' => (string)$account['tenancy_id'],
             'user_id' => (int)$account['user_id'],
@@ -4351,8 +4353,10 @@ HTML;
             'contact_phone' => $to,
             'contact_name' => $contactName,
         ], [
+            'sequence' => 1,
             'message_type' => 'template',
-            'message_body' => '[Template] ' . (string)$template['name'],
+            'body' => $previewBody,
+            'preview_body' => $previewBody,
             'template_name' => (string)$template['name'],
             'template_language' => $templateLanguage,
             'template_variables' => $resolvedTemplate['resolved'] ?? [],

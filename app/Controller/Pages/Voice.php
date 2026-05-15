@@ -5090,6 +5090,8 @@ final class VoiceCdrRedisProcessor
 
     private static function processPayload(RedisClient $redis, array $tariff, bool $emitDebug): void
     {
+        $tariff = self::hydrateTariffFromRedisContext($redis, $tariff);
+
         $cdr = VoiceCdrMapper::fromTariff($tariff);
 
         VoiceCdrUserSnapshot::apply($cdr);
@@ -5119,6 +5121,85 @@ final class VoiceCdrRedisProcessor
             'port' => (int)(getenv('REDIS_PORT') ?: TelephonyConfig::redisPort()),
             'password' => getenv('REDIS_PASSWORD') ?: TelephonyConfig::redisPassword(),
         ]);
+    }
+
+    private static function hydrateTariffFromRedisContext(RedisClient $redis, array $tariff): array
+    {
+        $callContext = null;
+        $channelContext = null;
+
+        $callId = trim((string)($tariff['call_id'] ?? ''));
+        if ($callId !== '') {
+            $callContext = self::decodeRedisJson($redis->get("voice:call_context:{$callId}"));
+        }
+
+        $channelId = trim((string)($tariff['channel_id'] ?? ''));
+        if ($channelId !== '') {
+            $channelContext = self::decodeRedisJson($redis->get("voice:channel_context:{$channelId}"));
+        }
+
+        foreach ([$callContext, $channelContext] as $context) {
+            if (!is_array($context)) {
+                continue;
+            }
+
+            if (empty($tariff['callerid_num'])) {
+                foreach (['callerid_num', 'CALLERID(num)', 'CALLERID_NUM', 'caller_number'] as $alias) {
+                    if (!empty($context[$alias])) {
+                        $tariff['callerid_num'] = $context[$alias];
+                        break;
+                    }
+                }
+            }
+
+            if (empty($tariff['number'])) {
+                foreach (['number', 'NUMBER', 'callerid_num', 'CALLERID(num)', 'CALLERID_NUM', 'caller_number'] as $alias) {
+                    if (!empty($context[$alias])) {
+                        $tariff['number'] = $context[$alias];
+                        break;
+                    }
+                }
+            }
+
+            if (empty($tariff['destination'])) {
+                foreach (['destination', 'DESTINATION', 'dst', 'EXTENSION', 'extension'] as $alias) {
+                    if (!empty($context[$alias])) {
+                        $tariff['destination'] = $context[$alias];
+                        break;
+                    }
+                }
+            }
+
+            if (empty($tariff['channelNumber']) && empty($tariff['channel_number'])) {
+                foreach (['channel_number', 'channelNumber', 'endpoint', 'endpoints', 'AGENT_RAMAL'] as $alias) {
+                    if (!empty($context[$alias])) {
+                        $tariff['channelNumber'] = $context[$alias];
+                        break;
+                    }
+                }
+            }
+
+            if (empty($tariff['endpoints'])) {
+                foreach (['endpoints', 'endpoint', 'AGENT_RAMAL'] as $alias) {
+                    if (!empty($context[$alias])) {
+                        $tariff['endpoints'] = $context[$alias];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $tariff;
+    }
+
+    private static function decodeRedisJson(mixed $value): ?array
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : null;
     }
 }
 

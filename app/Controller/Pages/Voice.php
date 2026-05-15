@@ -14,6 +14,7 @@ use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Service\PlanAccessPolicy;
+use App\Service\FinancialTransactionService;
 use App\Service\PlanRuntimeService;
 use App\Service\WhatsAppBilling;
 use App\Service\VoicePricingService;
@@ -3851,17 +3852,21 @@ class Voice extends ViewComponents
             ]), 'application/json');
         }
 
-        $adminWallet      = BalanceSms::getBalanceSms($adminId, $tenantId);
-        $balanceAdmin     = (float)($adminWallet->balance ?? 0);
-        $adminVoiceRate   = (float)($adminWallet->value_voice ?? 0);
-        $adminServiceFee  = (float)($adminWallet->service_fee ?? 0);
+        $adminWallet         = BalanceSms::getBalanceSms($adminId, $tenantId);
+        $balanceAdmin        = (float)($adminWallet->balance ?? 0);
+        $adminValueVoice     = (float)($adminWallet->value_voice ?? 0);
+        $adminVoiceOpenRate  = (float)($adminWallet->voice_open_rate ?? $adminValueVoice);
+        $adminVoiceSmartRate = (float)($adminWallet->voice_smart_rate ?? $adminValueVoice);
+        $adminServiceFee     = (float)($adminWallet->service_fee ?? 0);
 
         // =========================================================
         // ✅ Valores padrão (admin)
         // =========================================================
-        $balanceReseller  = 0.0;
-        $callMinuteCost   = $adminVoiceRate;
-        $serviceFee       = $adminServiceFee;
+        $balanceReseller   = 0.0;
+        $valueVoice        = $adminValueVoice;
+        $voiceOpenRate     = $adminVoiceOpenRate;
+        $voiceSmartRate    = $adminVoiceSmartRate;
+        $serviceFee        = $adminServiceFee;
 
         // =========================================================
         // ✅ Se for reseller
@@ -3871,25 +3876,35 @@ class Voice extends ViewComponents
             $resellerWallet   = BalanceSms::getBalanceSms($userId, $tenantId);
             $balanceReseller  = (float)($resellerWallet->balance ?? 0);
 
-            $ratesAllReseller = Rates::getActiveRatesByUser($tenantId, $userId);
+            $resellerValueVoice = (float)($resellerWallet->value_voice ?? 0);
+            $resellerVoiceOpenRate = (float)($resellerWallet->voice_open_rate ?? $resellerValueVoice);
+            $resellerVoiceSmartRate = (float)($resellerWallet->voice_smart_rate ?? $resellerValueVoice);
 
-            // Verificação rigorosa: Se não existir a chave ou o valor for vazio/zero
-            if (!isset($ratesAllReseller['voice']) || (float)$ratesAllReseller['voice'] <= 0) {
+            if ($resellerVoiceOpenRate <= 0) {
                 return new Response(400, json_encode([
                     'success' => false,
-                    'message' => 'Tarifa de voz não configurada para o revendedor. Operação interrompida.'
+                    'message' => 'Tarifa aberta de voz não configurada para o revendedor. Operação interrompida.'
                 ]), 'application/json');
             }
 
-            if (!isset($ratesAllReseller['service_fee']) || (float)$ratesAllReseller['service_fee'] <= 0) {
+            if ($resellerVoiceSmartRate <= 0) {
+                return new Response(400, json_encode([
+                    'success' => false,
+                    'message' => 'Tarifa inteligente de voz não configurada para o revendedor. Operação interrompida.'
+                ]), 'application/json');
+            }
+
+            if (!isset($resellerWallet->service_fee) || (float)$resellerWallet->service_fee <= 0) {
                 return new Response(400, json_encode([
                     'success' => false,
                     'message' => 'Taxa de serviço não configurada para o revendedor. Operação interrompida.'
                 ]), 'application/json');
             }
 
-            $callMinuteCost   = (float)$ratesAllReseller['voice'];
-            $serviceFee       = (float)$ratesAllReseller['service_fee'];
+            $valueVoice     = $resellerValueVoice;
+            $voiceOpenRate  = $resellerVoiceOpenRate;
+            $voiceSmartRate = $resellerVoiceSmartRate;
+            $serviceFee     = (float)$resellerWallet->service_fee;
         }
 
         try {
@@ -3916,7 +3931,9 @@ class Voice extends ViewComponents
                 // Financeiro e IDs
                 'balance_admin'    => $balanceAdmin,
                 'balance_reseller' => $balanceReseller,
-                'call_minute_cost' => $callMinuteCost,
+                'value_voice'      => $valueVoice,
+                'voice_open_rate'  => $voiceOpenRate,
+                'voice_smart_rate' => $voiceSmartRate,
                 'service_fee'      => $serviceFee,
                 'role'             => $finalRole,
                 'tenant_id'        => $tenantId,
@@ -5997,23 +6014,60 @@ final class VoiceBillingProcessor
             return;
         }
 
-        if ($wallet === 'reseller') {
-            BalanceSms::decrementResellerBalance($amount, $userId, $cdr->tenancy_id);
-        } else {
-            $balance = BalanceSms::getBalanceSms($userId, $cdr->tenancy_id);
+        $operationKey = sprintf(
+            'voice:%s:%s:%s:%d',
+            (string)($cdr->call_id ?: $cdr->channel_id),
+            strtolower((string)($charge['description'] ?? 'voice')),
+            $wallet,
+            $userId
+        );
 
-            if ($balance) {
-                BalanceSms::updateBalance(
-                    $userId,
-                    $cdr->tenancy_id,
-                    $balance->plan_id ?? null,
-                    round(max(0, (float)$balance->balance - $amount), 4)
-                );
-            }
+        $result = FinancialTransactionService::debit([
+            'user_id' => $userId,
+            'tenancy_id' => (string)$cdr->tenancy_id,
+            'wallet' => $wallet === 'reseller'
+                ? FinancialTransactionService::WALLET_RESELLER
+                : FinancialTransactionService::WALLET_ADMIN,
+            'amount' => $amount,
+            'operation_key' => $operationKey,
+            'source' => 'voice_cdr',
+            'description' => sprintf(
+                "%s | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
+                (string)($charge['description'] ?? 'VOICE'),
+                $cdr->channel_id,
+                $cdr->destination,
+                $cdr->duration,
+                $cdr->dialstatus,
+                $cdr->type,
+                number_format($amount, 4, '.', '')
+            ),
+            'provider_reference' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'related_type' => 'voice_call',
+            'related_id' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'metadata' => [
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'dialstatus' => $cdr->dialstatus,
+                'voice_type' => $cdr->type,
+                'wallet' => $wallet,
+            ],
+            'legacy_log_amount' => $amount,
+        ]);
+
+        if (!$result['ok']) {
+            VoiceCdrDebug::send([
+                'financial_debit' => false,
+                'reason' => $result['status'] ?? 'unknown',
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'user_id' => $userId,
+                'wallet' => $wallet,
+                'amount' => $amount,
+            ]);
+            return;
         }
 
         self::syncAsteriskBalance($cdr, $userId, $wallet, $amount);
-        self::insertBalanceLog($cdr, $userId, $amount, (string)($charge['description'] ?? 'VOICE'));
     }
 
     private static function syncAsteriskBalance(CdrVoice $cdr, int $userId, string $wallet, float $amount): void
@@ -6098,25 +6152,6 @@ final class VoiceBillingProcessor
 
             error_log('[CDR] Excecao ao sincronizar saldo no Asterisk: ' . $e->getMessage());
         }
-    }
-
-    private static function insertBalanceLog(CdrVoice $cdr, int $userId, float $amount, string $description): void
-    {
-        BalanceSms::insertBalanceLog([
-            'user_id' => $userId,
-            'tenancy_id' => $cdr->tenancy_id,
-            'amount' => $amount,
-            'description' => sprintf(
-                "%s | channel_id:%s dst:%s dur:%ss status:%s type:%s cost:%s",
-                $description,
-                $cdr->channel_id,
-                $cdr->destination,
-                $cdr->duration,
-                $cdr->dialstatus,
-                $cdr->type,
-                number_format($amount, 4, '.', '')
-            ),
-        ]);
     }
 
     private static function calculateUpstreamCost(CdrVoice $cdr, int $tenantOwnerId): float

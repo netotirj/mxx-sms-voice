@@ -179,7 +179,14 @@ class AsteriskExtensionsSip
                 'tenant_id' => $tenantId,
             ];
 
-            foreach (['balance_admin', 'balance_reseller', 'call_minute_cost', 'service_fee'] as $field) {
+            foreach ([
+                'balance_admin',
+                'balance_reseller',
+                'value_voice',
+                'voice_open_rate',
+                'voice_smart_rate',
+                'service_fee',
+            ] as $field) {
                 if (array_key_exists($field, $target)) {
                     $configPayload[$field] = $target[$field];
                 }

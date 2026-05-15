@@ -277,8 +277,37 @@ class WhatsAppVoiceBilling
         }
 
         try {
-            if (self::debitBalance($userId, $tenancyId, $amount, $callId)) {
-                WhatsAppCallCdrStore::markBalanceDebited($callId, $lockToken);
+            $result = FinancialTransactionService::debit([
+                'user_id' => $userId,
+                'tenancy_id' => $tenancyId,
+                'wallet' => FinancialTransactionService::WALLET_ADMIN,
+                'amount' => $amount,
+                'operation_key' => 'whatsapp_voice:' . $callId,
+                'source' => 'whatsapp_voice',
+                'description' => 'Tarifação WhatsApp Voz - call_id ' . $callId,
+                'provider_reference' => $callId,
+                'related_type' => 'whatsapp_voice_call',
+                'related_id' => $callId,
+                'metadata' => [
+                    'call_id' => $callId,
+                    'charge_lock_token' => $lockToken,
+                ],
+                'legacy_log_amount' => -$amount,
+            ], static function (Database $db) use ($callId, $lockToken): void {
+                $db->run(
+                    "UPDATE whatsapp_call_cdr
+                     SET balance_debited_at = NOW(),
+                         updated_at = NOW()
+                     WHERE call_id = :call_id
+                       AND charge_lock_token = :token",
+                    [
+                        ':call_id' => $callId,
+                        ':token' => $lockToken,
+                    ]
+                );
+            });
+
+            if ($result['ok']) {
                 return;
             }
         } catch (\Throwable $e) {
@@ -286,52 +315,6 @@ class WhatsAppVoiceBilling
         }
 
         WhatsAppCallCdrStore::releaseChargeLock($callId, $lockToken);
-    }
-
-    private static function debitBalance(int $userId, string $tenancyId, float $amount, string $callId): bool
-    {
-        $amount = round(max(0, $amount), 4);
-        if ($amount <= 0) {
-            return false;
-        }
-
-        $balance = BalanceSms::getBalanceSms($userId, $tenancyId);
-        if (!$balance || (float)$balance->balance < $amount) {
-            return false;
-        }
-
-        try {
-            $updated = (new Database())->execute(
-                "UPDATE tenancy_balance
-                 SET balance = balance - :amount,
-                     updated_at = NOW()
-                 WHERE user_id = :user_id
-                   AND tenancy_id = :tenancy_id
-                   AND balance >= :amount
-                 ORDER BY updated_at DESC
-                 LIMIT 1",
-                [
-                    ':amount' => $amount,
-                    ':user_id' => $userId,
-                    ':tenancy_id' => $tenancyId,
-                ]
-            );
-
-            if ($updated->rowCount() <= 0) {
-                return false;
-            }
-
-            BalanceSms::insertBalanceLog([
-                'user_id' => $userId,
-                'tenancy_id' => $tenancyId,
-                'amount' => -$amount,
-                'description' => 'Tarifação WhatsApp Voz - call_id ' . $callId,
-            ]);
-            return true;
-        } catch (\Throwable $e) {
-            error_log('[whatsapp_voice_debit] ' . $e->getMessage());
-            return false;
-        }
     }
 
     private static function chargeLockToken(): string

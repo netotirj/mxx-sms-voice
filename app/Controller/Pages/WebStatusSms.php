@@ -13,6 +13,7 @@ use App\Model\Entity\UserSearch;
 use App\Model\Entity\CampaignBatch;
 use DateTime;
 use Exception;
+use App\Service\FinancialTransactionService;
 use WilliamCosta\DatabaseManager\Database;
 
 class WebStatusSms
@@ -57,18 +58,31 @@ class WebStatusSms
         $totalChargeLog = ($valueSmsReseller ?? $valueSmsTenancy) * $totalTarifavel;
 
         if ($currentBalance >= $totalChargeTenancy) {
-            $newBalance = $currentBalance - $totalChargeTenancy;
-
-            // 💰 Atualiza o saldo do tenancy (débito real)
-            BalanceSms::updateBalance($userId, $tenancyId, $planId, $newBalance);
-
-            // 🧾 Registra log com valor do reseller (se houver)
-            BalanceSms::insertBalanceLog([
-                'user_id'    => $userId,
+            $result = FinancialTransactionService::debit([
+                'user_id' => $userId,
                 'tenancy_id' => $tenancyId,
-                'amount'     => -$totalChargeLog,
-                'description'=> $descricao
+                'wallet' => FinancialTransactionService::WALLET_ADMIN,
+                'amount' => round($totalChargeTenancy, 4),
+                'operation_key' => sprintf('sms:batch:%d:owner:%d', $batchId, $userId),
+                'source' => 'sms_batch_callback',
+                'description' => $descricao,
+                'provider_reference' => (string)$batchId,
+                'related_type' => 'sms_batch',
+                'related_id' => (string)$batchId,
+                'metadata' => [
+                    'count_delivered' => $countDelivered,
+                    'count_sent' => $countSent,
+                    'count_undelivered' => $countUndelivered,
+                    'count_expired' => $countExpired,
+                    'plan_id' => $planId,
+                ],
+                'legacy_log_amount' => -$totalChargeLog,
             ]);
+
+            if (!$result['ok']) {
+                CampaignBatch::markAsCharged($batchId, 2);
+                return;
+            }
 
             if ($countDelivered === 0 && $countSent === 0 && ($countUndelivered + $countExpired) > 0) {
                 CampaignBatch::markAsCharged($batchId, 3); // sem envio real

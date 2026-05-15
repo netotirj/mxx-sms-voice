@@ -11,6 +11,7 @@ use App\Model\Entity\CallbackSms;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\UserPlans;
+use App\Service\FinancialTransactionService;
 use App\Service\PlanRuntimeService;
 use App\Utils\View;
 
@@ -326,15 +327,41 @@ class SendSms extends ViewComponents
                 $callback->date_send      = date('Y-m-d H:i:s');
 
                 if (strtoupper($smsResult['status'] ?? '') === 'ACCEPTED') {
-                    $totalAccepted++;
                     $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : (float)$obBalance->value_sms);
                     if ($isReseller) {
                         $callback->value_sms = $chargeValue;
-                        $availableBalance -= $chargeValue;
-                        BalanceSms::decrementResellerBalance($chargeValue, $obUser['id'], $obUser['tenancy_id']);
+                        $debit = FinancialTransactionService::debit([
+                            'user_id' => (int)$obUser['id'],
+                            'tenancy_id' => (string)$obUser['tenancy_id'],
+                            'wallet' => FinancialTransactionService::WALLET_RESELLER,
+                            'amount' => round($chargeValue, 4),
+                            'operation_key' => 'sms:accepted:' . (string)$callback->id_partner,
+                            'source' => 'sms_send_accepted',
+                            'description' => 'SMS ACCEPTED RESELLER | partner:' . (string)$callback->id_partner,
+                            'provider_reference' => (string)$callback->id_partner,
+                            'related_type' => 'sms_partner_id',
+                            'related_id' => (string)$callback->id_partner,
+                            'metadata' => [
+                                'phone_sms' => (string)$callback->phone_sms,
+                                'batch_id' => (int)$batchId,
+                                'sms_units' => (int)$cont['sms_units'],
+                            ],
+                            'legacy_log_amount' => -$chargeValue,
+                        ]);
+
+                        if (!$debit['ok']) {
+                            $callback->status_sms = 'REJECTED';
+                            $callback->value_sms = 0.00;
+                            $totalFailed++;
+                            $apiErrors[] = 'Falha ao reservar saldo do revendedor para SMS aceito.';
+                        } else {
+                            $availableBalance -= $chargeValue;
+                            $totalAccepted++;
+                        }
 
                     } else {
                         $callback->value_sms = $chargeValue;
+                        $totalAccepted++;
                     }
                 } else {
                     $callback->value_sms = 0.00;

@@ -355,16 +355,13 @@ class WhatsAppBilling
             return false;
         }
 
-        $billed = self::debitBalance((int)$row['client_id'], (string)$row['tenancy_id'], $priceBrl);
-        if (!$billed) {
-            error_log('[whatsapp_billing] Falha ao debitar saldo na entrega WhatsApp cdr_id=' . (int)$row['id']);
-            return false;
-        }
-
-        BalanceSms::insertBalanceLog([
+        $operation = FinancialTransactionService::debit([
             'user_id' => (int)$row['client_id'],
             'tenancy_id' => (string)$row['tenancy_id'],
+            'wallet' => FinancialTransactionService::WALLET_ADMIN,
             'amount' => $priceBrl,
+            'operation_key' => 'whatsapp:delivered:' . $wamid,
+            'source' => 'whatsapp_delivered',
             'description' => sprintf(
                 'WHATSAPP DELIVERED | phone:%s category:%s template:%s cost:%s usd:%s fx:%s',
                 (string)$row['phone_number'],
@@ -374,31 +371,49 @@ class WhatsAppBilling
                 number_format((float)($row['cost_usd'] ?? 0), 6, '.', ''),
                 number_format((float)($row['exchange_rate'] ?? 0), 6, '.', '')
             ),
-        ]);
-
-        (new Database('whatsapp_message_cdr'))->update(
-            'id = :id',
-            [
-                'billed' => 1,
-                'delivered_at' => date('Y-m-d H:i:s'),
+            'provider_reference' => $wamid,
+            'related_type' => 'whatsapp_message',
+            'related_id' => $wamid,
+            'metadata' => [
+                'cdr_id' => (int)$row['id'],
+                'whatsapp_outbox_id' => (int)($row['whatsapp_outbox_id'] ?? 0),
+                'whatsapp_message_id' => (int)($row['whatsapp_message_id'] ?? 0),
+                'message_category' => strtolower($category),
             ],
-            [':id' => (int)$row['id']]
-        );
-
-        if (!empty($row['whatsapp_outbox_id'])) {
-            (new Database('whatsapp_outbox'))->update(
-                'id = :id',
-                ['billed' => 1, 'updated_at' => date('Y-m-d H:i:s')],
-                [':id' => (int)$row['whatsapp_outbox_id']]
+            'legacy_log_amount' => $priceBrl,
+        ], static function (Database $db) use ($row): void {
+            $db->run(
+                "UPDATE whatsapp_message_cdr
+                 SET billed = 1,
+                     delivered_at = NOW()
+                 WHERE id = :id",
+                [':id' => (int)$row['id']]
             );
-        }
 
-        if (!empty($row['whatsapp_message_id'])) {
-            (new Database('whatsapp_messages'))->update(
-                'id = :id',
-                ['billed' => 1, 'updated_at' => date('Y-m-d H:i:s')],
-                [':id' => (int)$row['whatsapp_message_id']]
-            );
+            if (!empty($row['whatsapp_outbox_id'])) {
+                $db->run(
+                    "UPDATE whatsapp_outbox
+                     SET billed = 1,
+                         updated_at = NOW()
+                     WHERE id = :id",
+                    [':id' => (int)$row['whatsapp_outbox_id']]
+                );
+            }
+
+            if (!empty($row['whatsapp_message_id'])) {
+                $db->run(
+                    "UPDATE whatsapp_messages
+                     SET billed = 1,
+                         updated_at = NOW()
+                     WHERE id = :id",
+                    [':id' => (int)$row['whatsapp_message_id']]
+                );
+            }
+        });
+
+        if (!$operation['ok']) {
+            error_log('[whatsapp_billing] Falha ao debitar saldo na entrega WhatsApp cdr_id=' . (int)$row['id']);
+            return false;
         }
 
         return true;
@@ -775,38 +790,6 @@ class WhatsAppBilling
             error_log('[whatsapp_reseller_lookup] ' . $e->getMessage());
             return null;
         }
-    }
-
-    private static function debitBalance(int $userId, string $tenancyId, float $amount): bool
-    {
-        $amount = round(max(0, $amount), 4);
-        if ($amount <= 0) {
-            return true;
-        }
-
-        $balance = BalanceSms::getBalanceSms($userId, $tenancyId, self::resolvePlanId($userId, $tenancyId));
-        if (!$balance || (float)$balance->balance < $amount) {
-            return false;
-        }
-
-        if (isset($balance->id, $balance->plan_id) && $balance->id && $balance->plan_id) {
-            return (new Database())->execute(
-                "UPDATE tenancy_balance
-                 SET balance = balance - :amount, updated_at = NOW()
-                 WHERE id = :id
-                   AND user_id = :user_id
-                   AND tenancy_id = :tenancy_id
-                   AND balance >= :amount",
-                [
-                    ':amount' => $amount,
-                    ':id' => (int)$balance->id,
-                    ':user_id' => $userId,
-                    ':tenancy_id' => $tenancyId,
-                ]
-            )->rowCount() === 1;
-        }
-
-        return BalanceSms::decrementResellerBalance($amount, $userId, $tenancyId);
     }
 
     private static function generateCdr(

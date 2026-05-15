@@ -4,7 +4,7 @@ require __DIR__ . '/bootstrap/app.php';
 
 use App\Controller\Pages\Voice;
 use App\Model\Entity\WorkerHeartbeat;
-use App\Utils\AsteriskEnv;
+use App\RedisConn;
 use Predis\Client as RedisClient;
 
 ini_set('output_buffering', 'off');
@@ -18,12 +18,7 @@ echo "Press Ctrl+C to stop.\n";
 $lastHeartbeat = time();
 $serviceName = getenv('CDR_WORKER_SERVICE_NAME') ?: 'maxx-cdr-worker.service';
 WorkerHeartbeat::record($serviceName, 'cdr', 'starting', 'CDR worker inicializado.', 0, 0, round(memory_get_usage(true) / 1048576, 2));
-$redis = new RedisClient([
-    'scheme' => 'tcp',
-    'host' => getenv('REDIS_HOST') ?: AsteriskEnv::host(),
-    'port' => (int)(getenv('REDIS_PORT') ?: 6379),
-    'password' => getenv('REDIS_PASSWORD') ?: 'RedisPwd081092!',
-]);
+$redis = RedisConn::get();
 
 function cdrWorkerDiagnostics(RedisClient $redis): string
 {

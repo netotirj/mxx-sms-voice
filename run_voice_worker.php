@@ -14,6 +14,8 @@ $worker = new VoiceWorker();
 
 try {
     $worker->run(1);
-} catch (Exception $e) {
-
+} catch (Throwable $e) {
+    error_log('[voice_worker_launcher] ' . $e->getMessage());
+    fwrite(STDERR, "[voice_worker_launcher] " . $e->getMessage() . PHP_EOL);
+    throw $e;
 }

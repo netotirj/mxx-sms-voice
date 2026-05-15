@@ -1919,9 +1919,11 @@ class Dashboard extends ViewComponents
                 ], 'application/json');
             }
 
-            $adminBalance    = (float)($panelAdmin->balance ?? 0);
-            $adminTariff     = (float)($panelAdmin->value_voice ?? 0);
-            $adminServiceFee = (float)($panelAdmin->service_fee ?? 0); // ✅ NOVO
+            $adminBalance        = (float)($panelAdmin->balance ?? 0);
+            $adminValueVoice     = (float)($panelAdmin->value_voice ?? 0);
+            $adminVoiceOpenRate  = (float)($panelAdmin->voice_open_rate ?? $adminValueVoice);
+            $adminVoiceSmartRate = (float)($panelAdmin->voice_smart_rate ?? $adminValueVoice);
+            $adminServiceFee     = (float)($panelAdmin->service_fee ?? 0);
 
             // 3) Resellers (saldo painel + tarifa via Rates)
             $resellers = UserSearch::getResellers($tenancyId) ?? [];
@@ -1931,18 +1933,24 @@ class Dashboard extends ViewComponents
                 $rid = (int)($r['id'] ?? 0);
                 if ($rid <= 0) continue;
 
-                // ⚠️ Se seu método retorna array com voice + service_fee, melhor pegar tudo:
-                $ratesAll = Rates::getActiveRatesByUser($tenancyId, $rid);
+                $resellerPanel = BalanceSms::getBalanceSms($rid, $tenancyId, $planId);
+                if (!$resellerPanel) {
+                    continue;
+                }
 
-                $tariff      = (float)($ratesAll['voice'] ?? 0);
-                $serviceFee  = (float)($ratesAll['service_fee'] ?? 0);
+                $resellerValueVoice = (float)($resellerPanel->value_voice ?? 0);
+                $serviceFee         = (float)($resellerPanel->service_fee ?? 0);
+                $voiceOpenRate      = (float)($resellerPanel->voice_open_rate ?? $resellerValueVoice);
+                $voiceSmartRate     = (float)($resellerPanel->voice_smart_rate ?? $resellerValueVoice);
 
                 $resellerPayload[] = [
-                    'user_id'          => $rid,
-                    'balance_admin'    => $adminBalance,
-                    'balance_reseller' => (float)($r['reseller_balance'] ?? 0),
-                    'call_minute_cost' => $tariff,
-                    'service_fee'      => $serviceFee, // ✅ NOVO
+                    'user_id'           => $rid,
+                    'balance_admin'     => $adminBalance,
+                    'balance_reseller'  => (float)($r['reseller_balance'] ?? 0),
+                    'value_voice'       => $resellerValueVoice,
+                    'voice_open_rate'   => $voiceOpenRate,
+                    'voice_smart_rate'  => $voiceSmartRate,
+                    'service_fee'       => $serviceFee,
                 ];
             }
 
@@ -1958,10 +1966,12 @@ class Dashboard extends ViewComponents
 
                 // ADMIN
                 'admin' => [
-                    'user_id'          => $adminId,
-                    'balance_admin'    => $adminBalance,
-                    'call_minute_cost' => $adminTariff,
-                    'service_fee'      => $adminServiceFee, // ✅ NOVO
+                    'user_id'           => $adminId,
+                    'balance_admin'     => $adminBalance,
+                    'value_voice'       => $adminValueVoice,
+                    'voice_open_rate'   => $adminVoiceOpenRate,
+                    'voice_smart_rate'  => $adminVoiceSmartRate,
+                    'service_fee'       => $adminServiceFee,
                 ],
 
                 // RESELLERS

@@ -429,7 +429,7 @@ class WhatsAppVoiceBilling
 
         if ($billableMinutes > 0 && $context->owner_admin_id > 0 && $context->owner_admin_id !== $userId) {
             $adminPricing = self::resolvePricingContext((int)$context->owner_admin_id, $tenancyId, $summary, $phone, false);
-            $adminAmount = round($billableMinutes * (float)($adminPricing['final_price_per_minute_brl'] ?? 0), 4);
+            $adminAmount = round($billableMinutes * (float)($adminPricing['base_price_per_minute_brl'] ?? 0), 4);
         }
 
         return FinancialHierarchyBillingService::buildDebitPlan([
@@ -449,6 +449,7 @@ class WhatsAppVoiceBilling
                 'call_id' => $callId,
                 'charge_lock_token' => $lockToken,
                 'billable_minutes' => $billableMinutes,
+                'admin_upstream_unit_cost' => $billableMinutes > 0 ? round($adminAmount / $billableMinutes, 4) : 0.0,
             ],
         ]);
     }

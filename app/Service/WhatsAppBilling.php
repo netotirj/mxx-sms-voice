@@ -971,7 +971,7 @@ class WhatsAppBilling
         }
 
         if ($context->owner_admin_id > 0 && $context->owner_admin_id !== $userId) {
-            $adminAmount = round(self::priceForUser((int)$context->owner_admin_id, $tenancyId, $category, $countryCode), 4);
+            $adminAmount = self::upstreamBaseCostForCategory($category, $countryCode);
         }
 
         return FinancialHierarchyBillingService::buildDebitPlan([
@@ -989,5 +989,25 @@ class WhatsAppBilling
             'description_prefix' => $descriptionPrefix ?: strtoupper('whatsapp_' . $event),
             'metadata' => $metadata,
         ]);
+    }
+
+    private static function upstreamBaseCostForCategory(string $category, ?string $countryCode = null): float
+    {
+        $normalizedCategory = strtolower(WhatsAppCostPolicy::normalizeCategory($category));
+        if ($normalizedCategory === strtolower(WhatsAppCostPolicy::CATEGORY_SERVICE)) {
+            return 0.0;
+        }
+
+        try {
+            $pricing = WhatsAppDynamicPricing::calculatePrice(
+                $normalizedCategory,
+                $countryCode ?: (string)TelephonyConfig::env('WHATSAPP_DEFAULT_COUNTRY_CODE', 'BR'),
+                0
+            );
+            return round((float)($pricing['cost_brl'] ?? 0), 4);
+        } catch (\Throwable $e) {
+            error_log('[whatsapp_upstream_base_cost] ' . $e->getMessage());
+            return 0.0;
+        }
     }
 }

@@ -1,0 +1,433 @@
+<div class="w-full px-6 py-6 mx-auto" id="platform-consumption-page">
+    <div class="flex flex-wrap -mx-3">
+        <div class="w-full max-w-full px-3">
+            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                        <div class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            Super Admin
+                        </div>
+                        <h1 class="mt-3 text-2xl font-bold text-slate-800">Consumo Global da Plataforma</h1>
+                        <p class="mt-2 text-sm text-slate-500">Visão consolidada de billing confirmado, consumo operacional e margem por SMS, Voz e WhatsApp.</p>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-3 xl:min-w-[780px]">
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Período</label>
+                            <select id="pc-preset" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                                <option value="today">Hoje</option>
+                                <option value="yesterday">Ontem</option>
+                                <option value="7d" selected>7 dias</option>
+                                <option value="30d">30 dias</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Tenant</label>
+                            <select id="pc-tenant" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Produto</label>
+                            <select id="pc-product" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                                <option value="all">Todos</option>
+                                <option value="sms">SMS</option>
+                                <option value="voice">Voz</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="whatsapp_voice">WhatsApp Voz</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Status</label>
+                            <select id="pc-status" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                                <option value="all">Todos</option>
+                                <option value="delivered">Entregue</option>
+                                <option value="sent">Enviado</option>
+                                <option value="read">Lido</option>
+                                <option value="answered">Atendida</option>
+                                <option value="failed">Falha</option>
+                                <option value="busy">Ocupado</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Data inicial</label>
+                            <input id="pc-date-from" type="date" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <div class="flex-1">
+                                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Data final</label>
+                                <input id="pc-date-to" type="date" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none">
+                            </div>
+                            <button id="pc-apply" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-700">Aplicar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="pc-summary-cards"></div>
+
+    <div class="mt-6 grid gap-6 xl:grid-cols-3">
+        <div class="xl:col-span-2 rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-800">Receita x Custo por Dia</h2>
+                    <p class="text-xs text-slate-400">Base financeira confirmada no ledger com custo reconciliado por produto.</p>
+                </div>
+            </div>
+            <div class="h-[320px]">
+                <canvas id="pc-finance-chart"></canvas>
+                <div id="pc-finance-fallback" class="hidden space-y-2 text-xs text-slate-500"></div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Consumo por Produto</h2>
+                <p class="text-xs text-slate-400">Volume operacional consolidado no período.</p>
+            </div>
+            <div id="pc-product-bars" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 xl:grid-cols-3">
+        <div class="xl:col-span-2 rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-800">Top Tenants</h2>
+                    <p class="text-xs text-slate-400">Ranking global por consumo, receita e custo.</p>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                            <th class="px-3 py-3">Tenant</th>
+                            <th class="px-3 py-3">SMS</th>
+                            <th class="px-3 py-3">Voz</th>
+                            <th class="px-3 py-3">WhatsApp</th>
+                            <th class="px-3 py-3">Receita</th>
+                            <th class="px-3 py-3">Custo</th>
+                            <th class="px-3 py-3">Lucro</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pc-top-tenants"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Falhas Recentes</h2>
+                <p class="text-xs text-slate-400">Últimos eventos críticos encontrados no período filtrado.</p>
+            </div>
+            <div id="pc-failures" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold text-slate-800">Auditoria da Estrutura</h2>
+            <p class="text-xs text-slate-400">Mapa interno do que já existia, do que estava parcial e dos riscos controlados nesta implementação.</p>
+        </div>
+        <div class="grid gap-6 xl:grid-cols-4">
+            <div>
+                <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-emerald-600">Pronto</h3>
+                <div id="pc-audit-ready" class="space-y-2 text-sm text-slate-600"></div>
+            </div>
+            <div>
+                <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-amber-600">Parcial</h3>
+                <div id="pc-audit-partial" class="space-y-2 text-sm text-slate-600"></div>
+            </div>
+            <div>
+                <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-rose-600">Faltava</h3>
+                <div id="pc-audit-missing" class="space-y-2 text-sm text-slate-600"></div>
+            </div>
+            <div>
+                <h3 class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">Riscos</h3>
+                <div id="pc-audit-risks" class="space-y-2 text-sm text-slate-600"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const state = {
+        chart: null,
+        data: null
+    };
+
+    const qs = (selector) => document.querySelector(selector);
+    const qsa = (selector) => Array.from(document.querySelectorAll(selector));
+
+    const currency = (value) => {
+        const amount = Number(value || 0);
+        return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    const integer = (value) => Number(value || 0).toLocaleString('pt-BR');
+    const decimal = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const toneMap = {
+        emerald: { border: 'border-emerald-100', text: 'text-emerald-500' },
+        rose: { border: 'border-rose-100', text: 'text-rose-500' },
+        indigo: { border: 'border-indigo-100', text: 'text-indigo-500' },
+        amber: { border: 'border-amber-100', text: 'text-amber-500' },
+        cyan: { border: 'border-cyan-100', text: 'text-cyan-500' },
+        green: { border: 'border-green-100', text: 'text-green-500' },
+        violet: { border: 'border-violet-100', text: 'text-violet-500' },
+        slate: { border: 'border-slate-100', text: 'text-slate-500' }
+    };
+
+    const card = (title, value, helper, tone = 'slate') => {
+        const palette = toneMap[tone] || toneMap.slate;
+        return `
+        <div class="rounded-2xl border ${palette.border} bg-white p-5 shadow-xl">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] ${palette.text}">${title}</p>
+            <p class="mt-3 text-2xl font-bold text-slate-800">${value}</p>
+            <p class="mt-2 text-xs text-slate-500">${helper}</p>
+        </div>
+    `;
+    };
+
+    const productBar = (label, value, maxValue, tone) => {
+        const percent = maxValue > 0 ? Math.max(6, Math.round((value / maxValue) * 100)) : 0;
+        return `
+            <div>
+                <div class="mb-1 flex items-center justify-between text-xs text-slate-500">
+                    <span class="font-semibold uppercase tracking-wide">${label}</span>
+                    <span>${integer(value)}</span>
+                </div>
+                <div class="h-2 rounded-full bg-slate-100">
+                    <div class="h-2 rounded-full ${tone}" style="width:${percent}%"></div>
+                </div>
+            </div>
+        `;
+    };
+
+    const lineItem = (label, value) => `
+        <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">${label}</p>
+            <p class="mt-1 text-sm text-slate-700">${value}</p>
+        </div>
+    `;
+
+    function currentFilters() {
+        return {
+            preset: qs('#pc-preset').value,
+            tenant_id: qs('#pc-tenant').value,
+            product: qs('#pc-product').value,
+            status: qs('#pc-status').value,
+            date_from: qs('#pc-date-from').value,
+            date_to: qs('#pc-date-to').value
+        };
+    }
+
+    function syncCustomInputs() {
+        const preset = qs('#pc-preset').value;
+        const disabled = preset !== 'custom';
+        qs('#pc-date-from').disabled = disabled;
+        qs('#pc-date-to').disabled = disabled;
+    }
+
+    async function loadData() {
+        const filters = currentFilters();
+        const params = new URLSearchParams(filters);
+        const response = await fetch(`${window.baseUrl}/admin/platform-consumption/data?${params.toString()}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'ok') {
+            throw new Error(payload.message || 'Falha ao carregar dashboard global.');
+        }
+
+        state.data = payload.data;
+        hydrateTenantOptions(payload.data.tenant_options || []);
+        render(payload.data);
+    }
+
+    function hydrateTenantOptions(rows) {
+        const select = qs('#pc-tenant');
+        const selected = select.value;
+        const options = ['<option value="">Todos</option>'].concat(
+            rows.map((row) => `<option value="${row.id}">${row.name}</option>`)
+        );
+        select.innerHTML = options.join('');
+        select.value = selected;
+    }
+
+    function render(data) {
+        const summary = data.summary || {};
+        renderCards(summary);
+        renderProductBars(summary);
+        renderTopTenants(data.top_tenants || []);
+        renderFailures(data.recent_failures || []);
+        renderAudit(data.audit || {});
+        renderChart(data.series || {});
+    }
+
+    function renderCards(summary) {
+        const cards = [
+            card('Receita Total', currency(summary.revenue_total), 'Somatório de billing confirmado no ledger.', 'emerald'),
+            card('Custo Total', currency(summary.cost_total), 'Custo upstream conciliado por produto.', 'rose'),
+            card('Lucro Total', currency(summary.profit_total), 'Receita menos custo oficial.', 'indigo'),
+            card('SMS', integer(summary.sms_total), `${integer(summary.sms_delivered)} entregues e ${integer(summary.sms_failed)} falhos.`, 'amber'),
+            card('Voz', integer(summary.voice_total), `ASR ${decimal(summary.voice_asr)}% | ACD ${decimal(summary.voice_acd_seconds)}s.`, 'cyan'),
+            card('WhatsApp', integer(summary.whatsapp_total), `${integer(summary.whatsapp_delivered)} entregues | ${integer(summary.whatsapp_read)} lidas.`, 'green'),
+            card('WA Voz', integer(summary.whatsapp_voice_total), `${integer(summary.whatsapp_voice_answered)} atendidas.`, 'violet'),
+            card('Tenants Ativos', integer(summary.active_tenants), 'Contas com movimento no período atual.', 'slate')
+        ];
+
+        qs('#pc-summary-cards').innerHTML = cards.join('');
+    }
+
+    function renderProductBars(summary) {
+        const values = [
+            { label: 'SMS', value: Number(summary.sms_total || 0), tone: 'bg-amber-500' },
+            { label: 'Voz', value: Number(summary.voice_total || 0), tone: 'bg-cyan-500' },
+            { label: 'WhatsApp', value: Number(summary.whatsapp_total || 0), tone: 'bg-emerald-500' },
+            { label: 'WhatsApp Voz', value: Number(summary.whatsapp_voice_total || 0), tone: 'bg-violet-500' }
+        ];
+        const maxValue = Math.max(...values.map((item) => item.value), 0);
+        qs('#pc-product-bars').innerHTML = values.map((item) => productBar(item.label, item.value, maxValue, item.tone)).join('');
+    }
+
+    function renderTopTenants(rows) {
+        if (!rows.length) {
+            qs('#pc-top-tenants').innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-sm text-slate-400">Nenhum tenant encontrado para o filtro atual.</td></tr>';
+            return;
+        }
+
+        qs('#pc-top-tenants').innerHTML = rows.map((row) => `
+            <tr class="border-b border-slate-100 text-slate-600">
+                <td class="px-3 py-3">
+                    <p class="font-semibold text-slate-700">${row.tenancy_name}</p>
+                    <p class="text-xs text-slate-400">${row.tenancy_id}</p>
+                </td>
+                <td class="px-3 py-3">${integer(row.sms_total)}</td>
+                <td class="px-3 py-3">${integer(row.voice_total)}</td>
+                <td class="px-3 py-3">${integer(row.whatsapp_total + row.whatsapp_voice_total)}</td>
+                <td class="px-3 py-3 font-semibold text-emerald-600">${currency(row.revenue)}</td>
+                <td class="px-3 py-3 font-semibold text-rose-600">${currency(row.cost)}</td>
+                <td class="px-3 py-3 font-semibold text-indigo-600">${currency(row.profit)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderFailures(rows) {
+        if (!rows.length) {
+            qs('#pc-failures').innerHTML = '<div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-5 text-sm text-slate-400">Nenhuma falha recente para o filtro atual.</div>';
+            return;
+        }
+
+        qs('#pc-failures').innerHTML = rows.map((row) => `
+            <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">${row.product}</p>
+                        <p class="text-sm font-bold text-slate-700">${row.tenancy_name}</p>
+                    </div>
+                    <span class="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold uppercase text-rose-600">${row.status_label}</span>
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Ref: ${row.reference_id || '-'} | ${row.occurred_at || '-'}</p>
+            </div>
+        `).join('');
+    }
+
+    function renderAudit(audit) {
+        const ready = Object.entries(audit.ready || {}).map(([key, value]) => lineItem(key.replaceAll('_', ' '), Array.isArray(value) || typeof value === 'object' ? JSON.stringify(value) : value)).join('');
+        const partial = Object.entries(audit.partial || {}).map(([key, value]) => lineItem(key.replaceAll('_', ' '), value)).join('');
+        const missing = (audit.missing_before_this_stage || []).map((item) => lineItem('pendência anterior', item.replaceAll('_', ' '))).join('');
+        const risks = (audit.duplicates_or_risks || []).concat(audit.performance || []).map((item) => lineItem('controle', item)).join('');
+
+        qs('#pc-audit-ready').innerHTML = ready || lineItem('status', 'Sem itens.');
+        qs('#pc-audit-partial').innerHTML = partial || lineItem('status', 'Sem itens.');
+        qs('#pc-audit-missing').innerHTML = missing || lineItem('status', 'Sem itens.');
+        qs('#pc-audit-risks').innerHTML = risks || lineItem('status', 'Sem itens.');
+    }
+
+    function renderChart(series) {
+        const labels = series.labels || [];
+        const revenue = labels.map((label) => Number((series.revenue || {})[label] || 0));
+        const cost = labels.map((label) => Number((series.cost || {})[label] || 0));
+
+        if (window.Chart) {
+            const ctx = qs('#pc-finance-chart').getContext('2d');
+            if (state.chart) {
+                state.chart.destroy();
+            }
+            state.chart = new window.Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Receita',
+                            data: revenue,
+                            borderColor: '#059669',
+                            backgroundColor: 'rgba(5,150,105,0.12)',
+                            fill: true,
+                            tension: 0.35
+                        },
+                        {
+                            label: 'Custo',
+                            data: cost,
+                            borderColor: '#e11d48',
+                            backgroundColor: 'rgba(225,29,72,0.08)',
+                            fill: true,
+                            tension: 0.35
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR')}`
+                            }
+                        }
+                    }
+                }
+            });
+            qs('#pc-finance-fallback').classList.add('hidden');
+            return;
+        }
+
+        qs('#pc-finance-fallback').classList.remove('hidden');
+        qs('#pc-finance-fallback').innerHTML = labels.map((label, index) => `
+            <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <span>${label}</span>
+                <span>Receita ${currency(revenue[index])} | Custo ${currency(cost[index])}</span>
+            </div>
+        `).join('');
+    }
+
+    async function bootstrap() {
+        syncCustomInputs();
+        try {
+            await loadData();
+        } catch (error) {
+            console.error(error);
+            qs('#pc-summary-cards').innerHTML = '<div class="col-span-full rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm text-rose-600">Falha ao carregar o dashboard financeiro global.</div>';
+        }
+    }
+
+    qs('#pc-preset').addEventListener('change', syncCustomInputs);
+    qs('#pc-apply').addEventListener('click', bootstrap);
+    qsa('#pc-tenant, #pc-product, #pc-status').forEach((element) => {
+        element.addEventListener('change', bootstrap);
+    });
+
+    bootstrap();
+})();
+</script>

@@ -15,6 +15,7 @@ use DateTime;
 use Exception;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
+use App\Service\PlatformGlobalCostService;
 use WilliamCosta\DatabaseManager\Database;
 
 class WebStatusSms
@@ -74,6 +75,7 @@ class WebStatusSms
                 'count_undelivered' => $countUndelivered,
                 'count_expired' => $countExpired,
                 'plan_id' => $planId,
+                'admin_upstream_total_charge' => round((float)($adminTotalCharge ?? 0), 4),
             ],
         ]);
 
@@ -260,7 +262,11 @@ class WebStatusSms
 
             $retailTotalCharge = round((float)($countData->value_total ?? 0), 4);
             $balanceData = BalanceSms::getBalanceSms($ownerId, $obUser->tenancy_id);
-            $adminUnitRate = $balanceData ? (float)$balanceData->value_sms : 0.0;
+            $adminUnitRate = PlatformGlobalCostService::resolveAmount(
+                'SMS',
+                ['route_key' => 'DEFAULT'],
+                $balanceData ? (float)$balanceData->value_sms : 0.0
+            );
             $adminTotalCharge = round($adminUnitRate * $totalTarifavel, 4);
 
             $resellerTotalCharge = null;

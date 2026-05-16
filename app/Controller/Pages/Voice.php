@@ -18,6 +18,7 @@ use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
 use App\Service\FinancialTransactionService;
 use App\Service\PlanRuntimeService;
+use App\Service\PlatformGlobalCostService;
 use App\Service\WhatsAppBilling;
 use App\Service\VoicePricingService;
 use App\RedisConn;
@@ -6202,6 +6203,7 @@ final class VoiceBillingProcessor
                 'voice_type' => $cdr->type,
                 'duration' => (float)$cdr->duration,
                 'trunk_billing_type' => $cdr->trunk_billing_type,
+                'admin_upstream_estimated_cost' => $adminAmount,
             ],
         ]);
     }
@@ -6254,6 +6256,11 @@ final class VoiceBillingProcessor
             return 0.0;
         }
 
+        $tenantOwnerId = self::tenantOwnerId($cdr);
+        if ($tenantOwnerId !== null && $userId === $tenantOwnerId) {
+            return self::calculateOfficialPlatformCostForCdr($cdr);
+        }
+
         $planId = RegisterTenancies::getActivePlanId((string)$cdr->tenancy_id);
         try {
             $rates = VoicePricingService::planRates($userId, (string)$cdr->tenancy_id, $planId);
@@ -6278,6 +6285,35 @@ final class VoiceBillingProcessor
             'torpedo' => self::calcTorpedo((float)$cdr->duration, $torpedoCost, $voiceCost),
             'sms' => $smsCost,
             'whatsapp' => $whatsCost,
+            default => 0.0,
+        }, 4);
+    }
+
+    private static function calculateOfficialPlatformCostForCdr(CdrVoice $cdr): float
+    {
+        $billingType = VoicePricingService::normalizeBillingType($cdr->trunk_billing_type ?? null);
+        $voiceUnitCost = PlatformGlobalCostService::resolveAmount(
+            'VOICE',
+            ['route_key' => $billingType ? strtoupper($billingType) : 'DEFAULT'],
+            round((float)($cdr->call_minute_cost ?? 0), 4)
+        );
+        $smsUnitCost = PlatformGlobalCostService::resolveAmount(
+            'SMS',
+            ['route_key' => 'DEFAULT'],
+            round((float)($cdr->sms_cost ?? 0), 4)
+        );
+        $whatsUnitCost = PlatformGlobalCostService::resolveAmount(
+            'WHATSAPP',
+            ['route_key' => 'MARKETING'],
+            0.0
+        );
+
+        return round(match ($cdr->type) {
+            'normal',
+            'voice',
+            'outbound' => self::calcNormal((float)$cdr->duration, $voiceUnitCost),
+            'sms' => $smsUnitCost,
+            'whatsapp' => $whatsUnitCost,
             default => 0.0,
         }, 4);
     }

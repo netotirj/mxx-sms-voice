@@ -14,6 +14,7 @@ use App\Model\Entity\UserPlans;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
 use App\Service\PlanRuntimeService;
+use App\Service\PlatformGlobalCostService;
 use App\Utils\View;
 
 
@@ -49,7 +50,11 @@ class SendSms extends ViewComponents
 
         if ($context->owner_admin_id > 0 && (int)$context->owner_admin_id !== $userId) {
             $ownerBalance = BalanceSms::getBalanceSms((int)$context->owner_admin_id, $tenancyId);
-            $adminUnitRate = (float)($ownerBalance->value_sms ?? 0);
+            $adminUnitRate = PlatformGlobalCostService::resolveAmount(
+                'SMS',
+                ['route_key' => 'DEFAULT'],
+                (float)($ownerBalance->value_sms ?? 0)
+            );
             $adminAmount = round($totalUnits * $adminUnitRate, 4);
         }
 
@@ -68,6 +73,7 @@ class SendSms extends ViewComponents
             'metadata' => [
                 'total_units' => $totalUnits,
                 'retail_unit_rate' => round($retailUnitRate, 4),
+                'admin_upstream_unit_cost' => round($adminAmount > 0 && $totalUnits > 0 ? ($adminAmount / $totalUnits) : 0, 6),
             ],
         ]);
     }

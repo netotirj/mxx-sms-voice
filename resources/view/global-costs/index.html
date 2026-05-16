@@ -1,0 +1,433 @@
+<div class="w-full px-6 py-6 mx-auto">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 text-lg">
+                            <i class="fa fa-coins"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Custos Globais da Plataforma</h2>
+                            <p class="text-xs text-slate-400">Fonte oficial de custo upstream para voz, SMS e WhatsApp.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="globalCostsPage.openForm()" class="inline-flex items-center gap-2 bg-gradient-to-tr from-slate-800 to-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow uppercase transition-all hover:scale-[1.02]">
+                            <i class="ni ni-fat-add text-sm"></i> Novo Custo
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Registros</p>
+                        <h5 id="gcTotalRows" class="mb-0 font-bold text-slate-800">0</h5>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Ativos</p>
+                        <h5 id="gcActiveRows" class="mb-0 font-bold text-emerald-600">0</h5>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Módulos</p>
+                        <h5 id="gcModulesCount" class="mb-0 font-bold text-cyan-600">0</h5>
+                    </div>
+                    <div class="relative flex flex-col min-w-0 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <p class="mb-0 text-xs font-semibold uppercase text-slate-500">Histórico</p>
+                        <h5 id="gcHistoryCount" class="mb-0 font-bold text-amber-600">0</h5>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 pt-3 bg-slate-50 border-y border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Módulo</label>
+                            <select id="gcModuleFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" onchange="globalCostsPage.reload()">
+                                <option value="">Todos</option>
+                                <option value="VOICE">Voz</option>
+                                <option value="SMS">SMS</option>
+                                <option value="WHATSAPP">WhatsApp</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500">Status</label>
+                            <select id="gcActiveFilter" class="mt-1 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" onchange="globalCostsPage.reload()">
+                                <option value="">Todos</option>
+                                <option value="1">Ativo</option>
+                                <option value="0">Inativo</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-xs font-medium text-slate-500">Buscar</label>
+                            <input id="gcSearchFilter" class="mt-1 w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white outline-none" placeholder="Rota, país, prefixo, provider ou observações..." oninput="globalCostsPage.reloadDebounced()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Escopo</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Custo</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Provider</th>
+                                <th class="px-4 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Status</th>
+                                <th class="px-4 py-3 font-bold text-center uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Ações</th>
+                            </tr>
+                            </thead>
+                            <tbody id="gcTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+                <div class="px-6 pt-6 pb-3">
+                    <h3 class="text-base font-semibold text-slate-800">Histórico e Auditoria</h3>
+                    <p class="text-xs text-slate-400">Alterações de custo, executor, valor anterior, valor novo e impacto.</p>
+                </div>
+                <div class="flex-auto px-0 pt-0 pb-2">
+                    <div class="p-0 overflow-x-auto">
+                        <table class="items-center w-full mb-0 align-top border-collapse text-slate-500">
+                            <thead>
+                            <tr>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Quando</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Módulo</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Alteração</th>
+                                <th class="px-4 py-3 font-bold text-left uppercase text-xxs border-b border-slate-100 text-slate-400 opacity-70">Executor</th>
+                            </tr>
+                            </thead>
+                            <tbody id="gcHistoryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="globalCostModal" class="fixed inset-0 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm z-[100050] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-100 overflow-hidden">
+        <div class="p-5 flex items-start justify-between border-b border-slate-100">
+            <div>
+                <h3 class="text-lg font-bold text-slate-800" id="gcModalTitle">Novo custo global</h3>
+                <p class="text-[11px] text-slate-400">Separado do preço de venda. Use esta tela para custo upstream oficial.</p>
+            </div>
+            <button type="button" onclick="globalCostsPage.closeForm()" class="p-2 text-slate-400 rounded-full hover:bg-slate-100">
+                <i class="fa fa-times text-sm"></i>
+            </button>
+        </div>
+        <form id="gcForm" class="p-5 space-y-4">
+            <input type="hidden" name="id" id="gc_id">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Módulo</label>
+                    <select name="module" id="gc_module" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                        <option value="VOICE">VOICE</option>
+                        <option value="SMS">SMS</option>
+                        <option value="WHATSAPP">WHATSAPP</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Rota/Chave</label>
+                    <input type="text" name="route_key" id="gc_route_key" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="OPEN, SMART, MARKETING, UTILITY...">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">País</label>
+                    <input type="text" name="country_code" id="gc_country_code" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="BR">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Prefixo</label>
+                    <input type="text" name="prefix_code" id="gc_prefix_code" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="55, 5521...">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Provider</label>
+                    <input type="text" name="provider" id="gc_provider" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="meta, asterisk, disparopro...">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Carrier</label>
+                    <input type="text" name="carrier" id="gc_carrier" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Custo</label>
+                    <input type="number" step="0.000001" min="0" name="cost_price" id="gc_cost_price" required class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Moeda</label>
+                    <select name="currency" id="gc_currency" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                        <option value="BRL">BRL</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Vigência</label>
+                    <input type="datetime-local" name="effective_date" id="gc_effective_date" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Observações</label>
+                <textarea name="notes" id="gc_notes" rows="3" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none" placeholder="Ex.: custo oficial upstream Meta BR, fallback seguro para utility."></textarea>
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" name="active" id="gc_active" value="1" checked>
+                Registro ativo
+            </label>
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onclick="globalCostsPage.closeForm()" class="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500">Cancelar</button>
+                <button type="submit" class="px-4 py-2 text-sm font-semibold rounded-xl bg-slate-800 text-white">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    window.globalCostsPage = (() => {
+        const state = {
+            rows: [],
+            history: [],
+            timer: null
+        };
+
+        const els = {};
+
+        function cache() {
+            els.tableBody = document.getElementById('gcTableBody');
+            els.historyBody = document.getElementById('gcHistoryBody');
+            els.modal = document.getElementById('globalCostModal');
+            els.form = document.getElementById('gcForm');
+            els.modalTitle = document.getElementById('gcModalTitle');
+            els.moduleFilter = document.getElementById('gcModuleFilter');
+            els.activeFilter = document.getElementById('gcActiveFilter');
+            els.searchFilter = document.getElementById('gcSearchFilter');
+        }
+
+        function fmtMoney(value, currency) {
+            const amount = Number(value || 0);
+            return `${currency || 'BRL'} ${amount.toFixed(6)}`;
+        }
+
+        function statusBadge(active) {
+            return active
+                ? '<span class="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-500 text-white uppercase">ativo</span>'
+                : '<span class="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-rose-500 text-white uppercase">inativo</span>';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>\"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        async function request(url, options = {}) {
+            const response = await fetch(url, options);
+            const result = await response.json();
+            if (!response.ok || result.status === 'error') {
+                throw new Error(result.message || 'Falha ao carregar os custos globais.');
+            }
+            return result;
+        }
+
+        function renderRows() {
+            if (!state.rows.length) {
+                els.tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-slate-400 font-semibold">Nenhum custo global encontrado.</td></tr>';
+                return;
+            }
+
+            els.tableBody.innerHTML = state.rows.map((row) => `
+                <tr class="border-b border-slate-100">
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-700">${escapeHtml(row.module)}</span>
+                            <span class="text-xs text-slate-500">${escapeHtml(row.route_key || 'DEFAULT')} · ${escapeHtml(row.country_code || 'GLOBAL')} · ${escapeHtml(row.prefix_code || '-')}</span>
+                            <span class="text-[11px] text-slate-400 mt-1">${escapeHtml(row.notes || '')}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-700">${fmtMoney(row.cost_price, row.currency)}</span>
+                            <span class="text-xs text-slate-400">vigência: ${escapeHtml(row.effective_date || '-')}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-col">
+                            <span class="text-sm text-slate-700">${escapeHtml(row.provider || '-')}</span>
+                            <span class="text-xs text-slate-400">${escapeHtml(row.carrier || '-')}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center align-top">${statusBadge(Number(row.active) === 1)}</td>
+                    <td class="px-4 py-4 text-center align-top">
+                        <div class="flex items-center justify-center gap-2">
+                            <button type="button" onclick="globalCostsPage.edit(${Number(row.id)})" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"><i class="fa fa-pen text-xs"></i></button>
+                            <button type="button" onclick="globalCostsPage.toggleStatus(${Number(row.id)}, ${Number(row.active) === 1 ? 0 : 1})" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100"><i class="fa fa-power-off text-xs"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderHistory() {
+            document.getElementById('gcHistoryCount').textContent = String(state.history.length);
+
+            if (!state.history.length) {
+                els.historyBody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-sm text-slate-400 font-semibold">Nenhum evento de auditoria encontrado.</td></tr>';
+                return;
+            }
+
+            els.historyBody.innerHTML = state.history.map((row) => `
+                <tr class="border-b border-slate-100">
+                    <td class="px-4 py-4 text-sm text-slate-600">${escapeHtml(row.created_at || '-')}</td>
+                    <td class="px-4 py-4 text-sm font-semibold text-slate-700">${escapeHtml(row.module)} · ${escapeHtml(row.route_key || 'DEFAULT')}</td>
+                    <td class="px-4 py-4 text-sm text-slate-600">${escapeHtml(row.impact_summary || row.action_name || '-')}</td>
+                    <td class="px-4 py-4 text-sm text-slate-600">${escapeHtml(row.actor_name || row.actor_user_id || '-')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function fillSummary(summary) {
+            document.getElementById('gcTotalRows').textContent = String(summary.total_rows || 0);
+            document.getElementById('gcActiveRows').textContent = String(summary.active_rows || 0);
+            document.getElementById('gcModulesCount').textContent = String(Object.values(summary.by_module || {}).filter((value) => Number(value) > 0).length);
+        }
+
+        async function reload() {
+            const params = new URLSearchParams();
+            if (els.moduleFilter.value) params.set('module', els.moduleFilter.value);
+            if (els.activeFilter.value !== '') params.set('active', els.activeFilter.value);
+            if (els.searchFilter.value.trim()) params.set('search', els.searchFilter.value.trim());
+
+            const query = params.toString();
+            const [rows, history] = await Promise.all([
+                request(`${window.baseUrl}/global-costs/search${query ? '?' + query : ''}`),
+                request(`${window.baseUrl}/global-costs/history${query ? '?' + query : ''}`)
+            ]);
+
+            state.rows = rows.data || [];
+            state.history = history.data || [];
+            renderRows();
+            renderHistory();
+            fillSummary(rows.summary || {});
+        }
+
+        function reloadDebounced() {
+            window.clearTimeout(state.timer);
+            state.timer = window.setTimeout(() => {
+                reload().catch((error) => notyf.error(error.message));
+            }, 250);
+        }
+
+        function resetForm() {
+            els.form.reset();
+            document.getElementById('gc_id').value = '';
+            document.getElementById('gc_active').checked = true;
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('gc_effective_date').value = now.toISOString().slice(0, 16);
+        }
+
+        function openForm() {
+            els.modal.classList.remove('hidden');
+            els.modal.classList.add('flex');
+        }
+
+        function closeForm() {
+            els.modal.classList.add('hidden');
+            els.modal.classList.remove('flex');
+            els.modalTitle.textContent = 'Novo custo global';
+            resetForm();
+        }
+
+        function edit(id) {
+            const row = state.rows.find((item) => Number(item.id) === Number(id));
+            if (!row) return;
+
+            resetForm();
+            els.modalTitle.textContent = `Editar custo #${id}`;
+            document.getElementById('gc_id').value = row.id || '';
+            document.getElementById('gc_module').value = row.module || 'VOICE';
+            document.getElementById('gc_route_key').value = row.route_key || '';
+            document.getElementById('gc_country_code').value = row.country_code || '';
+            document.getElementById('gc_prefix_code').value = row.prefix_code || '';
+            document.getElementById('gc_provider').value = row.provider || '';
+            document.getElementById('gc_carrier').value = row.carrier || '';
+            document.getElementById('gc_cost_price').value = Number(row.cost_price || 0).toFixed(6);
+            document.getElementById('gc_currency').value = row.currency || 'BRL';
+            document.getElementById('gc_notes').value = row.notes || '';
+            document.getElementById('gc_active').checked = Number(row.active) === 1;
+            if (row.effective_date) {
+                document.getElementById('gc_effective_date').value = String(row.effective_date).replace(' ', 'T').slice(0, 16);
+            }
+            openForm();
+        }
+
+        async function save(event) {
+            event.preventDefault();
+            const formData = new FormData(els.form);
+            if (!document.getElementById('gc_active').checked) {
+                formData.delete('active');
+            }
+
+            try {
+                const result = await request(`${window.baseUrl}/global-costs/save`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                notyf.success(result.message || 'Custo global salvo.');
+                closeForm();
+                await reload();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível salvar o custo global.');
+            }
+        }
+
+        async function toggleStatus(id, active) {
+            const formData = new FormData();
+            if (Number(active) === 1) {
+                formData.append('active', '1');
+            }
+
+            try {
+                const result = await request(`${window.baseUrl}/global-costs/${id}/status`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                notyf.success(result.message || 'Status atualizado.');
+                await reload();
+            } catch (error) {
+                notyf.error(error.message || 'Não foi possível atualizar o status.');
+            }
+        }
+
+        function init() {
+            cache();
+            resetForm();
+            els.form.addEventListener('submit', save);
+            reload().catch((error) => notyf.error(error.message || 'Falha ao carregar custos globais.'));
+        }
+
+        return {
+            init,
+            reload,
+            reloadDebounced,
+            openForm,
+            closeForm,
+            edit,
+            toggleStatus
+        };
+    })();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.globalCostsPage.init();
+    });
+</script>

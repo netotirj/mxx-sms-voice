@@ -38,6 +38,15 @@ class WhatsAppDynamicPricing
         self::seedDefaults();
         $exchange = self::currentExchangeRate();
         $metaPrice = self::activeMetaPrice($messageType, $countryCode);
+        $globalCost = PlatformGlobalCostService::resolve('WHATSAPP', [
+            'route_key' => strtoupper($messageType),
+            'country_code' => $countryCode,
+            'provider' => 'meta',
+        ], [
+            'cost_price' => round((float)($metaPrice['price_usd'] ?? 0), 6),
+            'currency' => 'USD',
+            'source' => 'whatsapp_meta_price_table',
+        ]);
         $margin = self::marginPercent($messageType, $customerId);
         $cacheKey = 'whatsapp:pricing:'
             . strtolower($countryCode)
@@ -45,7 +54,8 @@ class WhatsAppDynamicPricing
             . ':' . (int)($customerId ?? 0)
             . ':' . (string)($exchange['updated_at'] ?? '')
             . ':' . (string)($exchange['effective_rate'] ?? '')
-            . ':' . (string)($metaPrice['price_usd'] ?? '')
+            . ':' . (string)($globalCost['cost_price'] ?? $metaPrice['price_usd'] ?? '')
+            . ':' . (string)($globalCost['currency'] ?? 'USD')
             . ':' . (string)$margin;
         $cached = self::cacheGet($cacheKey);
         if (is_array($cached)) {
@@ -54,7 +64,14 @@ class WhatsAppDynamicPricing
 
         $extraMargin = self::automaticExtraMargin($exchange);
         $appliedMargin = $margin + $extraMargin;
-        $costBrl = round((float)$metaPrice['price_usd'] * (float)$exchange['effective_rate'], 6);
+        $resolvedCurrency = strtoupper((string)($globalCost['currency'] ?? 'USD'));
+        $resolvedCost = round((float)($globalCost['cost_price'] ?? $metaPrice['price_usd'] ?? 0), 6);
+        $costUsd = $resolvedCurrency === 'USD'
+            ? $resolvedCost
+            : ((float)($exchange['effective_rate'] ?? 0) > 0 ? round($resolvedCost / (float)$exchange['effective_rate'], 6) : 0.0);
+        $costBrl = $resolvedCurrency === 'BRL'
+            ? $resolvedCost
+            : round($costUsd * (float)$exchange['effective_rate'], 6);
         $rawFinal = $costBrl * (1 + ($appliedMargin / 100));
         $finalPrice = self::commercialRound($rawFinal);
         $finalPrice = self::applyPriceFloor($countryCode, $messageType, $customerId, $finalPrice, (float)($exchange['daily_change_percent'] ?? 0));
@@ -63,7 +80,7 @@ class WhatsAppDynamicPricing
             'message_type' => $messageType,
             'country_code' => $countryCode,
             'customer_id' => $customerId,
-            'cost_usd' => round((float)$metaPrice['price_usd'], 6),
+            'cost_usd' => round($costUsd, 6),
             'exchange_rate' => round((float)$exchange['rate_brl'], 6),
             'safety_margin_percent' => round((float)$exchange['safety_margin_percent'], 4),
             'effective_rate' => round((float)$exchange['effective_rate'], 6),
@@ -74,7 +91,10 @@ class WhatsAppDynamicPricing
             'final_price_brl' => $finalPrice,
             'profit_brl' => round($finalPrice - $costBrl, 6),
             'exchange_alert' => !empty($exchange['alert_flag']),
-            'pricing_source' => (string)($metaPrice['source'] ?? 'database'),
+            'pricing_source' => (string)($globalCost['source'] ?? $metaPrice['source'] ?? 'database'),
+            'global_cost_source' => $globalCost['source'] ?? null,
+            'global_cost_currency' => $resolvedCurrency,
+            'global_cost_resolved' => !empty($globalCost['resolved']),
             'exchange_updated_at' => $exchange['updated_at'] ?? null,
             'cache' => 'miss',
         ];

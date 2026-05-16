@@ -8,12 +8,12 @@ class PlatformConsumptionDashboardService
 {
     private const ROUTES = [
         [
-            'name' => '/admin/platform-consumption',
-            'label' => 'Dashboard Financeiro Global',
+            'route_path' => '/admin/platform-consumption',
+            'module_name' => 'Administrativo: Consumo Global',
         ],
         [
-            'name' => '/admin/platform-consumption/data',
-            'label' => 'Dashboard Financeiro Global API',
+            'route_path' => '/admin/platform-consumption/data',
+            'module_name' => 'Administrativo: Consumo Global',
         ],
     ];
 
@@ -36,8 +36,8 @@ class PlatformConsumptionDashboardService
         try {
             foreach (self::ROUTES as $route) {
                 $exists = (new Database())->execute(
-                    'SELECT id FROM sys_routes WHERE name = :name LIMIT 1',
-                    [':name' => $route['name']]
+                    'SELECT id FROM sys_routes WHERE route_path = :route_path LIMIT 1',
+                    [':route_path' => $route['route_path']]
                 )->fetchColumn();
 
                 if ($exists) {
@@ -45,10 +45,8 @@ class PlatformConsumptionDashboardService
                 }
 
                 (new Database('sys_routes'))->insert([
-                    'name' => $route['name'],
-                    'label' => $route['label'],
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
+                    'module_name' => $route['module_name'],
+                    'route_path' => $route['route_path'],
                 ]);
             }
         } catch (\Throwable $e) {

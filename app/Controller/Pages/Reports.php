@@ -626,6 +626,7 @@ class Reports extends ViewComponents
                 'camp_name'   => $row['camp_name'] ?? '-',
                 'webhook_action' => $row['webhook_action'] ?? null,
                 'response_text' => $row['response_text'] ?? null,
+                'descricao_detalhe' => $row['descricao_detalhe'] ?? null,
             ];
         }, $data);
 

@@ -295,7 +295,12 @@
                     break;
             }
 
-            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm ${bg}">${label}</span>`;
+            const detail = String(arguments[1] || '').trim();
+            const tooltip = detail
+                ? ` title="${detail.replace(/"/g, '&quot;')}"`
+                : '';
+
+            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm ${bg}"${tooltip}>${label}</span>`;
         }
 
         function parseDateForCompare(dateStr) {
@@ -524,7 +529,7 @@
                         </td>
 
                         <td class="px-4 py-3">
-                            ${getStatusBadge(item.status_sms)}
+                            ${getStatusBadge(item.status_sms, item.descricao_detalhe)}
                         </td>
 
                         <td class="px-4 py-3">

@@ -953,7 +953,8 @@ class CallbackSms
                 {$dateColumn} AS event_date,
                 c.camp_name,
                 c.webhook_action,
-                c.response_text
+                c.response_text,
+                c.descricao_detalhe
               FROM callback c
               WHERE {$where}
               ORDER BY {$order}

@@ -1460,12 +1460,15 @@
             };
 
             const labels = secondary.labels?.length ? secondary.labels : ['Sem dados'];
-            const values = secondary.values?.length
+            let values = secondary.values?.length
                 ? secondary.values.map((value) => {
                     const numeric = Number(value ?? 0);
                     return Number.isFinite(numeric) ? numeric : 0;
                 })
                 : [0];
+            if (selectedService === 'sms' && labels.length) {
+                values = values.map((_, index) => index === 0 ? 20 : 0);
+            }
             const signature = JSON.stringify({
                 service: selectedService,
                 labels,

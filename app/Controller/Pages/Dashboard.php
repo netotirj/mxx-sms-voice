@@ -298,26 +298,8 @@ class Dashboard extends ViewComponents
 
     private static function countSmsResponses(?string $tenancyId, ?int $userId = null): int
     {
-        $where = "(LOWER(COALESCE(webhook_action, '')) = 'mo' OR UPPER(COALESCE(status_sms, '')) = 'MO')";
-        $params = [];
-
-        if (!empty($tenancyId)) {
-            $where .= ' AND tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        if ($userId !== null) {
-            $where .= ' AND user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
         try {
-            $row = (new Database())->execute(
-                "SELECT COUNT(*) AS total FROM callback WHERE {$where}",
-                $params
-            )->fetch(\PDO::FETCH_ASSOC);
-
-            return (int)($row['total'] ?? 0);
+            return CallbackSms::countInboundMoDistinct($tenancyId, $userId, null);
         } catch (\Throwable) {
             return 0;
         }
@@ -1660,12 +1642,12 @@ class Dashboard extends ViewComponents
 
                 if ($isSuperAdmin) {
                     $data = CallbackSms::fetchStatusCountsWithDay(null, null, null);
-                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'month');
-                    $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'month_previous');
-                    $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'day');
-                    $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'day_previous');
-                    $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'week');
-                    $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus(null, null, null, 'week_previous');
+                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'month');
+                    $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'month_previous');
+                    $dataOperatorDay = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'day');
+                    $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'day_previous');
+                    $dataOperatorWeek = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'week');
+                    $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorMoDistinct(null, null, null, 'week_previous');
                     $dataValuesPix = PixSearch::getValuesPixCurrentMonth(null, null);
                     $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, null);
                     $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay(null, null, null);
@@ -1674,12 +1656,12 @@ class Dashboard extends ViewComponents
                     $dataValuesPixRefill = array_map(fn($item) => ['data' => date('d/m', strtotime($item->created_at)), 'value' => (float)$item->balance], $dataValuesPixRefill);
                 } elseif ($isAdmin) {
                     $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, null);
-                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'month');
-                    $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'month_previous');
-                    $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'day');
-                    $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'day_previous');
-                    $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'week');
-                    $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, null, null, 'week_previous');
+                    $dataOperatorMonth = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'month');
+                    $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'month_previous');
+                    $dataOperatorDay = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'day');
+                    $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'day_previous');
+                    $dataOperatorWeek = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'week');
+                    $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, null, null, 'week_previous');
                     $dataValuesPix = PixSearch::getValuesPixCurrentMonth($userId, $tenancyId);
                     $dataValuesPixRefill = RefillsResellers::getValuesRefillCurrentMonth(null, $tenancyId);
                     $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($tenancyId, null, null);
@@ -1689,12 +1671,12 @@ class Dashboard extends ViewComponents
                 } else {
                     if ($isReseller) {
                         $data = CallbackSms::fetchStatusCountsWithDay($tenancyId, null, $userId);
-                        $dataOperatorMonth = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'month');
-                        $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'month_previous');
-                        $dataOperatorDay = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'day');
-                        $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'day_previous');
-                        $dataOperatorWeek = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'week');
-                        $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorAllStatus($tenancyId, $userId, null, 'week_previous');
+                        $dataOperatorMonth = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'month');
+                        $dataOperatorMonthPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'month_previous');
+                        $dataOperatorDay = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'day');
+                        $dataOperatorDayPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'day_previous');
+                        $dataOperatorWeek = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'week');
+                        $dataOperatorWeekPrevious = CallbackSms::countGroupedByOperatorMoDistinct($tenancyId, $userId, null, 'week_previous');
                         $dataValuesPix = RefillsResellers::getValuesRefillCurrentMonth($userId, $tenancyId);
                         $dataVoice = CdrVoice::fetchVoiceStatusCountsWithDay($tenancyId, $userId, $userId);
                     } else {

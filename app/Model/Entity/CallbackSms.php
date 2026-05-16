@@ -686,6 +686,124 @@ class CallbackSms
         return $data;
     }
 
+    public static function countInboundMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
+    {
+        $conditions = [
+            "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
+        ];
+        $params = [];
+
+        if (!empty($tenancyId)) {
+            $conditions[] = 'tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if (!empty($userId)) {
+            $conditions[] = 'user_id = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        if (!empty($resellerId)) {
+            $conditions[] = 'reseller_id = :reseller_id';
+            $params[':reseller_id'] = $resellerId;
+        }
+
+        $where = implode(' AND ', $conditions);
+
+        $row = (new Database('callback'))->execute(
+            "SELECT COUNT(DISTINCT COALESCE(
+                NULLIF(sms_reference_id, ''),
+                NULLIF(origin_id, ''),
+                CONCAT(
+                    COALESCE(id_partner, ''),
+                    '|',
+                    COALESCE(phone_sms, ''),
+                    '|',
+                    COALESCE(response_text, ''),
+                    '|',
+                    DATE(COALESCE(received_at, update_date, date_send))
+                )
+            )) AS total
+             FROM callback
+             WHERE {$where}",
+            $params
+        )->fetchObject();
+
+        return (int)($row->total ?? 0);
+    }
+
+    public static function countGroupedByOperatorMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
+    {
+        $conditions = [
+            "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
+        ];
+        $params = [];
+
+        if (!empty($tenancyId)) {
+            $conditions[] = 'tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if (!empty($userId)) {
+            $conditions[] = 'user_id = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        if (!empty($resellerId)) {
+            $conditions[] = 'reseller_id = :reseller_id';
+            $params[':reseller_id'] = $resellerId;
+        }
+
+        $period = strtolower((string)$period);
+        if ($period === 'day') {
+            $conditions[] = 'DATE(date_send) = CURDATE()';
+        } elseif ($period === 'day_previous') {
+            $conditions[] = 'DATE(date_send) = CURDATE() - INTERVAL 1 DAY';
+        } elseif ($period === 'week') {
+            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)';
+        } elseif ($period === 'week_previous') {
+            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)';
+        } elseif ($period === 'month') {
+            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())';
+        } elseif ($period === 'month_previous') {
+            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)';
+        }
+
+        $where = implode(' AND ', $conditions);
+        $sql = "SELECT
+                    CASE
+                        WHEN TRIM(COALESCE(operator, '')) = '' THEN 'UNKNOWN'
+                        WHEN UPPER(TRIM(COALESCE(operator, ''))) IN ('MO', 'UNKNOWN') THEN 'UNKNOWN'
+                        ELSE TRIM(operator)
+                    END AS operator_label,
+                    COUNT(DISTINCT COALESCE(
+                        NULLIF(sms_reference_id, ''),
+                        NULLIF(origin_id, ''),
+                        CONCAT(
+                            COALESCE(id_partner, ''),
+                            '|',
+                            COALESCE(phone_sms, ''),
+                            '|',
+                            COALESCE(response_text, ''),
+                            '|',
+                            DATE(COALESCE(received_at, update_date, date_send))
+                        )
+                    )) AS qtd
+                FROM callback
+                WHERE {$where}
+                GROUP BY operator_label";
+
+        $result = (new Database('callback'))->execute($sql, $params)->fetchAll(PDO::FETCH_ASSOC);
+
+        $data = [];
+        foreach ($result as $row) {
+            $operator = $row['operator_label'] ?? 'UNKNOWN';
+            $data[$operator] = ['qtd' => (int)($row['qtd'] ?? 0)];
+        }
+
+        return $data;
+    }
+
 
 
     public static function getCallbackSmsCount(?string $tenancyId = null, ?string $searchValue = null, ?int $userId = null): int

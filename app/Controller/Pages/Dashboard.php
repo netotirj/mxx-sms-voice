@@ -298,7 +298,7 @@ class Dashboard extends ViewComponents
 
     private static function countSmsResponses(?string $tenancyId, ?int $userId = null): int
     {
-        $where = "webhook_action = 'mo'";
+        $where = "(LOWER(COALESCE(webhook_action, '')) = 'mo' OR UPPER(COALESCE(status_sms, '')) = 'MO')";
         $params = [];
 
         if (!empty($tenancyId)) {

@@ -456,8 +456,18 @@ class WebStatusSms
             $callback->sms_account_id = isset($item['sms_acc_id']) ? (string)$item['sms_acc_id'] : null;
             $callback->sms_user_id = isset($item['sms_use_id']) ? (string)$item['sms_use_id'] : null;
 
-            $rowsUpdated = $callback->updateMoResponse();
-            if ($rowsUpdated <= 0) {
+            $callback->updateMoResponse();
+
+            $hasInboundMo = CallbackSms::inboundMoExists(
+                (string)$callback->tenancy_id,
+                (int)$callback->user_id,
+                $callback->sms_reference_id,
+                $callback->origin_id,
+                $callback->id_partner,
+                $callback->phone_sms
+            );
+
+            if (!$hasInboundMo) {
                 $callback->insertInboundMo();
             }
 

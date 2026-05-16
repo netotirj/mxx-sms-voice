@@ -344,6 +344,56 @@ class CallbackSms
         ]);
     }
 
+    public static function inboundMoExists(
+        string $tenancyId,
+        int $userId,
+        ?string $smsReferenceId = null,
+        ?string $originId = null,
+        ?string $partnerId = null,
+        ?string $phone = null
+    ): bool {
+        $tenancyId = trim($tenancyId);
+        $userId = (int)$userId;
+        if ($tenancyId === '' || $userId <= 0) {
+            return false;
+        }
+
+        $where = "tenancy_id = :tenancy_id AND user_id = :user_id AND status_sms = 'MO'";
+        $params = [
+            ':tenancy_id' => $tenancyId,
+            ':user_id' => $userId,
+        ];
+
+        $smsReferenceId = trim((string)$smsReferenceId);
+        $originId = trim((string)$originId);
+        $partnerId = trim((string)$partnerId);
+        $phone = trim((string)$phone);
+
+        if ($smsReferenceId !== '') {
+            $where .= ' AND sms_reference_id = :sms_reference_id';
+            $params[':sms_reference_id'] = $smsReferenceId;
+        } elseif ($originId !== '') {
+            $where .= ' AND origin_id = :origin_id';
+            $params[':origin_id'] = $originId;
+        } elseif ($partnerId !== '' && $phone !== '') {
+            $where .= ' AND id_partner = :id_partner AND phone_sms = :phone_sms';
+            $params[':id_partner'] = $partnerId;
+            $params[':phone_sms'] = $phone;
+        } else {
+            return false;
+        }
+
+        $row = (new Database('callback'))->select(
+            $where,
+            $params,
+            'id DESC',
+            1,
+            'id'
+        )->fetchColumn();
+
+        return !empty($row);
+    }
+
     public static function fetchStatusCountsWithDay(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?int $campaignId = null): array
     {
         $db = new Database('callback');

@@ -34,24 +34,8 @@ class Dashboard extends ViewComponents
         header('Pragma: no-cache');
         header('Expires: 0');
 
-        $content = View::render('/dashboard/index', [
-            'dashboardBuild' => self::dashboardBuildVersion(),
-        ]);
+        $content = View::render('/dashboard/index');
         return parent::getComponentsDashboard('Maxx Solutions - SMS | Dashboard', $content);
-    }
-
-    private static function dashboardBuildVersion(): string
-    {
-        $files = [
-            __FILE__,
-            __DIR__ . '/../../Model/Entity/CallbackSms.php',
-            __DIR__ . '/../../../resources/view/dashboard/index.html',
-        ];
-
-        $timestamps = array_map(static fn(string $file): int => is_file($file) ? (int)filemtime($file) : 0, $files);
-        $latest = max($timestamps ?: [time()]);
-
-        return 'build ' . gmdate('Ymd-His', $latest);
     }
 
     private static function mergeCampaignCounts(array $sms, array $voiceRaw): array

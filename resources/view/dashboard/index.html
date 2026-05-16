@@ -1093,14 +1093,19 @@
             const whatsappCampaigns = Number(cardsPayload?.whatsappCampanhas || 0);
 
             if (service === 'sms') {
-                const forcedSmsSecondary = {
-                    title: 'SMS por operadora',
-                    tag: 'Operadoras',
-                    type: 'bar',
-                    labels: ['CLARO', 'RESPOSTAS'],
-                    values: [10, 85],
-                    color: ['#f59e0b', '#14b8a6']
-                };
+                console.log('[dashboard:sms-bars]', {
+                    selectedPeriod,
+                    smsResponses,
+                    operatorEntries,
+                    operatorLabels,
+                    operatorValues,
+                    totalOperatorDay: chartsPayload?.totalOperatorDay || {},
+                    totalOperatorWeek: chartsPayload?.totalOperatorWeek || {},
+                    totalOperatorMonth: chartsPayload?.totalOperatorMonth || {},
+                    totalOperatorDayPrevious: chartsPayload?.totalOperatorDayPrevious || {},
+                    totalOperatorWeekPrevious: chartsPayload?.totalOperatorWeekPrevious || {},
+                    totalOperatorMonthPrevious: chartsPayload?.totalOperatorMonthPrevious || {}
+                });
 
                 return {
                     title: 'Resumo do SMS Gateway',
@@ -1118,7 +1123,16 @@
                     previousLabel: smsCostLabel,
                     line: smsPeriod.status,
                     doughnut: smsPeriod.status,
-                    secondary: forcedSmsSecondary,
+                    secondary: {
+                        title: operatorLabels.length ? 'SMS por operadora' : 'Resumo DLR',
+                        tag: operatorLabels.length ? 'Operadoras' : 'Status',
+                        type: 'bar',
+                        labels: operatorLabels.length ? operatorLabels : ['Entregues', 'Pendentes', 'Falhas', 'Respostas'],
+                        values: operatorValues.length ? operatorValues : [smsDelivered, smsPending, smsFailures, smsResponses],
+                        color: operatorLabels.length
+                            ? operatorLabels.map((_, index) => chartPalette[(index + 3) % chartPalette.length])
+                            : ['#10b981', '#0ea5e9', '#ef4444', '#14b8a6']
+                    },
                     details: [
                         ['Entrega', `${smsDeliveryRate.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`],
                         ['Custo total', formatCurrencyBR(smsCostValue)],

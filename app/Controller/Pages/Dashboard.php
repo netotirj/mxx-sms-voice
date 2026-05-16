@@ -316,10 +316,10 @@ class Dashboard extends ViewComponents
         return round((float)$normalized, 4);
     }
 
-    private static function countSmsResponses(?string $tenancyId, ?int $userId = null): int
+    private static function countSmsResponses(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
     {
         try {
-            return CallbackSms::countInboundMoDistinct($tenancyId, $userId, null);
+            return CallbackSms::countInboundMoDistinct($tenancyId, $userId, $resellerId);
         } catch (\Throwable) {
             return 0;
         }
@@ -1464,9 +1464,9 @@ class Dashboard extends ViewComponents
 
             $rateData  = Rates::getLatestActiveRate($obUser['tenancy_id'], $obUser['id']);
             $valueSms  = (float)($rateData['rate'] ?? 0);
-            $dataSms   = CallbackSms::countSentSms($obUser['id'], $obUser['tenancy_id']);
+            $dataSms   = CallbackSms::countSentSms(null, $obUser['tenancy_id'], null, $obUser['id']);
             $currentSms = $dataSms->qtd ?? 0;
-            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], $obUser['id']);
+            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], null, $obUser['id']);
             $dataValue  = $currentSms * $valueSms;
 
             $cdrFilters = [

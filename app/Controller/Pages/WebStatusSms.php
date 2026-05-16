@@ -430,19 +430,27 @@ class WebStatusSms
             $batch = $batchIdFromPartner
                 ? CampaignBatch::getByIdAndTenancy($batchIdFromPartner, $obUser->tenancy_id)
                 : CampaignBatch::getLastBatchByUser($obUser->id, $obUser->tenancy_id);
+            $outboundContext = CallbackSms::findLatestOutboundContext(
+                (string)$obUser->tenancy_id,
+                (string)$partnerId,
+                (string)$phone
+            );
             $receivedAt = $normalizeDate($item['data_recebimento'] ?? null) ?: date('Y-m-d H:i:s');
 
             $callback = new CallbackSms();
-            $callback->batch_id = $batch->id ?? null;
+            $callback->batch_id = $batch->id ?? ($outboundContext['batch_id'] ?? null);
             $callback->phone_sms = (string)$phone;
             $callback->status_sms = 'MO';
-            $callback->operator = 'MO';
+            $callback->operator = CallbackSms::pickInboundMoOperator(
+                $item['sms_operator'] ?? $item['operadora'] ?? null,
+                $outboundContext['operator'] ?? null
+            );
             $callback->value_sms = 0.00;
-            $callback->camp_name = $batch->camp_name ?? '';
+            $callback->camp_name = $batch->camp_name ?? ($outboundContext['camp_name'] ?? '');
             $callback->id_partner = (string)$partnerId;
             $callback->user_id = (int)$obUser->id;
             $callback->tenancy_id = (string)$obUser->tenancy_id;
-            $callback->campaign_id = $batch->campaign_id ?? null;
+            $callback->campaign_id = $batch->campaign_id ?? ($outboundContext['campaign_id'] ?? null);
             $callback->date_send = $receivedAt;
             $callback->update_date = $receivedAt;
             $callback->webhook_action = $item['action'] ?? $rootAction;

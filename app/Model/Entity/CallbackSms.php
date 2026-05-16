@@ -36,6 +36,123 @@ class CallbackSms
     public ?string $sms_account_id = null;
     public ?string $sms_user_id = null;
 
+    private static function buildScopeConditions(
+        ?string $tenancyId,
+        ?int $userId = null,
+        ?int $resellerId = null,
+        string $alias = ''
+    ): array {
+        $column = static fn(string $name): string => $alias !== '' ? "{$alias}.{$name}" : $name;
+        $conditions = [];
+        $params = [];
+
+        if (!empty($tenancyId)) {
+            $conditions[] = $column('tenancy_id') . ' = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if (!is_null($userId)) {
+            $conditions[] = $column('user_id') . ' = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        if (!is_null($resellerId)) {
+            $resellerTenantSql = !empty($tenancyId) ? ' AND u.tenancy_id = :reseller_tenancy_id' : '';
+            $conditions[] = '(' . $column('user_id') . ' = :reseller_id OR ' . $column('user_id') . ' IN (
+                SELECT u.id
+                FROM users u
+                WHERE u.user_id = :reseller_id' . $resellerTenantSql . '
+            ))';
+            $params[':reseller_id'] = $resellerId;
+
+            if (!empty($tenancyId)) {
+                $params[':reseller_tenancy_id'] = $tenancyId;
+            }
+        }
+
+        return [$conditions, $params];
+    }
+
+    private static function distinctInboundMoExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+
+        return "COALESCE(
+            NULLIF({$prefix}sms_reference_id, ''),
+            NULLIF({$prefix}origin_id, ''),
+            CONCAT(
+                COALESCE({$prefix}id_partner, ''),
+                '|',
+                COALESCE({$prefix}phone_sms, ''),
+                '|',
+                COALESCE({$prefix}response_text, ''),
+                '|',
+                DATE(COALESCE({$prefix}received_at, {$prefix}update_date, {$prefix}date_send))
+            )
+        )";
+    }
+
+    public static function normalizeOperatorForDashboard(?string $operator): ?string
+    {
+        $value = trim((string)$operator);
+        if ($value === '') {
+            return null;
+        }
+
+        $upper = strtoupper($value);
+        if (in_array($upper, ['MO', 'UNKNOWN'], true)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    public static function pickInboundMoOperator(?string $payloadOperator, ?string $fallbackOperator): string
+    {
+        return self::normalizeOperatorForDashboard($payloadOperator)
+            ?? self::normalizeOperatorForDashboard($fallbackOperator)
+            ?? 'UNKNOWN';
+    }
+
+    public static function findLatestOutboundContext(string $tenancyId, string $partnerId, string $phone): ?array
+    {
+        $tenancyId = trim($tenancyId);
+        $partnerId = trim($partnerId);
+        $phone = trim($phone);
+
+        if ($tenancyId === '' || $partnerId === '' || $phone === '') {
+            return null;
+        }
+
+        $row = (new Database())->execute(
+            "SELECT
+                id,
+                user_id,
+                campaign_id,
+                batch_id,
+                camp_name,
+                operator,
+                status_sms,
+                date_send,
+                update_date,
+                received_at
+             FROM callback
+             WHERE tenancy_id = :tenancy_id
+               AND id_partner = :id_partner
+               AND phone_sms = :phone_sms
+               AND UPPER(COALESCE(status_sms, '')) <> 'MO'
+             ORDER BY COALESCE(update_date, date_send, received_at) DESC, id DESC
+             LIMIT 1",
+            [
+                ':tenancy_id' => $tenancyId,
+                ':id_partner' => $partnerId,
+                ':phone_sms' => $phone,
+            ]
+        )->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
 
     /**
      * Associa um batch_id a todos os callbacks de uma campanha específica
@@ -47,32 +164,22 @@ class CallbackSms
      */
 
 
-    public static function countSentSms(int|string|null $userId, ?string $tenancyId, ?int $batchId = null): object
+    public static function countSentSms(int|string|null $userId, ?string $tenancyId, ?int $batchId = null, ?int $resellerId = null): object
     {
-        $where = '
-        status_sms IN ("SENT", "DELIVERED", "UNDELIVERABLE", "EXPIRED")
-        AND 1=1
-    ';
-
-        $params = [];
-
-        // 🔹 Aplica filtro por tenancy apenas se for informado
-        if (!empty($tenancyId)) {
-            $where .= ' AND tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // 🔹 Aplica filtro por usuário, se houver
-        if ($userId !== null && $userId !== '') {
-            $where .= ' AND user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
+        [$conditions, $params] = self::buildScopeConditions(
+            $tenancyId,
+            ($userId !== null && $userId !== '') ? (int)$userId : null,
+            $resellerId
+        );
+        $conditions[] = 'status_sms IN ("SENT", "DELIVERED", "UNDELIVERABLE", "EXPIRED")';
 
         // 🔹 Filtro opcional de lote (batch)
         if (!is_null($batchId)) {
-            $where .= ' AND batch_id = :batch_id';
+            $conditions[] = 'batch_id = :batch_id';
             $params[':batch_id'] = $batchId;
         }
+
+        $where = implode(' AND ', $conditions);
 
         $result = (new Database('callback'))->select(
             $where,
@@ -398,24 +505,10 @@ class CallbackSms
     {
         $db = new Database('callback');
 
-        $params = [];
+        [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
         $extraCondition = '';
-
-        // 🔹 Filtro opcional de tenancy (ignorado para super_admin)
-        if (!empty($tenancyId)) {
-            $extraCondition .= " AND tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // 🔹 Filtro de usuário / revendedor
-        if (!is_null($userId)) {
-            $extraCondition .= " AND user_id = :user_id";
-            $params[':user_id'] = $userId;
-        }
-
-        if (!is_null($resellerId)) {
-            $extraCondition .= " AND user_id = :reseller_id";
-            $params[':reseller_id'] = $resellerId;
+        foreach ($scopeConditions as $condition) {
+            $extraCondition .= " AND {$condition}";
         }
 
         // 🔹 Filtro de campanha
@@ -462,19 +555,7 @@ class CallbackSms
 
             try {
                 $responseRow = $db->execute(
-                    "SELECT COUNT(DISTINCT COALESCE(
-                        NULLIF(sms_reference_id, ''),
-                        NULLIF(origin_id, ''),
-                        CONCAT(
-                            COALESCE(id_partner, ''),
-                            '|',
-                            COALESCE(phone_sms, ''),
-                            '|',
-                            COALESCE(response_text, ''),
-                            '|',
-                            DATE(COALESCE(received_at, update_date, date_send))
-                        )
-                    )) AS total
+                    "SELECT COUNT(DISTINCT " . self::distinctInboundMoExpression() . ") AS total
                      FROM callback
                      WHERE ({$dateCondition}) {$extraCondition}
                        AND (
@@ -621,26 +702,7 @@ class CallbackSms
 
     public static function countGroupedByOperatorAllStatus(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
     {
-        $conditions = [];
-        $params = [];
-
-        // 🔹 Filtro de tenancy (ignorado para super admin)
-        if (!empty($tenancyId)) {
-            $conditions[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        // 🔹 Filtro de usuário
-        if (!is_null($userId)) {
-            $conditions[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
-        // 🔹 Filtro de revendedor
-        if (!is_null($resellerId)) {
-            $conditions[] = 'reseller_id = :reseller_id';
-            $params[':reseller_id'] = $resellerId;
-        }
+        [$conditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
 
         $period = strtolower((string)$period);
         if ($period === 'day') {
@@ -688,42 +750,15 @@ class CallbackSms
 
     public static function countInboundMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
     {
-        $conditions = [
+        [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
+        $conditions = array_merge($scopeConditions, [
             "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
-        ];
-        $params = [];
-
-        if (!empty($tenancyId)) {
-            $conditions[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        if (!empty($userId)) {
-            $conditions[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
-        if (!empty($resellerId)) {
-            $conditions[] = 'reseller_id = :reseller_id';
-            $params[':reseller_id'] = $resellerId;
-        }
+        ]);
 
         $where = implode(' AND ', $conditions);
 
         $row = (new Database('callback'))->execute(
-            "SELECT COUNT(DISTINCT COALESCE(
-                NULLIF(sms_reference_id, ''),
-                NULLIF(origin_id, ''),
-                CONCAT(
-                    COALESCE(id_partner, ''),
-                    '|',
-                    COALESCE(phone_sms, ''),
-                    '|',
-                    COALESCE(response_text, ''),
-                    '|',
-                    DATE(COALESCE(received_at, update_date, date_send))
-                )
-            )) AS total
+            "SELECT COUNT(DISTINCT " . self::distinctInboundMoExpression() . ") AS total
              FROM callback
              WHERE {$where}",
             $params
@@ -734,25 +769,10 @@ class CallbackSms
 
     public static function countGroupedByOperatorMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
     {
-        $conditions = [
+        [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
+        $conditions = array_merge($scopeConditions, [
             "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
-        ];
-        $params = [];
-
-        if (!empty($tenancyId)) {
-            $conditions[] = 'tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $tenancyId;
-        }
-
-        if (!empty($userId)) {
-            $conditions[] = 'user_id = :user_id';
-            $params[':user_id'] = $userId;
-        }
-
-        if (!empty($resellerId)) {
-            $conditions[] = 'reseller_id = :reseller_id';
-            $params[':reseller_id'] = $resellerId;
-        }
+        ]);
 
         $period = strtolower((string)$period);
         if ($period === 'day') {
@@ -772,24 +792,23 @@ class CallbackSms
         $where = implode(' AND ', $conditions);
         $sql = "SELECT
                     CASE
-                        WHEN TRIM(COALESCE(operator, '')) = '' THEN 'UNKNOWN'
-                        WHEN UPPER(TRIM(COALESCE(operator, ''))) IN ('MO', 'UNKNOWN') THEN 'UNKNOWN'
-                        ELSE TRIM(operator)
+                        WHEN TRIM(COALESCE(c.operator, '')) <> ''
+                             AND UPPER(TRIM(COALESCE(c.operator, ''))) NOT IN ('MO', 'UNKNOWN')
+                            THEN TRIM(c.operator)
+                        ELSE COALESCE((
+                            SELECT TRIM(out.operator)
+                            FROM callback out
+                            WHERE out.tenancy_id = c.tenancy_id
+                              AND out.id_partner = c.id_partner
+                              AND out.phone_sms = c.phone_sms
+                              AND UPPER(COALESCE(out.status_sms, '')) <> 'MO'
+                              AND UPPER(TRIM(COALESCE(out.operator, ''))) NOT IN ('', 'MO', 'UNKNOWN')
+                            ORDER BY COALESCE(out.update_date, out.date_send, out.received_at) DESC, out.id DESC
+                            LIMIT 1
+                        ), 'UNKNOWN')
                     END AS operator_label,
-                    COUNT(DISTINCT COALESCE(
-                        NULLIF(sms_reference_id, ''),
-                        NULLIF(origin_id, ''),
-                        CONCAT(
-                            COALESCE(id_partner, ''),
-                            '|',
-                            COALESCE(phone_sms, ''),
-                            '|',
-                            COALESCE(response_text, ''),
-                            '|',
-                            DATE(COALESCE(received_at, update_date, date_send))
-                        )
-                    )) AS qtd
-                FROM callback
+                    COUNT(DISTINCT " . self::distinctInboundMoExpression('c') . ") AS qtd
+                FROM callback c
                 WHERE {$where}
                 GROUP BY operator_label";
 
@@ -844,34 +863,16 @@ class CallbackSms
 
     public static function getSmsForRealtime(array $filters = [], string $order = "id DESC"): array
     {
-        $where = "1=1";
-        $params = [];
-
-        // Filtros de hierarquia no banco novo.
-        if (!empty($filters['tenancy_id'])) {
-            $where .= " AND c.tenancy_id = :tenancy_id";
-            $params[':tenancy_id'] = $filters['tenancy_id'];
-        }
-
-        if (!empty($filters['user_id'])) {
-            $where .= " AND c.user_id = :user_id";
-            $params[':user_id'] = (int)$filters['user_id'];
-        }
-
-        if (!empty($filters['reseller_id'])) {
-            $where .= " AND (
-                c.user_id = :reseller_id
-                OR c.user_id IN (
-                    SELECT u.id
-                    FROM users u
-                    WHERE u.user_id = :reseller_id
-                )
-            )";
-            $params[':reseller_id'] = (int)$filters['reseller_id'];
-        }
+        [$scopeConditions, $params] = self::buildScopeConditions(
+            $filters['tenancy_id'] ?? null,
+            !empty($filters['user_id']) ? (int)$filters['user_id'] : null,
+            !empty($filters['reseller_id']) ? (int)$filters['reseller_id'] : null,
+            'c'
+        );
+        $conditions = $scopeConditions;
 
         if (!empty($filters['status_sms'])) {
-            $where .= " AND c.status_sms = :status_sms";
+            $conditions[] = "c.status_sms = :status_sms";
             $params[':status_sms'] = strtoupper(trim((string)$filters['status_sms']));
         }
 
@@ -879,26 +880,28 @@ class CallbackSms
         $period = strtolower((string)($filters['period'] ?? ''));
 
         if (!empty($filters['date_from'])) {
-            $where .= " AND {$dateColumn} >= :date_from";
+            $conditions[] = "{$dateColumn} >= :date_from";
             $params[':date_from'] = $filters['date_from'] . ' 00:00:00';
         }
 
         if (!empty($filters['date_to'])) {
-            $where .= " AND {$dateColumn} <= :date_to";
+            $conditions[] = "{$dateColumn} <= :date_to";
             $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
         }
 
         if (empty($filters['date_from']) && empty($filters['date_to'])) {
             if ($period === 'day') {
-                $where .= " AND DATE({$dateColumn}) = CURDATE()";
+                $conditions[] = "DATE({$dateColumn}) = CURDATE()";
             } elseif ($period === 'week') {
-                $where .= " AND {$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
-                            AND {$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
+                $conditions[] = "{$dateColumn} >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)";
+                $conditions[] = "{$dateColumn} < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)";
             } elseif ($period === 'month') {
-                $where .= " AND YEAR({$dateColumn}) = YEAR(CURDATE())
-                            AND MONTH({$dateColumn}) = MONTH(CURDATE())";
+                $conditions[] = "YEAR({$dateColumn}) = YEAR(CURDATE())";
+                $conditions[] = "MONTH({$dateColumn}) = MONTH(CURDATE())";
             }
         }
+
+        $where = !empty($conditions) ? implode(' AND ', $conditions) : '1=1';
 
         $allowedOrder = [
             'event_date DESC',

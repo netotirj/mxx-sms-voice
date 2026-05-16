@@ -1460,7 +1460,12 @@
             };
 
             const labels = secondary.labels?.length ? secondary.labels : ['Sem dados'];
-            const values = secondary.values?.length ? secondary.values : [0];
+            const values = secondary.values?.length
+                ? secondary.values.map((value) => {
+                    const numeric = Number(value ?? 0);
+                    return Number.isFinite(numeric) ? numeric : 0;
+                })
+                : [0];
             const signature = JSON.stringify({
                 service: selectedService,
                 labels,
@@ -1481,9 +1486,15 @@
             secondaryChart.data.labels = labels;
             secondaryChart.data.datasets[0].label = secondary.tag || 'Resumo';
             secondaryChart.data.datasets[0].data = values;
+            secondaryChart.data.datasets[0].minBarLength = selectedService === 'sms' ? 6 : 0;
+            secondaryChart.data.datasets[0].borderWidth = selectedService === 'sms' ? 1 : 0;
+            secondaryChart.data.datasets[0].borderColor = Array.isArray(secondary.color)
+                ? (secondary.color[0] || config.color || '#f59e0b')
+                : (secondary.color || config.color || '#f59e0b');
             secondaryChart.data.datasets[0].backgroundColor = Array.isArray(secondary.color)
                 ? secondary.color
                 : values.map((_, index) => index === 0 ? (secondary.color || config.color) : chartPalette[index % chartPalette.length]);
+            secondaryChart.options.scales.y.suggestedMax = Math.max(1, ...values) + 1;
             secondaryChart.options.plugins.secondaryChartValueLabels = {
                 display: selectedService === 'sms' && labels.length > 0 && values.some((value) => Number(value || 0) > 0),
                 color: '#475569',

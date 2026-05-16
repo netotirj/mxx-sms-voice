@@ -460,6 +460,34 @@ class CallbackSms
                 }
             }
 
+            try {
+                $responseRow = $db->execute(
+                    "SELECT COUNT(DISTINCT COALESCE(
+                        NULLIF(sms_reference_id, ''),
+                        NULLIF(origin_id, ''),
+                        CONCAT(
+                            COALESCE(id_partner, ''),
+                            '|',
+                            COALESCE(phone_sms, ''),
+                            '|',
+                            COALESCE(response_text, ''),
+                            '|',
+                            DATE(COALESCE(received_at, update_date, date_send))
+                        )
+                    )) AS total
+                     FROM callback
+                     WHERE ({$dateCondition}) {$extraCondition}
+                       AND (
+                            UPPER(COALESCE(status_sms, '')) = 'MO'
+                            OR LOWER(COALESCE(webhook_action, '')) = 'mo'
+                       )",
+                    $params
+                )->fetchObject();
+
+                $result['RESPOSTA'] = (int)($responseRow->total ?? 0);
+            } catch (\Throwable) {
+            }
+
             return $result;
         };
 

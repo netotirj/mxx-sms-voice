@@ -1317,6 +1317,38 @@
             });
         }
 
+        const secondaryChartValueLabelsPlugin = {
+            id: 'secondaryChartValueLabels',
+            afterDatasetsDraw(chart, _args, pluginOptions) {
+                if (!pluginOptions?.display) return;
+
+                const dataset = chart.data?.datasets?.[0];
+                const meta = chart.getDatasetMeta(0);
+                if (!dataset || !meta?.data?.length) return;
+
+                const { ctx } = chart;
+                const color = pluginOptions.color || '#475569';
+                const font = pluginOptions.font || 'bold 12px sans-serif';
+                const offset = Number(pluginOptions.offset ?? 10);
+
+                ctx.save();
+                ctx.fillStyle = color;
+                ctx.font = font;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                meta.data.forEach((bar, index) => {
+                    const rawValue = dataset.data?.[index];
+                    const value = Number(rawValue ?? 0);
+                    if (!Number.isFinite(value) || value <= 0) return;
+
+                    ctx.fillText(String(value), bar.x, bar.y - offset);
+                });
+
+                ctx.restore();
+            }
+        };
+
         function ensureSecondaryChart() {
             const canvas = document.getElementById('service-secondary-chart');
             if (!canvas || typeof Chart === 'undefined' || secondaryChart) return;
@@ -1337,12 +1369,21 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        secondaryChartValueLabels: {
+                            display: false,
+                            color: '#475569',
+                            font: 'bold 12px sans-serif',
+                            offset: 10
+                        }
+                    },
                     scales: {
                         x: { grid: { display: false } },
                         y: { beginAtZero: true, ticks: { precision: 0 } }
                     }
-                }
+                },
+                plugins: [secondaryChartValueLabelsPlugin]
             });
         }
 
@@ -1435,6 +1476,12 @@
             secondaryChart.data.datasets[0].backgroundColor = Array.isArray(secondary.color)
                 ? secondary.color
                 : values.map((_, index) => index === 0 ? (secondary.color || config.color) : chartPalette[index % chartPalette.length]);
+            secondaryChart.options.plugins.secondaryChartValueLabels = {
+                display: selectedService === 'sms' && labels.length > 0 && values.some((value) => Number(value || 0) > 0),
+                color: '#475569',
+                font: 'bold 12px sans-serif',
+                offset: 10
+            };
             if (selectedService === 'voip') {
                 delete secondaryChart.options.scales.y.max;
                 secondaryChart.options.scales.y.ticks.callback = undefined;
@@ -1462,7 +1509,11 @@
             } else {
                 delete secondaryChart.options.scales.y.max;
                 secondaryChart.options.scales.y.ticks.callback = undefined;
-                secondaryChart.options.plugins.tooltip = {};
+                secondaryChart.options.plugins.tooltip = {
+                    callbacks: {
+                        label: (context) => `${context.label}: ${context.raw} resposta${Number(context.raw) === 1 ? '' : 's'}`
+                    }
+                };
             }
             secondaryChart.update('none');
         }

@@ -1545,7 +1545,15 @@
                 secondaryChart.options.scales.y.ticks.callback = undefined;
                 secondaryChart.options.plugins.tooltip = {
                     callbacks: {
-                        label: (context) => `${context.label}: ${context.raw} resposta${Number(context.raw) === 1 ? '' : 's'}`
+                        label: (context) => {
+                            const label = String(context.label || '').trim().toUpperCase();
+                            const value = Number(context.raw || 0);
+                            if (label === 'RESPOSTAS') {
+                                return `Respostas: ${value} resposta${value === 1 ? '' : 's'}`;
+                            }
+
+                            return `${context.label}: ${value} SMS`;
+                        }
                     }
                 };
             }

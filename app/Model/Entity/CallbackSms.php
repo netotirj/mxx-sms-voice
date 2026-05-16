@@ -92,6 +92,13 @@ class CallbackSms
         )";
     }
 
+    private static function responseDateExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+
+        return "DATE(COALESCE({$prefix}received_at, {$prefix}update_date, {$prefix}date_send))";
+    }
+
     public static function normalizeOperatorForDashboard(?string $operator): ?string
     {
         $value = trim((string)$operator);
@@ -534,11 +541,11 @@ class CallbackSms
         $statusList = array_keys($map);
 
         // 🔹 Função auxiliar
-        $getStatusData = function(string $dateCondition) use ($db, $params, $extraCondition, $statusList, $map) {
+        $getStatusData = function(string $statusDateCondition, string $responseDateCondition) use ($db, $params, $extraCondition, $statusList, $map) {
             $result = array_fill_keys(array_values($map), 0);
 
             $statusData = $db->select(
-                "$dateCondition $extraCondition GROUP BY status_sms",
+                "$statusDateCondition $extraCondition GROUP BY status_sms",
                 $params,
                 null,
                 null,
@@ -557,7 +564,7 @@ class CallbackSms
                 $responseRow = $db->execute(
                     "SELECT COUNT(DISTINCT " . self::distinctInboundMoExpression() . ") AS total
                      FROM callback
-                     WHERE ({$dateCondition}) {$extraCondition}
+                     WHERE ({$responseDateCondition}) {$extraCondition}
                        AND (
                             UPPER(COALESCE(status_sms, '')) = 'MO'
                             OR LOWER(COALESCE(webhook_action, '')) = 'mo'
@@ -573,12 +580,30 @@ class CallbackSms
         };
 
         // 🔹 Consulta mensal, semanal e diária
-        $statusMes = $getStatusData("MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())");
-        $statusMesAnterior = $getStatusData("MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)");
-        $statusSemana = $getStatusData("YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)");
-        $statusSemanaAnterior = $getStatusData("YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)");
-        $statusDia = $getStatusData("DATE(date_send) = CURDATE()");
-        $statusDiaAnterior = $getStatusData("DATE(date_send) = CURDATE() - INTERVAL 1 DAY");
+        $statusMes = $getStatusData(
+            "MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())",
+            "MONTH(" . self::responseDateExpression() . ") = MONTH(CURDATE()) AND YEAR(" . self::responseDateExpression() . ") = YEAR(CURDATE())"
+        );
+        $statusMesAnterior = $getStatusData(
+            "MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)",
+            "MONTH(" . self::responseDateExpression() . ") = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(" . self::responseDateExpression() . ") = YEAR(CURDATE() - INTERVAL 1 MONTH)"
+        );
+        $statusSemana = $getStatusData(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)",
+            "YEARWEEK(" . self::responseDateExpression() . ", 1) = YEARWEEK(CURDATE(), 1)"
+        );
+        $statusSemanaAnterior = $getStatusData(
+            "YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)",
+            "YEARWEEK(" . self::responseDateExpression() . ", 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)"
+        );
+        $statusDia = $getStatusData(
+            "DATE(date_send) = CURDATE()",
+            self::responseDateExpression() . " = CURDATE()"
+        );
+        $statusDiaAnterior = $getStatusData(
+            "DATE(date_send) = CURDATE() - INTERVAL 1 DAY",
+            self::responseDateExpression() . " = CURDATE() - INTERVAL 1 DAY"
+        );
 
         // 🔹 Totais agregados
         $totalMesAtual = (int)$db->select(
@@ -776,17 +801,17 @@ class CallbackSms
 
         $period = strtolower((string)$period);
         if ($period === 'day') {
-            $conditions[] = 'DATE(date_send) = CURDATE()';
+            $conditions[] = self::responseDateExpression('c') . ' = CURDATE()';
         } elseif ($period === 'day_previous') {
-            $conditions[] = 'DATE(date_send) = CURDATE() - INTERVAL 1 DAY';
+            $conditions[] = self::responseDateExpression('c') . ' = CURDATE() - INTERVAL 1 DAY';
         } elseif ($period === 'week') {
-            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE(), 1)';
+            $conditions[] = 'YEARWEEK(' . self::responseDateExpression('c') . ', 1) = YEARWEEK(CURDATE(), 1)';
         } elseif ($period === 'week_previous') {
-            $conditions[] = 'YEARWEEK(date_send, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)';
+            $conditions[] = 'YEARWEEK(' . self::responseDateExpression('c') . ', 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)';
         } elseif ($period === 'month') {
-            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE()) AND YEAR(date_send) = YEAR(CURDATE())';
+            $conditions[] = 'MONTH(' . self::responseDateExpression('c') . ') = MONTH(CURDATE()) AND YEAR(' . self::responseDateExpression('c') . ') = YEAR(CURDATE())';
         } elseif ($period === 'month_previous') {
-            $conditions[] = 'MONTH(date_send) = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(date_send) = YEAR(CURDATE() - INTERVAL 1 MONTH)';
+            $conditions[] = 'MONTH(' . self::responseDateExpression('c') . ') = MONTH(CURDATE() - INTERVAL 1 MONTH) AND YEAR(' . self::responseDateExpression('c') . ') = YEAR(CURDATE() - INTERVAL 1 MONTH)';
         }
 
         $where = implode(' AND ', $conditions);

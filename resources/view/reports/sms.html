@@ -295,12 +295,27 @@
                     break;
             }
 
-            const detail = String(arguments[1] || '').trim();
+            const detail = translateStatusDetail(String(arguments[1] || '').trim());
             const tooltip = detail
                 ? ` title="${detail.replace(/"/g, '&quot;')}"`
                 : '';
+            const cursorClass = detail ? ' cursor-help' : '';
 
-            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm ${bg}"${tooltip}>${label}</span>`;
+            return `<span class="text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm ${bg}${cursorClass}"${tooltip}>${label}</span>`;
+        }
+
+        function translateStatusDetail(detail) {
+            const normalized = String(detail || '').trim();
+            if (!normalized) return '';
+
+            const translations = {
+                'Message received by mobile': 'Mensagem recebida pelo celular',
+                'Message accepted by mobile': 'Mensagem aceita pelo celular',
+                'Message sent to operator': 'Mensagem enviada para a operadora',
+                'Message queued for delivery': 'Mensagem enfileirada para entrega'
+            };
+
+            return translations[normalized] || normalized;
         }
 
         function parseDateForCompare(dateStr) {

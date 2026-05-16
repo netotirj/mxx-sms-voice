@@ -160,6 +160,7 @@
         chart: null,
         data: null
     };
+    const baseUrl = (window.baseUrl || '').replace(/\/$/, '');
 
     const qs = (selector) => document.querySelector(selector);
     const qsa = (selector) => Array.from(document.querySelectorAll(selector));
@@ -237,11 +238,23 @@
     async function loadData() {
         const filters = currentFilters();
         const params = new URLSearchParams(filters);
-        const response = await fetch(`${window.baseUrl}/admin/platform-consumption/data?${params.toString()}`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        const response = await fetch(`${baseUrl}/admin/platform-consumption/data?${params.toString()}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
         });
 
-        const payload = await response.json();
+        const rawBody = await response.text();
+        let payload = null;
+        try {
+            payload = JSON.parse(rawBody);
+        } catch (_) {
+            throw new Error(rawBody && rawBody.trim().startsWith('<')
+                ? 'A rota do dashboard retornou HTML em vez de JSON. Verifique login/permissao da rota /admin/platform-consumption/data.'
+                : 'Resposta invalida ao carregar dashboard global.');
+        }
+
         if (!response.ok || payload.status !== 'ok') {
             throw new Error(payload.message || 'Falha ao carregar dashboard global.');
         }

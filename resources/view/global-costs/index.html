@@ -193,6 +193,7 @@
             history: [],
             timer: null
         };
+        const baseUrl = (window.baseUrl || '').replace(/\/$/, '');
 
         const els = {};
 
@@ -229,8 +230,22 @@
         }
 
         async function request(url, options = {}) {
-            const response = await fetch(url, options);
-            const result = await response.json();
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Accept': 'application/json',
+                    ...(options.headers || {})
+                }
+            });
+            const rawBody = await response.text();
+            let result = null;
+            try {
+                result = JSON.parse(rawBody);
+            } catch (_) {
+                throw new Error(rawBody && rawBody.trim().startsWith('<')
+                    ? 'A rota retornou HTML em vez de JSON. Verifique login/permissao da rota solicitada.'
+                    : 'Resposta invalida ao carregar os custos globais.');
+            }
             if (!response.ok || result.status === 'error') {
                 throw new Error(result.message || 'Falha ao carregar os custos globais.');
             }
@@ -307,8 +322,8 @@
 
             const query = params.toString();
             const [rows, history] = await Promise.all([
-                request(`${window.baseUrl}/global-costs/search${query ? '?' + query : ''}`),
-                request(`${window.baseUrl}/global-costs/history${query ? '?' + query : ''}`)
+                request(`${baseUrl}/global-costs/search${query ? '?' + query : ''}`),
+                request(`${baseUrl}/global-costs/history${query ? '?' + query : ''}`)
             ]);
 
             state.rows = rows.data || [];
@@ -377,7 +392,7 @@
             }
 
             try {
-                const result = await request(`${window.baseUrl}/global-costs/save`, {
+                const result = await request(`${baseUrl}/global-costs/save`, {
                     method: 'POST',
                     body: formData,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -397,7 +412,7 @@
             }
 
             try {
-                const result = await request(`${window.baseUrl}/global-costs/${id}/status`, {
+                const result = await request(`${baseUrl}/global-costs/${id}/status`, {
                     method: 'POST',
                     body: formData,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }

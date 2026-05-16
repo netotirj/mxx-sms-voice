@@ -160,7 +160,11 @@
         chart: null,
         data: null
     };
-    const baseUrl = (window.baseUrl || '').replace(/\/$/, '');
+    const baseUrl = (
+        window.baseUrl
+        || document.querySelector('meta[name="base-url"]')?.getAttribute('content')
+        || ''
+    ).replace(/\/$/, '');
 
     const qs = (selector) => document.querySelector(selector);
     const qsa = (selector) => Array.from(document.querySelectorAll(selector));

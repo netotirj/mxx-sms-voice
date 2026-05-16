@@ -193,7 +193,11 @@
             history: [],
             timer: null
         };
-        const baseUrl = (window.baseUrl || '').replace(/\/$/, '');
+        const baseUrl = (
+            window.baseUrl
+            || document.querySelector('meta[name="base-url"]')?.getAttribute('content')
+            || ''
+        ).replace(/\/$/, '');
 
         const els = {};
 

@@ -193,7 +193,8 @@ class ManualTopupService
                 $refill->email = $targetEmail;
                 $refill->balance = (string)$value;
                 $refill->notes = $notes;
-                $refill->type = 'manual_super_admin_admin_topup';
+                // A tabela refills usa um tipo legado curto; a auditoria detalhada fica no ledger + audit table.
+                $refill->type = 'manual';
                 $refill->transaction_id = (string)($operationResult['operation_key'] ?? '');
                 $refill->client_ip = $clientIp;
                 $refill->status = 'completed';

@@ -117,7 +117,19 @@ class UserSearch
         $params = [':tenancy_id' => $tenancyId, ':id' => $userId];
 
         $user = (new Database('users u INNER JOIN tenancies t ON t.id = u.tenancy_id'))
-            ->select($where, $params)->fetch(PDO::FETCH_ASSOC);
+            ->select(
+                $where,
+                $params,
+                null,
+                null,
+                'u.id, u.user_id, u.name, u.role_id, u.tenancy_id, u.last_name, u.email, u.image,
+                 u.job_title, u.status_account, u.reseller_balance, u.password,
+                 COALESCE((SELECT SUM(tb.balance)
+                           FROM tenancy_balance tb
+                           WHERE tb.user_id = u.id AND tb.tenancy_id = u.tenancy_id), 0) AS admin_balance,
+                 u.user_function, u.last_activity, u.createdAt, u.updatedAt,
+                 t.name AS tenancy_name, t.tenancy_phone AS tenancy_phone'
+            )->fetch(PDO::FETCH_ASSOC);
 
         return $user ? self::translateUserFields([$user])[0] : null;
     }
@@ -125,7 +137,19 @@ class UserSearch
     public static function getUserByIdGlobal(int $userId): ?array
     {
         $user = (new Database('users u INNER JOIN tenancies t ON t.id = u.tenancy_id'))
-            ->select('u.id = :id', [':id' => $userId])->fetch(PDO::FETCH_ASSOC);
+            ->select(
+                'u.id = :id',
+                [':id' => $userId],
+                null,
+                null,
+                'u.id, u.user_id, u.name, u.role_id, u.tenancy_id, u.last_name, u.email, u.image,
+                 u.job_title, u.status_account, u.reseller_balance, u.password,
+                 COALESCE((SELECT SUM(tb.balance)
+                           FROM tenancy_balance tb
+                           WHERE tb.user_id = u.id AND tb.tenancy_id = u.tenancy_id), 0) AS admin_balance,
+                 u.user_function, u.last_activity, u.createdAt, u.updatedAt,
+                 t.name AS tenancy_name, t.tenancy_phone AS tenancy_phone'
+            )->fetch(PDO::FETCH_ASSOC);
 
         return $user ? self::translateUserFields([$user])[0] : null;
     }

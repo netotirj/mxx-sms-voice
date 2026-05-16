@@ -990,12 +990,20 @@
         }
 
         function getOperatorCountsForPeriod() {
-            const smsPeriod = getPeriodPayload('', '');
-            const previousSuffix = smsPeriod.statusPeriod === 'previous' ? 'Previous' : '';
-            const key = selectedPeriod === 'week'
-                ? `totalOperatorWeek${previousSuffix}`
-                : (selectedPeriod === 'month' ? `totalOperatorMonth${previousSuffix}` : `totalOperatorDay${previousSuffix}`);
-            return Object.entries(chartsPayload?.[key] || chartsPayload?.totalOperator || {});
+            const baseKey = selectedPeriod === 'week'
+                ? 'totalOperatorWeek'
+                : (selectedPeriod === 'month' ? 'totalOperatorMonth' : 'totalOperatorDay');
+            const currentEntries = Object.entries(chartsPayload?.[baseKey] || {});
+            if (currentEntries.length) {
+                return currentEntries;
+            }
+
+            const previousEntries = Object.entries(chartsPayload?.[`${baseKey}Previous`] || {});
+            if (previousEntries.length) {
+                return previousEntries;
+            }
+
+            return Object.entries(chartsPayload?.totalOperator || {});
         }
 
         function getSipCodeDetails(code, item = {}) {

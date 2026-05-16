@@ -14,6 +14,8 @@ use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Service\PlanAccessPolicy;
+use App\Service\FinancialHierarchyBillingService;
+use App\Service\FinancialHierarchyResolver;
 use App\Service\FinancialTransactionService;
 use App\Service\PlanRuntimeService;
 use App\Service\WhatsAppBilling;
@@ -34,6 +36,122 @@ use Throwable;
 
 class Voice extends ViewComponents
 {
+    private static function estimatedCampaignTotalForUser(
+        int $targetUserId,
+        string $tenantId,
+        ?int $planId,
+        array $trunk,
+        string $variableType,
+        int $contactsCount,
+        bool $hasSmsDirect,
+        array $dtmf
+    ): float {
+        $context = FinancialHierarchyResolver::resolveContext($targetUserId, $tenantId);
+        $role = strtolower((string)$context->actor_role);
+        $voiceRate = 0.0;
+        $smsRate = 0.0;
+        $torpedoRate = 0.0;
+        $serviceFee = 0.0;
+        $whatsRate = (float)(WhatsAppBilling::categoryPricesForUser($targetUserId, $tenantId)['marketing'] ?? 0);
+
+        if ($role === 'reseller') {
+            $ratesAll = Rates::getActiveRatesByUser($tenantId, $targetUserId);
+            $voiceRate = (float)($ratesAll['voice'] ?? 0);
+            $smsRate = (float)($ratesAll['sms'] ?? 0);
+            $torpedoRate = (float)($ratesAll['torpedo'] ?? 0);
+            $serviceFeeRate = Rates::getLatestActiveRate($tenantId, $targetUserId, 'service_fee');
+            $serviceFee = (float)($serviceFeeRate['rate'] ?? 0);
+        } else {
+            $quote = VoicePricingService::quote([
+                'trunk' => $trunk,
+                'user_id' => $targetUserId,
+                'tenancy_id' => $tenantId,
+                'plan_id' => $planId,
+            ]);
+            $planRates = VoicePricingService::planRates($targetUserId, $tenantId, $quote['plan_id'] ?? $planId);
+            $voiceRate = (float)($quote['call_minute_cost'] ?? 0);
+            $smsRate = (float)($quote['sms_cost'] ?? 0);
+            $torpedoRate = (float)($quote['torpedo_cost'] ?? 0);
+            $serviceFee = (float)($planRates['service_fee'] ?? 0);
+        }
+
+        $primaryRate = match ($variableType) {
+            'service_fee' => $serviceFee,
+            'sms' => $smsRate,
+            'torpedo' => $torpedoRate,
+            'whatsapp' => $whatsRate,
+            default => $voiceRate,
+        };
+
+        return VoicePricingService::estimateCampaignTotal(
+            $contactsCount,
+            $primaryRate,
+            $smsRate,
+            $hasSmsDirect,
+            $dtmf
+        );
+    }
+
+    private static function buildVoicePreflightPlan(
+        int $actorUserId,
+        string $tenantId,
+        ?int $planId,
+        array $trunk,
+        string $variableType,
+        int $contactsCount,
+        bool $hasSmsDirect,
+        array $dtmf,
+        float $retailAmount
+    ): array {
+        $context = FinancialHierarchyResolver::resolveContext($actorUserId, $tenantId);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+
+        if ($context->reseller_id && (int)$context->reseller_id !== $actorUserId) {
+            $resellerAmount = self::estimatedCampaignTotalForUser(
+                (int)$context->reseller_id,
+                $tenantId,
+                $planId,
+                $trunk,
+                $variableType,
+                $contactsCount,
+                $hasSmsDirect,
+                $dtmf
+            );
+        }
+
+        if ($context->owner_admin_id > 0 && (int)$context->owner_admin_id !== $actorUserId) {
+            $adminAmount = self::estimatedCampaignTotalForUser(
+                (int)$context->owner_admin_id,
+                $tenantId,
+                $planId,
+                $trunk,
+                $variableType,
+                $contactsCount,
+                $hasSmsDirect,
+                $dtmf
+            );
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => $actorUserId,
+            'tenancy_id' => $tenantId,
+            'module' => 'voice',
+            'event' => 'campaign_preflight',
+            'retail_amount' => round($retailAmount, 4),
+            'reseller_amount' => round($resellerAmount, 4),
+            'admin_amount' => round($adminAmount, 4),
+            'related_type' => 'voice_campaign',
+            'related_id' => sprintf('%s:%d:%d', $tenantId, $actorUserId, $contactsCount),
+            'operation_key_base' => sprintf('voice:preflight:%s:%d:%d', $tenantId, $actorUserId, $contactsCount),
+            'description_prefix' => 'VOICE PREFLIGHT',
+            'metadata' => [
+                'contacts_count' => $contactsCount,
+                'variable_type' => $variableType,
+            ],
+        ]);
+    }
+
     public static function getComponentsVoice(): Response|string
     {
         $obUser = SessionUser::getLogged();
@@ -1496,94 +1614,77 @@ class Voice extends ViewComponents
         // =======================
         // Validação de saldo
         // =======================
+        $preflightPlan = self::buildVoicePreflightPlan(
+            $userId,
+            $tenantId,
+            $planIdUsed,
+            $trunk,
+            (string)$variableTypeReal,
+            count($contactList),
+            $hasSmsDirect,
+            $dtmf,
+            $totalGeral
+        );
 
-        if ($isReseller) {
+        try {
+            FinancialHierarchyBillingService::assertSufficientBalance($preflightPlan);
+        } catch (\Throwable $e) {
+            $requirements = FinancialHierarchyBillingService::summarizeRequiredBalances($preflightPlan);
 
-            // 1️⃣ Buscar o revendedor
-            $resellerInfo = UserSearch::getResellers($tenantId, $userId);
-            $reseller = $resellerInfo[0] ?? null;
+            foreach ($requirements as $entry) {
+                if ((float)$entry['balance'] >= (float)$entry['amount']) {
+                    continue;
+                }
 
-            if (!$reseller) {
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Erro ao consultar revendedor.'
-                ], 'application/json');
-            }
-
-            // 2️⃣ Buscar saldo do ADMIN
-            $adminBalance = BalanceSms::getBalanceSms($adminId, $tenantId, $currentPlan);
-
-            if (!$adminBalance) {
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Saldo do administrador não encontrado.'
-                ], 'application/json');
-            }
-
-            $adminAvailable = (float)$adminBalance->balance;
-
-            // 3️⃣ Buscar saldo do revendedor
-            $resellerBalance = (float)number_format($reseller['reseller_balance'], 2, '.', '');
-
-            // 4️⃣ Verificar se ambos têm saldo suficiente
-            if ($resellerBalance < $totalGeral) {
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Saldo insuficiente para o revendedor.',
-                    'reseller_balance' => $resellerBalance,
-                    'need' => $totalGeral,
-                    'frontend_estimate' => $totalGeralFrontend
-                ], 'application/json');
-            }
-
-            if ($adminAvailable < $totalGeral) {
-
-                $adminBalanceFormatted = number_format($adminAvailable, 2, ',', '.');
-
-                Notifications::insertNotifications(
-                    $tenantId,
-                    $adminId,
-                    "Saldo insuficiente",
-                    "Seu saldo atual é de <b>R$ {$adminBalanceFormatted}</b>. 
+                if ((int)$entry['user_id'] === (int)$adminId && (string)$entry['wallet'] === FinancialTransactionService::WALLET_ADMIN) {
+                    $adminBalanceFormatted = number_format((float)$entry['balance'], 2, ',', '.');
+                    Notifications::insertNotifications(
+                        $tenantId,
+                        $adminId,
+                        "Saldo insuficiente",
+                        "Seu saldo atual é de <b>R$ {$adminBalanceFormatted}</b>. 
                               É necessário realizar uma nova recarga para continuar utilizando os serviços.",
-                    'alert'
-                );
+                        'alert'
+                    );
 
+                    return new Response(403, [
+                        'status' => 403,
+                        'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.',
+                        'admin_balance' => (float)$entry['balance'],
+                        'need' => (float)$entry['amount'],
+                        'frontend_estimate' => $totalGeralFrontend
+                    ], 'application/json');
+                }
 
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Ocorreu um erro! Favor contate o administrador do sistema.',
-                    'admin_balance' => $adminAvailable,
-                    'need' => $totalGeral,
-                    'frontend_estimate' => $totalGeralFrontend
-                ], 'application/json');
+                if ((string)$entry['wallet'] === FinancialTransactionService::WALLET_RESELLER && (int)$entry['user_id'] === (int)$userId) {
+                    return new Response(403, [
+                        'status' => 403,
+                        'message' => 'Saldo insuficiente para o revendedor.',
+                        'reseller_balance' => (float)$entry['balance'],
+                        'need' => (float)$entry['amount'],
+                        'frontend_estimate' => $totalGeralFrontend
+                    ], 'application/json');
+                }
+
+                if ((int)$entry['user_id'] === (int)$userId && (string)$entry['wallet'] === FinancialTransactionService::WALLET_ADMIN) {
+                    UserPlans::deactivatePlan($currentPlan, $tenantId, $userId);
+
+                    return new Response(403, [
+                        'status' => 403,
+                        'message' => 'Saldo insuficiente. Plano desativado.',
+                        'balance' => (float)$entry['balance'],
+                        'necessary' => (float)$entry['amount'],
+                        'frontend_estimate' => $totalGeralFrontend
+                    ], 'application/json');
+                }
             }
 
-        } else {
-
-            // Usuário comum
-            $obBalance = BalanceSms::getBalanceSms($userId, $tenantId, $currentPlan);
-
-            if (!$obBalance) {
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Saldo não encontrado para o usuário.'
-                ], 'application/json');
-            }
-
-            $availableBalance = (float)$obBalance->balance;
-
-            if ($availableBalance < $totalGeral) {
-                UserPlans::deactivatePlan($currentPlan, $tenantId, $userId);
-
-                return new Response(403, [
-                    'status' => 403,
-                    'message' => 'Saldo insuficiente. Plano desativado.',
-                    'balance' => $availableBalance,
-                    'necessary' => $totalGeral,
-                    'frontend_estimate' => $totalGeralFrontend
-                ], 'application/json');
-            }
+            return new Response(403, [
+                'status' => 403,
+                'message' => 'Saldo insuficiente na cadeia financeira da campanha.',
+                'error' => $e->getMessage(),
+                'frontend_estimate' => $totalGeralFrontend
+            ], 'application/json');
         }
 
         // =======================
@@ -5934,31 +6035,24 @@ final class VoiceBillingProcessor
 
     private static function processServiceFee(CdrVoice $cdr): void
     {
-        $tenantOwnerId = self::tenantOwnerId($cdr);
-        if (!$tenantOwnerId) {
+        if ((float)$cdr->taxa_of_service <= 0) {
             return;
         }
 
-        $ownerFee = round((float)$cdr->taxa_of_service, 4);
-
-        if ($ownerFee > 0 && (int)$cdr->user_id !== $tenantOwnerId) {
-            self::applyCharge($cdr, [
-                'user_id' => (int)$cdr->user_id,
-                'amount' => $ownerFee,
-                'wallet' => 'reseller',
-                'description' => 'SERVICE_FEE_OWNER',
-            ]);
+        $plan = self::buildServiceFeePlan($cdr);
+        if (empty($plan['legs'])) {
+            return;
         }
 
-        $ownerRates = BalanceSms::getBalanceSms($tenantOwnerId, $cdr->tenancy_id);
-        $upstreamFee = $ownerRates ? round((float)($ownerRates->service_fee ?? 0), 4) : 0.0;
-
-        if ($upstreamFee > 0) {
-            self::applyCharge($cdr, [
-                'user_id' => $tenantOwnerId,
-                'amount' => $upstreamFee,
-                'wallet' => 'admin',
-                'description' => 'SERVICE_FEE_ADMIN',
+        $result = FinancialHierarchyBillingService::debitPlan($plan);
+        if (empty($result['ok'])) {
+            VoiceCdrDebug::send([
+                'financial_debit' => false,
+                'reason' => 'service_fee_batch_failed',
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'user_id' => (int)$cdr->user_id,
+                'amount' => round((float)$cdr->taxa_of_service, 4),
             ]);
         }
     }
@@ -5972,49 +6066,46 @@ final class VoiceBillingProcessor
      */
     private static function resolveUsageCharges(CdrVoice $cdr): array
     {
-        $tenantOwnerId = self::tenantOwnerId($cdr);
-
-        if (!$tenantOwnerId) {
+        try {
+            $plan = self::buildUsagePlan($cdr);
+        } catch (\Throwable $e) {
             VoiceCdrDebug::send([
                 'skip' => true,
-                'reason' => 'no_owner_for_tenancy',
+                'reason' => 'hierarchy_plan_failed',
                 'tenancy_id' => $cdr->tenancy_id,
                 'channel_id' => $cdr->channel_id,
                 'user_id' => $cdr->user_id,
                 'value' => $cdr->value,
+                'message' => $e->getMessage(),
             ]);
 
             return [];
         }
 
-        $ownerUserId = (int)$cdr->user_id;
-        $charges = [
-            [
-                'user_id' => $ownerUserId,
-                'amount' => round((float)$cdr->value, 4),
-                'wallet' => ($ownerUserId === $tenantOwnerId) ? 'admin' : 'reseller',
-                'description' => 'VOICE',
-            ],
-        ];
-
-        if ($ownerUserId !== $tenantOwnerId) {
-            $upstreamCost = self::calculateUpstreamCost($cdr, $tenantOwnerId);
-
-            if ($upstreamCost > 0) {
-                $charges[] = [
-                    'user_id' => $tenantOwnerId,
-                    'amount' => $upstreamCost,
-                    'wallet' => 'admin',
-                    'description' => 'VOICE_UPSTREAM',
-                ];
-            }
-        }
-
-        return $charges;
+        return [[
+            'billing_plan' => $plan,
+        ]];
     }
 
     private static function applyCharge(CdrVoice $cdr, array $charge): void
     {
+        if (isset($charge['billing_plan']) && is_array($charge['billing_plan'])) {
+            $result = FinancialHierarchyBillingService::debitPlan($charge['billing_plan']);
+            if (!empty($result['ok'])) {
+                return;
+            }
+
+            VoiceCdrDebug::send([
+                'financial_debit' => false,
+                'reason' => 'hierarchy_batch_failed',
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'user_id' => (int)$cdr->user_id,
+                'amount' => round((float)$cdr->value, 4),
+            ]);
+            return;
+        }
+
         $userId = (int)($charge['user_id'] ?? 0);
         $amount = round((float)($charge['amount'] ?? 0), 4);
         $wallet = (string)($charge['wallet'] ?? 'admin');
@@ -6077,22 +6168,108 @@ final class VoiceBillingProcessor
         }
     }
 
+    private static function buildUsagePlan(CdrVoice $cdr): array
+    {
+        $context = FinancialHierarchyResolver::resolveContext((int)$cdr->user_id, (string)$cdr->tenancy_id);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+
+        if ($context->reseller_id && (int)$context->reseller_id !== (int)$cdr->user_id) {
+            $resellerAmount = self::calculateUsageAmountForUser($cdr, (int)$context->reseller_id);
+        }
+
+        if ($context->owner_admin_id > 0 && (int)$context->owner_admin_id !== (int)$cdr->user_id) {
+            $adminAmount = self::calculateUsageAmountForUser($cdr, (int)$context->owner_admin_id);
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => (int)$cdr->user_id,
+            'tenancy_id' => (string)$cdr->tenancy_id,
+            'module' => 'voice',
+            'event' => 'cdr_usage',
+            'retail_amount' => round((float)$cdr->value, 4),
+            'reseller_amount' => $resellerAmount,
+            'admin_amount' => $adminAmount,
+            'provider_reference' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'related_type' => 'voice_call',
+            'related_id' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'operation_key_base' => sprintf('voice:%s:usage', (string)($cdr->call_id ?: $cdr->channel_id)),
+            'description_prefix' => 'VOICE CDR USAGE',
+            'metadata' => [
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'dialstatus' => $cdr->dialstatus,
+                'voice_type' => $cdr->type,
+                'duration' => (float)$cdr->duration,
+                'trunk_billing_type' => $cdr->trunk_billing_type,
+            ],
+        ]);
+    }
+
+    private static function buildServiceFeePlan(CdrVoice $cdr): array
+    {
+        $context = FinancialHierarchyResolver::resolveContext((int)$cdr->user_id, (string)$cdr->tenancy_id);
+        $retailAmount = round((float)$cdr->taxa_of_service, 4);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+
+        if ($context->reseller_id && (int)$context->reseller_id !== (int)$cdr->user_id) {
+            $resellerAmount = self::serviceFeeAmountForUser((string)$cdr->tenancy_id, (int)$context->reseller_id);
+        }
+
+        if ($context->owner_admin_id > 0 && (int)$context->owner_admin_id !== (int)$cdr->user_id) {
+            $adminAmount = self::serviceFeeAmountForUser((string)$cdr->tenancy_id, (int)$context->owner_admin_id);
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => (int)$cdr->user_id,
+            'tenancy_id' => (string)$cdr->tenancy_id,
+            'module' => 'voice',
+            'event' => 'service_fee',
+            'retail_amount' => $retailAmount,
+            'reseller_amount' => $resellerAmount,
+            'admin_amount' => $adminAmount,
+            'provider_reference' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'related_type' => 'voice_call',
+            'related_id' => (string)($cdr->call_id ?: $cdr->channel_id),
+            'operation_key_base' => sprintf('voice:%s:service_fee', (string)($cdr->call_id ?: $cdr->channel_id)),
+            'description_prefix' => 'VOICE SERVICE FEE',
+            'metadata' => [
+                'channel_id' => $cdr->channel_id,
+                'call_id' => $cdr->call_id,
+                'dialstatus' => $cdr->dialstatus,
+                'voice_type' => $cdr->type,
+            ],
+        ]);
+    }
+
     private static function calculateUpstreamCost(CdrVoice $cdr, int $tenantOwnerId): float
     {
-        $rates = BalanceSms::getBalanceSms($tenantOwnerId, $cdr->tenancy_id);
-        if (!$rates) {
+        return self::calculateUsageAmountForUser($cdr, $tenantOwnerId);
+    }
+
+    private static function calculateUsageAmountForUser(CdrVoice $cdr, int $userId): float
+    {
+        if ($userId <= 0) {
+            return 0.0;
+        }
+
+        $planId = RegisterTenancies::getActivePlanId((string)$cdr->tenancy_id);
+        try {
+            $rates = VoicePricingService::planRates($userId, (string)$cdr->tenancy_id, $planId);
+        } catch (\Throwable) {
             return 0.0;
         }
 
         $billingType = VoicePricingService::normalizeBillingType($cdr->trunk_billing_type ?? null);
         $voiceCost = match ($billingType) {
-            VoicePricingService::BILLING_OPEN => (float)($rates->voice_open_rate ?? 0),
-            VoicePricingService::BILLING_SMART => (float)($rates->voice_smart_rate ?? 0),
-            default => (float)($rates->value_voice ?? 0),
+            VoicePricingService::BILLING_OPEN => (float)($rates['voice_open_rate'] ?? 0),
+            VoicePricingService::BILLING_SMART => (float)($rates['voice_smart_rate'] ?? 0),
+            default => (float)($rates['voice_smart_rate'] ?? 0),
         };
-        $smsCost = (float)($rates->value_sms ?? 0);
-        $torpedoCost = (float)($rates->value_torpedo ?? 0);
-        $whatsCost = (float)(WhatsAppBilling::categoryPricesForUser($tenantOwnerId, (string)$cdr->tenancy_id)['marketing'] ?? 0);
+        $smsCost = (float)($rates['sms'] ?? 0);
+        $torpedoCost = (float)($rates['torpedo'] ?? 0);
+        $whatsCost = (float)(WhatsAppBilling::categoryPricesForUser($userId, (string)$cdr->tenancy_id)['marketing'] ?? 0);
 
         return round(match ($cdr->type) {
             'normal',
@@ -6103,6 +6280,22 @@ final class VoiceBillingProcessor
             'whatsapp' => $whatsCost,
             default => 0.0,
         }, 4);
+    }
+
+    private static function serviceFeeAmountForUser(string $tenancyId, int $userId): float
+    {
+        if ($userId <= 0 || trim($tenancyId) === '') {
+            return 0.0;
+        }
+
+        $planId = RegisterTenancies::getActivePlanId($tenancyId);
+        try {
+            $rates = VoicePricingService::planRates($userId, $tenancyId, $planId);
+            return round((float)($rates['service_fee'] ?? 0), 4);
+        } catch (\Throwable) {
+            $balance = BalanceSms::getBalanceSms($userId, $tenancyId);
+            return round((float)($balance->service_fee ?? 0), 4);
+        }
     }
 
     private static function tenantOwnerId(CdrVoice $cdr): ?int

@@ -11,7 +11,8 @@ use App\Model\Entity\CallbackSms;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\UserPlans;
-use App\Service\FinancialTransactionService;
+use App\Service\FinancialHierarchyBillingService;
+use App\Service\FinancialHierarchyResolver;
 use App\Service\PlanRuntimeService;
 use App\Utils\View;
 
@@ -31,6 +32,44 @@ class SendSms extends ViewComponents
     {
         $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
         return (float)($summary->value_sms ?? 0);
+    }
+
+    private static function buildSmsPreflightPlan(int $userId, string $tenancyId, int $totalUnits, float $retailUnitRate): array
+    {
+        $context = FinancialHierarchyResolver::resolveContext($userId, $tenancyId);
+        $retailAmount = round(max(0, $totalUnits) * max(0, $retailUnitRate), 4);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+
+        if ($context->reseller_id && (int)$context->reseller_id !== $userId) {
+            $rateData = Rates::getLatestActiveRate($tenancyId, (int)$context->reseller_id);
+            $resellerUnitRate = (float)($rateData['rate'] ?? 0);
+            $resellerAmount = round($totalUnits * $resellerUnitRate, 4);
+        }
+
+        if ($context->owner_admin_id > 0 && (int)$context->owner_admin_id !== $userId) {
+            $ownerBalance = BalanceSms::getBalanceSms((int)$context->owner_admin_id, $tenancyId);
+            $adminUnitRate = (float)($ownerBalance->value_sms ?? 0);
+            $adminAmount = round($totalUnits * $adminUnitRate, 4);
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => $userId,
+            'tenancy_id' => $tenancyId,
+            'module' => 'sms',
+            'event' => 'preflight',
+            'retail_amount' => $retailAmount,
+            'reseller_amount' => $resellerAmount,
+            'admin_amount' => $adminAmount,
+            'related_type' => 'sms_dispatch',
+            'related_id' => sprintf('%s:%d:%d', $tenancyId, $userId, $totalUnits),
+            'operation_key_base' => sprintf('sms:preflight:%s:%d:%d', $tenancyId, $userId, $totalUnits),
+            'description_prefix' => 'SMS PREFLIGHT',
+            'metadata' => [
+                'total_units' => $totalUnits,
+                'retail_unit_rate' => round($retailUnitRate, 4),
+            ],
+        ]);
     }
 
     private static function normalizePhone(string $phone): string
@@ -218,34 +257,14 @@ class SendSms extends ViewComponents
                 return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa da conta principal não configurados.'], 'application/json');
             }
 
-            $obSmsAccept = CallbackSms::countSentSmsAccept($obUser['id'], $obUser['tenancy_id']);
-
-            $valueTotalTenant = $totalUnits * (float)$obBalance->value_sms;
-            $valueAccept      = (float)($obSmsAccept->value_total ?? 0);
-            $availableTenant  = (float)$obBalance->balance - $valueAccept;
-
-            if ($availableTenant < $valueTotalTenant) {
-
-                return new Response(403, [
-                    'status'    => 403,
-                    'message'   => 'Favor contactar administrador da conta.',
-                    'balance'   => $availableTenant,
-                    'necessary' => $valueTotalTenant
-                ], 'application/json');
-            }
-
         } else {
             // 🔹 Fluxo normal (somente plano)
             $obBalance   = BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'], $currentPlan);
             if (!$obBalance || (float)$obBalance->value_sms <= 0) {
                 return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa SMS não configurados.'], 'application/json');
             }
-
-            $obSmsAccept = CallbackSms::countSentSmsAccept($obUser['id'], $obUser['tenancy_id']);
             $valueTotal       = $totalUnits * (float)$obBalance->value_sms;
-            $valueAccept      = (float)($obSmsAccept->value_total ?? 0);
-            $availableBalance = (float)$obBalance->balance - $valueAccept;
-
+            $availableBalance = (float)$obBalance->balance;
 
             // 🔹 Se não tem saldo nem para 1 SMS, desativa
             if ($availableBalance < (float)$obBalance->value_sms) {
@@ -266,6 +285,24 @@ class SendSms extends ViewComponents
                     'necessary' => $valueTotal
                 ], 'application/json');
             }
+        }
+
+        try {
+            $preflightPlan = self::buildSmsPreflightPlan(
+                (int)$obUser['id'],
+                (string)$obUser['tenancy_id'],
+                (int)$totalUnits,
+                (float)$obBalance->value_sms
+            );
+            FinancialHierarchyBillingService::assertSufficientBalance($preflightPlan);
+        } catch (\Throwable $e) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => $isReseller
+                    ? 'Saldo insuficiente na cadeia financeira do revendedor.'
+                    : 'Saldo insuficiente na cadeia financeira da conta.',
+                'error' => $e->getMessage(),
+            ], 'application/json');
         }
 
         // 🔹 4) Cria batch
@@ -328,41 +365,8 @@ class SendSms extends ViewComponents
 
                 if (strtoupper($smsResult['status'] ?? '') === 'ACCEPTED') {
                     $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : (float)$obBalance->value_sms);
-                    if ($isReseller) {
-                        $callback->value_sms = $chargeValue;
-                        $debit = FinancialTransactionService::debit([
-                            'user_id' => (int)$obUser['id'],
-                            'tenancy_id' => (string)$obUser['tenancy_id'],
-                            'wallet' => FinancialTransactionService::WALLET_RESELLER,
-                            'amount' => round($chargeValue, 4),
-                            'operation_key' => 'sms:accepted:' . (string)$callback->id_partner,
-                            'source' => 'sms_send_accepted',
-                            'description' => 'SMS ACCEPTED RESELLER | partner:' . (string)$callback->id_partner,
-                            'provider_reference' => (string)$callback->id_partner,
-                            'related_type' => 'sms_partner_id',
-                            'related_id' => (string)$callback->id_partner,
-                            'metadata' => [
-                                'phone_sms' => (string)$callback->phone_sms,
-                                'batch_id' => (int)$batchId,
-                                'sms_units' => (int)$cont['sms_units'],
-                            ],
-                            'legacy_log_amount' => -$chargeValue,
-                        ]);
-
-                        if (!$debit['ok']) {
-                            $callback->status_sms = 'REJECTED';
-                            $callback->value_sms = 0.00;
-                            $totalFailed++;
-                            $apiErrors[] = 'Falha ao reservar saldo do revendedor para SMS aceito.';
-                        } else {
-                            $availableBalance -= $chargeValue;
-                            $totalAccepted++;
-                        }
-
-                    } else {
-                        $callback->value_sms = $chargeValue;
-                        $totalAccepted++;
-                    }
+                    $callback->value_sms = $chargeValue;
+                    $totalAccepted++;
                 } else {
                     $callback->value_sms = 0.00;
                     $totalFailed++;

@@ -13,16 +13,17 @@ use App\Model\Entity\UserSearch;
 use App\Model\Entity\CampaignBatch;
 use DateTime;
 use Exception;
-use App\Service\FinancialTransactionService;
+use App\Service\FinancialHierarchyBillingService;
+use App\Service\FinancialHierarchyResolver;
 use WilliamCosta\DatabaseManager\Database;
 
 class WebStatusSms
 {
     /**
-     * Processa a cobrança de SMS para o owner da tenancy
-     * @param int $userId            -> sempre o ID do owner da tenancy
+     * Processa a cobrança consolidada do lote usando a cadeia financeira central.
+     * @param int $actorUserId       -> usuario que consumiu/originou o lote
      * @param string $tenancyId
-     * @param float $valueSmsTenancy -> tarifa do tenancy (para débito real)
+     * @param float $retailTotalCharge -> tarifa consolidada do ator
      * @param int $countDelivered
      * @param int $countSent
      * @param int $countUndelivered
@@ -30,12 +31,13 @@ class WebStatusSms
      * @param int $batchId
      * @param int $planId
      * @param string $descricao
-     * @param float|null $valueSmsReseller -> tarifa do reseller (apenas para log)
+     * @param float|null $resellerTotalCharge -> custo comercial do revendedor, se existir
+     * @param float|null $adminTotalCharge -> custo upstream do owner admin, se existir
      */
     private static function processCharge(
-        int $userId,
+        int $actorUserId,
         string $tenancyId,
-        float $valueSmsTenancy,
+        float $retailTotalCharge,
         int $countDelivered,
         int $countSent,
         int $countUndelivered,
@@ -43,56 +45,50 @@ class WebStatusSms
         int $batchId,
         int $planId,
         string $descricao,
-        ?float $valueSmsReseller = null
+        ?float $resellerTotalCharge = null,
+        ?float $adminTotalCharge = null
     ): void {
         $totalTarifavel = $countDelivered + $countSent + $countUndelivered + $countExpired;
 
-        if ($valueSmsTenancy <= 0 || $totalTarifavel <= 0) {
+        if ($retailTotalCharge <= 0 || $totalTarifavel <= 0) {
             CampaignBatch::markAsCharged($batchId, 2); // tarifa inválida
             return;
         }
 
-        $balanceData = BalanceSms::getBalanceSms($userId, $tenancyId);
-        $currentBalance = $balanceData ? (float)$balanceData->balance : 0;
-        $totalChargeTenancy = $valueSmsTenancy * $totalTarifavel;
-        $totalChargeLog = ($valueSmsReseller ?? $valueSmsTenancy) * $totalTarifavel;
+        $plan = FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => $actorUserId,
+            'tenancy_id' => $tenancyId,
+            'module' => 'sms',
+            'event' => 'batch_callback',
+            'retail_amount' => round($retailTotalCharge, 4),
+            'reseller_amount' => round((float)($resellerTotalCharge ?? 0), 4),
+            'admin_amount' => round((float)($adminTotalCharge ?? 0), 4),
+            'provider_reference' => (string)$batchId,
+            'related_type' => 'sms_batch',
+            'related_id' => (string)$batchId,
+            'operation_key_base' => sprintf('sms:batch:%d:user:%d', $batchId, $actorUserId),
+            'description_prefix' => $descricao,
+            'metadata' => [
+                'count_delivered' => $countDelivered,
+                'count_sent' => $countSent,
+                'count_undelivered' => $countUndelivered,
+                'count_expired' => $countExpired,
+                'plan_id' => $planId,
+            ],
+        ]);
 
-        if ($currentBalance >= $totalChargeTenancy) {
-            $result = FinancialTransactionService::debit([
-                'user_id' => $userId,
-                'tenancy_id' => $tenancyId,
-                'wallet' => FinancialTransactionService::WALLET_ADMIN,
-                'amount' => round($totalChargeTenancy, 4),
-                'operation_key' => sprintf('sms:batch:%d:owner:%d', $batchId, $userId),
-                'source' => 'sms_batch_callback',
-                'description' => $descricao,
-                'provider_reference' => (string)$batchId,
-                'related_type' => 'sms_batch',
-                'related_id' => (string)$batchId,
-                'metadata' => [
-                    'count_delivered' => $countDelivered,
-                    'count_sent' => $countSent,
-                    'count_undelivered' => $countUndelivered,
-                    'count_expired' => $countExpired,
-                    'plan_id' => $planId,
-                ],
-                'legacy_log_amount' => -$totalChargeLog,
-            ]);
+        $result = FinancialHierarchyBillingService::debitPlan($plan);
 
-            if (!$result['ok']) {
-                CampaignBatch::markAsCharged($batchId, 2);
-                return;
-            }
-
-            if ($countDelivered === 0 && $countSent === 0 && ($countUndelivered + $countExpired) > 0) {
-                CampaignBatch::markAsCharged($batchId, 3); // sem envio real
-            } else {
-                CampaignBatch::markAsCharged($batchId, 1); // tarifado
-            }
+        if (empty($result['ok'])) {
+            CampaignBatch::markAsCharged($batchId, 2);
             return;
         }
 
-        CampaignBatch::markAsCharged($batchId, 2); // saldo insuficiente
+        if ($countDelivered === 0 && $countSent === 0 && ($countUndelivered + $countExpired) > 0) {
+            CampaignBatch::markAsCharged($batchId, 3); // sem envio real
+        } else {
+            CampaignBatch::markAsCharged($batchId, 1); // tarifado
+        }
     }
 
     /**
@@ -255,26 +251,30 @@ class WebStatusSms
 
             if ($totalTarifavel <= 0 || !in_array($batch->charged, [0,2])) continue;
 
-            // 🧩 Sempre debita do owner da tenancy
-            $ownerId = RegisterTenancies::getTenancyOwnerUserId($obUser->tenancy_id);
-            if (!$ownerId) {
+            $context = FinancialHierarchyResolver::resolveContext((int)$obUser->id, (string)$obUser->tenancy_id);
+            $ownerId = (int)$context->owner_admin_id;
+            if ($ownerId <= 0) {
                 CampaignBatch::markAsCharged($batchId, 2);
                 continue;
             }
 
-            // 💰 Tarifa real (tenancy)
+            $retailTotalCharge = round((float)($countData->value_total ?? 0), 4);
             $balanceData = BalanceSms::getBalanceSms($ownerId, $obUser->tenancy_id);
-            $valueSmsTenancy = $balanceData ? (float)$balanceData->value_sms : 0;
+            $adminUnitRate = $balanceData ? (float)$balanceData->value_sms : 0.0;
+            $adminTotalCharge = round($adminUnitRate * $totalTarifavel, 4);
 
-            // 💵 Tarifa do reseller (para log)
-            $rateData = Rates::getLatestActiveRate($obUser->tenancy_id, $obUser->id);
-            $valueSmsReseller = $rateData ? (float)($rateData['rate'] ?? 0) : null;
+            $resellerTotalCharge = null;
+            if (!empty($context->reseller_id)) {
+                $rateData = Rates::getLatestActiveRate($obUser->tenancy_id, (int)$context->reseller_id);
+                $resellerUnitRate = $rateData ? (float)($rateData['rate'] ?? 0) : 0.0;
+                $resellerTotalCharge = round($resellerUnitRate * $totalTarifavel, 4);
+            }
 
             // 🔧 Chamada final da tarifação
             (new self())->processCharge(
-                $ownerId,
+                (int)$obUser->id,
                 $obUser->tenancy_id,
-                $valueSmsTenancy,   // débito real
+                $retailTotalCharge,
                 $countDelivered,
                 $countSent,
                 $countUndelivered,
@@ -282,7 +282,8 @@ class WebStatusSms
                 $batchId,
                 $planId ?? 0,
                 "Tarifa tenancy {$obUser->tenancy_id} ({$countDelivered} SMS enviados por user {$obUser->id}) #{$batchId}",
-                $isReseller ? $valueSmsReseller : null // loga tarifa do reseller, se for o caso
+                $resellerTotalCharge,
+                $adminTotalCharge
             );
 
             $processedBatches[$batchId] = true;

@@ -277,23 +277,8 @@ class WhatsAppVoiceBilling
         }
 
         try {
-            $result = FinancialTransactionService::debit([
-                'user_id' => $userId,
-                'tenancy_id' => $tenancyId,
-                'wallet' => FinancialTransactionService::WALLET_ADMIN,
-                'amount' => $amount,
-                'operation_key' => 'whatsapp_voice:' . $callId,
-                'source' => 'whatsapp_voice',
-                'description' => 'Tarifação WhatsApp Voz - call_id ' . $callId,
-                'provider_reference' => $callId,
-                'related_type' => 'whatsapp_voice_call',
-                'related_id' => $callId,
-                'metadata' => [
-                    'call_id' => $callId,
-                    'charge_lock_token' => $lockToken,
-                ],
-                'legacy_log_amount' => -$amount,
-            ], static function (Database $db) use ($callId, $lockToken): void {
+            $plan = self::buildHierarchyDebitPlan($userId, $tenancyId, $amount, $callId, $lockToken);
+            $result = FinancialHierarchyBillingService::debitPlan($plan, static function (Database $db) use ($callId, $lockToken): void {
                 $db->run(
                     "UPDATE whatsapp_call_cdr
                      SET balance_debited_at = NOW(),
@@ -307,7 +292,7 @@ class WhatsAppVoiceBilling
                 );
             });
 
-            if ($result['ok']) {
+            if (!empty($result['ok'])) {
                 return;
             }
         } catch (\Throwable $e) {
@@ -420,6 +405,52 @@ class WhatsAppVoiceBilling
             error_log('[whatsapp_voice_reseller_pricing] ' . $e->getMessage());
             return null;
         }
+    }
+
+    private static function buildHierarchyDebitPlan(
+        int $userId,
+        string $tenancyId,
+        float $retailAmount,
+        string $callId,
+        string $lockToken
+    ): array {
+        $context = FinancialHierarchyResolver::resolveContext($userId, $tenancyId);
+        $cdr = WhatsAppCallCdrStore::findByCallId($callId) ?: [];
+        $billableMinutes = round((float)($cdr['billable_minutes'] ?? 0), 4);
+        $phone = (string)($cdr['to_number'] ?? $cdr['from_number'] ?? '');
+        $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+
+        if ($billableMinutes > 0 && $context->reseller_id && $context->reseller_id !== $userId) {
+            $resellerPricing = self::resolvePricingContext((int)$context->reseller_id, $tenancyId, $summary, $phone, false);
+            $resellerAmount = round($billableMinutes * (float)($resellerPricing['final_price_per_minute_brl'] ?? 0), 4);
+        }
+
+        if ($billableMinutes > 0 && $context->owner_admin_id > 0 && $context->owner_admin_id !== $userId) {
+            $adminPricing = self::resolvePricingContext((int)$context->owner_admin_id, $tenancyId, $summary, $phone, false);
+            $adminAmount = round($billableMinutes * (float)($adminPricing['final_price_per_minute_brl'] ?? 0), 4);
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => $userId,
+            'tenancy_id' => $tenancyId,
+            'module' => 'whatsapp_voice',
+            'event' => 'call_debited',
+            'retail_amount' => $retailAmount,
+            'reseller_amount' => $resellerAmount,
+            'admin_amount' => $adminAmount,
+            'provider_reference' => $callId,
+            'related_type' => 'whatsapp_voice_call',
+            'related_id' => $callId,
+            'operation_key_base' => 'whatsapp_voice:' . $callId,
+            'description_prefix' => 'TARIFACAO WHATSAPP VOZ',
+            'metadata' => [
+                'call_id' => $callId,
+                'charge_lock_token' => $lockToken,
+                'billable_minutes' => $billableMinutes,
+            ],
+        ]);
     }
 
     private static function resolveResellerIdForUser(int $userId, string $tenancyId): ?int

@@ -172,29 +172,72 @@ class WhatsAppBilling
             return;
         }
 
-        $balance = BalanceSms::getBalanceSms($userId, $tenancyId, self::resolvePlanId($userId, $tenancyId));
-        if (!$balance || (float)$balance->balance < $priceBrl) {
+        $plan = self::buildHierarchyDebitPlan(
+            $userId,
+            $tenancyId,
+            $category,
+            $priceBrl,
+            '',
+            'whatsapp_auth',
+            'whatsapp_message'
+        );
+
+        try {
+            FinancialHierarchyBillingService::assertSufficientBalance($plan);
+        } catch (\Throwable $e) {
             throw new \RuntimeException(self::ERROR_INSUFFICIENT_BALANCE);
         }
     }
 
     public static function assertCanSendBatch(int $userId, string $tenancyId, array $messages): void
     {
-        $total = 0.0;
+        $legs = [];
+
         foreach ($messages as $message) {
             $category = WhatsAppCostPolicy::normalizeCategory((string)($message['message_category'] ?? ''));
             $priceBrl = round((float)($message['price_brl'] ?? 0), 4);
-            if ($category !== WhatsAppCostPolicy::CATEGORY_SERVICE) {
-                $total += $priceBrl;
+            if ($category === WhatsAppCostPolicy::CATEGORY_SERVICE || $priceBrl <= 0) {
+                continue;
+            }
+
+            $plan = self::buildHierarchyDebitPlan(
+                $userId,
+                $tenancyId,
+                $category,
+                $priceBrl,
+                (string)($message['contact_phone'] ?? ''),
+                'whatsapp_batch_auth',
+                'whatsapp_message'
+            );
+
+            foreach ((array)($plan['legs'] ?? []) as $leg) {
+                $key = implode(':', [
+                    (string)($leg['wallet'] ?? ''),
+                    (string)($leg['user_id'] ?? 0),
+                    (string)($leg['slug'] ?? ''),
+                ]);
+
+                if (!isset($legs[$key])) {
+                    $legs[$key] = $leg;
+                    continue;
+                }
+
+                $legs[$key]['amount'] = round((float)$legs[$key]['amount'] + (float)($leg['amount'] ?? 0), 4);
             }
         }
 
-        if ($total <= 0) {
+        if (empty($legs)) {
             return;
         }
 
-        $balance = BalanceSms::getBalanceSms($userId, $tenancyId, self::resolvePlanId($userId, $tenancyId));
-        if (!$balance || (float)$balance->balance < round($total, 4)) {
+        try {
+            FinancialHierarchyBillingService::assertSufficientBalance([
+                'module' => 'whatsapp',
+                'event' => 'batch_auth',
+                'context' => FinancialHierarchyResolver::resolveContext($userId, $tenancyId)->toArray(),
+                'legs' => array_values($legs),
+            ]);
+        } catch (\Throwable $e) {
             throw new \RuntimeException(self::ERROR_INSUFFICIENT_BALANCE);
         }
     }
@@ -355,14 +398,24 @@ class WhatsAppBilling
             return false;
         }
 
-        $operation = FinancialTransactionService::debit([
-            'user_id' => (int)$row['client_id'],
-            'tenancy_id' => (string)$row['tenancy_id'],
-            'wallet' => FinancialTransactionService::WALLET_ADMIN,
-            'amount' => $priceBrl,
-            'operation_key' => 'whatsapp:delivered:' . $wamid,
-            'source' => 'whatsapp_delivered',
-            'description' => sprintf(
+        $plan = self::buildHierarchyDebitPlan(
+            (int)$row['client_id'],
+            (string)$row['tenancy_id'],
+            $category,
+            $priceBrl,
+            (string)($row['phone_number'] ?? ''),
+            'whatsapp_delivered',
+            'whatsapp_message',
+            $wamid,
+            [
+                'cdr_id' => (int)$row['id'],
+                'whatsapp_outbox_id' => (int)($row['whatsapp_outbox_id'] ?? 0),
+                'whatsapp_message_id' => (int)($row['whatsapp_message_id'] ?? 0),
+                'message_category' => strtolower($category),
+                'cost_usd' => (float)($row['cost_usd'] ?? 0),
+                'exchange_rate' => (float)($row['exchange_rate'] ?? 0),
+            ],
+            sprintf(
                 'WHATSAPP DELIVERED | phone:%s category:%s template:%s cost:%s usd:%s fx:%s',
                 (string)$row['phone_number'],
                 strtolower($category),
@@ -370,18 +423,10 @@ class WhatsAppBilling
                 number_format($priceBrl, 4, '.', ''),
                 number_format((float)($row['cost_usd'] ?? 0), 6, '.', ''),
                 number_format((float)($row['exchange_rate'] ?? 0), 6, '.', '')
-            ),
-            'provider_reference' => $wamid,
-            'related_type' => 'whatsapp_message',
-            'related_id' => $wamid,
-            'metadata' => [
-                'cdr_id' => (int)$row['id'],
-                'whatsapp_outbox_id' => (int)($row['whatsapp_outbox_id'] ?? 0),
-                'whatsapp_message_id' => (int)($row['whatsapp_message_id'] ?? 0),
-                'message_category' => strtolower($category),
-            ],
-            'legacy_log_amount' => $priceBrl,
-        ], static function (Database $db) use ($row): void {
+            )
+        );
+
+        $operation = FinancialHierarchyBillingService::debitPlan($plan, static function (Database $db) use ($row): void {
             $db->run(
                 "UPDATE whatsapp_message_cdr
                  SET billed = 1,
@@ -411,7 +456,7 @@ class WhatsAppBilling
             }
         });
 
-        if (!$operation['ok']) {
+        if (empty($operation['ok'])) {
             error_log('[whatsapp_billing] Falha ao debitar saldo na entrega WhatsApp cdr_id=' . (int)$row['id']);
             return false;
         }
@@ -902,5 +947,47 @@ class WhatsAppBilling
         }
 
         return isset($columns[$column]);
+    }
+
+    private static function buildHierarchyDebitPlan(
+        int $userId,
+        string $tenancyId,
+        string $category,
+        float $retailPrice,
+        string $phone,
+        string $event,
+        string $relatedType,
+        ?string $relatedId = null,
+        array $metadata = [],
+        ?string $descriptionPrefix = null
+    ): array {
+        $context = FinancialHierarchyResolver::resolveContext($userId, $tenancyId);
+        $resellerAmount = 0.0;
+        $adminAmount = 0.0;
+        $countryCode = $phone !== '' ? WhatsAppDynamicPricing::countryCodeFromPhone($phone) : null;
+
+        if ($context->reseller_id && $context->reseller_id !== $userId) {
+            $resellerAmount = round(self::priceForUser((int)$context->reseller_id, $tenancyId, $category, $countryCode), 4);
+        }
+
+        if ($context->owner_admin_id > 0 && $context->owner_admin_id !== $userId) {
+            $adminAmount = round(self::priceForUser((int)$context->owner_admin_id, $tenancyId, $category, $countryCode), 4);
+        }
+
+        return FinancialHierarchyBillingService::buildDebitPlan([
+            'actor_user_id' => $userId,
+            'tenancy_id' => $tenancyId,
+            'module' => 'whatsapp',
+            'event' => $event,
+            'retail_amount' => $retailPrice,
+            'reseller_amount' => $resellerAmount,
+            'admin_amount' => $adminAmount,
+            'provider_reference' => $relatedId,
+            'related_type' => $relatedType,
+            'related_id' => $relatedId,
+            'operation_key_base' => 'whatsapp:' . $event . ':' . ($relatedId ?: ($tenancyId . ':' . $userId)),
+            'description_prefix' => $descriptionPrefix ?: strtoupper('whatsapp_' . $event),
+            'metadata' => $metadata,
+        ]);
     }
 }

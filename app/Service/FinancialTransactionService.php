@@ -13,9 +13,31 @@ class FinancialTransactionService
 
     public static function debit(array $operation, ?callable $withinTransaction = null): array
     {
+        $batch = self::debitBatch(
+            [$operation],
+            $withinTransaction === null
+                ? null
+                : static function (Database $db, array $operations) use ($withinTransaction): void {
+                    $withinTransaction($db, $operations[0] ?? []);
+                }
+        );
+
+        return $batch['operations'][0] ?? self::failureResult('unknown');
+    }
+
+    public static function debitBatch(array $operations, ?callable $withinTransaction = null): array
+    {
         self::ensureSchema();
 
-        $normalized = self::normalizeOperation($operation);
+        if (empty($operations)) {
+            throw new \InvalidArgumentException('Nenhuma operacao financeira informada para debito.');
+        }
+
+        $normalizedOperations = [];
+        foreach (array_values($operations) as $index => $operation) {
+            $normalizedOperations[$index] = self::normalizeOperation($operation);
+        }
+
         $db = new Database();
         $transactionStarted = false;
 
@@ -23,155 +45,266 @@ class FinancialTransactionService
             $db->beginTransaction();
             $transactionStarted = true;
 
-            $existing = self::findOperationForUpdate($db, $normalized['operation_key']);
-            if ($existing) {
-                $db->commit();
-                return self::resultFromExisting($existing);
-            }
+            $results = [];
+            $newOperations = [];
 
-            $db->run(
-                "INSERT INTO " . self::LEDGER_TABLE . " (
-                    operation_key,
-                    tenancy_id,
-                    user_id,
-                    wallet,
-                    direction,
-                    source,
-                    description,
-                    provider_reference,
-                    related_type,
-                    related_id,
-                    amount,
-                    status,
-                    metadata_json,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    :operation_key,
-                    :tenancy_id,
-                    :user_id,
-                    :wallet,
-                    'debit',
-                    :source,
-                    :description,
-                    :provider_reference,
-                    :related_type,
-                    :related_id,
-                    :amount,
-                    'pending',
-                    :metadata_json,
-                    NOW(),
-                    NOW()
-                )",
-                [
-                    ':operation_key' => $normalized['operation_key'],
-                    ':tenancy_id' => $normalized['tenancy_id'],
-                    ':user_id' => $normalized['user_id'],
-                    ':wallet' => $normalized['wallet'],
-                    ':source' => $normalized['source'],
-                    ':description' => $normalized['description'],
-                    ':provider_reference' => $normalized['provider_reference'],
-                    ':related_type' => $normalized['related_type'],
-                    ':related_id' => $normalized['related_id'],
-                    ':amount' => $normalized['amount'],
-                    ':metadata_json' => $normalized['metadata_json'],
-                ]
-            );
+            foreach ($normalizedOperations as $index => $normalized) {
+                $existing = self::findOperationForUpdate($db, $normalized['operation_key']);
+                if ($existing) {
+                    $results[$index] = self::resultFromExisting($existing);
+                    continue;
+                }
 
-            $ledgerId = (int)$db->run('SELECT LAST_INSERT_ID()')->fetchColumn();
-            $balanceRow = self::lockWalletRow($db, $normalized);
-
-            if (!$balanceRow) {
-                self::markLedgerRejected($db, $ledgerId, 'rejected_wallet_not_found', null, null);
-                $db->commit();
-                return self::failureResult('wallet_not_found');
-            }
-
-            $balanceBefore = round((float)($balanceRow['balance'] ?? 0), 4);
-            if ($balanceBefore < $normalized['amount']) {
-                self::markLedgerRejected($db, $ledgerId, 'rejected_insufficient_balance', $balanceBefore, $balanceBefore);
-                $db->commit();
-                return self::failureResult('insufficient_balance', $balanceBefore);
-            }
-
-            $updated = self::applyDebitUpdate($db, $normalized, $balanceRow);
-            if ($updated !== 1) {
-                self::markLedgerRejected($db, $ledgerId, 'rejected_concurrent_update', $balanceBefore, $balanceBefore);
-                $db->commit();
-                return self::failureResult('concurrent_update', $balanceBefore);
-            }
-
-            $balanceAfter = round($balanceBefore - $normalized['amount'], 4);
-
-            if ($normalized['legacy_log_enabled']) {
                 $db->run(
-                    "INSERT INTO tenancy_balance_logs (user_id, tenancy_id, amount, description, created_at)
-                     VALUES (:user_id, :tenancy_id, :amount, :description, NOW())",
+                    "INSERT INTO " . self::LEDGER_TABLE . " (
+                        operation_key,
+                        tenancy_id,
+                        user_id,
+                        wallet,
+                        direction,
+                        source,
+                        description,
+                        provider_reference,
+                        related_type,
+                        related_id,
+                        amount,
+                        status,
+                        metadata_json,
+                        created_at,
+                        updated_at
+                    ) VALUES (
+                        :operation_key,
+                        :tenancy_id,
+                        :user_id,
+                        :wallet,
+                        'debit',
+                        :source,
+                        :description,
+                        :provider_reference,
+                        :related_type,
+                        :related_id,
+                        :amount,
+                        'pending',
+                        :metadata_json,
+                        NOW(),
+                        NOW()
+                    )",
                     [
-                        ':user_id' => $normalized['user_id'],
+                        ':operation_key' => $normalized['operation_key'],
                         ':tenancy_id' => $normalized['tenancy_id'],
-                        ':amount' => $normalized['legacy_log_amount'],
+                        ':user_id' => $normalized['user_id'],
+                        ':wallet' => $normalized['wallet'],
+                        ':source' => $normalized['source'],
                         ':description' => $normalized['description'],
+                        ':provider_reference' => $normalized['provider_reference'],
+                        ':related_type' => $normalized['related_type'],
+                        ':related_id' => $normalized['related_id'],
+                        ':amount' => $normalized['amount'],
+                        ':metadata_json' => $normalized['metadata_json'],
                     ]
                 );
+
+                $ledgerId = (int)$db->run('SELECT LAST_INSERT_ID()')->fetchColumn();
+                $normalized['ledger_id'] = $ledgerId;
+                $newOperations[$index] = $normalized;
             }
 
-            if ($withinTransaction !== null) {
-                $withinTransaction($db, [
-                    'ledger_id' => $ledgerId,
-                    'operation_key' => $normalized['operation_key'],
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceAfter,
-                    'amount' => $normalized['amount'],
-                    'wallet' => $normalized['wallet'],
-                ]);
+            if (!empty($newOperations)) {
+                $walletStates = [];
+                $operationWalletMap = [];
+
+                foreach ($newOperations as $index => $operation) {
+                    $walletKey = self::walletKey($operation);
+                    $operationWalletMap[$index] = $walletKey;
+
+                    if (!isset($walletStates[$walletKey])) {
+                        $balanceRow = self::lockWalletRow($db, $operation);
+                        if (!$balanceRow) {
+                            self::markRejectedOperations(
+                                $db,
+                                $newOperations,
+                                $operationWalletMap,
+                                $walletKey,
+                                'rejected_wallet_not_found',
+                                null,
+                                null
+                            );
+                            $db->commit();
+                            return self::batchFailureResult($results, $newOperations, $walletKey, 'wallet_not_found');
+                        }
+
+                        $walletStates[$walletKey] = [
+                            'row' => $balanceRow,
+                            'operation' => $operation,
+                            'balance_before' => round((float)($balanceRow['balance'] ?? 0), 4),
+                            'total_amount' => 0.0,
+                        ];
+                    }
+
+                    $walletStates[$walletKey]['total_amount'] = round(
+                        $walletStates[$walletKey]['total_amount'] + $operation['amount'],
+                        4
+                    );
+                }
+
+                foreach ($walletStates as $walletKey => $walletState) {
+                    $balanceBefore = $walletState['balance_before'];
+                    $totalAmount = $walletState['total_amount'];
+
+                    if ($balanceBefore < $totalAmount) {
+                        self::markRejectedOperations(
+                            $db,
+                            $newOperations,
+                            $operationWalletMap,
+                            $walletKey,
+                            'rejected_insufficient_balance',
+                            $balanceBefore,
+                            $balanceBefore
+                        );
+                        $db->commit();
+                        return self::batchFailureResult($results, $newOperations, $walletKey, 'insufficient_balance', $balanceBefore);
+                    }
+                }
+
+                foreach ($walletStates as $walletKey => &$walletState) {
+                    $updated = self::applyAggregatedDebitUpdate(
+                        $db,
+                        $walletState['operation'],
+                        $walletState['row'],
+                        $walletState['total_amount']
+                    );
+
+                    if ($updated !== 1) {
+                        $balanceBefore = $walletState['balance_before'];
+                        self::markRejectedOperations(
+                            $db,
+                            $newOperations,
+                            $operationWalletMap,
+                            $walletKey,
+                            'rejected_concurrent_update',
+                            $balanceBefore,
+                            $balanceBefore
+                        );
+                        $db->commit();
+                        return self::batchFailureResult($results, $newOperations, $walletKey, 'concurrent_update', $balanceBefore);
+                    }
+
+                    $walletState['running_balance'] = $walletState['balance_before'];
+                }
+                unset($walletState);
+
+                $transactionPayload = [];
+
+                foreach ($newOperations as $index => $operation) {
+                    $walletKey = $operationWalletMap[$index];
+                    $balanceBefore = $walletStates[$walletKey]['running_balance'];
+                    $balanceAfter = round($balanceBefore - $operation['amount'], 4);
+                    $walletStates[$walletKey]['running_balance'] = $balanceAfter;
+
+                    if ($operation['legacy_log_enabled']) {
+                        $db->run(
+                            "INSERT INTO tenancy_balance_logs (user_id, tenancy_id, amount, description, created_at)
+                             VALUES (:user_id, :tenancy_id, :amount, :description, NOW())",
+                            [
+                                ':user_id' => $operation['user_id'],
+                                ':tenancy_id' => $operation['tenancy_id'],
+                                ':amount' => $operation['legacy_log_amount'],
+                                ':description' => $operation['description'],
+                            ]
+                        );
+                    }
+
+                    $db->run(
+                        "UPDATE " . self::LEDGER_TABLE . "
+                         SET status = 'committed',
+                             balance_before = :balance_before,
+                             balance_after = :balance_after,
+                             processed_at = NOW(),
+                             updated_at = NOW()
+                         WHERE id = :id",
+                        [
+                            ':id' => $operation['ledger_id'],
+                            ':balance_before' => $balanceBefore,
+                            ':balance_after' => $balanceAfter,
+                        ]
+                    );
+
+                    $results[$index] = [
+                        'ok' => true,
+                        'already_applied' => false,
+                        'status' => 'committed',
+                        'balance_before' => $balanceBefore,
+                        'balance_after' => $balanceAfter,
+                        'ledger_id' => $operation['ledger_id'],
+                        'operation_key' => $operation['operation_key'],
+                    ];
+
+                    $transactionPayload[] = [
+                        'ledger_id' => $operation['ledger_id'],
+                        'operation_key' => $operation['operation_key'],
+                        'balance_before' => $balanceBefore,
+                        'balance_after' => $balanceAfter,
+                        'amount' => $operation['amount'],
+                        'wallet' => $operation['wallet'],
+                        'user_id' => $operation['user_id'],
+                        'tenancy_id' => $operation['tenancy_id'],
+                        'source' => $operation['source'],
+                    ];
+                }
+
+                if ($withinTransaction !== null) {
+                    $withinTransaction($db, $transactionPayload);
+                }
             }
 
-            $db->run(
-                "UPDATE " . self::LEDGER_TABLE . "
-                 SET status = 'committed',
-                     balance_before = :balance_before,
-                     balance_after = :balance_after,
-                     processed_at = NOW(),
-                     updated_at = NOW()
-                 WHERE id = :id",
-                [
-                    ':id' => $ledgerId,
-                    ':balance_before' => $balanceBefore,
-                    ':balance_after' => $balanceAfter,
-                ]
-            );
-
+            ksort($results);
             $db->commit();
 
-            self::dispatchAsteriskBalanceSync($normalized, $ledgerId, $balanceAfter);
+            foreach ($newOperations as $index => $operation) {
+                $result = $results[$index] ?? null;
+                if ($result && !empty($result['ok'])) {
+                    self::dispatchAsteriskBalanceSync(
+                        $operation,
+                        (int)$result['ledger_id'],
+                        (float)$result['balance_after']
+                    );
+                }
+            }
 
             return [
-                'ok' => true,
-                'already_applied' => false,
-                'status' => 'committed',
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-                'ledger_id' => $ledgerId,
-                'operation_key' => $normalized['operation_key'],
+                'ok' => self::allResultsOk($results),
+                'operations' => array_values($results),
             ];
         } catch (\Throwable $e) {
             if ($transactionStarted && $db->inTransaction()) {
                 $db->rollBack();
             }
 
-            $raceResult = self::findExistingCommittedOperation($normalized['operation_key']);
-            if ($raceResult) {
-                return $raceResult;
+            $raceResults = [];
+            $allCommitted = true;
+            foreach ($normalizedOperations as $index => $normalized) {
+                $raceResult = self::findExistingCommittedOperation($normalized['operation_key']);
+                if ($raceResult) {
+                    $raceResults[$index] = $raceResult;
+                    continue;
+                }
+                $allCommitted = false;
+            }
+
+            if ($allCommitted && !empty($raceResults)) {
+                ksort($raceResults);
+                return [
+                    'ok' => true,
+                    'operations' => array_values($raceResults),
+                ];
             }
 
             error_log(json_encode([
-                'event' => 'financial_transaction_debit_failed',
-                'operation_key' => $normalized['operation_key'] ?? null,
-                'source' => $normalized['source'] ?? null,
-                'tenancy_id' => $normalized['tenancy_id'] ?? null,
-                'user_id' => $normalized['user_id'] ?? null,
-                'wallet' => $normalized['wallet'] ?? null,
+                'event' => 'financial_transaction_batch_debit_failed',
+                'operation_keys' => array_values(array_map(
+                    static fn(array $item): string => (string)($item['operation_key'] ?? ''),
+                    $normalizedOperations
+                )),
                 'message' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
@@ -304,6 +437,11 @@ class FinancialTransactionService
 
     private static function applyDebitUpdate(Database $db, array $operation, array $balanceRow): int
     {
+        return self::applyAggregatedDebitUpdate($db, $operation, $balanceRow, (float)$operation['amount']);
+    }
+
+    private static function applyAggregatedDebitUpdate(Database $db, array $operation, array $balanceRow, float $amount): int
+    {
         if ($operation['wallet'] === self::WALLET_RESELLER) {
             return $db->run(
                 "UPDATE users
@@ -312,7 +450,7 @@ class FinancialTransactionService
                    AND tenancy_id = :tenancy_id
                    AND reseller_balance >= :amount",
                 [
-                    ':amount' => $operation['amount'],
+                    ':amount' => $amount,
                     ':id' => (int)$balanceRow['id'],
                     ':tenancy_id' => $operation['tenancy_id'],
                 ]
@@ -328,7 +466,7 @@ class FinancialTransactionService
                AND tenancy_id = :tenancy_id
                AND balance >= :amount",
             [
-                ':amount' => $operation['amount'],
+                ':amount' => $amount,
                 ':id' => (int)$balanceRow['id'],
                 ':user_id' => $operation['user_id'],
                 ':tenancy_id' => $operation['tenancy_id'],
@@ -413,6 +551,73 @@ class FinancialTransactionService
             'ledger_id' => null,
             'operation_key' => null,
         ];
+    }
+
+    private static function batchFailureResult(
+        array $existingResults,
+        array $newOperations,
+        string $targetWalletKey,
+        string $status,
+        ?float $balanceBefore = null
+    ): array {
+        $results = $existingResults;
+
+        foreach ($newOperations as $index => $operation) {
+            if (self::walletKey($operation) === $targetWalletKey) {
+                $results[$index] = self::failureResult($status, $balanceBefore);
+                $results[$index]['operation_key'] = $operation['operation_key'];
+                continue;
+            }
+
+            $results[$index] = self::failureResult('rolled_back_batch');
+            $results[$index]['operation_key'] = $operation['operation_key'];
+        }
+
+        ksort($results);
+
+        return [
+            'ok' => false,
+            'operations' => array_values($results),
+        ];
+    }
+
+    private static function markRejectedOperations(
+        Database $db,
+        array $newOperations,
+        array $operationWalletMap,
+        string $targetWalletKey,
+        string $status,
+        ?float $before,
+        ?float $after
+    ): void {
+        foreach ($newOperations as $index => $operation) {
+            if (($operationWalletMap[$index] ?? null) !== $targetWalletKey) {
+                self::markLedgerRejected($db, (int)$operation['ledger_id'], 'rolled_back_batch', null, null);
+                continue;
+            }
+
+            self::markLedgerRejected($db, (int)$operation['ledger_id'], $status, $before, $after);
+        }
+    }
+
+    private static function walletKey(array $operation): string
+    {
+        return implode(':', [
+            (string)$operation['tenancy_id'],
+            (string)$operation['wallet'],
+            (string)$operation['user_id'],
+        ]);
+    }
+
+    private static function allResultsOk(array $results): bool
+    {
+        foreach ($results as $result) {
+            if (empty($result['ok'])) {
+                return false;
+            }
+        }
+
+        return !empty($results);
     }
 
     private static function nullableString(mixed $value): ?string

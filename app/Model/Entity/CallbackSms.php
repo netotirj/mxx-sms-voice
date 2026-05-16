@@ -796,14 +796,14 @@ class CallbackSms
                              AND UPPER(TRIM(COALESCE(c.operator, ''))) NOT IN ('MO', 'UNKNOWN')
                             THEN TRIM(c.operator)
                         ELSE COALESCE((
-                            SELECT TRIM(out.operator)
-                            FROM callback out
-                            WHERE out.tenancy_id = c.tenancy_id
-                              AND out.id_partner = c.id_partner
-                              AND out.phone_sms = c.phone_sms
-                              AND UPPER(COALESCE(out.status_sms, '')) <> 'MO'
-                              AND UPPER(TRIM(COALESCE(out.operator, ''))) NOT IN ('', 'MO', 'UNKNOWN')
-                            ORDER BY COALESCE(out.update_date, out.date_send, out.received_at) DESC, out.id DESC
+                            SELECT TRIM(cb_out.operator)
+                            FROM callback cb_out
+                            WHERE cb_out.tenancy_id = c.tenancy_id
+                              AND cb_out.id_partner = c.id_partner
+                              AND cb_out.phone_sms = c.phone_sms
+                              AND UPPER(COALESCE(cb_out.status_sms, '')) <> 'MO'
+                              AND UPPER(TRIM(COALESCE(cb_out.operator, ''))) NOT IN ('', 'MO', 'UNKNOWN')
+                            ORDER BY COALESCE(cb_out.update_date, cb_out.date_send, cb_out.received_at) DESC, cb_out.id DESC
                             LIMIT 1
                         ), 'UNKNOWN')
                     END AS operator_label,

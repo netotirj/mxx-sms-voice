@@ -11,6 +11,7 @@ use App\Utils\TenancyHelper;
 use App\Utils\View;
 use \App\Model\Entity\UserSearch;
 use \App\Model\Entity\PermissionsRules;
+use App\Service\ManualTopupService;
 use App\Service\PlanAccessPolicy;
 use DateTime;
 use Exception;
@@ -29,7 +30,9 @@ class Users extends ViewComponents
             ], 'application/json');
         }
 
-        $content = View::render('/users/index', []);
+        $content = View::render('/users/index', [
+            'manual_refill_csrf' => ManualTopupService::issueCsrfToken(),
+        ]);
         return parent::getComponentsUsers('Maxx Solutions - SMS | Users', $content);
     }
 

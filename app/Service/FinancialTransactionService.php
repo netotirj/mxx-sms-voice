@@ -11,9 +11,9 @@ class FinancialTransactionService
 
     private const LEDGER_TABLE = 'financial_transaction_ledger';
 
-    public static function debit(array $operation, ?callable $withinTransaction = null): array
+    public static function credit(array $operation, ?callable $withinTransaction = null): array
     {
-        $batch = self::debitBatch(
+        $batch = self::creditBatch(
             [$operation],
             $withinTransaction === null
                 ? null
@@ -25,17 +25,37 @@ class FinancialTransactionService
         return $batch['operations'][0] ?? self::failureResult('unknown');
     }
 
+    public static function creditBatch(array $operations, ?callable $withinTransaction = null): array
+    {
+        return self::processBatch($operations, $withinTransaction, 'credit');
+    }
+
+    public static function debit(array $operation, ?callable $withinTransaction = null): array
+    {
+        $batch = self::debitBatch([$operation], $withinTransaction);
+        return $batch['operations'][0] ?? self::failureResult('unknown');
+    }
+
     public static function debitBatch(array $operations, ?callable $withinTransaction = null): array
+    {
+        return self::processBatch($operations, $withinTransaction, 'debit');
+    }
+
+    private static function processBatch(array $operations, ?callable $withinTransaction, string $direction): array
     {
         self::ensureSchema();
 
         if (empty($operations)) {
-            throw new \InvalidArgumentException('Nenhuma operacao financeira informada para debito.');
+            throw new \InvalidArgumentException(
+                $direction === 'credit'
+                    ? 'Nenhuma operacao financeira informada para credito.'
+                    : 'Nenhuma operacao financeira informada para debito.'
+            );
         }
 
         $normalizedOperations = [];
         foreach (array_values($operations) as $index => $operation) {
-            $normalizedOperations[$index] = self::normalizeOperation($operation);
+            $normalizedOperations[$index] = self::normalizeOperation($operation, $direction);
         }
 
         $db = new Database();
@@ -77,7 +97,7 @@ class FinancialTransactionService
                         :tenancy_id,
                         :user_id,
                         :wallet,
-                        'debit',
+                        :direction,
                         :source,
                         :description,
                         :provider_reference,
@@ -94,6 +114,7 @@ class FinancialTransactionService
                         ':tenancy_id' => $normalized['tenancy_id'],
                         ':user_id' => $normalized['user_id'],
                         ':wallet' => $normalized['wallet'],
+                        ':direction' => $direction,
                         ':source' => $normalized['source'],
                         ':description' => $normalized['description'],
                         ':provider_reference' => $normalized['provider_reference'],
@@ -119,6 +140,10 @@ class FinancialTransactionService
 
                     if (!isset($walletStates[$walletKey])) {
                         $balanceRow = self::lockWalletRow($db, $operation);
+                        if (!$balanceRow && $direction === 'credit') {
+                            self::ensureWalletRowExists($db, $operation);
+                            $balanceRow = self::lockWalletRow($db, $operation);
+                        }
                         if (!$balanceRow) {
                             self::markRejectedOperations(
                                 $db,
@@ -147,32 +172,41 @@ class FinancialTransactionService
                     );
                 }
 
-                foreach ($walletStates as $walletKey => $walletState) {
-                    $balanceBefore = $walletState['balance_before'];
-                    $totalAmount = $walletState['total_amount'];
+                if ($direction === 'debit') {
+                    foreach ($walletStates as $walletKey => $walletState) {
+                        $balanceBefore = $walletState['balance_before'];
+                        $totalAmount = $walletState['total_amount'];
 
-                    if ($balanceBefore < $totalAmount) {
-                        self::markRejectedOperations(
-                            $db,
-                            $newOperations,
-                            $operationWalletMap,
-                            $walletKey,
-                            'rejected_insufficient_balance',
-                            $balanceBefore,
-                            $balanceBefore
-                        );
-                        $db->commit();
-                        return self::batchFailureResult($results, $newOperations, $walletKey, 'insufficient_balance', $balanceBefore);
+                        if ($balanceBefore < $totalAmount) {
+                            self::markRejectedOperations(
+                                $db,
+                                $newOperations,
+                                $operationWalletMap,
+                                $walletKey,
+                                'rejected_insufficient_balance',
+                                $balanceBefore,
+                                $balanceBefore
+                            );
+                            $db->commit();
+                            return self::batchFailureResult($results, $newOperations, $walletKey, 'insufficient_balance', $balanceBefore);
+                        }
                     }
                 }
 
                 foreach ($walletStates as $walletKey => &$walletState) {
-                    $updated = self::applyAggregatedDebitUpdate(
-                        $db,
-                        $walletState['operation'],
-                        $walletState['row'],
-                        $walletState['total_amount']
-                    );
+                    $updated = $direction === 'credit'
+                        ? self::applyAggregatedCreditUpdate(
+                            $db,
+                            $walletState['operation'],
+                            $walletState['row'],
+                            $walletState['total_amount']
+                        )
+                        : self::applyAggregatedDebitUpdate(
+                            $db,
+                            $walletState['operation'],
+                            $walletState['row'],
+                            $walletState['total_amount']
+                        );
 
                     if ($updated !== 1) {
                         $balanceBefore = $walletState['balance_before'];
@@ -198,7 +232,9 @@ class FinancialTransactionService
                 foreach ($newOperations as $index => $operation) {
                     $walletKey = $operationWalletMap[$index];
                     $balanceBefore = $walletStates[$walletKey]['running_balance'];
-                    $balanceAfter = round($balanceBefore - $operation['amount'], 4);
+                    $balanceAfter = $direction === 'credit'
+                        ? round($balanceBefore + $operation['amount'], 4)
+                        : round($balanceBefore - $operation['amount'], 4);
                     $walletStates[$walletKey]['running_balance'] = $balanceAfter;
 
                     if ($operation['legacy_log_enabled']) {
@@ -249,6 +285,7 @@ class FinancialTransactionService
                         'user_id' => $operation['user_id'],
                         'tenancy_id' => $operation['tenancy_id'],
                         'source' => $operation['source'],
+                        'direction' => $direction,
                     ];
                 }
 
@@ -266,7 +303,8 @@ class FinancialTransactionService
                     self::dispatchAsteriskBalanceSync(
                         $operation,
                         (int)$result['ledger_id'],
-                        (float)$result['balance_after']
+                        (float)$result['balance_after'],
+                        $direction
                     );
                 }
             }
@@ -300,7 +338,7 @@ class FinancialTransactionService
             }
 
             error_log(json_encode([
-                'event' => 'financial_transaction_batch_debit_failed',
+                'event' => 'financial_transaction_batch_' . $direction . '_failed',
                 'operation_keys' => array_values(array_map(
                     static fn(array $item): string => (string)($item['operation_key'] ?? ''),
                     $normalizedOperations
@@ -352,7 +390,7 @@ class FinancialTransactionService
         );
     }
 
-    private static function normalizeOperation(array $operation): array
+    private static function normalizeOperation(array $operation, string $direction): array
     {
         $amount = round(max(0, (float)($operation['amount'] ?? 0)), 4);
         $operationKey = trim((string)($operation['operation_key'] ?? ''));
@@ -361,13 +399,25 @@ class FinancialTransactionService
         $userId = (int)($operation['user_id'] ?? 0);
 
         if ($amount <= 0) {
-            throw new \InvalidArgumentException('Valor financeiro invalido para debito.');
+            throw new \InvalidArgumentException(
+                $direction === 'credit'
+                    ? 'Valor financeiro invalido para credito.'
+                    : 'Valor financeiro invalido para debito.'
+            );
         }
         if ($operationKey === '') {
-            throw new \InvalidArgumentException('operation_key obrigatoria para debito financeiro.');
+            throw new \InvalidArgumentException(
+                $direction === 'credit'
+                    ? 'operation_key obrigatoria para credito financeiro.'
+                    : 'operation_key obrigatoria para debito financeiro.'
+            );
         }
         if ($tenancyId === '' || $userId <= 0) {
-            throw new \InvalidArgumentException('Contexto financeiro invalido para debito.');
+            throw new \InvalidArgumentException(
+                $direction === 'credit'
+                    ? 'Contexto financeiro invalido para credito.'
+                    : 'Contexto financeiro invalido para debito.'
+            );
         }
         if (!in_array($wallet, [self::WALLET_ADMIN, self::WALLET_RESELLER], true)) {
             throw new \InvalidArgumentException('Carteira financeira invalida.');
@@ -440,6 +490,11 @@ class FinancialTransactionService
         return self::applyAggregatedDebitUpdate($db, $operation, $balanceRow, (float)$operation['amount']);
     }
 
+    private static function applyCreditUpdate(Database $db, array $operation, array $balanceRow): int
+    {
+        return self::applyAggregatedCreditUpdate($db, $operation, $balanceRow, (float)$operation['amount']);
+    }
+
     private static function applyAggregatedDebitUpdate(Database $db, array $operation, array $balanceRow, float $amount): int
     {
         if ($operation['wallet'] === self::WALLET_RESELLER) {
@@ -472,6 +527,107 @@ class FinancialTransactionService
                 ':tenancy_id' => $operation['tenancy_id'],
             ]
         )->rowCount();
+    }
+
+    private static function applyAggregatedCreditUpdate(Database $db, array $operation, array $balanceRow, float $amount): int
+    {
+        if ($operation['wallet'] === self::WALLET_RESELLER) {
+            return $db->run(
+                "UPDATE users
+                 SET reseller_balance = reseller_balance + :amount
+                 WHERE id = :id
+                   AND tenancy_id = :tenancy_id",
+                [
+                    ':amount' => $amount,
+                    ':id' => (int)$balanceRow['id'],
+                    ':tenancy_id' => $operation['tenancy_id'],
+                ]
+            )->rowCount();
+        }
+
+        return $db->run(
+            "UPDATE tenancy_balance
+             SET balance = balance + :amount,
+                 updated_at = NOW()
+             WHERE id = :id
+               AND user_id = :user_id
+               AND tenancy_id = :tenancy_id",
+            [
+                ':amount' => $amount,
+                ':id' => (int)$balanceRow['id'],
+                ':user_id' => $operation['user_id'],
+                ':tenancy_id' => $operation['tenancy_id'],
+            ]
+        )->rowCount();
+    }
+
+    private static function ensureWalletRowExists(Database $db, array $operation): void
+    {
+        if ($operation['wallet'] !== self::WALLET_ADMIN) {
+            return;
+        }
+
+        $exists = $db->run(
+            "SELECT id
+             FROM tenancy_balance
+             WHERE user_id = :user_id
+               AND tenancy_id = :tenancy_id
+             ORDER BY updated_at DESC, id DESC
+             LIMIT 1",
+            [
+                ':user_id' => $operation['user_id'],
+                ':tenancy_id' => $operation['tenancy_id'],
+            ]
+        )->fetch(\PDO::FETCH_ASSOC);
+
+        if ($exists) {
+            return;
+        }
+
+        $plan = PlanRuntimeService::getActivePlanByTenancy($operation['tenancy_id']);
+        if (!is_array($plan) || empty($plan['id'])) {
+            return;
+        }
+
+        $payload = PlanRuntimeService::buildBalanceInsertPayload($plan);
+        $fields = [
+            'user_id' => $operation['user_id'],
+            'plan_id' => (int)$plan['id'],
+            'tenancy_id' => $operation['tenancy_id'],
+            'balance' => 0,
+            'value_sms' => (float)($plan['value_sms'] ?? 0),
+            'value_voice' => (float)($plan['value_voice'] ?? 0),
+            'value_torpedo' => (float)($plan['value_torpedo'] ?? 0),
+            'payment_invoice' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if (self::columnExists('tenancy_balance', 'value_whatsapp')) {
+            $fields['value_whatsapp'] = (float)($payload['value_whatsapp'] ?? 0);
+        }
+        if (self::columnExists('tenancy_balance', 'voice_open_rate')) {
+            $fields['voice_open_rate'] = (float)($plan['voice_open_rate'] ?? $plan['value_voice'] ?? 0);
+        }
+        if (self::columnExists('tenancy_balance', 'voice_smart_rate')) {
+            $fields['voice_smart_rate'] = (float)($plan['voice_smart_rate'] ?? $plan['value_voice'] ?? 0);
+        }
+        if (self::columnExists('tenancy_balance', 'service_fee')) {
+            $fields['service_fee'] = (float)($payload['service_fee'] ?? 0);
+        }
+        if (self::columnExists('tenancy_balance', 'snapshot_json')) {
+            $fields['snapshot_json'] = $payload['snapshot_json'] ?? null;
+        }
+        if (self::columnExists('tenancy_balance', 'applied_plan_name')) {
+            $fields['applied_plan_name'] = $payload['applied_plan_name'] ?? null;
+        }
+        if (self::columnExists('tenancy_balance', 'applied_billing_cycle')) {
+            $fields['applied_billing_cycle'] = $payload['applied_billing_cycle'] ?? null;
+        }
+        if (self::columnExists('tenancy_balance', 'applied_amount_plan')) {
+            $fields['applied_amount_plan'] = (float)($payload['applied_amount_plan'] ?? 0);
+        }
+
+        (new Database('tenancy_balance'))->insert($fields);
     }
 
     private static function findOperationForUpdate(Database $db, string $operationKey): ?array
@@ -626,7 +782,7 @@ class FinancialTransactionService
         return $value === '' ? null : $value;
     }
 
-    private static function dispatchAsteriskBalanceSync(array $normalized, int $ledgerId, float $balanceAfter): void
+    private static function dispatchAsteriskBalanceSync(array $normalized, int $ledgerId, float $balanceAfter, string $direction): void
     {
         try {
             AsteriskBalanceSyncService::enqueueAndProcess([
@@ -639,7 +795,7 @@ class FinancialTransactionService
                 'amount' => $normalized['amount'],
                 'metadata' => [
                     'operation_key' => $normalized['operation_key'],
-                    'direction' => 'debit',
+                    'direction' => $direction,
                     'balance_after' => $balanceAfter,
                 ],
             ]);
@@ -655,5 +811,20 @@ class FinancialTransactionService
                 'message' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }
+    }
+
+    private static function columnExists(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        return $cache[$key] = (bool)(new Database())->execute(
+            "SHOW COLUMNS FROM {$table} LIKE :column",
+            [':column' => $column]
+        )->fetch();
     }
 }

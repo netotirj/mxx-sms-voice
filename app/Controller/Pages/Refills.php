@@ -15,6 +15,7 @@ use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\RegisterTenancies;
 use App\Service\AsteriskBalanceSyncService;
+use App\Service\ManualTopupService;
 use App\Service\PixService;
 use Random\RandomException;
 
@@ -458,103 +459,17 @@ class Refills extends ViewComponents
             ], 'application/json');
         }
 
-        // --- 🛡️ TRAVA DE SEGURANÇA POR CARGO ---
-        // No PHP, usamos strtolower() e acessamos a chave direto do array
-        $roleLogged = strtolower($obUser['user_function'] ?? $obUser['function'] ?? '');
-
-        if (!in_array($roleLogged, ['admin', 'super_admin'])) {
-            return new Response(403, [
-                'status' => 403,
-                'message' => 'Acesso negado: Você não tem permissão para realizar recargas.'
-            ], 'application/json');
-        }
-        // ---------------------------------------
-
         $dataRefills = $request->getPostVars();
+        $result = ManualTopupService::process($obUser, $dataRefills, $_SERVER);
 
-        $userId = intval($dataRefills["usuario_id"] ?? 0);
-        $value = floatval($dataRefills["valor_recarga"] ?? 0);
-        $notes = trim($dataRefills["anotacao"] ?? "");
-        $email = trim($dataRefills["usuario_email"] ?? "");
-
-        // Validação básica de valor para evitar recargas negativas ou zeradas
-        if ($value <= 0) {
-            return new Response(400, [
-                'status' => 400,
-                'message' => 'O valor da recarga deve ser maior que zero.'
-            ], 'application/json');
-        }
-
-        // 🔹 Transaction ID randômico com 8 dígitos
-        $transactionId = str_pad((string)random_int(0, 99999999), 8, "0", STR_PAD_LEFT);
-
-        // 🔹 Captura do IP do cliente
-        $clientIp = $_SERVER['HTTP_CLIENT_IP']
-            ?? $_SERVER['HTTP_X_FORWARDED_FOR']
-            ?? $_SERVER['REMOTE_ADDR']
-            ?? '0.0.0.0';
-
-        $refill = new RefillsResellers();
-        $refill->user_id = $userId;
-        $refill->tenancy_id = $obUser['tenancy_id'];
-        $refill->email = $email;
-        $refill->balance = $value;
-        $refill->notes = $notes;
-        $refill->type = "manual";
-        $refill->transaction_id = $transactionId;
-        $refill->client_ip = $clientIp;
-        $refill->status = "completed";
-        $refill->created_at = date('Y-m-d H:i:s');
-        $refill->updated_at = date('Y-m-d H:i:s');
-
-        $id = $refill->insertRefill();
-
-        $reseller = new UserSearch();
-        $reseller->id = $refill->user_id;
-        $reseller->tenancy_id = $refill->tenancy_id;
-
-        // Atualiza saldo no MySQL
-        $updated = $reseller->updateRefillReseller($value);
-
-        $syncQueued = false;
-        if ($updated) {
-            $syncResult = AsteriskBalanceSyncService::enqueueAndProcess([
-                'sync_key' => 'manual_refill:' . $transactionId,
-                'tenancy_id' => $refill->tenancy_id,
-                'user_id' => $refill->user_id,
-                'wallet' => 'reseller',
-                'source' => 'manual_refill',
-                'amount' => $value,
-                'metadata' => [
-                    'transaction_id' => $transactionId,
-                    'notes' => $notes,
-                    'mutation' => 'credit',
-                ],
-            ]);
-            $syncQueued = !empty($syncResult['ok']);
-        }
-
-        if ($updated && $syncQueued) {
-            Notifications::insertNotifications(
-                $refill->tenancy_id,
-                $refill->user_id,
-                "Recarga Confirmada",
-                "A recarga no valor de <b>R$ " . number_format($refill->balance, 2, ',', '.') . "</b> foi confirmada com sucesso. Seu saldo foi atualizado.",
-                'notice'
-            );
-
-            return new Response(200, [
-                'status' => 200,
-                'message' => 'Recarga registrada e saldo atualizado com sucesso!',
-                'transactionId' => $transactionId,
-                'clientIp' => $clientIp
-            ], 'application/json');
-        } else {
-            return new Response(500, [
+        return new Response(
+            (int)($result['status_code'] ?? 500),
+            $result['payload'] ?? [
                 'status' => 500,
                 'message' => 'Erro ao processar atualização de saldo.'
-            ], 'application/json');
-        }
+            ],
+            'application/json'
+        );
     }
 
 

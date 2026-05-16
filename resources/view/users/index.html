@@ -263,8 +263,8 @@
                     <i class="fa fa-wallet text-xl"></i>
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold text-slate-800 dark:text-white">Fazer Recarga</h3>
-                    <p class="text-xs text-slate-400">Adicionar saldo ao revendedor</p>
+                    <h3 id="recarga_modal_title" class="text-xl font-bold text-slate-800 dark:text-white">Fazer Recarga</h3>
+                    <p id="recarga_modal_subtitle" class="text-xs text-slate-400">Adicionar saldo ao revendedor</p>
                 </div>
             </div>
             <button onclick="closeRecargaModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
@@ -275,10 +275,13 @@
         <div class="p-6">
             <form id="form-recarga" class="space-y-4">
                 <input type="hidden" id="recarga_usuario_id" name="usuario_id">
+                <input type="hidden" id="recarga_usuario_role" name="usuario_role">
+                <input type="hidden" id="recarga_operation_key" name="operation_key">
+                <input type="hidden" name="csrf_token" value="{{manual_refill_csrf}}">
 
                 <div class="grid grid-cols-1 gap-4">
                     <div>
-                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Revendedor</label>
+                        <label id="recarga_usuario_label" class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Revendedor</label>
                         <input type="text" id="recarga_usuario" name="usuario_email" readonly
                                class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm text-slate-500 outline-none cursor-not-allowed" />
                     </div>
@@ -356,6 +359,11 @@
             return ['admin', 'super_admin', 'superadmin'].includes(role);
         };
 
+        window.isSuperAdmin = () => {
+            const role = window.getAuthRole();
+            return ['super_admin', 'superadmin'].includes(role);
+        };
+
         window.isReseller = () => {
             return window.getAuthRole() === 'reseller';
         };
@@ -371,6 +379,28 @@
         // Mantém a recarga SOMENTE para admin/superadmin
         window.canEditBalance = () => {
             return window.isAdmin();
+        };
+
+        window.canTopUpUser = (user) => {
+            const listedRole = String(user?.user_function || '').toLowerCase();
+
+            if (listedRole === 'admin') {
+                return window.isSuperAdmin();
+            }
+
+            if (listedRole === 'reseller') {
+                return window.canEditBalance();
+            }
+
+            return false;
+        };
+
+        window.generateOperationKey = () => {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+
+            return `manual-topup-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         };
 
         // Reseller não edita por esta tela
@@ -483,9 +513,9 @@
                 const listedRole = String(user.user_function || '').toLowerCase();
 
                 if (listedRole === 'reseller') {
-                    if (souAdmin) {
+                    if (window.canTopUpUser(user)) {
                         colSaldoHTML = `<span class="cursor-pointer px-2 py-0.5 text-xxs font-bold rounded bg-blue-100 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                    onclick="openRecargaModal('${user.id}', '${String(user.email || '').replace(/'/g, "\\'")}', '${user.balance}')">
+                    onclick="openRecargaModal('${user.id}', '${String(user.email || '').replace(/'/g, "\\'")}', '${user.balance}', 'reseller')">
                     ${saldoFormatado}
                 </span>`;
                     } else {
@@ -493,7 +523,18 @@
                     ${saldoFormatado}
                 </span>`;
                     }
-                } else if (['admin', 'super_admin'].includes(listedRole)) {
+                } else if (listedRole === 'admin') {
+                    if (window.canTopUpUser(user)) {
+                        colSaldoHTML = `<span class="cursor-pointer px-2 py-0.5 text-xxs font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                    onclick="openRecargaModal('${user.id}', '${String(user.email || '').replace(/'/g, "\\'")}', '${user.balance}', 'admin')">
+                    ${saldoFormatado}
+                </span>`;
+                    } else {
+                        colSaldoHTML = `<span class="px-2 py-0.5 text-xxs font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    ${saldoFormatado}
+                </span>`;
+                    }
+                } else if (listedRole === 'super_admin') {
                     colSaldoHTML = `<span class="px-2 py-0.5 text-xxs font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                     ${saldoFormatado}
                 </span>`;
@@ -731,8 +772,11 @@
 
         // 1. FUNÇÃO GLOBAL PARA ABRIR RECARGA
         // Mantida com a regra original: SOMENTE ADMIN / SUPERADMIN
-        window.openRecargaModal = function(id, email, balance) {
-            if (!window.canEditBalance()) {
+        window.openRecargaModal = function(id, email, balance, role = 'reseller') {
+            const targetRole = String(role || 'reseller').toLowerCase();
+            const targetUser = (window.allData || []).find(user => String(user.id) === String(id));
+
+            if (!targetUser || !window.canTopUpUser(targetUser)) {
                 if (typeof notyf !== 'undefined') {
                     notyf.error('Você não tem permissão para inserir crédito.');
                 }
@@ -740,12 +784,29 @@
             }
 
             const idField = document.getElementById("recarga_usuario_id");
+            const roleField = document.getElementById("recarga_usuario_role");
             const emailField = document.getElementById("recarga_usuario");
             const balanceField = document.getElementById("recarga_saldo");
+            const operationKeyField = document.getElementById("recarga_operation_key");
+            const userLabel = document.getElementById("recarga_usuario_label");
+            const modalTitle = document.getElementById("recarga_modal_title");
+            const modalSubtitle = document.getElementById("recarga_modal_subtitle");
 
             if (idField) idField.value = id;
+            if (roleField) roleField.value = targetRole;
             if (emailField) emailField.value = email;
-            if (balanceField) balanceField.value = `R$ ${parseFloat(balance || 0).toFixed(2)}`;
+            if (balanceField) balanceField.value = `R$ ${parseFloat(balance || 0).toFixed(2).replace('.', ',')}`;
+            if (operationKeyField) operationKeyField.value = window.generateOperationKey();
+
+            if (targetRole === 'admin') {
+                if (userLabel) userLabel.textContent = 'Administrador';
+                if (modalTitle) modalTitle.textContent = 'Recarga do Administrador';
+                if (modalSubtitle) modalSubtitle.textContent = 'Adicionar saldo administrativo para a tenancy do administrador';
+            } else {
+                if (userLabel) userLabel.textContent = 'Revendedor';
+                if (modalTitle) modalTitle.textContent = 'Fazer Recarga';
+                if (modalSubtitle) modalSubtitle.textContent = 'Adicionar saldo ao revendedor';
+            }
 
             const modal = document.getElementById("recarga-modal");
             if (modal) {
@@ -779,6 +840,14 @@
 
                 const btn = document.getElementById("btnConfirmarRecarga");
                 const formData = new FormData(formRecarga);
+                const role = String(formData.get('usuario_role') || '').toLowerCase();
+
+                if (role === 'admin' && !window.isSuperAdmin()) {
+                    if (typeof notyf !== 'undefined') {
+                        notyf.error('Somente super administrador pode recarregar administrador.');
+                    }
+                    return;
+                }
 
                 btn.disabled = true;
                 btn.innerText = "PROCESSANDO...";

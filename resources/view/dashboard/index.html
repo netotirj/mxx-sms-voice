@@ -1357,9 +1357,16 @@
             }
         };
 
-        function ensureSecondaryChart() {
+        function ensureSecondaryChart(forceRebuild = false) {
             const canvas = document.getElementById('service-secondary-chart');
-            if (!canvas || typeof Chart === 'undefined' || secondaryChart) return;
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            if (forceRebuild && secondaryChart) {
+                secondaryChart.destroy();
+                secondaryChart = null;
+            }
+
+            if (secondaryChart) return;
 
             secondaryChart = new Chart(canvas, {
                 type: 'bar',
@@ -1370,7 +1377,9 @@
                         data: [0],
                         backgroundColor: '#6366f1',
                         borderRadius: 8,
-                        maxBarThickness: 42
+                        maxBarThickness: 42,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.7
                     }]
                 },
                 options: {
@@ -1448,9 +1457,6 @@
         }
 
         function buildSecondaryChart(config) {
-            ensureSecondaryChart();
-            if (!secondaryChart) return;
-
             const secondary = config.secondary || {
                 title: 'Visao complementar',
                 tag: 'Resumo',
@@ -1460,15 +1466,12 @@
             };
 
             const labels = secondary.labels?.length ? secondary.labels : ['Sem dados'];
-            let values = secondary.values?.length
+            const values = secondary.values?.length
                 ? secondary.values.map((value) => {
                     const numeric = Number(value ?? 0);
                     return Number.isFinite(numeric) ? numeric : 0;
                 })
                 : [0];
-            if (selectedService === 'sms' && labels.length) {
-                values = values.map((_, index) => index === 0 ? 20 : 0);
-            }
             const signature = JSON.stringify({
                 service: selectedService,
                 labels,
@@ -1479,11 +1482,9 @@
                 meta: secondary.meta || []
             });
 
-            if (signature === secondaryChartSignature) {
-                return;
-            }
-
             secondaryChartSignature = signature;
+            ensureSecondaryChart(true);
+            if (!secondaryChart) return;
             setValue('service-secondary-title', secondary.title || 'Visao complementar');
             setValue('service-secondary-tag', secondary.tag || 'Resumo');
             secondaryChart.data.labels = labels;
@@ -1537,7 +1538,8 @@
                     }
                 };
             }
-            secondaryChart.update('none');
+            secondaryChart.resize();
+            secondaryChart.update();
         }
 
         function ensureSipCodeChart() {

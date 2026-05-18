@@ -297,7 +297,16 @@ class PermissionsRules {
                     t.account_code,
                     CASE WHEN r.user_id IS NULL THEN 'system' ELSE 'custom' END AS type,
                     CASE
-                        WHEN LOWER(TRIM(r.name)) = 'super_admin' THEN tr.total_routes_system
+                        WHEN LOWER(TRIM(r.name)) = 'super_admin'
+                          OR EXISTS (
+                                SELECT 1
+                                FROM users su
+                                WHERE su.tenancy_id = r.tenancy_id
+                                  AND su.role_id = r.id
+                                  AND LOWER(TRIM(COALESCE(su.user_function, su.function, ''))) = 'super_admin'
+                                LIMIT 1
+                            )
+                        THEN tr.total_routes_system
                         ELSE tr.total_routes_admin
                     END AS total_routes_system,
                     COALESCE(uc.total_users, 0) AS total_users
@@ -485,9 +494,12 @@ class PermissionsRules {
             ':tenancy_id' => $tenancyId
         ])->fetchAll(PDO::FETCH_ASSOC);
 
+        $roleName = self::resolveRoleNameById($roleId, $tenancyId);
+
         return self::filterPermissionMatrixByAdminBaseline(
             is_array($rows) ? $rows : [],
-            self::resolveRoleNameById($roleId, $tenancyId)
+            $roleName,
+            self::roleShouldBypassAdminBaseline($roleId, $tenancyId, $roleName)
         );
     }
 
@@ -1478,7 +1490,7 @@ class PermissionsRules {
         }
 
         $roleName = self::resolveRoleNameById($roleId, $tenancyId);
-        if ($roleName === '' || self::isAdminBaselineExemptRole($roleName)) {
+        if ($roleName === '' || self::roleShouldBypassAdminBaseline($roleId, $tenancyId, $roleName)) {
             return;
         }
 
@@ -1515,9 +1527,9 @@ class PermissionsRules {
         );
     }
 
-    private static function filterPermissionMatrixByAdminBaseline(array $rows, string $roleName): array
+    private static function filterPermissionMatrixByAdminBaseline(array $rows, string $roleName, bool $bypass = false): array
     {
-        if ($rows === [] || self::isAdminBaselineExemptRole($roleName)) {
+        if ($rows === [] || $bypass || self::isAdminBaselineExemptRole($roleName)) {
             return $rows;
         }
 
@@ -1591,6 +1603,44 @@ class PermissionsRules {
     private static function isAdminBaselineExemptRole(string $roleName): bool
     {
         return strtolower(trim($roleName)) === 'super_admin';
+    }
+
+    private static function roleShouldBypassAdminBaseline(int $roleId, string $tenancyId, string $roleName = ''): bool
+    {
+        if ($roleId <= 0 || trim($tenancyId) === '') {
+            return false;
+        }
+
+        if (self::isAdminBaselineExemptRole($roleName)) {
+            return true;
+        }
+
+        return self::roleRepresentsSuperAdmin($roleId, $tenancyId);
+    }
+
+    private static function roleRepresentsSuperAdmin(int $roleId, string $tenancyId): bool
+    {
+        if ($roleId <= 0 || trim($tenancyId) === '') {
+            return false;
+        }
+
+        return RequestCache::remember(
+            'permissions.rules.role_represents_super_admin.' . $tenancyId . '.' . $roleId,
+            static function () use ($roleId, $tenancyId): bool {
+                return (bool)(new Database())->execute(
+                    "SELECT 1
+                     FROM users
+                     WHERE tenancy_id = :tenancy_id
+                       AND role_id = :role_id
+                       AND LOWER(TRIM(COALESCE(user_function, function, ''))) = 'super_admin'
+                     LIMIT 1",
+                    [
+                        ':tenancy_id' => $tenancyId,
+                        ':role_id' => $roleId,
+                    ]
+                )->fetchColumn();
+            }
+        );
     }
 
     private static function shouldUseTenantTemplateSnapshot(string $roleName): bool

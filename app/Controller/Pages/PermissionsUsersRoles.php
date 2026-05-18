@@ -61,7 +61,7 @@ class PermissionsUsersRoles extends ViewComponents
 
         // Pega o total de rotas do primeiro item do array para o contador do topo
         $totalRoutes = $isSuperAdmin
-            ? (!empty($roles) ? (int)($roles[0]['total_routes_system'] ?? 0) : 0)
+            ? max(array_map(static fn (array $role): int => (int)($role['total_routes_system'] ?? 0), $roles ?: [[]]))
             : PermissionsRules::getAssignableRouteCount();
 
         // Retorna o JSON limpo

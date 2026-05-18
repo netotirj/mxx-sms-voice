@@ -679,31 +679,6 @@
   max-width: min(100%, 32rem);
 }
 
-.auth-shell--register {
-  padding-top: clamp(0.75rem, 2vh, 1.35rem);
-  padding-bottom: clamp(5.75rem, 10vh, 7rem);
-}
-
-.auth-shell__grid--register {
-  width: min(100%, 66rem);
-}
-
-.auth-shell__illustration {
-  width: 100%;
-}
-
-.auth-shell__illustration img {
-  display: block;
-  width: 100%;
-  max-height: min(56vh, 32rem);
-  object-fit: contain;
-  margin-inline: auto;
-}
-
-.auth-shell--register .auth-card--register {
-  max-width: min(100%, 28rem);
-}
-
 .auth-form {
   width: 100%;
 }
@@ -769,19 +744,11 @@
   .auth-shell__grid {
     align-items: center;
   }
-
-  .auth-shell--register .auth-shell__grid {
-    align-items: start;
-  }
 }
 
 @media (max-height: 900px) {
   .auth-shell {
     align-items: flex-start;
-  }
-
-  .auth-shell__illustration--register {
-    display: none;
   }
 }
 
@@ -795,12 +762,6 @@
   }
 
   .auth-page .support-whatsapp-floating__copy {
-    display: none;
-  }
-}
-
-@media (max-width: 1279px) {
-  .auth-shell__illustration--register {
     display: none;
   }
 }

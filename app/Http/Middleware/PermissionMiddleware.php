@@ -42,25 +42,46 @@ class PermissionMiddleware
         }
 
         // Normaliza rota (remove IDs numéricos)
-        $routeName = preg_replace('/\/\d+/', '/{id}', $routeName);
+        $routeName = $this->normalizeRouteName((string)preg_replace('/\/\d+/', '/{id}', $routeName));
+        $routeContext = ModuleAccessMap::routeContext($routeName);
 
         // 4️⃣ Verifica permissão padrão do usuário (ACL básica)
-        if (!PermissionResolver::userCanAccessRoute($obUser, $routeName)) {
+        $routeAccess = $this->canAccessRoute($obUser, $routeName);
+        if (empty($routeAccess['allowed'])) {
             PerformanceTelemetry::log('permission_middleware.denied', [
                 'user_id' => $userId,
                 'tenancy_id' => $tenancyId,
                 'route' => $routeName,
+                'reason' => 'route_permission',
             ]);
-            return $this->denyRequest($request, $baseUrl, 'Permissão de acesso negada!', $routeName);
+            return $this->denyRequest(
+                $request,
+                $baseUrl,
+                (string)($routeAccess['message'] ?? ModuleAccessMap::routePermissionDeniedMessage()),
+                $routeName,
+                [
+                    'denial_reason' => 'route_permission',
+                    'module_key' => (string)($routeContext['module_key'] ?? ''),
+                    'module_label' => (string)($routeContext['module_label'] ?? ''),
+                ]
+            );
         }
 
         // 5️⃣ Verifica se a rota é restrita por plano contratado
-        $featureKeys = $this->resolvePlanFeatureKeys($routeName);
-        foreach ($featureKeys as $featureKey) {
-            $featureAccess = PlanRuntimeService::assertCanUseFeature((string)$tenancyId, $featureKey);
-            if (empty($featureAccess['allowed'])) {
-                return $this->denyRequest($request, $baseUrl, (string)($featureAccess['message'] ?? 'Este modulo nao esta disponivel no plano contratado.'), $routeName);
-            }
+        $planAccess = $this->canAccessPlanModule((string)$tenancyId, $routeName);
+        if (empty($planAccess['allowed'])) {
+            return $this->denyRequest(
+                $request,
+                $baseUrl,
+                (string)($planAccess['message'] ?? ModuleAccessMap::planDeniedMessageForRoute($routeName)),
+                $routeName,
+                [
+                    'denial_reason' => 'plan_module',
+                    'module_key' => (string)($planAccess['module_key'] ?? ''),
+                    'module_label' => (string)($planAccess['module_label'] ?? ''),
+                    'missing_features' => (array)($planAccess['missing_features'] ?? []),
+                ]
+            );
         }
 
         $this->releaseSessionLockForReadRequests($request);
@@ -72,6 +93,51 @@ class PermissionMiddleware
     private function resolvePlanFeatureKeys(string $routeName): array
     {
         return ModuleAccessMap::featureKeysForRoute($routeName);
+    }
+
+    private function canAccessRoute(array $user, string $routeName): array
+    {
+        if (!PermissionResolver::userCanAccessRoute($user, $routeName)) {
+            return [
+                'allowed' => false,
+                'message' => ModuleAccessMap::routePermissionDeniedMessage(),
+            ];
+        }
+
+        return ['allowed' => true];
+    }
+
+    private function canAccessPlanModule(string $tenancyId, string $routeName): array
+    {
+        $routeContext = ModuleAccessMap::routeContext($routeName);
+        $featureKeys = $this->resolvePlanFeatureKeys($routeName);
+
+        if ($featureKeys === []) {
+            return [
+                'allowed' => true,
+                'module_key' => (string)($routeContext['module_key'] ?? ''),
+                'module_label' => (string)($routeContext['module_label'] ?? ''),
+            ];
+        }
+
+        foreach ($featureKeys as $featureKey) {
+            $featureAccess = PlanRuntimeService::assertCanUseFeature($tenancyId, $featureKey);
+            if (empty($featureAccess['allowed'])) {
+                return [
+                    'allowed' => false,
+                    'message' => ModuleAccessMap::planDeniedMessageForRoute($routeName),
+                    'module_key' => (string)($routeContext['module_key'] ?? ''),
+                    'module_label' => (string)($routeContext['module_label'] ?? ''),
+                    'missing_features' => [$featureKey],
+                ];
+            }
+        }
+
+        return [
+            'allowed' => true,
+            'module_key' => (string)($routeContext['module_key'] ?? ''),
+            'module_label' => (string)($routeContext['module_label'] ?? ''),
+        ];
     }
 
     /**
@@ -87,11 +153,13 @@ class PermissionMiddleware
         exit;
     }
 
-    private function denyRequest($request, string $baseUrl, string $message, string $routeName): Response
+    private function denyRequest($request, string $baseUrl, string $message, string $routeName, array $meta = []): Response
     {
         PerformanceTelemetry::log('permission_middleware.denied_response', [
             'route' => $routeName,
             'mode' => $this->requestMode($request),
+            'reason' => (string)($meta['denial_reason'] ?? ''),
+            'module_key' => (string)($meta['module_key'] ?? ''),
         ]);
 
         if ($this->isEventStreamRequest($request)) {
@@ -102,6 +170,10 @@ class PermissionMiddleware
                     'status' => 403,
                     'message' => $message,
                     'route' => $routeName,
+                    'denial_reason' => (string)($meta['denial_reason'] ?? ''),
+                    'module_key' => (string)($meta['module_key'] ?? ''),
+                    'module_label' => (string)($meta['module_label'] ?? ''),
+                    'missing_features' => (array)($meta['missing_features'] ?? []),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n",
                 'text/event-stream'
             );
@@ -113,6 +185,10 @@ class PermissionMiddleware
                 'success' => false,
                 'message' => $message,
                 'route' => $routeName,
+                'denial_reason' => (string)($meta['denial_reason'] ?? ''),
+                'module_key' => (string)($meta['module_key'] ?? ''),
+                'module_label' => (string)($meta['module_label'] ?? ''),
+                'missing_features' => (array)($meta['missing_features'] ?? []),
             ], 'application/json');
         }
 
@@ -121,6 +197,12 @@ class PermissionMiddleware
         }
 
         $this->redirectWithFlash($baseUrl, $message);
+    }
+
+    private function normalizeRouteName(string $routeName): string
+    {
+        $routeName = '/' . trim($routeName, '/');
+        return preg_replace('#/+#', '/', $routeName) ?: '/';
     }
 
     private function expectsJson($request): bool

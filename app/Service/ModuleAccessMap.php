@@ -4,6 +4,9 @@ namespace App\Service;
 
 class ModuleAccessMap
 {
+    private const ROUTE_PERMISSION_DENIED_MESSAGE = 'Você não possui permissão para acessar esta rota.';
+    private const PLAN_MODULE_DENIED_FALLBACK_MESSAGE = 'Este módulo não faz parte do seu plano contratado.';
+
     private const DEFINITIONS = [
         'users' => [
             'label' => 'Usuarios',
@@ -48,6 +51,7 @@ class ModuleAccessMap
             'permissions' => ['/reports', '/callcenter/reports'],
             'menus' => ['relatorios'],
             'routes' => [
+                ['type' => 'exact', 'match' => '/callcenter/reports', 'features' => ['reports']],
                 ['type' => 'exact', 'match' => '/reports', 'features' => ['reports']],
                 ['type' => 'prefix', 'match' => '/reports/', 'features' => ['reports']],
             ],
@@ -103,8 +107,8 @@ class ModuleAccessMap
         'callcenter' => [
             'label' => 'Call Center',
             'features' => ['callcenter'],
-            'permissions' => ['/callcenter', '/callcenter/monitoring', '/callcenter/reports'],
-            'menus' => ['voz.configuracao.callcenter', 'relatorios.callcenter'],
+            'permissions' => ['/callcenter', '/callcenter/monitoring'],
+            'menus' => ['voz.configuracao.callcenter'],
             'routes' => [
                 ['type' => 'exact', 'match' => '/callcenter', 'features' => ['callcenter']],
                 ['type' => 'prefix', 'match' => '/callcenter/', 'features' => ['callcenter']],
@@ -169,25 +173,62 @@ class ModuleAccessMap
 
     public static function featureKeysForRoute(string $routeName): array
     {
+        return self::routeContext($routeName)['features'];
+    }
+
+    public static function routeContext(string $routeName): array
+    {
+        $normalizedRouteName = self::normalizeRouteName($routeName);
+
         foreach (self::routeRules() as $rule) {
             $type = (string)($rule['type'] ?? 'prefix');
-            $match = (string)($rule['match'] ?? '');
-            $features = $rule['features'] ?? [];
+            $match = self::normalizeRouteName((string)($rule['match'] ?? ''));
+            $features = self::normalizeFeatureKeys($rule['features'] ?? []);
+            $moduleKey = (string)($rule['module_key'] ?? '');
 
             if ($match === '') {
                 continue;
             }
 
-            if ($type === 'exact' && $routeName === $match) {
-                return self::normalizeFeatureKeys($features);
+            if ($type === 'exact' && $normalizedRouteName === $match) {
+                return self::buildRouteContext($moduleKey, $normalizedRouteName, $match, $type, $features);
             }
 
-            if ($type === 'prefix' && str_starts_with($routeName, $match)) {
-                return self::normalizeFeatureKeys($features);
+            if ($type === 'prefix' && str_starts_with($normalizedRouteName, $match)) {
+                return self::buildRouteContext($moduleKey, $normalizedRouteName, $match, $type, $features);
             }
         }
 
-        return [];
+        return [
+            'route_name' => $normalizedRouteName,
+            'module_key' => '',
+            'module_label' => '',
+            'features' => [],
+            'permissions' => [],
+            'menus' => [],
+            'requires_plan' => false,
+            'route_permission_message' => self::routePermissionDeniedMessage(),
+            'plan_message' => self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE,
+            'matched_by' => '',
+            'matched_rule' => '',
+        ];
+    }
+
+    public static function routePermissionDeniedMessage(): string
+    {
+        return self::ROUTE_PERMISSION_DENIED_MESSAGE;
+    }
+
+    public static function planDeniedMessageForRoute(string $routeName): string
+    {
+        $context = self::routeContext($routeName);
+        $moduleLabel = trim((string)($context['module_label'] ?? ''));
+
+        if ($moduleLabel === '') {
+            return self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE;
+        }
+
+        return 'O módulo ' . $moduleLabel . ' não faz parte do seu plano contratado.';
     }
 
     public static function matrixRows(): array
@@ -233,5 +274,38 @@ class ModuleAccessMap
         }
 
         return array_keys($normalized);
+    }
+
+    private static function buildRouteContext(
+        string $moduleKey,
+        string $routeName,
+        string $matchedRule,
+        string $matchedBy,
+        array $features
+    ): array {
+        $definition = self::DEFINITIONS[$moduleKey] ?? [];
+        $moduleLabel = trim((string)($definition['label'] ?? $moduleKey));
+
+        return [
+            'route_name' => $routeName,
+            'module_key' => $moduleKey,
+            'module_label' => $moduleLabel,
+            'features' => $features,
+            'permissions' => array_values(array_filter(array_map('strval', (array)($definition['permissions'] ?? [])))),
+            'menus' => array_values(array_filter(array_map('strval', (array)($definition['menus'] ?? [])))),
+            'requires_plan' => $features !== [],
+            'route_permission_message' => self::routePermissionDeniedMessage(),
+            'plan_message' => $moduleLabel !== ''
+                ? 'O módulo ' . $moduleLabel . ' não faz parte do seu plano contratado.'
+                : self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE,
+            'matched_by' => $matchedBy,
+            'matched_rule' => $matchedRule,
+        ];
+    }
+
+    private static function normalizeRouteName(string $routeName): string
+    {
+        $routeName = '/' . trim($routeName, '/');
+        return preg_replace('#/+#', '/', $routeName) ?: '/';
     }
 }

@@ -199,15 +199,15 @@ class ViewComponents
     {
         $items = '';
 
-        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign'])) {
+        if (self::hasPerm($userPerms, ['/campaign'])) {
             $items .= self::buildMenuItem('/campaign', 'Listar Campanhas', 'ni ni-bullet-list-67', 'text-blue-500');
         }
 
-        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign/new'])) {
+        if (self::hasPerm($userPerms, ['/campaign/new'])) {
             $items .= self::buildMenuItem('/campaign/new', 'Criar Campanha', 'ni ni-fat-add', 'text-emerald-500');
         }
 
-        if (self::hasPlanFeature('sms') && self::hasPerm($userPerms, ['/campaign/single-shot'])) {
+        if (self::hasPerm($userPerms, ['/campaign/single-shot'])) {
             $items .= self::buildMenuItem('/campaign/single-shot', 'Disparo Simples', 'ni ni-send', 'text-indigo-900');
         }
 
@@ -216,10 +216,6 @@ class ViewComponents
 
     private static function getWhatsAppHtml(array $userPerms): string
     {
-        if (!self::hasPlanFeature('whatsapp')) {
-            return '';
-        }
-
         $items = '';
         if (self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/support/dashboard'])) {
             $items .= self::buildMenuItem('/campaign/whatsapp?wa=central', 'Central', 'fa fa-house', 'text-emerald-500');
@@ -244,8 +240,7 @@ class ViewComponents
         }
 
         if (
-            self::hasPlanFeature('templates')
-            && self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates'])
+            self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates'])
             && (
                 self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates/sync'])
                 || self::hasAllPerms($userPerms, ['/campaign/whatsapp', '/campaign/whatsapp/templates/{id}/delete'])
@@ -277,49 +272,49 @@ class ViewComponents
         $config   = '';
 
         // Operação - Rotas de voice.php e callcenter.php
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice'])) {
             $operacao .= self::buildMenuItem('/campaign/voice', 'Disparo de Voz', 'ni ni-send', 'text-fuchsia-700');
         }
 
-        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/monitoring'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/monitoring'])) {
             $operacao .= self::buildMenuItem('/callcenter/monitoring', 'Monitoramento', 'ni ni-tv-2', 'text-emerald-500');
         }
 
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/calls-view'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice/calls-view'])) {
             $operacao .= self::buildMenuItem('/campaign/voice/calls-view', 'Live Calls', 'ni ni-headphones', 'text-cyan-500');
         }
 
-        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/agent-panel'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/agent-panel'])) {
             $operacao .= self::buildMenuItem('/callcenter/agent-panel', 'Meu Painel', 'ni ni-button-play', 'text-blue-500', 'font-bold text-slate-700 dark:text-white');
         }
 
         // Recursos
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/list'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice/list'])) {
             $recursos .= self::buildMenuItem('/campaign/voice/list', 'Listas', 'ni ni-bullet-list-67', 'text-blue-500', 'font-semibold');
         }
 
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/audios'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice/audios'])) {
             $recursos .= self::buildMenuItem('/campaign/voice/audios', 'Áudios', 'ni ni-note-03', 'text-emerald-500');
         }
 
         // Configuração
-        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/agents'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/agents'])) {
             $config .= self::buildMenuItem('/callcenter/agents', 'Agentes', 'ni ni-single-02', 'text-cyan-500');
         }
 
-        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/queues'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/queues'])) {
             $config .= self::buildMenuItem('/callcenter/queues', 'Filas de Espera', 'ni ni-bullet-list-67', 'text-orange-500');
         }
 
-        if (self::hasPlanFeature('callcenter') && self::hasPerm($userPerms, ['/callcenter/breaks'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/breaks'])) {
             $config .= self::buildMenuItem('/callcenter/breaks', 'Gerenciar Pausas', 'ni ni-button-pause', 'text-red-500');
         }
 
-        if (self::hasPlanFeature('trunks') && self::hasPerm($userPerms, ['/campaign/voice/trunks'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice/trunks'])) {
             $config .= self::buildMenuItem('/campaign/voice/trunks', 'Trunks', 'ni ni-world', 'text-purple-500');
         }
 
-        if (self::hasPlanFeature('voice') && self::hasPerm($userPerms, ['/campaign/voice/sip', '/campaign/voice/sip-devices'])) {
+        if (self::hasPerm($userPerms, ['/campaign/voice/sip', '/campaign/voice/sip-devices'])) {
             $config .= self::buildMenuItem('/campaign/voice/sip', 'SIP Devices', 'ni ni-mobile-button', 'text-orange-500');
         }
 
@@ -340,39 +335,39 @@ class ViewComponents
         $marketingRole = strtolower(trim((string)($obUser['user_function'] ?? $obUser['function'] ?? '')));
         $canSeeMarketingAdmin = in_array($marketingRole, ['admin', 'super_admin', 'developer'], true);
 
-        if (self::hasPlanFeature('users') && self::hasPerm($userPerms, ['/users'])) {
+        if (self::hasPerm($userPerms, ['/users'])) {
             $gestao .= self::buildMenuItem('/users', 'Lista de Usuários', 'ni ni-circle-08', 'text-blue-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/support'])) {
+        if (self::hasPerm($userPerms, ['/support'])) {
             $gestao .= self::buildMenuItem('/support', 'Tickets de Suporte', 'ni ni-support-16', 'text-emerald-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/system-updates'])) {
+        if (self::hasPerm($userPerms, ['/system-updates'])) {
             $comunicacao .= self::buildMenuItem('/system-updates', 'Atualizações', 'fa fa-bullhorn', 'text-cyan-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/admin/services-monitor'])) {
+        if (self::hasPerm($userPerms, ['/admin/services-monitor'])) {
             $comunicacao .= self::buildMenuItem('/admin/services-monitor', 'Serviços', 'fa fa-heart-pulse', 'text-rose-500');
         }
 
-        if ($canSeeMarketingAdmin && self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/system-updates'])) {
+        if ($canSeeMarketingAdmin && self::hasPerm($userPerms, ['/system-updates'])) {
             $comunicacao .= self::buildMenuItem('/system-updates/marketing', 'Marketing', 'fa fa-rectangle-ad', 'text-rose-500');
         }
 
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/notifications'])) {
+        if (self::hasPerm($userPerms, ['/reports/notifications'])) {
             $comunicacao .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
         }
 
-        if (self::hasPlanFeature('permissions') && self::hasPerm($userPerms, ['/permissions'])) {
+        if (self::hasPerm($userPerms, ['/permissions'])) {
             $config .= self::buildMenuItem('/permissions', 'Permissões', 'ni ni-key-25', 'text-cyan-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/plans'])) {
+        if (self::hasPerm($userPerms, ['/plans'])) {
             $config .= self::buildMenuItem('/plans', 'Planos', 'fas fa-layer-group', 'text-violet-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/global-costs'])) {
+        if (self::hasPerm($userPerms, ['/global-costs'])) {
             $config .= self::buildMenuItem('/global-costs', 'Custos Globais', 'fa fa-coins', 'text-emerald-600');
         }
 
@@ -387,7 +382,7 @@ class ViewComponents
     private static function getRecargasHtml(array $userPerms): string
     {
         // Agora verificamos pela ROTA física '/refills'
-        if (!self::hasPlanFeature('administrative') || !self::hasPerm($userPerms, ['/refills'])) {
+        if (!self::hasPerm($userPerms, ['/refills'])) {
             return '';
         }
 
@@ -406,32 +401,32 @@ class ViewComponents
     {
         $items = '';
 
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/sms-view'])) {
+        if (self::hasPerm($userPerms, ['/reports/sms-view'])) {
             $items .= self::buildMenuItem('/reports/sms-view', 'Sms', 'ni ni-archive-2', 'text-pink-600');
         }
 
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/whatsapp', '/reports/whatsapp-realtime'])) {
+        if (self::hasPerm($userPerms, ['/reports/whatsapp', '/reports/whatsapp-realtime'])) {
             $items .= self::buildMenuItem('/reports/whatsapp?report=message', 'WhatsApp Mensagem', 'fa-brands fa-whatsapp', 'text-emerald-500');
             $items .= self::buildMenuItem('/reports/whatsapp?report=voice', 'WhatsApp Voz', 'ni ni-headphones', 'text-cyan-500');
         }
 
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/recharge-transactions'])) {
+        if (self::hasPerm($userPerms, ['/reports/recharge-transactions'])) {
             $items .= self::buildMenuItem('/reports/recharge-transactions', 'Recargas', 'ni ni-credit-card', 'text-violet-600');
         }
 
         // --- AQUI ESTAVA FALTANDO ---
         // Relatório de Call Center
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/callcenter/reports'])) {
+        if (self::hasPerm($userPerms, ['/callcenter/reports'])) {
             $items .= self::buildMenuItem('/callcenter/reports', 'Call Center', 'ni ni-folder-17', 'text-purple-500');
         }
 
         // CDR (Voz)
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/cdr'])) {
+        if (self::hasPerm($userPerms, ['/reports/cdr'])) {
             $items .= self::buildMenuItem('/reports/cdr', 'CDR (Voz)', 'ni ni-collection', 'text-cyan-500');
         }
 
         // Pix
-        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/transactions'])) {
+        if (self::hasPerm($userPerms, ['/reports/transactions'])) {
             $items .= self::buildMenuItem('/reports/transactions', 'Pix', 'fa-brands fa-pix', 'text-emerald-500');
         }
 
@@ -446,7 +441,7 @@ class ViewComponents
     {
         $items = '';
 
-        if (self::hasPlanFeature('rates') && self::hasPerm($userPerms, ['/rates'])) {
+        if (self::hasPerm($userPerms, ['/rates'])) {
             $items .= self::buildMenuItem('/rates', 'Tarifas', 'ni ni-money-coins', 'text-yellow-500');
         }
 

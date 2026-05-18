@@ -3,6 +3,7 @@
 Fonte oficial atual para bloqueio comercial por plano:
 
 - arquivo: `app/Service/ModuleAccessMap.php`
+- auditoria detalhada gerada em: `docs/route-access-plan-audit.md`
 - fluxo de bloqueio:
   1. autenticacao
   2. permissao de rota
@@ -39,3 +40,5 @@ Fonte oficial atual para bloqueio comercial por plano:
 - o menu estava validando apenas ACL e ignorando plano em `ViewComponents::hasPlanFeature()`
 - o backend validava plano no middleware, mas o mapa de rotas por feature estava disperso
 - rotas novas administrativas, como `global-costs` e `admin/platform-consumption`, precisavam entrar no mapa oficial
+- ` /callcenter/reports` estava sendo interpretada como modulo `callcenter`, mas comercialmente pertence ao modulo `reports`
+- rotas de notificacoes em `/reports/*` precisam ser tratadas como relatorios, nao como administrativo

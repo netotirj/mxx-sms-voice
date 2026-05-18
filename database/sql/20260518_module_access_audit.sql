@@ -50,7 +50,6 @@ WHERE sr.module_name IN (
     'Call Center: Pausas',
     'Call Center: Agentes',
     'Call Center: Monitoramento',
-    'Call Center: Relatórios',
     'WhatsApp: Geral',
     'WhatsApp: Atendimento',
     'WhatsApp: Campanhas',
@@ -69,6 +68,8 @@ WHERE sr.module_name IN (
     'Permissões: Gestão',
     'Usuários: Gestão',
     'Tarifas: Gestão',
-    'Relatórios: Geral'
+    'Relatórios: Geral',
+    'Relatórios: Call Center',
+    'Relatórios: Notificações'
 )
 ORDER BY sr.module_name, sr.route_path;

@@ -360,7 +360,7 @@ class ViewComponents
             $comunicacao .= self::buildMenuItem('/system-updates/marketing', 'Marketing', 'fa fa-rectangle-ad', 'text-rose-500');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/reports/notifications'])) {
+        if (self::hasPlanFeature('reports') && self::hasPerm($userPerms, ['/reports/notifications'])) {
             $comunicacao .= self::buildMenuItem('/reports/notifications', 'Notificações', 'ni ni-notification-70', 'text-yellow-500');
         }
 

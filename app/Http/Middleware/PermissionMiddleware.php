@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Session\User as SessionLogin;
 use App\Http\Response;
+use App\Service\ModuleAccessMap;
 use App\Service\PlanRuntimeService;
 use App\Service\PermissionResolver;
 use App\Service\PerformanceTelemetry;
@@ -13,85 +14,6 @@ use Throwable;
 
 class PermissionMiddleware
 {
-    /**
-     * Regras de bloqueio por módulo/feature do plano.
-     * A ordem importa: regras mais específicas devem vir antes das genéricas.
-     */
-    private array $planFeatureRules = [
-        ['type' => 'prefix', 'match' => '/users/profile', 'features' => []],
-        ['type' => 'exact', 'match' => '/users', 'features' => ['users']],
-        ['type' => 'exact', 'match' => '/users/new', 'features' => ['users', 'create_users']],
-        ['type' => 'prefix', 'match' => '/users/search', 'features' => ['users']],
-        ['type' => 'prefix', 'match' => '/users/{id}/edit', 'features' => ['users', 'create_users']],
-        ['type' => 'prefix', 'match' => '/users/edit', 'features' => ['users', 'create_users']],
-        ['type' => 'prefix', 'match' => '/users/{id}/delete', 'features' => ['users', 'create_users']],
-        ['type' => 'prefix', 'match' => '/users/up-status', 'features' => ['users', 'create_users']],
-        ['type' => 'prefix', 'match' => '/users/refills', 'features' => ['users', 'create_users']],
-
-        ['type' => 'exact', 'match' => '/rates', 'features' => ['rates']],
-        ['type' => 'prefix', 'match' => '/rates/', 'features' => ['rates']],
-
-        ['type' => 'exact', 'match' => '/permissions', 'features' => ['permissions']],
-        ['type' => 'prefix', 'match' => '/permissions/', 'features' => ['permissions']],
-
-        ['type' => 'exact', 'match' => '/reports', 'features' => ['reports']],
-        ['type' => 'prefix', 'match' => '/reports/', 'features' => ['reports']],
-
-        ['type' => 'exact', 'match' => '/refills', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/refills/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/notifications', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/notifications/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/plans', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/plans/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/support', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/support/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/system-updates', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/system-updates/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/admin/services-monitor', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/admin/services-monitor/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/global-costs', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/global-costs/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/admin/platform-consumption', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/admin/platform-consumption/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/site-tests', 'features' => ['administrative']],
-        ['type' => 'prefix', 'match' => '/site-tests/', 'features' => ['administrative']],
-
-        ['type' => 'exact', 'match' => '/dashboard', 'features' => []],
-        ['type' => 'prefix', 'match' => '/dashboard/', 'features' => []],
-
-        ['type' => 'prefix', 'match' => '/campaign/voice/trunks', 'features' => ['voice', 'trunks']],
-        ['type' => 'prefix', 'match' => '/campaign/voice/sip-trunks', 'features' => ['voice', 'trunks']],
-        ['type' => 'exact', 'match' => '/campaign/voice', 'features' => ['voice']],
-        ['type' => 'prefix', 'match' => '/campaign/voice/', 'features' => ['voice']],
-        ['type' => 'exact', 'match' => '/callcenter', 'features' => ['callcenter']],
-        ['type' => 'prefix', 'match' => '/callcenter/', 'features' => ['callcenter']],
-
-        ['type' => 'exact', 'match' => '/campaign/whatsapp/templates', 'features' => ['whatsapp']],
-        ['type' => 'prefix', 'match' => '/campaign/whatsapp/templates/library', 'features' => ['whatsapp']],
-        ['type' => 'exact', 'match' => '/campaign/whatsapp/templates/create', 'features' => ['whatsapp', 'templates']],
-        ['type' => 'exact', 'match' => '/campaign/whatsapp/templates/sync', 'features' => ['whatsapp', 'templates']],
-        ['type' => 'prefix', 'match' => '/campaign/whatsapp/templates/{id}/sync', 'features' => ['whatsapp', 'templates']],
-        ['type' => 'prefix', 'match' => '/campaign/whatsapp/templates/{id}/delete', 'features' => ['whatsapp', 'templates']],
-        ['type' => 'prefix', 'match' => '/campaign/whatsapp/campaigns', 'features' => ['whatsapp']],
-        ['type' => 'exact', 'match' => '/campaign/whatsapp', 'features' => ['whatsapp']],
-        ['type' => 'prefix', 'match' => '/campaign/whatsapp/', 'features' => ['whatsapp']],
-        ['type' => 'prefix', 'match' => '/whatsapp/', 'features' => ['whatsapp']],
-
-        ['type' => 'exact', 'match' => '/movies', 'features' => []],
-        ['type' => 'prefix', 'match' => '/movies/', 'features' => []],
-
-        ['type' => 'exact', 'match' => '/campaign', 'features' => ['sms']],
-        ['type' => 'prefix', 'match' => '/campaign/', 'features' => ['sms']],
-    ];
-
     /**
      * Manipula a verificação de permissões e planos
      */
@@ -149,47 +71,7 @@ class PermissionMiddleware
 
     private function resolvePlanFeatureKeys(string $routeName): array
     {
-        foreach ($this->planFeatureRules as $rule) {
-            $type = (string)($rule['type'] ?? 'prefix');
-            $match = (string)($rule['match'] ?? '');
-            $features = $rule['features'] ?? [];
-
-            if ($match === '') {
-                continue;
-            }
-
-            if ($type === 'exact' && $routeName === $match) {
-                return $this->normalizeFeatureKeys($features);
-            }
-
-            if ($type === 'prefix' && str_starts_with($routeName, $match)) {
-                return $this->normalizeFeatureKeys($features);
-            }
-        }
-
-        return [];
-    }
-
-    private function normalizeFeatureKeys(mixed $features): array
-    {
-        if (is_string($features)) {
-            $features = [$features];
-        }
-
-        if (!is_array($features)) {
-            return [];
-        }
-
-        $normalized = [];
-        foreach ($features as $feature) {
-            $value = trim((string)$feature);
-            if ($value === '') {
-                continue;
-            }
-            $normalized[$value] = true;
-        }
-
-        return array_keys($normalized);
+        return ModuleAccessMap::featureKeysForRoute($routeName);
     }
 
     /**

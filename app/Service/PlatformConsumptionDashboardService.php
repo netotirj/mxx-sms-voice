@@ -83,7 +83,7 @@ class PlatformConsumptionDashboardService
         $cacheKey = 'platform_consumption_dashboard:' . md5(json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return DashboardService::remember($cacheKey, 90, static function () use ($normalized): array {
-            $ledgerRevenue = self::ledgerRevenueByProduct($normalized);
+            $revenueByProduct = self::revenueByProduct($normalized);
             $costByProduct = self::costByProduct($normalized);
             $sms = self::smsAggregate($normalized);
             $voice = self::voiceAggregate($normalized);
@@ -95,7 +95,7 @@ class PlatformConsumptionDashboardService
             $tenants = self::tenantOptions();
             $audit = self::auditStructure();
 
-            $revenueTotal = array_sum($ledgerRevenue);
+            $revenueTotal = array_sum($revenueByProduct);
             $costTotal = array_sum($costByProduct);
             $profitTotal = round($revenueTotal - $costTotal, 4);
 
@@ -142,24 +142,24 @@ class PlatformConsumptionDashboardService
                 'active_tenants' => self::activeTenantCount($topTenants),
                 'products' => [
                     'sms' => [
-                        'revenue' => round((float)($ledgerRevenue['sms'] ?? 0), 4),
+                        'revenue' => round((float)($revenueByProduct['sms'] ?? 0), 4),
                         'cost' => round((float)($costByProduct['sms'] ?? 0), 4),
-                        'profit' => round((float)($ledgerRevenue['sms'] ?? 0) - (float)($costByProduct['sms'] ?? 0), 4),
+                        'profit' => round((float)($revenueByProduct['sms'] ?? 0) - (float)($costByProduct['sms'] ?? 0), 4),
                     ],
                     'voice' => [
-                        'revenue' => round((float)($ledgerRevenue['voice'] ?? 0), 4),
+                        'revenue' => round((float)($revenueByProduct['voice'] ?? 0), 4),
                         'cost' => round((float)($costByProduct['voice'] ?? 0), 4),
-                        'profit' => round((float)($ledgerRevenue['voice'] ?? 0) - (float)($costByProduct['voice'] ?? 0), 4),
+                        'profit' => round((float)($revenueByProduct['voice'] ?? 0) - (float)($costByProduct['voice'] ?? 0), 4),
                     ],
                     'whatsapp' => [
-                        'revenue' => round((float)($ledgerRevenue['whatsapp'] ?? 0), 4),
+                        'revenue' => round((float)($revenueByProduct['whatsapp'] ?? 0), 4),
                         'cost' => round((float)($costByProduct['whatsapp'] ?? 0), 4),
-                        'profit' => round((float)($ledgerRevenue['whatsapp'] ?? 0) - (float)($costByProduct['whatsapp'] ?? 0), 4),
+                        'profit' => round((float)($revenueByProduct['whatsapp'] ?? 0) - (float)($costByProduct['whatsapp'] ?? 0), 4),
                     ],
                     'whatsapp_voice' => [
-                        'revenue' => round((float)($ledgerRevenue['whatsapp_voice'] ?? 0), 4),
+                        'revenue' => round((float)($revenueByProduct['whatsapp_voice'] ?? 0), 4),
                         'cost' => round((float)($costByProduct['whatsapp_voice'] ?? 0), 4),
-                        'profit' => round((float)($ledgerRevenue['whatsapp_voice'] ?? 0) - (float)($costByProduct['whatsapp_voice'] ?? 0), 4),
+                        'profit' => round((float)($revenueByProduct['whatsapp_voice'] ?? 0) - (float)($costByProduct['whatsapp_voice'] ?? 0), 4),
                     ],
                 ],
             ];
@@ -311,10 +311,8 @@ class PlatformConsumptionDashboardService
         return $value;
     }
 
-    private static function ledgerRevenueByProduct(array $filters): array
+    private static function revenueByProduct(array $filters): array
     {
-        FinancialTransactionService::ensureSchema();
-
         $totals = [
             'sms' => 0.0,
             'voice' => 0.0,
@@ -322,70 +320,20 @@ class PlatformConsumptionDashboardService
             'whatsapp_voice' => 0.0,
         ];
 
-        foreach (array_keys($totals) as $product) {
-            if (!self::allowsProduct($filters, $product)) {
-                continue;
-            }
+        if (self::allowsProduct($filters, 'sms')) {
+            $totals['sms'] = self::sumRevenueField(self::smsUpstreamRows($filters), 'revenue_total');
+        }
 
-            $params = [
-                ':date_from' => $filters['date_from'] . ' 00:00:00',
-                ':date_to' => $filters['date_to'] . ' 23:59:59',
-            ];
+        if (self::allowsProduct($filters, 'voice')) {
+            $totals['voice'] = self::sumRevenueField(self::voiceUpstreamRows($filters), 'revenue_total');
+        }
 
-            $slugPlaceholders = [];
-            foreach (self::REVENUE_SLUGS as $index => $slug) {
-                $key = ':slug_' . $product . '_' . $index;
-                $slugPlaceholders[] = $key;
-                $params[$key] = $slug;
-            }
-
-            $sourcePlaceholders = [];
-            foreach (self::productRevenueSources($product) as $index => $source) {
-                $key = ':source_' . $product . '_' . $index;
-                $sourcePlaceholders[] = $key;
-                $params[$key] = $source;
-            }
-
-            $nullSlugSourcePlaceholders = [];
-            foreach (self::nullSlugAcceptedSources($product) as $index => $source) {
-                $key = ':null_slug_source_' . $product . '_' . $index;
-                $nullSlugSourcePlaceholders[] = $key;
-                $params[$key] = $source;
-            }
-
-            $tenantWhere = '';
-            if ($filters['tenant_id'] !== '') {
-                $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-                $params[':tenancy_id'] = $filters['tenant_id'];
-            }
-
-            $revenueEligibilityClause = self::revenueEligibilityClause(
-                'l.source',
-                "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
-                $slugPlaceholders,
-                $nullSlugSourcePlaceholders
-            );
-
-            $total = (new Database())->execute(
-                "SELECT COALESCE(SUM(l.amount), 0) AS total
-                 FROM financial_transaction_ledger l
-                 WHERE l.status = 'committed'
-                   AND l.processed_at BETWEEN :date_from AND :date_to
-                   {$tenantWhere}
-                   AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-                   AND {$revenueEligibilityClause}",
-                $params
-            )->fetchColumn();
-
-            $totals[$product] = round((float)$total, 4);
+        if (self::allowsProduct($filters, 'whatsapp')) {
+            $totals['whatsapp'] = self::sumRevenueField(self::whatsMessageRevenueRows($filters), 'revenue');
         }
 
         if (self::allowsProduct($filters, 'whatsapp_voice')) {
-            $totals['whatsapp_voice'] = round(array_reduce(
-                self::whatsVoiceFinancialRows($filters),
-                static fn (float $carry, array $row): float => $carry + (float)($row['revenue'] ?? 0),
-                0.0
-            ), 4);
+            $totals['whatsapp_voice'] = self::sumRevenueField(self::whatsVoiceRevenueRows($filters), 'revenue');
         }
 
         return $totals;
@@ -469,7 +417,7 @@ class PlatformConsumptionDashboardService
     private static function whatsVoiceCost(array $filters): float
     {
         $total = 0.0;
-        foreach (self::whatsVoiceFinancialRows($filters) as $row) {
+        foreach (self::whatsVoiceRevenueRows($filters) as $row) {
             $total += (float)($row['cost'] ?? 0);
         }
 
@@ -766,106 +714,10 @@ class PlatformConsumptionDashboardService
 
     private static function fillRevenueSeries(array &$series, array $filters): void
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
-        }
-
-        $slugPlaceholders = [];
-        foreach (self::REVENUE_SLUGS as $index => $slug) {
-            $key = ':series_slug_' . $index;
-            $slugPlaceholders[] = $key;
-            $params[$key] = $slug;
-        }
-
-        $revenueSources = array_values(array_unique(array_merge(
-            self::productRevenueSources('sms'),
-            self::productRevenueSources('voice'),
-            self::productRevenueSources('whatsapp'),
-            self::productRevenueSources('whatsapp_voice')
-        )));
-        $sourcePlaceholders = [];
-        foreach ($revenueSources as $index => $source) {
-            $key = ':series_source_' . $index;
-            $sourcePlaceholders[] = $key;
-            $params[$key] = $source;
-        }
-
-        $nullSlugSources = array_values(array_unique(array_merge(
-            self::nullSlugAcceptedSources('voice'),
-            self::nullSlugAcceptedSources('whatsapp'),
-            self::nullSlugAcceptedSources('whatsapp_voice')
-        )));
-        $nullSlugSourcePlaceholders = [];
-        foreach ($nullSlugSources as $index => $source) {
-            $key = ':series_null_slug_source_' . $index;
-            $nullSlugSourcePlaceholders[] = $key;
-            $params[$key] = $source;
-        }
-
-        $revenueEligibilityClause = self::revenueEligibilityClause(
-            'l.source',
-            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
-            $slugPlaceholders,
-            $nullSlugSourcePlaceholders
-        );
-
-        $rows = (new Database())->execute(
-            "SELECT
-                DATE(l.processed_at) AS day_ref,
-                CASE
-                    WHEN l.source = 'sms_batch_callback' THEN 'sms'
-                    WHEN l.source IN ('voice_cdr_usage', 'voice_service_fee', 'voice_cdr') THEN 'voice'
-                    WHEN l.source IN ('whatsapp_voice_call_debited', 'whatsapp_voice') THEN 'whatsapp_voice'
-                    ELSE 'whatsapp'
-                END AS product,
-                SUM(l.amount) AS total
-             FROM financial_transaction_ledger l
-             WHERE l.status = 'committed'
-               AND l.processed_at BETWEEN :date_from AND :date_to
-               {$tenantWhere}
-               AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-               AND {$revenueEligibilityClause}
-             GROUP BY DATE(l.processed_at), product",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        foreach ($rows as $row) {
-            $day = (string)($row['day_ref'] ?? '');
-            $product = (string)($row['product'] ?? '');
-            if (!isset($series[$product][$day])) {
-                continue;
-            }
-
-            $amount = round((float)($row['total'] ?? 0), 4);
-            $series[$product][$day] = $amount;
-            $series['revenue'][$day] = round($series['revenue'][$day] + $amount, 4);
-        }
-
-        if (self::allowsProduct($filters, 'whatsapp_voice')) {
-            foreach ($series['whatsapp_voice'] as $day => $amount) {
-                if (isset($series['revenue'][$day])) {
-                    $series['revenue'][$day] = round($series['revenue'][$day] - (float)$amount, 4);
-                }
-                $series['whatsapp_voice'][$day] = 0;
-            }
-
-            foreach (self::whatsVoiceFinancialRows($filters, true) as $row) {
-                $day = (string)($row['day_ref'] ?? '');
-                if (!isset($series['whatsapp_voice'][$day])) {
-                    continue;
-                }
-
-                $amount = round((float)($row['revenue'] ?? 0), 4);
-                $series['whatsapp_voice'][$day] = round($series['whatsapp_voice'][$day] + $amount, 4);
-                $series['revenue'][$day] = round($series['revenue'][$day] + $amount, 4);
-            }
-        }
+        self::addRevenueSeriesRows($series, 'sms', self::smsUpstreamRows($filters, true), 'revenue_total');
+        self::addRevenueSeriesRows($series, 'voice', self::voiceUpstreamRows($filters, true), 'revenue_total');
+        self::addRevenueSeriesRows($series, 'whatsapp', self::whatsMessageRevenueRows($filters, true), 'revenue');
+        self::addRevenueSeriesRows($series, 'whatsapp_voice', self::whatsVoiceRevenueRows($filters, true), 'revenue');
 
         foreach (self::smsCostSeries($filters) as $day => $amount) {
             if (isset($series['cost'][$day])) {
@@ -1117,7 +969,7 @@ class PlatformConsumptionDashboardService
         }
 
         $mapped = [];
-        foreach (self::whatsVoiceFinancialRows($filters, true) as $row) {
+        foreach (self::whatsVoiceRevenueRows($filters, true) as $row) {
             $day = (string)($row['day_ref'] ?? '');
             if ($day === '') {
                 continue;
@@ -1141,6 +993,33 @@ class PlatformConsumptionDashboardService
         }
 
         return $mapped;
+    }
+
+    private static function addRevenueSeriesRows(array &$series, string $product, array $rows, string $field): void
+    {
+        if (!isset($series[$product])) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $day = (string)($row['day_ref'] ?? '');
+            if ($day === '' || !isset($series[$product][$day])) {
+                continue;
+            }
+
+            $amount = round((float)($row[$field] ?? 0), 4);
+            $series[$product][$day] = round($series[$product][$day] + $amount, 4);
+            $series['revenue'][$day] = round($series['revenue'][$day] + $amount, 4);
+        }
+    }
+
+    private static function sumRevenueField(array $rows, string $field): float
+    {
+        return round(array_reduce(
+            $rows,
+            static fn (float $carry, array $row): float => $carry + (float)($row[$field] ?? 0),
+            0.0
+        ), 4);
     }
 
     private static function smsUpstreamRows(array $filters, bool $withDay = false): array
@@ -1411,16 +1290,6 @@ class PlatformConsumptionDashboardService
             $tenants[$tenancyId]['cost'] = round($tenants[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
         }
 
-        foreach (self::tenantFinancialRevenueRows($filters) as $row) {
-            $tenancyId = (string)($row['tenancy_id'] ?? '');
-            if ($tenancyId === '') {
-                continue;
-            }
-
-            $tenants[$tenancyId] = self::seedTenantRow($tenants[$tenancyId] ?? null, $row);
-            $tenants[$tenancyId]['revenue'] = round((float)($row['revenue'] ?? 0), 4);
-        }
-
         foreach ($tenants as $tenancyId => $row) {
             $revenue = round((float)($row['revenue'] ?? 0), 4);
             $cost = round((float)($row['cost'] ?? 0), 4);
@@ -1561,6 +1430,57 @@ class PlatformConsumptionDashboardService
         return array_values($rows);
     }
 
+    private static function whatsMessageRevenueRows(array $filters, bool $withDay = false): array
+    {
+        if (!self::allowsProduct($filters, 'whatsapp')) {
+            return [];
+        }
+
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+        $where = [
+            "COALESCE(c.delivered_at, c.timestamp, c.created_at) BETWEEN :date_from AND :date_to",
+            'COALESCE(c.billed, 0) = 1',
+            'COALESCE(c.final_price_brl, c.price_brl, 0) > 0',
+        ];
+
+        if ($filters['tenant_id'] !== '') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        if (!in_array($filters['status'], ['', 'all'], true)) {
+            if ($filters['status'] === 'failed') {
+                $where[] = "LOWER(COALESCE(c.status, '')) = 'failed'";
+            } elseif ($filters['status'] === 'delivered') {
+                $where[] = "LOWER(COALESCE(c.status, '')) IN ('delivered', 'read')";
+            } elseif ($filters['status'] === 'read') {
+                $where[] = "LOWER(COALESCE(c.status, '')) = 'read'";
+            } elseif ($filters['status'] === 'sent') {
+                $where[] = "LOWER(COALESCE(c.status, '')) = 'sent'";
+            }
+        }
+
+        $daySelect = $withDay ? "DATE(COALESCE(c.delivered_at, c.timestamp, c.created_at)) AS day_ref," : '';
+        $dayGroup = $withDay ? "DATE(COALESCE(c.delivered_at, c.timestamp, c.created_at)), " : '';
+
+        return (new Database())->execute(
+            "SELECT
+                {$daySelect}
+                c.tenancy_id,
+                t.name AS tenancy_name,
+                COUNT(*) AS message_count,
+                COALESCE(SUM(COALESCE(c.final_price_brl, c.price_brl, 0)), 0) AS revenue
+             FROM whatsapp_message_cdr c
+             LEFT JOIN tenancies t ON t.id = c.tenancy_id
+             WHERE " . implode(' AND ', $where) . "
+             GROUP BY {$dayGroup} c.tenancy_id, t.name",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
     private static function whatsTenantRows(array $filters): array
     {
         $params = [
@@ -1579,7 +1499,7 @@ class PlatformConsumptionDashboardService
             "SELECT c.tenancy_id,
                     t.name AS tenancy_name,
                     COUNT(*) AS whatsapp_total,
-                    COALESCE(SUM(c.final_price_brl), 0) AS revenue,
+                    COALESCE(SUM(COALESCE(c.final_price_brl, c.price_brl, 0)), 0) AS revenue,
                     COALESCE(SUM(c.cost_brl), 0) AS cost
              FROM whatsapp_message_cdr c
              LEFT JOIN tenancies t ON t.id = c.tenancy_id
@@ -1590,10 +1510,54 @@ class PlatformConsumptionDashboardService
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
+    private static function whatsVoiceRevenueRows(array $filters, bool $withDay = false): array
+    {
+        if (!self::allowsProduct($filters, 'whatsapp_voice')) {
+            return [];
+        }
+
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+        $where = [
+            "COALESCE(wc.started_at, wc.answered_at, wc.created_at) BETWEEN :date_from AND :date_to",
+            'COALESCE(wc.final_price, 0) > 0',
+        ];
+
+        if ($filters['tenant_id'] !== '') {
+            $where[] = 'wc.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        self::applyWhatsVoiceStatusFilter($where, $params, $filters['status'] ?? 'all', 'wc');
+
+        $daySelect = $withDay ? "DATE(COALESCE(wc.started_at, wc.answered_at, wc.created_at)) AS day_ref," : '';
+        $dayGroup = $withDay ? "DATE(COALESCE(wc.started_at, wc.answered_at, wc.created_at)), " : '';
+
+        return (new Database())->execute(
+            "SELECT
+                {$daySelect}
+                wc.tenancy_id,
+                t.name AS tenancy_name,
+                wc.call_id,
+                COALESCE(wc.final_price, 0) AS revenue,
+                COALESCE(wc.base_cost, 0) AS cost,
+                COALESCE(wc.billable_minutes, 0) AS billed_minutes,
+                COALESCE(wc.direction, '') AS direction,
+                COALESCE(wc.status, '') AS status_label
+             FROM whatsapp_call_cdr wc
+             LEFT JOIN tenancies t ON t.id = wc.tenancy_id
+             WHERE " . implode(' AND ', $where) . "
+             GROUP BY {$dayGroup} wc.tenancy_id, t.name, wc.call_id, wc.final_price, wc.base_cost, wc.billable_minutes, wc.direction, wc.status",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
     private static function whatsVoiceTenantRows(array $filters): array
     {
         $rows = [];
-        foreach (self::whatsVoiceFinancialRows($filters) as $row) {
+        foreach (self::whatsVoiceRevenueRows($filters) as $row) {
             $tenancyId = (string)($row['tenancy_id'] ?? '');
             if ($tenancyId === '') {
                 continue;

@@ -1123,16 +1123,20 @@
         const HOISTED_ATTR = 'data-app-modal-hoisted';
         const managedModals = new Set();
 
+        function normalizeLower(value) {
+            return String(value ?? '').toLowerCase();
+        }
+
         function isModalRoot(element) {
             if (!(element instanceof HTMLElement)) {
                 return false;
             }
 
-            const id = (element.id || '').toLowerCase();
-            const role = (element.getAttribute('role') || '').toLowerCase();
+            const id = normalizeLower(element.id);
+            const role = normalizeLower(element.getAttribute('role'));
             const className = typeof element.className === 'string'
-                ? element.className.toLowerCase()
-                : '';
+                ? normalizeLower(element.className)
+                : normalizeLower(element.getAttribute('class'));
 
             const looksLikeModal =
                 role === 'dialog'

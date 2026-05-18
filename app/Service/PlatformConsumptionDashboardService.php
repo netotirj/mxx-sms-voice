@@ -8,6 +8,7 @@ use WilliamCosta\DatabaseManager\Database;
 class PlatformConsumptionDashboardService
 {
     private const PRODUCT_KEYS = ['sms', 'voice', 'whatsapp', 'whatsapp_voice'];
+    private static array $schemaCache = [];
 
     private const ROUTES = [
         [
@@ -485,8 +486,9 @@ class PlatformConsumptionDashboardService
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
         ];
+        $callbackEventDate = self::callbackEventDateExpression('c');
         $where = [
-            'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
+            "{$callbackEventDate} BETWEEN :date_from AND :date_to",
             "UPPER(COALESCE(c.status_sms, '')) <> 'MO'",
         ];
 
@@ -825,8 +827,9 @@ class PlatformConsumptionDashboardService
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
         ];
+        $callbackEventDate = self::callbackEventDateExpression();
         $where = [
-            'COALESCE(update_date, date_send, received_at, webhook_created) BETWEEN :date_from AND :date_to',
+            "{$callbackEventDate} BETWEEN :date_from AND :date_to",
         ];
         if ($filters['tenant_id'] !== '') {
             $where[] = 'tenancy_id = :tenancy_id';
@@ -834,10 +837,10 @@ class PlatformConsumptionDashboardService
         }
 
         $rows = (new Database())->execute(
-            "SELECT DATE(COALESCE(update_date, date_send, received_at, webhook_created)) AS day_ref, COUNT(*) AS total
+            "SELECT DATE({$callbackEventDate}) AS day_ref, COUNT(*) AS total
              FROM callback
              WHERE " . implode(' AND ', $where) . "
-             GROUP BY DATE(COALESCE(update_date, date_send, received_at, webhook_created))",
+             GROUP BY DATE({$callbackEventDate})",
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
@@ -1081,8 +1084,11 @@ class PlatformConsumptionDashboardService
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
         ];
+        $callbackEventDate = self::callbackEventDateExpression('c');
+        $callbackProvider = self::callbackProviderExpression('c');
+        $callbackCarrier = self::callbackCarrierExpression('c');
         $where = [
-            'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
+            "{$callbackEventDate} BETWEEN :date_from AND :date_to",
             "UPPER(COALESCE(c.status_sms, '')) <> 'MO'",
         ];
 
@@ -1101,22 +1107,22 @@ class PlatformConsumptionDashboardService
             }
         }
 
-        $daySelect = $withDay ? "DATE(COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created)) AS day_ref," : '';
-        $dayGroup = $withDay ? "DATE(COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created)), " : '';
+        $daySelect = $withDay ? "DATE({$callbackEventDate}) AS day_ref," : '';
+        $dayGroup = $withDay ? "DATE({$callbackEventDate}), " : '';
 
         return (new Database())->execute(
             "SELECT
                 {$daySelect}
                 c.tenancy_id,
                 t.name AS tenancy_name,
-                COALESCE(NULLIF(LOWER(TRIM(c.sms_provider)), ''), :default_sms_provider) AS provider_ref,
-                COALESCE(NULLIF(c.operator, ''), 'UNKNOWN') AS carrier_ref,
+                {$callbackProvider} AS provider_ref,
+                {$callbackCarrier} AS carrier_ref,
                 COUNT(*) AS message_count,
                 COALESCE(SUM(c.value_sms), 0) AS revenue_total
              FROM callback c
              LEFT JOIN tenancies t ON t.id = c.tenancy_id
              WHERE " . implode(' AND ', $where) . "
-             GROUP BY {$dayGroup} c.tenancy_id, t.name, COALESCE(NULLIF(LOWER(TRIM(c.sms_provider)), ''), :default_sms_provider), COALESCE(NULLIF(c.operator, ''), 'UNKNOWN')",
+             GROUP BY {$dayGroup} c.tenancy_id, t.name, {$callbackProvider}, {$callbackCarrier}",
             $params + [':default_sms_provider' => CallbackSms::defaultSmsProvider()]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
@@ -1436,8 +1442,9 @@ class PlatformConsumptionDashboardService
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
         ];
+        $callbackEventDate = self::callbackEventDateExpression('c');
         $where = [
-            'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
+            "{$callbackEventDate} BETWEEN :date_from AND :date_to",
             "UPPER(COALESCE(c.status_sms, '')) IN ('UNDELIVERABLE', 'EXPIRED', 'REJECTED', 'BLACKLIST', 'UNKNOWN', 'DELETED')",
         ];
 
@@ -1451,7 +1458,7 @@ class PlatformConsumptionDashboardService
                     t.name AS tenancy_name,
                     c.phone_sms AS reference_id,
                     c.status_sms AS status_label,
-                    COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) AS occurred_at
+                    {$callbackEventDate} AS occurred_at
              FROM callback c
              LEFT JOIN tenancies t ON t.id = c.tenancy_id
              WHERE " . implode(' AND ', $where) . "
@@ -1699,5 +1706,73 @@ class PlatformConsumptionDashboardService
         $billedDuration = 60 + $extra;
 
         return round(($billedDuration / 60) * $minuteCost, 4);
+    }
+
+    private static function callbackEventDateExpression(string $alias = 'c'): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+        $parts = [];
+
+        foreach (['update_date', 'date_send', 'received_at', 'webhook_created'] as $column) {
+            if (self::columnExists('callback', $column)) {
+                $parts[] = $prefix . $column;
+            }
+        }
+
+        if ($parts === []) {
+            return 'NULL';
+        }
+
+        return 'COALESCE(' . implode(', ', $parts) . ')';
+    }
+
+    private static function callbackProviderExpression(string $alias = 'c'): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+        $providers = [];
+
+        if (self::columnExists('callback', 'sms_provider')) {
+            $providers[] = "LOWER(TRIM({$prefix}sms_provider))";
+        }
+
+        if (self::columnExists('callback', 'id_partner')) {
+            $providers[] = "LOWER(TRIM({$prefix}id_partner))";
+        }
+
+        if ($providers === []) {
+            return ':default_sms_provider';
+        }
+
+        return "COALESCE(NULLIF(" . implode(", ''), NULLIF(", $providers) . ", ''), :default_sms_provider)";
+    }
+
+    private static function callbackCarrierExpression(string $alias = 'c'): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+
+        if (self::columnExists('callback', 'operator')) {
+            return "COALESCE(NULLIF({$prefix}operator, ''), 'UNKNOWN')";
+        }
+
+        return "'UNKNOWN'";
+    }
+
+    private static function columnExists(string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (array_key_exists($cacheKey, self::$schemaCache)) {
+            return self::$schemaCache[$cacheKey];
+        }
+
+        try {
+            $row = (new Database())->execute(
+                "SHOW COLUMNS FROM {$table} LIKE :column",
+                [':column' => $column]
+            )->fetch();
+        } catch (\Throwable) {
+            $row = false;
+        }
+
+        return self::$schemaCache[$cacheKey] = (bool)$row;
     }
 }

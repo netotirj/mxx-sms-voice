@@ -52,6 +52,7 @@ class GlobalCosts extends ViewComponents
             'status' => 'ok',
             'data' => $rows,
             'summary' => PlatformGlobalCostService::auditSummary(),
+            'blueprint' => PlatformGlobalCostService::formBlueprint(),
         ], 'application/json');
     }
 

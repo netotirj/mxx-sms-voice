@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Model\Entity\CallbackSms;
 use WilliamCosta\DatabaseManager\Database;
 
 class PlatformConsumptionDashboardService
@@ -202,19 +203,17 @@ class PlatformConsumptionDashboardService
                 'dashboard_atual' => 'Consolida operação por perfil, mas não padroniza receita/custo/lucro globais em uma área exclusiva do superadmin.',
                 'custos_globais' => 'Fonte oficial de custo global já criada, mas a visão de consumo financeiro consolidado ainda não estava fechada.',
                 'whatsapp_custos' => 'Já expõe cost_brl em relatórios internos, porém não havia resumo global cruzado com receita confirmada.',
+                'custos_sms_voz_upstream' => 'SMS e Voz agora usam a tabela oficial platform_global_costs como fonte upstream da plataforma, separada do preço comercial do cliente.',
             ],
             'missing_before_this_stage' => [
-                'rota_exclusiva_superadmin',
-                'cards_globais_receita_custo_lucro',
-                'ranking_global_por_tenant',
-                'visao_unificada_sms_voz_whatsapp',
-                'padrao_unico_de_filtros_periodo_tenant_produto_status',
+                'cobertura_total_depende_de_cadastro_manual_dos_custos_sms_e_voz',
             ],
             'duplicates_or_risks' => [
                 'dashboard atual usa somatórios operacionais e financeiros em pontos diferentes',
                 'voz exige agregação por call_id/channel_id para não duplicar pernas',
                 'sms depende de callback final e charged do lote para reconciliação',
                 'whatsapp mistura CDR operacional e cobrança confirmada por billed',
+                'sem custo upstream cadastrado para SMS/Voz, a margem global desses produtos ficará subestimada',
             ],
             'performance' => [
                 'SSE atual não foi reaproveitado para evitar carga global contínua sobre toda a plataforma',
@@ -361,106 +360,22 @@ class PlatformConsumptionDashboardService
 
     private static function smsPlatformCost(array $filters): float
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $total = 0.0;
+        foreach (self::smsUpstreamRows($filters) as $row) {
+            $total += self::resolveSmsUpstreamCost($row) * (int)($row['message_count'] ?? 0);
         }
 
-        $slugPlaceholders = [];
-        foreach (self::REVENUE_SLUGS as $index => $slug) {
-            $key = ':sms_cost_slug_' . $index;
-            $slugPlaceholders[] = $key;
-            $params[$key] = $slug;
-        }
-
-        $total = (new Database())->execute(
-            "SELECT COALESCE(SUM(batch_cost), 0) AS total
-             FROM (
-                SELECT l.related_id,
-                       MAX(CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.admin_upstream_total_charge')), '0') AS DECIMAL(14,4))) AS batch_cost
-                FROM financial_transaction_ledger l
-                WHERE l.status = 'committed'
-                  AND l.source = 'sms_batch_callback'
-                  AND l.processed_at BETWEEN :date_from AND :date_to
-                  {$tenantWhere}
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                GROUP BY l.related_id
-             ) cost_rows",
-            $params
-        )->fetchColumn();
-
-        return round((float)$total, 4);
+        return round($total, 4);
     }
 
     private static function voicePlatformCost(array $filters): float
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $total = 0.0;
+        foreach (self::voiceUpstreamRows($filters) as $row) {
+            $total += self::resolveVoiceUpstreamCost($row);
         }
 
-        $slugPlaceholders = [];
-        foreach (self::REVENUE_SLUGS as $index => $slug) {
-            $key = ':voice_cost_slug_' . $index;
-            $slugPlaceholders[] = $key;
-            $params[$key] = $slug;
-        }
-
-        $ledgerTotal = (new Database())->execute(
-            "SELECT COALESCE(SUM(call_cost), 0) AS total
-             FROM (
-                SELECT l.related_id,
-                       MAX(CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.admin_upstream_estimated_cost')), '0') AS DECIMAL(14,4))) AS call_cost
-                FROM financial_transaction_ledger l
-                WHERE l.status = 'committed'
-                  AND l.source = 'voice_cdr_usage'
-                  AND l.processed_at BETWEEN :date_from AND :date_to
-                  {$tenantWhere}
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                GROUP BY l.related_id
-             ) cost_rows",
-            $params
-        )->fetchColumn();
-
-        if ((float)$ledgerTotal > 0) {
-            return round((float)$ledgerTotal, 4);
-        }
-
-        $fallbackRows = (new Database())->execute(
-            "SELECT
-                COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key,
-                MAX(COALESCE(c.billsec, c.duration, 0)) AS duration_one,
-                MAX(COALESCE(c.call_minute_cost, 0)) AS call_minute_cost,
-                MAX(COALESCE(c.sms_cost, 0)) AS sms_cost,
-                MAX(UPPER(COALESCE(c.type, 'VOICE'))) AS voice_type
-             FROM cdr c
-             WHERE COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to
-             " . ($filters['tenant_id'] !== '' ? " AND c.tenancy_id = :tenancy_id" : "") . "
-             GROUP BY COALESCE(NULLIF(c.call_id, ''), c.channel_id)",
-            [
-                ':date_from' => $filters['date_from'] . ' 00:00:00',
-                ':date_to' => $filters['date_to'] . ' 23:59:59',
-            ] + ($filters['tenant_id'] !== '' ? [':tenancy_id' => $filters['tenant_id']] : [])
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        $computed = 0.0;
-        foreach ($fallbackRows as $row) {
-            $computed += self::fallbackVoiceCallCost($row);
-        }
-
-        return round($computed, 4);
+        return round($total, 4);
     }
 
     private static function whatsMessageCost(array $filters): float
@@ -570,6 +485,7 @@ class PlatformConsumptionDashboardService
         ];
         $where = [
             'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
+            "UPPER(COALESCE(c.status_sms, '')) <> 'MO'",
         ];
 
         if ($filters['tenant_id'] !== '') {
@@ -626,6 +542,7 @@ class PlatformConsumptionDashboardService
         ];
         $where = [
             "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to",
+            "(c.type IS NULL OR LOWER(COALESCE(c.type, 'voice')) IN ('normal', 'outbound', 'inbound', 'voice'))",
         ];
 
         if ($filters['tenant_id'] !== '') {
@@ -1044,43 +961,21 @@ class PlatformConsumptionDashboardService
             return [];
         }
 
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
+        $mapped = [];
+        foreach (self::smsUpstreamRows($filters, true) as $row) {
+            $day = (string)($row['day_ref'] ?? '');
+            if ($day === '') {
+                continue;
+            }
 
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+            $mapped[$day] = round(
+                ($mapped[$day] ?? 0)
+                + (self::resolveSmsUpstreamCost($row) * (int)($row['message_count'] ?? 0)),
+                4
+            );
         }
 
-        $slugPlaceholders = [];
-        foreach (self::REVENUE_SLUGS as $index => $slug) {
-            $key = ':sms_cost_series_slug_' . $index;
-            $slugPlaceholders[] = $key;
-            $params[$key] = $slug;
-        }
-
-        $rows = (new Database())->execute(
-            "SELECT day_ref, COALESCE(SUM(batch_cost), 0) AS total
-             FROM (
-                SELECT DATE(l.processed_at) AS day_ref,
-                       l.related_id,
-                       MAX(CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.admin_upstream_total_charge')), '0') AS DECIMAL(14,4))) AS batch_cost
-                FROM financial_transaction_ledger l
-                WHERE l.status = 'committed'
-                  AND l.source = 'sms_batch_callback'
-                  AND l.processed_at BETWEEN :date_from AND :date_to
-                  {$tenantWhere}
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                GROUP BY DATE(l.processed_at), l.related_id
-             ) cost_rows
-             GROUP BY day_ref",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        return self::mapDayAmountRows($rows);
+        return $mapped;
     }
 
     private static function voiceCostSeries(array $filters): array
@@ -1089,48 +984,17 @@ class PlatformConsumptionDashboardService
             return [];
         }
 
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
+        $mapped = [];
+        foreach (self::voiceUpstreamRows($filters, true) as $row) {
+            $day = (string)($row['day_ref'] ?? '');
+            if ($day === '') {
+                continue;
+            }
 
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+            $mapped[$day] = round(($mapped[$day] ?? 0) + self::resolveVoiceUpstreamCost($row), 4);
         }
 
-        $slugPlaceholders = [];
-        foreach (self::REVENUE_SLUGS as $index => $slug) {
-            $key = ':voice_cost_series_slug_' . $index;
-            $slugPlaceholders[] = $key;
-            $params[$key] = $slug;
-        }
-
-        $rows = (new Database())->execute(
-            "SELECT day_ref, COALESCE(SUM(call_cost), 0) AS total
-             FROM (
-                SELECT DATE(l.processed_at) AS day_ref,
-                       l.related_id,
-                       MAX(CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.admin_upstream_estimated_cost')), '0') AS DECIMAL(14,4))) AS call_cost
-                FROM financial_transaction_ledger l
-                WHERE l.status = 'committed'
-                  AND l.source = 'voice_cdr_usage'
-                  AND l.processed_at BETWEEN :date_from AND :date_to
-                  {$tenantWhere}
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                GROUP BY DATE(l.processed_at), l.related_id
-             ) cost_rows
-             GROUP BY day_ref",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        $mapped = self::mapDayAmountRows($rows);
-        if (array_sum($mapped) > 0) {
-            return $mapped;
-        }
-
-        return self::fallbackVoiceCostSeries($filters);
+        return $mapped;
     }
 
     private static function whatsCostSeries(array $filters): array
@@ -1209,6 +1073,151 @@ class PlatformConsumptionDashboardService
         return $mapped;
     }
 
+    private static function smsUpstreamRows(array $filters, bool $withDay = false): array
+    {
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+        $where = [
+            'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
+            "UPPER(COALESCE(c.status_sms, '')) <> 'MO'",
+        ];
+
+        if ($filters['tenant_id'] !== '') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        if (!in_array($filters['status'], ['', 'all'], true)) {
+            if ($filters['status'] === 'failed') {
+                $where[] = "UPPER(COALESCE(c.status_sms, '')) IN ('UNDELIVERABLE', 'EXPIRED', 'REJECTED', 'BLACKLIST', 'UNKNOWN', 'DELETED')";
+            } elseif ($filters['status'] === 'delivered') {
+                $where[] = "UPPER(COALESCE(c.status_sms, '')) = 'DELIVERED'";
+            } elseif ($filters['status'] === 'sent') {
+                $where[] = "UPPER(COALESCE(c.status_sms, '')) = 'SENT'";
+            }
+        }
+
+        $daySelect = $withDay ? "DATE(COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created)) AS day_ref," : '';
+        $dayGroup = $withDay ? "DATE(COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created)), " : '';
+
+        return (new Database())->execute(
+            "SELECT
+                {$daySelect}
+                c.tenancy_id,
+                t.name AS tenancy_name,
+                COALESCE(NULLIF(c.id_partner, ''), 'default') AS provider_ref,
+                COALESCE(NULLIF(c.operator, ''), 'UNKNOWN') AS carrier_ref,
+                COUNT(*) AS message_count,
+                COALESCE(SUM(c.value_sms), 0) AS revenue_total
+             FROM callback c
+             LEFT JOIN tenancies t ON t.id = c.tenancy_id
+             WHERE " . implode(' AND ', $where) . "
+             GROUP BY {$dayGroup} c.tenancy_id, t.name, COALESCE(NULLIF(c.id_partner, ''), 'default'), COALESCE(NULLIF(c.operator, ''), 'UNKNOWN')",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function resolveSmsUpstreamCost(array $row): float
+    {
+        $provider = trim((string)($row['provider_ref'] ?? ''));
+        $carrier = CallbackSms::normalizeOperatorForDashboard((string)($row['carrier_ref'] ?? ''));
+
+        return PlatformGlobalCostService::resolveAmount('SMS', [
+            'provider' => $provider !== 'default' ? $provider : null,
+            'carrier' => $carrier,
+        ], 0.0);
+    }
+
+    private static function voiceUpstreamRows(array $filters, bool $withDay = false): array
+    {
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+        $where = [
+            "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to",
+            "(c.type IS NULL OR LOWER(COALESCE(c.type, 'voice')) IN ('normal', 'outbound', 'inbound', 'voice'))",
+        ];
+
+        if ($filters['tenant_id'] !== '') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        if (!in_array($filters['status'], ['', 'all'], true)) {
+            $statusMap = [
+                'answered' => 'ANSWER',
+                'failed' => 'FAILED',
+                'busy' => 'BUSY',
+                'cancelled' => 'CANCEL',
+            ];
+
+            if (isset($statusMap[$filters['status']])) {
+                $where[] = 'UPPER(COALESCE(c.dialstatus, \'\')) = :voice_status';
+                $params[':voice_status'] = $statusMap[$filters['status']];
+            }
+        }
+
+        $dayExpr = "DATE(COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at))";
+        $innerDaySelect = $withDay ? "{$dayExpr} AS day_ref," : '';
+        $dayGroup = $withDay ? "{$dayExpr}, " : '';
+
+        return (new Database())->execute(
+            "SELECT
+                grouped_calls.*
+             FROM (
+                SELECT
+                    {$innerDaySelect}
+                    c.tenancy_id,
+                    t.name AS tenancy_name,
+                    COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key,
+                    MAX(COALESCE(c.billsec, c.duration, 0)) AS duration_one,
+                    MAX(COALESCE(c.final_price, c.value, 0)) AS revenue_total,
+                    MAX(COALESCE(c.trunk_id, '')) AS trunk_id_ref,
+                    MAX(COALESCE(c.trunk, '')) AS trunk_name_ref,
+                    MAX(COALESCE(c.trunk_billing_type, '')) AS trunk_billing_type_ref
+                FROM cdr c
+                LEFT JOIN tenancies t ON t.id = c.tenancy_id
+                WHERE " . implode(' AND ', $where) . "
+                GROUP BY {$dayGroup} c.tenancy_id, t.name, COALESCE(NULLIF(c.call_id, ''), c.channel_id)
+             ) grouped_calls",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function resolveVoiceUpstreamCost(array $row): float
+    {
+        $normalizedBilling = VoicePricingService::normalizeBillingType($row['trunk_billing_type_ref'] ?? null);
+        $routeKey = match ($normalizedBilling) {
+            VoicePricingService::BILLING_OPEN => PlatformGlobalCostService::VOICE_ROUTE_OPEN,
+            VoicePricingService::BILLING_SMART => PlatformGlobalCostService::VOICE_ROUTE_SMART,
+            default => null,
+        };
+
+        if ($routeKey === null) {
+            return 0.0;
+        }
+
+        $minuteCost = PlatformGlobalCostService::resolveAmount('VOICE', [
+            'route_key' => $routeKey,
+            'provider' => trim((string)($row['trunk_id_ref'] ?? '')) ?: null,
+            'carrier' => trim((string)($row['trunk_name_ref'] ?? '')) ?: null,
+        ], 0.0);
+
+        if ($minuteCost <= 0) {
+            return 0.0;
+        }
+
+        return self::fallbackVoiceCallCost([
+            'voice_type' => 'voice',
+            'duration_one' => $row['duration_one'] ?? 0,
+            'call_minute_cost' => $minuteCost,
+            'sms_cost' => 0,
+        ]);
+    }
+
     private static function topTenants(array $filters): array
     {
         $tenants = [];
@@ -1220,6 +1229,8 @@ class PlatformConsumptionDashboardService
             }
             $tenants[$tenancyId] = self::seedTenantRow($tenants[$tenancyId] ?? null, $row);
             $tenants[$tenancyId]['sms_total'] += (int)($row['sms_total'] ?? 0);
+            $tenants[$tenancyId]['revenue'] = round($tenants[$tenancyId]['revenue'] + (float)($row['revenue'] ?? 0), 4);
+            $tenants[$tenancyId]['cost'] = round($tenants[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
         }
 
         foreach (self::allowsProduct($filters, 'voice') ? self::voiceTenantRows($filters) : [] as $row) {
@@ -1229,6 +1240,8 @@ class PlatformConsumptionDashboardService
             }
             $tenants[$tenancyId] = self::seedTenantRow($tenants[$tenancyId] ?? null, $row);
             $tenants[$tenancyId]['voice_total'] += (int)($row['voice_total'] ?? 0);
+            $tenants[$tenancyId]['revenue'] = round($tenants[$tenancyId]['revenue'] + (float)($row['revenue'] ?? 0), 4);
+            $tenants[$tenancyId]['cost'] = round($tenants[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
         }
 
         foreach (self::allowsProduct($filters, 'whatsapp') ? self::whatsTenantRows($filters) : [] as $row) {
@@ -1269,54 +1282,57 @@ class PlatformConsumptionDashboardService
 
     private static function smsTenantRows(array $filters): array
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-        $where = [
-            'COALESCE(c.update_date, c.date_send, c.received_at, c.webhook_created) BETWEEN :date_from AND :date_to',
-        ];
-        if ($filters['tenant_id'] !== '') {
-            $where[] = 'c.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $rows = [];
+        foreach (self::smsUpstreamRows($filters) as $row) {
+            $tenancyId = (string)($row['tenancy_id'] ?? '');
+            if ($tenancyId === '') {
+                continue;
+            }
+
+            if (!isset($rows[$tenancyId])) {
+                $rows[$tenancyId] = [
+                    'tenancy_id' => $tenancyId,
+                    'tenancy_name' => trim((string)($row['tenancy_name'] ?? '')) ?: 'Tenant',
+                    'sms_total' => 0,
+                    'revenue' => 0.0,
+                    'cost' => 0.0,
+                ];
+            }
+
+            $qty = (int)($row['message_count'] ?? 0);
+            $rows[$tenancyId]['sms_total'] += $qty;
+            $rows[$tenancyId]['revenue'] = round($rows[$tenancyId]['revenue'] + (float)($row['revenue_total'] ?? 0), 4);
+            $rows[$tenancyId]['cost'] = round($rows[$tenancyId]['cost'] + (self::resolveSmsUpstreamCost($row) * $qty), 4);
         }
 
-        return (new Database())->execute(
-            "SELECT c.tenancy_id, t.name AS tenancy_name, COUNT(*) AS sms_total
-             FROM callback c
-             LEFT JOIN tenancies t ON t.id = c.tenancy_id
-             WHERE " . implode(' AND ', $where) . "
-             GROUP BY c.tenancy_id, t.name",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        return array_values($rows);
     }
 
     private static function voiceTenantRows(array $filters): array
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-        $where = [
-            "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to",
-        ];
-        if ($filters['tenant_id'] !== '') {
-            $where[] = 'c.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $rows = [];
+        foreach (self::voiceUpstreamRows($filters) as $row) {
+            $tenancyId = (string)($row['tenancy_id'] ?? '');
+            if ($tenancyId === '') {
+                continue;
+            }
+
+            if (!isset($rows[$tenancyId])) {
+                $rows[$tenancyId] = [
+                    'tenancy_id' => $tenancyId,
+                    'tenancy_name' => trim((string)($row['tenancy_name'] ?? '')) ?: 'Tenant',
+                    'voice_total' => 0,
+                    'revenue' => 0.0,
+                    'cost' => 0.0,
+                ];
+            }
+
+            $rows[$tenancyId]['voice_total']++;
+            $rows[$tenancyId]['revenue'] = round($rows[$tenancyId]['revenue'] + (float)($row['revenue_total'] ?? 0), 4);
+            $rows[$tenancyId]['cost'] = round($rows[$tenancyId]['cost'] + self::resolveVoiceUpstreamCost($row), 4);
         }
 
-        return (new Database())->execute(
-            "SELECT tenancy_id, tenancy_name, COUNT(*) AS voice_total
-             FROM (
-                SELECT c.tenancy_id, t.name AS tenancy_name, COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key
-                FROM cdr c
-                LEFT JOIN tenancies t ON t.id = c.tenancy_id
-                WHERE " . implode(' AND ', $where) . "
-                GROUP BY c.tenancy_id, t.name, COALESCE(NULLIF(c.call_id, ''), c.channel_id)
-             ) grouped_calls
-             GROUP BY tenancy_id, tenancy_name",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        return array_values($rows);
     }
 
     private static function whatsTenantRows(array $filters): array
@@ -1463,6 +1479,7 @@ class PlatformConsumptionDashboardService
         $where = [
             "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to",
             "UPPER(COALESCE(c.dialstatus, '')) IN ('FAILED', 'NOANSWER', 'BUSY', 'CANCEL')",
+            "(c.type IS NULL OR LOWER(COALESCE(c.type, 'voice')) IN ('normal', 'outbound', 'inbound', 'voice'))",
         ];
         if ($filters['tenant_id'] !== '') {
             $where[] = 'c.tenancy_id = :tenancy_id';

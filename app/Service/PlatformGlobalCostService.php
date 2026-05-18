@@ -9,6 +9,8 @@ class PlatformGlobalCostService
 {
     public const TABLE = 'platform_global_costs';
     public const LOG_TABLE = 'platform_global_cost_logs';
+    public const VOICE_ROUTE_OPEN = 'TARIFA_ABERTA';
+    public const VOICE_ROUTE_SMART = 'TARIFA_INTELIGENTE';
 
     private const MODULES = ['VOICE', 'SMS', 'WHATSAPP'];
     private static array $columnCache = [];
@@ -135,6 +137,28 @@ class PlatformGlobalCostService
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
+    public static function formBlueprint(): array
+    {
+        return [
+            'modules' => [
+                ['value' => 'SMS', 'label' => 'SMS'],
+                ['value' => 'VOICE', 'label' => 'Voz'],
+            ],
+            'voice_routes' => [
+                [
+                    'value' => self::VOICE_ROUTE_OPEN,
+                    'label' => 'CLI Aberta',
+                    'aliases' => ['cli_aberta', 'open', 'aberta'],
+                ],
+                [
+                    'value' => self::VOICE_ROUTE_SMART,
+                    'label' => 'Bina Inteligente',
+                    'aliases' => ['bina_inteligente', 'smart', 'inteligente', 'bina'],
+                ],
+            ],
+        ];
+    }
+
     public static function history(array $filters = []): array
     {
         self::ensureSchema();
@@ -250,7 +274,7 @@ class PlatformGlobalCostService
         self::ensureSchema();
 
         $module = self::normalizeModule($module);
-        $routeKey = self::nullableUpper($criteria['route_key'] ?? null);
+        $routeKey = self::normalizedRouteKey($module, $criteria['route_key'] ?? null);
         $countryCode = self::nullableUpper($criteria['country_code'] ?? null);
         $prefixCode = self::nullableDigits($criteria['prefix_code'] ?? null);
         $provider = self::nullableLower($criteria['provider'] ?? null);
@@ -350,11 +374,27 @@ class PlatformGlobalCostService
             }
         }
 
+        $voiceRows = array_values(array_filter($rows, static fn (array $row): bool => strtoupper((string)($row['module'] ?? '')) === 'VOICE'));
+        $smsRows = array_values(array_filter($rows, static fn (array $row): bool => strtoupper((string)($row['module'] ?? '')) === 'SMS'));
+
         return [
             'generated_at' => date('Y-m-d H:i:s'),
             'total_rows' => count($rows),
             'active_rows' => count(array_filter($rows, static fn (array $row): bool => !empty($row['active']))),
             'by_module' => $byModule,
+            'voice_routes' => [
+                'cli_aberta' => count(array_filter($voiceRows, static fn (array $row): bool => (string)($row['route_key'] ?? '') === self::VOICE_ROUTE_OPEN)),
+                'bina_inteligente' => count(array_filter($voiceRows, static fn (array $row): bool => (string)($row['route_key'] ?? '') === self::VOICE_ROUTE_SMART)),
+            ],
+            'sms_dimensions' => [
+                'with_provider' => count(array_filter($smsRows, static fn (array $row): bool => trim((string)($row['provider'] ?? '')) !== '')),
+                'with_carrier' => count(array_filter($smsRows, static fn (array $row): bool => trim((string)($row['carrier'] ?? '')) !== '')),
+                'defaults' => count(array_filter($smsRows, static function (array $row): bool {
+                    return trim((string)($row['provider'] ?? '')) === ''
+                        && trim((string)($row['carrier'] ?? '')) === ''
+                        && trim((string)($row['route_key'] ?? '')) === '';
+                })),
+            ],
         ];
     }
 
@@ -377,9 +417,14 @@ class PlatformGlobalCostService
             $effectiveDate .= ' 00:00:00';
         }
 
+        $routeKey = self::normalizedRouteKey($module, $payload['route_key'] ?? null);
+        if ($module === 'VOICE' && $routeKey === null) {
+            throw new \RuntimeException('Selecione o tipo de tarifacao da voz: CLI Aberta ou Bina Inteligente.');
+        }
+
         return [
             'module' => $module,
-            'route_key' => self::nullableUpper($payload['route_key'] ?? null),
+            'route_key' => $routeKey,
             'country_code' => self::nullableUpper($payload['country_code'] ?? null),
             'prefix_code' => self::nullableDigits($payload['prefix_code'] ?? null),
             'provider' => self::nullableString($payload['provider'] ?? null),
@@ -400,6 +445,24 @@ class PlatformGlobalCostService
         }
 
         return $module;
+    }
+
+    private static function normalizedRouteKey(string $module, mixed $value): ?string
+    {
+        $normalized = self::nullableUpper($value);
+        if ($normalized === null) {
+            return null;
+        }
+
+        if ($module !== 'VOICE') {
+            return $normalized;
+        }
+
+        return match (strtolower($normalized)) {
+            'tarifa_aberta', 'cli_aberta', 'cli_open', 'open', 'aberta' => self::VOICE_ROUTE_OPEN,
+            'tarifa_inteligente', 'bina_inteligente', 'smart', 'inteligente', 'bina' => self::VOICE_ROUTE_SMART,
+            default => throw new \RuntimeException('Tipo de tarifa de voz inválido. Use CLI Aberta ou Bina Inteligente.'),
+        };
     }
 
     private static function logChange(string $action, int $globalCostId, ?array $before, ?array $after, int $actorUserId): void

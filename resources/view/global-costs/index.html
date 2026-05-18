@@ -129,6 +129,113 @@
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+        <div class="mb-5 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-800">Fonte Oficial de Custos Upstream</h2>
+                <p class="text-xs text-slate-400">Cadastre aqui o custo real que a plataforma paga em SMS e Voz. WhatsApp continua usando a base de custo operacional já existente.</p>
+            </div>
+            <div id="gc-cost-source-summary" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="grid gap-6 xl:grid-cols-[380px,minmax(0,1fr)]">
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                <div class="mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700">Cadastro de custo</h3>
+                        <p class="text-[11px] text-slate-400">Use `CLI Aberta` e `Bina Inteligente` na Voz. No SMS, combine provedor e operadora quando precisar de precisão por rota.</p>
+                    </div>
+                    <button id="gc-cost-reset" type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Limpar</button>
+                </div>
+
+                <form id="gc-cost-form" class="space-y-4">
+                    <input id="gc-cost-id" name="id" type="hidden">
+                    <input name="currency" type="hidden" value="BRL">
+
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Módulo</label>
+                        <select id="gc-cost-module" name="module" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none">
+                            <option value="SMS">SMS</option>
+                            <option value="VOICE">Voz</option>
+                        </select>
+                    </div>
+
+                    <div id="gc-cost-route-wrap" class="hidden">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Tipo de Tarifa da Voz</label>
+                        <select id="gc-cost-route-key" name="route_key" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"></select>
+                    </div>
+
+                    <div>
+                        <label id="gc-cost-provider-label" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Provedor / Partner</label>
+                        <input id="gc-cost-provider" name="provider" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none" placeholder="Ex.: zenvia-account ou trunk-01">
+                    </div>
+
+                    <div>
+                        <label id="gc-cost-carrier-label" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Operadora / Identificação complementar</label>
+                        <input id="gc-cost-carrier" name="carrier" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none" placeholder="Ex.: vivo, claro, nome do tronco">
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Custo Unitário</label>
+                            <input id="gc-cost-price" name="cost_price" type="number" min="0" step="0.0001" required class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Vigência</label>
+                            <input id="gc-cost-effective-date" name="effective_date" type="datetime-local" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Observações</label>
+                        <textarea id="gc-cost-notes" name="notes" rows="3" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none" placeholder="Ex.: custo oficial da operadora vigente a partir de maio."></textarea>
+                    </div>
+
+                    <label class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600">
+                        <input id="gc-cost-active" name="active" type="checkbox" value="1" checked class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                        Registro ativo para ser usado no cálculo global
+                    </label>
+
+                    <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">Salvar custo upstream</button>
+                </form>
+            </div>
+
+            <div class="space-y-6">
+                <div class="rounded-2xl border border-slate-100 bg-white">
+                    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-700">Custos cadastrados</h3>
+                            <p class="text-[11px] text-slate-400">Esses registros são a fonte oficial do custo real para `SMS` e `Voz` no painel global.</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                                    <th class="px-4 py-3">Módulo</th>
+                                    <th class="px-4 py-3">Escopo</th>
+                                    <th class="px-4 py-3">Custo</th>
+                                    <th class="px-4 py-3">Vigência</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gc-cost-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-100 bg-white p-5">
+                    <div class="mb-4">
+                        <h3 class="text-sm font-bold text-slate-700">Histórico recente</h3>
+                        <p class="text-[11px] text-slate-400">Auditoria de publicação, ajustes de valor e ativações/desativações.</p>
+                    </div>
+                    <div id="gc-cost-history" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
         <div class="mb-4">
             <h2 class="text-lg font-semibold text-slate-800">Auditoria das Fontes</h2>
             <p class="text-xs text-slate-400">Mapa das tabelas e campos usados para custo real, valor cobrado e margem.</p>
@@ -158,7 +265,11 @@
 (() => {
     const state = {
         chart: null,
-        data: null
+        data: null,
+        costRows: [],
+        costSummary: null,
+        costBlueprint: null,
+        costHistory: []
     };
     const baseUrl = (
         window.baseUrl
@@ -168,6 +279,18 @@
 
     const qs = (selector) => document.querySelector(selector);
     const qsa = (selector) => Array.from(document.querySelectorAll(selector));
+    const text = (value, fallback = '') => String(value ?? fallback);
+
+    const notify = (type, message) => {
+        if (window.notyf && typeof window.notyf[type] === 'function') {
+            window.notyf[type](message);
+            return;
+        }
+        if (type === 'error') {
+            console.error(message);
+        }
+        window.alert(message);
+    };
 
     const currency = (value) => {
         const amount = Number(value || 0);
@@ -205,6 +328,11 @@
             <p class="mt-1 text-sm text-slate-700 break-words">${value}</p>
         </div>
     `;
+
+    const pill = (label, tone = 'slate') => {
+        const palette = toneMap[tone] || toneMap.slate;
+        return `<span class="inline-flex items-center rounded-full border ${palette.border} bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${palette.text}">${label}</span>`;
+    };
 
     function safeKeyLabel(value) {
         return String(value ?? '')
@@ -496,10 +624,274 @@
         `).join('');
     }
 
+    async function loadCostRegistry() {
+        const [rowsResponse, historyResponse] = await Promise.all([
+            fetch(`${baseUrl}/global-costs/search`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            }),
+            fetch(`${baseUrl}/global-costs/history?limit=12`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+        ]);
+
+        const rowsPayload = await rowsResponse.json();
+        const historyPayload = await historyResponse.json();
+
+        if (!rowsResponse.ok || rowsPayload.status !== 'ok') {
+            throw new Error(rowsPayload.message || 'Falha ao carregar os custos upstream.');
+        }
+        if (!historyResponse.ok || historyPayload.status !== 'ok') {
+            throw new Error(historyPayload.message || 'Falha ao carregar o histórico de custos.');
+        }
+
+        state.costRows = Array.isArray(rowsPayload.data) ? rowsPayload.data : [];
+        state.costSummary = rowsPayload.summary || {};
+        state.costBlueprint = rowsPayload.blueprint || {};
+        state.costHistory = Array.isArray(historyPayload.data) ? historyPayload.data : [];
+        renderCostRegistry();
+    }
+
+    function voiceRouteOptions() {
+        const rows = Array.isArray(state.costBlueprint?.voice_routes) ? state.costBlueprint.voice_routes : [];
+        if (!rows.length) {
+            return [
+                { value: 'TARIFA_ABERTA', label: 'CLI Aberta' },
+                { value: 'TARIFA_INTELIGENTE', label: 'Bina Inteligente' }
+            ];
+        }
+        return rows.map((row) => ({
+            value: text(row.value),
+            label: text(row.label, row.value)
+        }));
+    }
+
+    function renderCostRegistry() {
+        renderCostSourceSummary();
+        renderCostRows();
+        renderCostHistory();
+        syncCostFormFields();
+    }
+
+    function renderCostSourceSummary() {
+        const summary = state.costSummary || {};
+        const voiceRoutes = summary.voice_routes || {};
+        const smsDimensions = summary.sms_dimensions || {};
+
+        const items = [
+            pill(`Total ${integer(summary.total_rows || 0)}`, 'slate'),
+            pill(`Ativos ${integer(summary.active_rows || 0)}`, 'emerald'),
+            pill(`SMS ${integer(summary.by_module?.SMS || 0)}`, 'amber'),
+            pill(`Voz ${integer(summary.by_module?.VOICE || 0)}`, 'cyan'),
+            pill(`CLI Aberta ${integer(voiceRoutes.cli_aberta || 0)}`, 'indigo'),
+            pill(`Bina ${integer(voiceRoutes.bina_inteligente || 0)}`, 'violet'),
+            pill(`SMS c/ Provedor ${integer(smsDimensions.with_provider || 0)}`, 'green'),
+            pill(`SMS default ${integer(smsDimensions.defaults || 0)}`, 'rose')
+        ];
+
+        qs('#gc-cost-source-summary').innerHTML = items.join('');
+    }
+
+    function rowScopeLabel(row) {
+        const module = text(row.module).toUpperCase();
+        if (module === 'VOICE') {
+            const routeMap = {
+                TARIFA_ABERTA: 'CLI Aberta',
+                TARIFA_INTELIGENTE: 'Bina Inteligente'
+            };
+            const route = routeMap[text(row.route_key).toUpperCase()] || text(row.route_key, 'Sem tipo');
+            const provider = text(row.provider).trim();
+            const carrier = text(row.carrier).trim();
+            return [route, provider, carrier].filter(Boolean).join(' | ');
+        }
+
+        const provider = text(row.provider).trim() || 'SMS default';
+        const carrier = text(row.carrier).trim();
+        return [provider, carrier].filter(Boolean).join(' | ');
+    }
+
+    function renderCostRows() {
+        if (!state.costRows.length) {
+            qs('#gc-cost-rows').innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Nenhum custo upstream cadastrado ainda.</td></tr>';
+            return;
+        }
+
+        qs('#gc-cost-rows').innerHTML = state.costRows.map((row) => {
+            const id = Number(row.id || 0);
+            const active = Number(row.active || 0) === 1;
+            return `
+                <tr class="border-b border-slate-100 text-slate-600">
+                    <td class="px-4 py-3 font-semibold text-slate-700">${text(row.module)}</td>
+                    <td class="px-4 py-3">${rowScopeLabel(row)}</td>
+                    <td class="px-4 py-3 font-semibold text-slate-700">${currency(row.cost_price || 0)}</td>
+                    <td class="px-4 py-3">${text(row.effective_date, '-')}</td>
+                    <td class="px-4 py-3">${active ? '<span class="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold uppercase text-emerald-600">ativo</span>' : '<span class="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold uppercase text-rose-600">inativo</span>'}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex justify-end gap-2">
+                            <button type="button" data-edit-cost="${id}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Editar</button>
+                            <button type="button" data-toggle-cost="${id}" data-next-active="${active ? '0' : '1'}" class="rounded-lg px-3 py-2 text-xs font-bold ${active ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}">${active ? 'Desativar' : 'Ativar'}</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderCostHistory() {
+        if (!state.costHistory.length) {
+            qs('#gc-cost-history').innerHTML = '<div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-5 text-sm text-slate-400">Sem histórico recente.</div>';
+            return;
+        }
+
+        qs('#gc-cost-history').innerHTML = state.costHistory.map((row) => `
+            <div class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">${text(row.module)} · ${text(row.action_name, 'update')}</p>
+                        <p class="text-sm font-bold text-slate-700">${text(row.impact_summary, 'Mudança registrada')}</p>
+                    </div>
+                    <span class="text-[11px] font-semibold text-slate-400">${text(row.created_at, '-')}</span>
+                </div>
+                <p class="mt-2 text-xs text-slate-500">${text(row.route_key || row.provider || row.carrier || 'Escopo geral')}</p>
+            </div>
+        `).join('');
+    }
+
+    function resetCostForm() {
+        qs('#gc-cost-form').reset();
+        qs('#gc-cost-id').value = '';
+        qs('#gc-cost-module').value = 'SMS';
+        qs('#gc-cost-active').checked = true;
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        qs('#gc-cost-effective-date').value = now.toISOString().slice(0, 16);
+        syncCostFormFields();
+    }
+
+    function syncCostFormFields() {
+        const module = text(qs('#gc-cost-module')?.value, 'SMS').toUpperCase();
+        const routeWrap = qs('#gc-cost-route-wrap');
+        const routeField = qs('#gc-cost-route-key');
+        const providerLabel = qs('#gc-cost-provider-label');
+        const carrierLabel = qs('#gc-cost-carrier-label');
+
+        if (module === 'VOICE') {
+            routeWrap.classList.remove('hidden');
+            routeField.innerHTML = voiceRouteOptions().map((item) => `<option value="${text(item.value)}">${text(item.label)}</option>`).join('');
+            providerLabel.textContent = 'ID / Slug do Tronco';
+            carrierLabel.textContent = 'Nome do Tronco / Operadora';
+            if (!routeField.value) {
+                routeField.value = 'TARIFA_ABERTA';
+            }
+            return;
+        }
+
+        routeWrap.classList.add('hidden');
+        routeField.innerHTML = '';
+        providerLabel.textContent = 'Provedor / Partner';
+        carrierLabel.textContent = 'Operadora / Complemento';
+    }
+
+    function fillCostForm(row) {
+        qs('#gc-cost-id').value = text(row.id);
+        qs('#gc-cost-module').value = text(row.module, 'SMS');
+        syncCostFormFields();
+        if (text(row.module).toUpperCase() === 'VOICE') {
+            qs('#gc-cost-route-key').value = text(row.route_key);
+        }
+        qs('#gc-cost-provider').value = text(row.provider);
+        qs('#gc-cost-carrier').value = text(row.carrier);
+        qs('#gc-cost-price').value = Number(row.cost_price || 0).toFixed(4);
+        qs('#gc-cost-notes').value = text(row.notes);
+        qs('#gc-cost-active').checked = Number(row.active || 0) === 1;
+        const effectiveDate = text(row.effective_date).replace(' ', 'T').slice(0, 16);
+        qs('#gc-cost-effective-date').value = effectiveDate;
+    }
+
+    async function submitCostForm(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        if (text(formData.get('module')).toUpperCase() !== 'VOICE') {
+            formData.set('route_key', '');
+        }
+
+        const response = await fetch(`${baseUrl}/global-costs/save`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'ok') {
+            throw new Error(payload.message || 'Falha ao salvar o custo upstream.');
+        }
+
+        notify('success', payload.message || 'Custo upstream salvo.');
+        resetCostForm();
+        await Promise.all([loadData(), loadCostRegistry()]);
+    }
+
+    async function toggleCostStatus(id, active) {
+        const formData = new FormData();
+        formData.append('active', active ? '1' : '0');
+
+        const response = await fetch(`${baseUrl}/global-costs/${id}/status`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'ok') {
+            throw new Error(payload.message || 'Falha ao atualizar o status.');
+        }
+
+        notify('success', payload.message || 'Status atualizado.');
+        await Promise.all([loadData(), loadCostRegistry()]);
+    }
+
+    function bindCostTableActions() {
+        qs('#gc-cost-rows').addEventListener('click', async (event) => {
+            const editButton = event.target.closest('[data-edit-cost]');
+            if (editButton) {
+                const id = Number(editButton.getAttribute('data-edit-cost') || 0);
+                const row = state.costRows.find((item) => Number(item.id || 0) === id);
+                if (row) {
+                    fillCostForm(row);
+                }
+                return;
+            }
+
+            const toggleButton = event.target.closest('[data-toggle-cost]');
+            if (!toggleButton) {
+                return;
+            }
+
+            const id = Number(toggleButton.getAttribute('data-toggle-cost') || 0);
+            const nextActive = Number(toggleButton.getAttribute('data-next-active') || 0) === 1;
+
+            try {
+                await toggleCostStatus(id, nextActive);
+            } catch (error) {
+                notify('error', error.message || 'Não foi possível atualizar o status do custo.');
+            }
+        });
+    }
+
     async function bootstrap() {
         syncCustomInputs();
         try {
-            await loadData();
+            await Promise.all([loadData(), loadCostRegistry()]);
         } catch (error) {
             console.error(error);
             qs('#gc-summary-cards').innerHTML = '<div class="col-span-full rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm text-rose-600">Falha ao carregar o painel de custos globais.</div>';
@@ -514,6 +906,18 @@
     qsa('#gc-date-from, #gc-date-to').forEach((element) => {
         element.addEventListener('change', () => setPreset('custom'));
     });
+    qs('#gc-cost-module').addEventListener('change', syncCostFormFields);
+    qs('#gc-cost-form').addEventListener('submit', async (event) => {
+        try {
+            await submitCostForm(event);
+        } catch (error) {
+            notify('error', error.message || 'Não foi possível salvar o custo upstream.');
+        }
+    });
+    qs('#gc-cost-reset').addEventListener('click', resetCostForm);
+
+    bindCostTableActions();
+    resetCostForm();
 
     bootstrap();
 })();

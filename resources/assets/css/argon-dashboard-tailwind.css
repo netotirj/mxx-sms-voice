@@ -806,6 +806,10 @@ h6 {
   left: -22.5rem;
 }
 
+.-left-\[9999px\] {
+  left: -9999px;
+}
+
 .-right-1 {
   right: -0.25rem;
 }
@@ -954,6 +958,10 @@ h6 {
   top: 3rem;
 }
 
+.top-16 {
+  top: 4rem;
+}
+
 .top-2 {
   top: 0.5rem;
 }
@@ -980,6 +988,10 @@ h6 {
 
 .top-full {
   top: 100%;
+}
+
+.isolate {
+  isolation: isolate;
 }
 
 .z-10 {
@@ -1407,6 +1419,10 @@ h6 {
 
 .aspect-video {
   aspect-ratio: 16 / 9;
+}
+
+.h-0 {
+  height: 0px;
 }
 
 .h-0\.5 {
@@ -1972,6 +1988,10 @@ h6 {
   min-width: 80px;
 }
 
+.min-w-full {
+  min-width: 100%;
+}
+
 .\!max-w-full {
   max-width: 100% !important;
 }
@@ -2292,6 +2312,10 @@ h6 {
 
 .resize {
   resize: both;
+}
+
+.list-decimal {
+  list-style-type: decimal;
 }
 
 .list-none {

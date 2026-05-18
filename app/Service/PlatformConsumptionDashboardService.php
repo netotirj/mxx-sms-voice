@@ -59,6 +59,8 @@ class PlatformConsumptionDashboardService
 
     public static function dashboard(array $filters = []): array
     {
+        CallbackSms::ensureCostTrackingSchema();
+
         $normalized = self::normalizeFilters($filters);
         $cacheKey = 'platform_consumption_dashboard:' . md5(json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
@@ -1107,15 +1109,15 @@ class PlatformConsumptionDashboardService
                 {$daySelect}
                 c.tenancy_id,
                 t.name AS tenancy_name,
-                COALESCE(NULLIF(c.id_partner, ''), 'default') AS provider_ref,
+                COALESCE(NULLIF(LOWER(TRIM(c.sms_provider)), ''), :default_sms_provider) AS provider_ref,
                 COALESCE(NULLIF(c.operator, ''), 'UNKNOWN') AS carrier_ref,
                 COUNT(*) AS message_count,
                 COALESCE(SUM(c.value_sms), 0) AS revenue_total
              FROM callback c
              LEFT JOIN tenancies t ON t.id = c.tenancy_id
              WHERE " . implode(' AND ', $where) . "
-             GROUP BY {$dayGroup} c.tenancy_id, t.name, COALESCE(NULLIF(c.id_partner, ''), 'default'), COALESCE(NULLIF(c.operator, ''), 'UNKNOWN')",
-            $params
+             GROUP BY {$dayGroup} c.tenancy_id, t.name, COALESCE(NULLIF(LOWER(TRIM(c.sms_provider)), ''), :default_sms_provider), COALESCE(NULLIF(c.operator, ''), 'UNKNOWN')",
+            $params + [':default_sms_provider' => CallbackSms::defaultSmsProvider()]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -1125,7 +1127,7 @@ class PlatformConsumptionDashboardService
         $carrier = CallbackSms::normalizeOperatorForDashboard((string)($row['carrier_ref'] ?? ''));
 
         return PlatformGlobalCostService::resolveAmount('SMS', [
-            'provider' => $provider !== 'default' ? $provider : null,
+            'provider' => $provider !== '' ? $provider : null,
             'carrier' => $carrier,
         ], 0.0);
     }

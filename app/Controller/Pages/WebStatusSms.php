@@ -195,6 +195,7 @@ class WebStatusSms
             $callback->status_sms  = $item['status'] ?? '';
             $callback->operator    = $item['sms_operator'] ?? '';
             $callback->id_partner  = $partnerId;
+            $callback->sms_provider = CallbackSms::defaultSmsProvider();
             $callback->user_id     = $obUser->id;
             $callback->tenancy_id  = $obUser->tenancy_id;
             $callback->date_send   = $dateSend ?: null;
@@ -262,12 +263,8 @@ class WebStatusSms
 
             $retailTotalCharge = round((float)($countData->value_total ?? 0), 4);
             $balanceData = BalanceSms::getBalanceSms($ownerId, $obUser->tenancy_id);
-            $adminUnitRate = PlatformGlobalCostService::resolveAmount(
-                'SMS',
-                ['route_key' => 'DEFAULT'],
-                $balanceData ? (float)$balanceData->value_sms : 0.0
-            );
-            $adminTotalCharge = round($adminUnitRate * $totalTarifavel, 4);
+            $fallbackUnitRate = $balanceData ? (float)$balanceData->value_sms : 0.0;
+            $adminTotalCharge = self::resolveBatchAdminSmsTotalCharge($batchId, $obUser->tenancy_id, $fallbackUnitRate);
 
             $resellerTotalCharge = null;
             if (!empty($context->reseller_id)) {
@@ -454,6 +451,7 @@ class WebStatusSms
             $callback->value_sms = 0.00;
             $callback->camp_name = $batch->camp_name ?? ($outboundContext['camp_name'] ?? '');
             $callback->id_partner = (string)$partnerId;
+            $callback->sms_provider = CallbackSms::defaultSmsProvider();
             $callback->user_id = (int)$obUser->id;
             $callback->tenancy_id = (string)$obUser->tenancy_id;
             $callback->campaign_id = $batch->campaign_id ?? ($outboundContext['campaign_id'] ?? null);
@@ -580,5 +578,37 @@ class WebStatusSms
                 KEY idx_partner_phone (id_partner, phone_sms)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+    }
+
+    private static function resolveBatchAdminSmsTotalCharge(int $batchId, string $tenancyId, float $fallbackUnitRate): float
+    {
+        $rows = (new Database())->execute(
+            "SELECT
+                COALESCE(NULLIF(LOWER(TRIM(sms_provider)), ''), :default_provider) AS sms_provider,
+                COALESCE(NULLIF(TRIM(operator), ''), 'UNKNOWN') AS operator_name,
+                COUNT(*) AS total_messages
+             FROM callback
+             WHERE batch_id = :batch_id
+               AND tenancy_id = :tenancy_id
+               AND UPPER(COALESCE(status_sms, '')) IN ('SENT', 'DELIVERED', 'UNDELIVERABLE', 'EXPIRED')
+             GROUP BY COALESCE(NULLIF(LOWER(TRIM(sms_provider)), ''), :default_provider), COALESCE(NULLIF(TRIM(operator), ''), 'UNKNOWN')",
+            [
+                ':batch_id' => $batchId,
+                ':tenancy_id' => $tenancyId,
+                ':default_provider' => CallbackSms::defaultSmsProvider(),
+            ]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $total = 0.0;
+        foreach ($rows as $row) {
+            $unitCost = PlatformGlobalCostService::resolveAmount('SMS', [
+                'provider' => (string)($row['sms_provider'] ?? ''),
+                'carrier' => CallbackSms::normalizeOperatorForDashboard((string)($row['operator_name'] ?? '')),
+            ], $fallbackUnitRate);
+
+            $total += round($unitCost * (int)($row['total_messages'] ?? 0), 4);
+        }
+
+        return round($total, 4);
     }
 }

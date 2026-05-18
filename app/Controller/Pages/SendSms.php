@@ -52,7 +52,7 @@ class SendSms extends ViewComponents
             $ownerBalance = BalanceSms::getBalanceSms((int)$context->owner_admin_id, $tenancyId);
             $adminUnitRate = PlatformGlobalCostService::resolveAmount(
                 'SMS',
-                ['route_key' => 'DEFAULT'],
+                ['provider' => CallbackSms::defaultSmsProvider()],
                 (float)($ownerBalance->value_sms ?? 0)
             );
             $adminAmount = round($totalUnits * $adminUnitRate, 4);
@@ -363,6 +363,7 @@ class SendSms extends ViewComponents
                 $callback->status_sms     = $smsResult['status'] ?? '';
                 $callback->camp_name      = $smsResult['nome_campanha'] ?? '';
                 $callback->id_partner     = $smsResult['parceiro_id'] ?? '';
+                $callback->sms_provider   = CallbackSms::defaultSmsProvider();
                 $callback->user_id        = $obUser['id'];
                 $callback->tenancy_id     = $obUser['tenancy_id'];
                 $callback->campaign_id    = $campaignId;

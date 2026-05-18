@@ -663,6 +663,7 @@ class PublicDemo
             $callback->value_sms = '0.0000';
             $callback->camp_name = 'site_test:test_sms';
             $callback->id_partner = (string)($detail['parceiro_id'] ?? $partnerId);
+            $callback->sms_provider = CallbackSms::defaultSmsProvider();
             $callback->date_send = date('Y-m-d H:i:s');
             $callback->user_id = self::siteTestUserId();
             $callback->tenancy_id = self::siteTestTenancyId();

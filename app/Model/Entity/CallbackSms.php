@@ -8,6 +8,8 @@ use WilliamCosta\DatabaseManager\Database;
 
 class CallbackSms
 {
+    private const DEFAULT_SMS_PROVIDER = 'disparopro';
+    private static array $columnCache = [];
 
     public int $id;
     public string $tenancy_id;
@@ -20,6 +22,7 @@ class CallbackSms
     public string $value_sms;
     public string $camp_name;
     public string $id_partner;
+    public ?string $sms_provider = null;
     public string $date_send;
     public string $update_date;
     public ?string $codigo_status = null;
@@ -252,10 +255,11 @@ class CallbackSms
 
     public function insertStatus(): \PDOStatement
     {
+        self::ensureSmsProviderColumn();
 
         $query = "
-            INSERT INTO callback (phone_sms, status_sms, value_sms, camp_name, id_partner, date_send, user_id, tenancy_id, campaign_id, batch_id, operator)
-            VALUES (:phone_sms, :status_sms, :value_sms, :camp_name, :id_partner, :date_send, :user_id, :tenancy_id, :campaign_id, :batch_id, :operator)
+            INSERT INTO callback (phone_sms, status_sms, value_sms, camp_name, id_partner, sms_provider, date_send, user_id, tenancy_id, campaign_id, batch_id, operator)
+            VALUES (:phone_sms, :status_sms, :value_sms, :camp_name, :id_partner, :sms_provider, :date_send, :user_id, :tenancy_id, :campaign_id, :batch_id, :operator)
         ";
 
         $params = [
@@ -264,6 +268,7 @@ class CallbackSms
             ':value_sms'  => $this->value_sms,
             ':camp_name' => $this->camp_name,
             ':id_partner' => $this->id_partner,
+            ':sms_provider' => self::normalizeSmsProvider($this->sms_provider),
             ':date_send' => $this->date_send,
             ':user_id' => $this->user_id,
             ':tenancy_id' => $this->tenancy_id,
@@ -282,12 +287,15 @@ class CallbackSms
 
     public function updateStatus(): int
     {
+        self::ensureSmsProviderColumn();
+
         $query = "
         UPDATE callback
         SET
             status_sms = :status_sms,
             value_sms  = :value_sms,
             operator   = :operator,
+            sms_provider = :sms_provider,
             update_date = :update_date,
             codigo_status = :codigo_status,
             codigo_detalhe = :codigo_detalhe,
@@ -313,6 +321,7 @@ class CallbackSms
             ':status_sms'  => strtoupper(trim($this->status_sms)),
             ':value_sms'   => $this->value_sms ?? 0.00,
             ':operator'    => $this->operator ?? '',
+            ':sms_provider' => self::normalizeSmsProvider($this->sms_provider),
             ':update_date' => $this->update_date ?? date('Y-m-d H:i:s'),
             ':codigo_status' => $this->codigo_status,
             ':codigo_detalhe' => $this->codigo_detalhe,
@@ -340,9 +349,12 @@ class CallbackSms
 
     public function updateMoResponse(): int
     {
+        self::ensureSmsProviderColumn();
+
         $query = "
             UPDATE callback
             SET
+                sms_provider = COALESCE(:sms_provider, sms_provider),
                 webhook_action = :webhook_action,
                 webhook_object = :webhook_object,
                 webhook_created = :webhook_created,
@@ -361,6 +373,7 @@ class CallbackSms
         ";
 
         $stmt = (new Database())->execute($query, [
+            ':sms_provider' => self::normalizeSmsProvider($this->sms_provider),
             ':webhook_action' => $this->webhook_action,
             ':webhook_object' => $this->webhook_object,
             ':webhook_created' => $this->webhook_created,
@@ -382,6 +395,8 @@ class CallbackSms
 
     public function insertInboundMo(): \PDOStatement
     {
+        self::ensureSmsProviderColumn();
+
         $query = "
             INSERT INTO callback (
                 phone_sms,
@@ -389,6 +404,7 @@ class CallbackSms
                 value_sms,
                 camp_name,
                 id_partner,
+                sms_provider,
                 date_send,
                 update_date,
                 user_id,
@@ -412,6 +428,7 @@ class CallbackSms
                 :value_sms,
                 :camp_name,
                 :id_partner,
+                :sms_provider,
                 :date_send,
                 :update_date,
                 :user_id,
@@ -438,6 +455,7 @@ class CallbackSms
             ':value_sms' => $this->value_sms ?? 0.00,
             ':camp_name' => $this->camp_name ?? '',
             ':id_partner' => $this->id_partner,
+            ':sms_provider' => self::normalizeSmsProvider($this->sms_provider),
             ':date_send' => $this->date_send ?? $this->received_at ?? date('Y-m-d H:i:s'),
             ':update_date' => $this->update_date ?? $this->received_at ?? date('Y-m-d H:i:s'),
             ':user_id' => $this->user_id,
@@ -510,6 +528,8 @@ class CallbackSms
 
     public static function fetchStatusCountsWithDay(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?int $campaignId = null): array
     {
+        self::ensureSmsProviderColumn();
+
         $db = new Database('callback');
 
         [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
@@ -727,6 +747,8 @@ class CallbackSms
 
     public static function countGroupedByOperatorAllStatus(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
     {
+        self::ensureSmsProviderColumn();
+
         [$conditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
 
         $period = strtolower((string)$period);
@@ -775,6 +797,8 @@ class CallbackSms
 
     public static function countInboundMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
     {
+        self::ensureSmsProviderColumn();
+
         [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
         $conditions = array_merge($scopeConditions, [
             "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
@@ -794,6 +818,8 @@ class CallbackSms
 
     public static function countGroupedByOperatorMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null, ?string $period = null): array
     {
+        self::ensureSmsProviderColumn();
+
         [$scopeConditions, $params] = self::buildScopeConditions($tenancyId, $userId, $resellerId);
         $conditions = array_merge($scopeConditions, [
             "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
@@ -852,6 +878,8 @@ class CallbackSms
 
     public static function getCallbackSmsCount(?string $tenancyId = null, ?string $searchValue = null, ?int $userId = null): int
     {
+        self::ensureSmsProviderColumn();
+
         $query = "SELECT COUNT(*) as qtd FROM callback WHERE 1=1";
         $params = [];
 
@@ -888,6 +916,8 @@ class CallbackSms
 
     public static function getSmsForRealtime(array $filters = [], string $order = "id DESC"): array
     {
+        self::ensureSmsProviderColumn();
+
         [$scopeConditions, $params] = self::buildScopeConditions(
             $filters['tenancy_id'] ?? null,
             !empty($filters['user_id']) ? (int)$filters['user_id'] : null,
@@ -961,6 +991,61 @@ class CallbackSms
               LIMIT 5000";
 
         return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public static function defaultSmsProvider(): string
+    {
+        return self::DEFAULT_SMS_PROVIDER;
+    }
+
+    public static function ensureCostTrackingSchema(): void
+    {
+        self::ensureSmsProviderColumn();
+    }
+
+    private static function normalizeSmsProvider(?string $provider): ?string
+    {
+        $value = strtolower(trim((string)($provider ?? self::DEFAULT_SMS_PROVIDER)));
+        return $value === '' ? null : $value;
+    }
+
+    private static function ensureSmsProviderColumn(): void
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+
+        if (!self::columnExists('callback', 'sms_provider')) {
+            (new Database())->execute(
+                "ALTER TABLE callback ADD COLUMN sms_provider VARCHAR(80) NULL AFTER id_partner"
+            );
+        }
+
+        (new Database())->execute(
+            "UPDATE callback
+             SET sms_provider = :provider
+             WHERE (sms_provider IS NULL OR sms_provider = '')
+               AND id_partner IS NOT NULL
+               AND id_partner <> ''",
+            [':provider' => self::DEFAULT_SMS_PROVIDER]
+        );
+    }
+
+    private static function columnExists(string $table, string $column): bool
+    {
+        $key = "{$table}.{$column}";
+        if (array_key_exists($key, self::$columnCache)) {
+            return self::$columnCache[$key];
+        }
+
+        $row = (new Database())->execute(
+            "SHOW COLUMNS FROM {$table} LIKE :column",
+            [':column' => $column]
+        )->fetch();
+
+        return self::$columnCache[$key] = (bool)$row;
     }
 
 

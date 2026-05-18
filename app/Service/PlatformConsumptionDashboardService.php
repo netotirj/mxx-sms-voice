@@ -827,7 +827,7 @@ class PlatformConsumptionDashboardService
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
         ];
-        $callbackEventDate = self::callbackEventDateExpression();
+        $callbackEventDate = self::callbackEventDateExpression('');
         $where = [
             "{$callbackEventDate} BETWEEN :date_from AND :date_to",
         ];

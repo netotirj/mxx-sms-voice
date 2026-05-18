@@ -29,6 +29,17 @@ class PlatformConsumptionDashboardService
         'admin_retail_fallback',
     ];
 
+    private const LEGACY_REVENUE_SOURCES = [
+        'whatsapp' => [
+            'whatsapp_delivered',
+            'whatsapp_auth',
+            'whatsapp_batch_auth',
+        ],
+        'whatsapp_voice' => [
+            'whatsapp_voice',
+        ],
+    ];
+
     public static function ensureRouteCatalog(): void
     {
         static $done = false;
@@ -296,13 +307,6 @@ class PlatformConsumptionDashboardService
     {
         FinancialTransactionService::ensureSchema();
 
-        $products = [
-            'sms' => ['sms_batch_callback'],
-            'voice' => ['voice_cdr_usage', 'voice_service_fee'],
-            'whatsapp' => ['whatsapp_whatsapp_delivered', 'whatsapp_whatsapp_auth', 'whatsapp_whatsapp_batch_auth'],
-            'whatsapp_voice' => ['whatsapp_voice_call_debited'],
-        ];
-
         $totals = [
             'sms' => 0.0,
             'voice' => 0.0,
@@ -310,7 +314,7 @@ class PlatformConsumptionDashboardService
             'whatsapp_voice' => 0.0,
         ];
 
-        foreach ($products as $product => $sources) {
+        foreach (array_keys($totals) as $product) {
             if (!self::allowsProduct($filters, $product)) {
                 continue;
             }
@@ -320,18 +324,25 @@ class PlatformConsumptionDashboardService
                 ':date_to' => $filters['date_to'] . ' 23:59:59',
             ];
 
-            $sourcePlaceholders = [];
-            foreach ($sources as $index => $source) {
-                $key = ':source_' . $product . '_' . $index;
-                $sourcePlaceholders[] = $key;
-                $params[$key] = $source;
-            }
-
             $slugPlaceholders = [];
             foreach (self::REVENUE_SLUGS as $index => $slug) {
                 $key = ':slug_' . $product . '_' . $index;
                 $slugPlaceholders[] = $key;
                 $params[$key] = $slug;
+            }
+
+            $sourcePlaceholders = [];
+            foreach (self::productRevenueSources($product) as $index => $source) {
+                $key = ':source_' . $product . '_' . $index;
+                $sourcePlaceholders[] = $key;
+                $params[$key] = $source;
+            }
+
+            $legacySourcePlaceholders = [];
+            foreach (self::legacyRevenueSources($product) as $index => $source) {
+                $key = ':legacy_source_' . $product . '_' . $index;
+                $legacySourcePlaceholders[] = $key;
+                $params[$key] = $source;
             }
 
             $tenantWhere = '';
@@ -340,6 +351,10 @@ class PlatformConsumptionDashboardService
                 $params[':tenancy_id'] = $filters['tenant_id'];
             }
 
+            $legacyRevenueClause = $legacySourcePlaceholders !== []
+                ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
+                : '';
+
             $total = (new Database())->execute(
                 "SELECT COALESCE(SUM(l.amount), 0) AS total
                  FROM financial_transaction_ledger l
@@ -347,7 +362,10 @@ class PlatformConsumptionDashboardService
                    AND l.processed_at BETWEEN :date_from AND :date_to
                    {$tenantWhere}
                    AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-                   AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")",
+                   AND (
+                       COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+                       {$legacyRevenueClause}
+                   )",
                 $params
             )->fetchColumn();
 
@@ -757,15 +775,12 @@ class PlatformConsumptionDashboardService
             $params[$key] = $slug;
         }
 
-        $revenueSources = [
-            'sms_batch_callback',
-            'voice_cdr_usage',
-            'voice_service_fee',
-            'whatsapp_whatsapp_delivered',
-            'whatsapp_whatsapp_auth',
-            'whatsapp_whatsapp_batch_auth',
-            'whatsapp_voice_call_debited',
-        ];
+        $revenueSources = array_values(array_unique(array_merge(
+            self::productRevenueSources('sms'),
+            self::productRevenueSources('voice'),
+            self::productRevenueSources('whatsapp'),
+            self::productRevenueSources('whatsapp_voice')
+        )));
         $sourcePlaceholders = [];
         foreach ($revenueSources as $index => $source) {
             $key = ':series_source_' . $index;
@@ -773,13 +788,28 @@ class PlatformConsumptionDashboardService
             $params[$key] = $source;
         }
 
+        $legacyRevenueSources = array_values(array_unique(array_merge(
+            self::legacyRevenueSources('whatsapp'),
+            self::legacyRevenueSources('whatsapp_voice')
+        )));
+        $legacySourcePlaceholders = [];
+        foreach ($legacyRevenueSources as $index => $source) {
+            $key = ':series_legacy_source_' . $index;
+            $legacySourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
+        $legacyRevenueClause = $legacySourcePlaceholders !== []
+            ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
+            : '';
+
         $rows = (new Database())->execute(
             "SELECT
                 DATE(l.processed_at) AS day_ref,
                 CASE
                     WHEN l.source = 'sms_batch_callback' THEN 'sms'
                     WHEN l.source IN ('voice_cdr_usage', 'voice_service_fee') THEN 'voice'
-                    WHEN l.source = 'whatsapp_voice_call_debited' THEN 'whatsapp_voice'
+                    WHEN l.source IN ('whatsapp_voice_call_debited', 'whatsapp_voice') THEN 'whatsapp_voice'
                     ELSE 'whatsapp'
                 END AS product,
                 SUM(l.amount) AS total
@@ -788,7 +818,10 @@ class PlatformConsumptionDashboardService
                AND l.processed_at BETWEEN :date_from AND :date_to
                {$tenantWhere}
                AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-               AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+               AND (
+                   COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+                   {$legacyRevenueClause}
+               )
              GROUP BY DATE(l.processed_at), product",
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -1932,7 +1965,6 @@ class PlatformConsumptionDashboardService
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
-            ':voice_source' => 'whatsapp_voice_call_debited',
         ];
 
         $tenantWhere = '';
@@ -1947,6 +1979,24 @@ class PlatformConsumptionDashboardService
             $slugPlaceholders[] = $key;
             $params[$key] = $slug;
         }
+
+        $sourcePlaceholders = [];
+        foreach (self::productRevenueSources('whatsapp_voice') as $index => $source) {
+            $key = ':wa_voice_source_' . $index;
+            $sourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
+        $legacySourcePlaceholders = [];
+        foreach (self::legacyRevenueSources('whatsapp_voice') as $index => $source) {
+            $key = ':wa_voice_legacy_source_' . $index;
+            $legacySourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
+        $legacyRevenueClause = $legacySourcePlaceholders !== []
+            ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
+            : '';
 
         $outerWhere = [];
         self::applyWhatsVoiceStatusFilter($outerWhere, $params, $filters['status'] ?? 'all', 'wc');
@@ -1972,10 +2022,13 @@ class PlatformConsumptionDashboardService
                 FROM financial_transaction_ledger l
                 WHERE l.status = 'committed'
                   AND l.related_type = 'whatsapp_voice_call'
-                  AND l.source = :voice_source
+                  AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
                   AND l.processed_at BETWEEN :date_from AND :date_to
                   {$tenantWhere}
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+                  AND (
+                      COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+                      {$legacyRevenueClause}
+                  )
                 GROUP BY l.tenancy_id, l.related_id
              ) x
              LEFT JOIN whatsapp_call_cdr wc ON wc.call_id = x.call_id
@@ -1983,5 +2036,21 @@ class PlatformConsumptionDashboardService
              {$outerClause}",
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function productRevenueSources(string $product): array
+    {
+        return match ($product) {
+            'sms' => ['sms_batch_callback'],
+            'voice' => ['voice_cdr_usage', 'voice_service_fee'],
+            'whatsapp' => ['whatsapp_whatsapp_delivered', 'whatsapp_whatsapp_auth', 'whatsapp_whatsapp_batch_auth', ...self::legacyRevenueSources('whatsapp')],
+            'whatsapp_voice' => ['whatsapp_voice_call_debited', ...self::legacyRevenueSources('whatsapp_voice')],
+            default => [],
+        };
+    }
+
+    private static function legacyRevenueSources(string $product): array
+    {
+        return self::LEGACY_REVENUE_SOURCES[$product] ?? [];
     }
 }

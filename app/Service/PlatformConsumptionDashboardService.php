@@ -761,6 +761,22 @@ class PlatformConsumptionDashboardService
             $params[$key] = $slug;
         }
 
+        $revenueSources = [
+            'sms_batch_callback',
+            'voice_cdr_usage',
+            'voice_service_fee',
+            'whatsapp_whatsapp_delivered',
+            'whatsapp_whatsapp_auth',
+            'whatsapp_whatsapp_batch_auth',
+            'whatsapp_voice_call_debited',
+        ];
+        $sourcePlaceholders = [];
+        foreach ($revenueSources as $index => $source) {
+            $key = ':series_source_' . $index;
+            $sourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
         $rows = (new Database())->execute(
             "SELECT
                 DATE(l.processed_at) AS day_ref,
@@ -775,6 +791,7 @@ class PlatformConsumptionDashboardService
              WHERE l.status = 'committed'
                AND l.processed_at BETWEEN :date_from AND :date_to
                {$tenantWhere}
+               AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
                AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
              GROUP BY DATE(l.processed_at), product",
             $params

@@ -462,7 +462,7 @@
         const marginTotal = Number(summary.profit_total || 0);
 
         const cards = [
-            card('Custo Total de Voz', currency(products.voice?.cost || 0), `${integer(summary.voice_total)} chamadas tradicionais faturadas.`, 'cyan'),
+            card('Custo Total de Voz', currency(products.voice?.cost || 0), `${integer(summary.voice_total)} chamadas no período filtrado.`, 'cyan'),
             card('Custo Total de SMS', currency(products.sms?.cost || 0), `${integer(summary.sms_delivered)} entregues e ${integer(summary.sms_failed)} falhos.`, 'amber'),
             card('Custo Total de WhatsApp', currency(products.whatsapp?.cost || 0), `${integer(summary.whatsapp_total)} mensagens cobradas e ${integer(summary.whatsapp_read)} lidas.`, 'green'),
             card('Custo Global Total', currency(summary.cost_total), 'Soma dos custos reais reconciliados por produto.', 'rose'),

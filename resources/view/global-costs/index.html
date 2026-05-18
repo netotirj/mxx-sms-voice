@@ -281,6 +281,40 @@
     const qsa = (selector) => Array.from(document.querySelectorAll(selector));
     const text = (value, fallback = '') => String(value ?? fallback);
 
+    const previewBody = (rawBody) => String(rawBody || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+
+    const parseJsonPayload = (rawBody, routeLabel) => {
+        const body = String(rawBody || '');
+
+        try {
+            return JSON.parse(body);
+        } catch (_) {
+            const firstObject = body.indexOf('{');
+            const lastObject = body.lastIndexOf('}');
+            const firstArray = body.indexOf('[');
+            const lastArray = body.lastIndexOf(']');
+
+            const start = [firstObject, firstArray].filter((index) => index >= 0).sort((a, b) => a - b)[0] ?? -1;
+            const endCandidates = [lastObject, lastArray].filter((index) => index >= 0).sort((a, b) => b - a);
+            const end = endCandidates[0] ?? -1;
+
+            if (start >= 0 && end > start) {
+                const candidate = body.slice(start, end + 1);
+                try {
+                    return JSON.parse(candidate);
+                } catch (_) {
+                }
+            }
+
+            const preview = previewBody(body);
+            if (body.trim().startsWith('<')) {
+                throw new Error(`A rota ${routeLabel} retornou HTML em vez de JSON. Trecho: ${preview}`);
+            }
+
+            throw new Error(`Resposta invalida em ${routeLabel}. Trecho: ${preview}`);
+        }
+    };
+
     const notify = (type, message) => {
         if (window.notyf && typeof window.notyf[type] === 'function') {
             window.notyf[type](message);
@@ -390,14 +424,7 @@
         });
 
         const rawBody = await response.text();
-        let payload = null;
-        try {
-            payload = JSON.parse(rawBody);
-        } catch (_) {
-            throw new Error(rawBody && rawBody.trim().startsWith('<')
-                ? 'A rota retornou HTML em vez de JSON. Verifique login/permissao da rota /global-costs/data.'
-                : 'Resposta invalida ao carregar custos globais.');
-        }
+        const payload = parseJsonPayload(rawBody, '/global-costs/data');
 
         if (!response.ok || payload.status !== 'ok') {
             throw new Error(payload.message || 'Falha ao carregar custos globais.');
@@ -642,24 +669,8 @@
 
         const rowsBody = await rowsResponse.text();
         const historyBody = await historyResponse.text();
-        let rowsPayload = null;
-        let historyPayload = null;
-
-        try {
-            rowsPayload = JSON.parse(rowsBody);
-        } catch (_) {
-            throw new Error(rowsBody && rowsBody.trim().startsWith('<')
-                ? 'A rota /global-costs/search retornou HTML em vez de JSON. Verifique login/permissao.'
-                : 'Resposta invalida ao carregar o cadastro de custos globais.');
-        }
-
-        try {
-            historyPayload = JSON.parse(historyBody);
-        } catch (_) {
-            throw new Error(historyBody && historyBody.trim().startsWith('<')
-                ? 'A rota /global-costs/history retornou HTML em vez de JSON. Verifique login/permissao.'
-                : 'Resposta invalida ao carregar o historico de custos globais.');
-        }
+        const rowsPayload = parseJsonPayload(rowsBody, '/global-costs/search');
+        const historyPayload = parseJsonPayload(historyBody, '/global-costs/history');
 
         if (!rowsResponse.ok || rowsPayload.status !== 'ok') {
             throw new Error(rowsPayload.message || 'Falha ao carregar os custos upstream.');

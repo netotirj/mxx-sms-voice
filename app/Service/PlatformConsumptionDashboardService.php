@@ -116,6 +116,12 @@ class PlatformConsumptionDashboardService
                 'voice_acd_seconds' => $acd,
                 'whatsapp_voice_total' => (int)($whatsVoice['total_calls'] ?? 0),
                 'whatsapp_voice_answered' => (int)($whatsVoice['answered_calls'] ?? 0),
+                'whatsapp_voice_failed' => (int)($whatsVoice['failed_calls'] ?? 0),
+                'whatsapp_voice_inbound' => (int)($whatsVoice['inbound_calls'] ?? 0),
+                'whatsapp_voice_outbound' => (int)($whatsVoice['outbound_calls'] ?? 0),
+                'whatsapp_voice_billed' => (int)($whatsVoice['billed_calls'] ?? 0),
+                'whatsapp_voice_billed_minutes' => round((float)($whatsVoice['billed_minutes'] ?? 0), 4),
+                'whatsapp_voice_total_minutes' => round(((float)($whatsVoice['total_seconds'] ?? 0)) / 60, 4),
                 'active_tenants' => self::activeTenantCount($topTenants),
                 'products' => [
                     'sms' => [
@@ -348,6 +354,14 @@ class PlatformConsumptionDashboardService
             $totals[$product] = round((float)$total, 4);
         }
 
+        if (self::allowsProduct($filters, 'whatsapp_voice')) {
+            $totals['whatsapp_voice'] = round(array_reduce(
+                self::whatsVoiceFinancialRows($filters),
+                static fn (float $carry, array $row): float => $carry + (float)($row['revenue'] ?? 0),
+                0.0
+            ), 4);
+        }
+
         return $totals;
     }
 
@@ -428,47 +442,12 @@ class PlatformConsumptionDashboardService
 
     private static function whatsVoiceCost(array $filters): float
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-
-        $tenantWhere = '';
-        if ($filters['tenant_id'] !== '') {
-            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $total = 0.0;
+        foreach (self::whatsVoiceFinancialRows($filters) as $row) {
+            $total += (float)($row['cost'] ?? 0);
         }
 
-        $rows = (new Database())->execute(
-            "SELECT DISTINCT l.related_id
-             FROM financial_transaction_ledger l
-             WHERE l.status = 'committed'
-               AND l.related_type = 'whatsapp_voice_call'
-               AND l.processed_at BETWEEN :date_from AND :date_to
-               {$tenantWhere}",
-            $params
-        )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
-
-        if (!$rows) {
-            return 0.0;
-        }
-
-        $params = [];
-        $placeholders = [];
-        foreach ($rows as $index => $callId) {
-            $key = ':call_' . $index;
-            $placeholders[] = $key;
-            $params[$key] = (string)$callId;
-        }
-
-        $total = (new Database())->execute(
-            "SELECT COALESCE(SUM(base_cost), 0) AS total
-             FROM whatsapp_call_cdr
-             WHERE call_id IN (" . implode(', ', $placeholders) . ")",
-            $params
-        )->fetchColumn();
-
-        return round((float)$total, 4);
+        return round($total, 4);
     }
 
     private static function smsAggregate(array $filters): array
@@ -679,6 +658,11 @@ class PlatformConsumptionDashboardService
                 'total_calls' => 0,
                 'answered_calls' => 0,
                 'failed_calls' => 0,
+                'inbound_calls' => 0,
+                'outbound_calls' => 0,
+                'billed_calls' => 0,
+                'billed_minutes' => 0.0,
+                'total_seconds' => 0.0,
             ];
         }
 
@@ -695,11 +679,18 @@ class PlatformConsumptionDashboardService
             $params[':tenancy_id'] = $filters['tenant_id'];
         }
 
+        self::applyWhatsVoiceStatusFilter($where, $params, $filters['status'] ?? 'all', 'wc');
+
         $row = (new Database())->execute(
             "SELECT
                 COUNT(DISTINCT wc.call_id) AS total_calls,
                 SUM(CASE WHEN UPPER(COALESCE(wc.status, '')) IN ('COMPLETED', 'ANSWER', 'ACCEPTED') THEN 1 ELSE 0 END) AS answered_calls,
-                SUM(CASE WHEN UPPER(COALESCE(wc.status, '')) IN ('FAILED', 'NOANSWER', 'NOT_ANSWERED', 'BUSY', 'CANCELLED') THEN 1 ELSE 0 END) AS failed_calls
+                SUM(CASE WHEN UPPER(COALESCE(wc.status, '')) IN ('FAILED', 'NOANSWER', 'NOT_ANSWERED', 'BUSY', 'CANCELLED') THEN 1 ELSE 0 END) AS failed_calls,
+                COUNT(DISTINCT CASE WHEN LOWER(COALESCE(wc.direction, '')) = 'inbound' THEN wc.call_id END) AS inbound_calls,
+                COUNT(DISTINCT CASE WHEN LOWER(COALESCE(wc.direction, '')) = 'outbound' THEN wc.call_id END) AS outbound_calls,
+                COUNT(DISTINCT CASE WHEN wc.balance_debited_at IS NOT NULL THEN wc.call_id END) AS billed_calls,
+                COALESCE(SUM(CASE WHEN wc.balance_debited_at IS NOT NULL THEN COALESCE(wc.billable_minutes, 0) ELSE 0 END), 0) AS billed_minutes,
+                COALESCE(SUM(COALESCE(wc.duration_seconds, 0)), 0) AS total_seconds
              FROM whatsapp_call_cdr wc
              WHERE " . implode(' AND ', $where),
             $params
@@ -709,6 +700,11 @@ class PlatformConsumptionDashboardService
             'total_calls' => (int)($row['total_calls'] ?? 0),
             'answered_calls' => (int)($row['answered_calls'] ?? 0),
             'failed_calls' => (int)($row['failed_calls'] ?? 0),
+            'inbound_calls' => (int)($row['inbound_calls'] ?? 0),
+            'outbound_calls' => (int)($row['outbound_calls'] ?? 0),
+            'billed_calls' => (int)($row['billed_calls'] ?? 0),
+            'billed_minutes' => (float)($row['billed_minutes'] ?? 0),
+            'total_seconds' => (float)($row['total_seconds'] ?? 0),
         ];
     }
 
@@ -807,6 +803,26 @@ class PlatformConsumptionDashboardService
             $amount = round((float)($row['total'] ?? 0), 4);
             $series[$product][$day] = $amount;
             $series['revenue'][$day] = round($series['revenue'][$day] + $amount, 4);
+        }
+
+        if (self::allowsProduct($filters, 'whatsapp_voice')) {
+            foreach ($series['whatsapp_voice'] as $day => $amount) {
+                if (isset($series['revenue'][$day])) {
+                    $series['revenue'][$day] = round($series['revenue'][$day] - (float)$amount, 4);
+                }
+                $series['whatsapp_voice'][$day] = 0;
+            }
+
+            foreach (self::whatsVoiceFinancialRows($filters, true) as $row) {
+                $day = (string)($row['day_ref'] ?? '');
+                if (!isset($series['whatsapp_voice'][$day])) {
+                    continue;
+                }
+
+                $amount = round((float)($row['revenue'] ?? 0), 4);
+                $series['whatsapp_voice'][$day] = round($series['whatsapp_voice'][$day] + $amount, 4);
+                $series['revenue'][$day] = round($series['revenue'][$day] + $amount, 4);
+            }
         }
 
         foreach (self::smsCostSeries($filters) as $day => $amount) {
@@ -961,6 +977,8 @@ class PlatformConsumptionDashboardService
             $params[':tenancy_id'] = $filters['tenant_id'];
         }
 
+        self::applyWhatsVoiceStatusFilter($where, $params, $filters['status'] ?? 'all', '');
+
         $rows = (new Database())->execute(
             "SELECT DATE(COALESCE(started_at, answered_at, created_at)) AS day_ref, COUNT(DISTINCT call_id) AS total
              FROM whatsapp_call_cdr
@@ -1056,29 +1074,17 @@ class PlatformConsumptionDashboardService
             return [];
         }
 
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-        $where = [
-            "COALESCE(wc.started_at, wc.answered_at, wc.created_at) BETWEEN :date_from AND :date_to",
-            'wc.balance_debited_at IS NOT NULL',
-        ];
-        if ($filters['tenant_id'] !== '') {
-            $where[] = 'wc.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $mapped = [];
+        foreach (self::whatsVoiceFinancialRows($filters, true) as $row) {
+            $day = (string)($row['day_ref'] ?? '');
+            if ($day === '') {
+                continue;
+            }
+
+            $mapped[$day] = round(($mapped[$day] ?? 0) + (float)($row['cost'] ?? 0), 4);
         }
 
-        $rows = (new Database())->execute(
-            "SELECT DATE(COALESCE(wc.started_at, wc.answered_at, wc.created_at)) AS day_ref,
-                    COALESCE(SUM(wc.base_cost), 0) AS total
-             FROM whatsapp_call_cdr wc
-             WHERE " . implode(' AND ', $where) . "
-             GROUP BY DATE(COALESCE(wc.started_at, wc.answered_at, wc.created_at))",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        return self::mapDayAmountRows($rows);
+        return $mapped;
     }
 
     private static function mapDayAmountRows(array $rows): array
@@ -1370,7 +1376,7 @@ class PlatformConsumptionDashboardService
 
         usort($tenants, static function (array $left, array $right): int {
             return ((float)$right['revenue'] <=> (float)$left['revenue'])
-                ?: (((int)$right['sms_total'] + (int)$right['voice_total'] + (int)$right['whatsapp_total']) <=> ((int)$left['sms_total'] + (int)$left['voice_total'] + (int)$left['whatsapp_total']));
+                ?: (((int)$right['sms_total'] + (int)$right['voice_total'] + (int)$right['whatsapp_total'] + (int)$right['whatsapp_voice_total']) <=> ((int)$left['sms_total'] + (int)$left['voice_total'] + (int)$left['whatsapp_total'] + (int)$left['whatsapp_voice_total']));
         });
 
         return array_slice(array_values($tenants), 0, 15);
@@ -1462,31 +1468,31 @@ class PlatformConsumptionDashboardService
 
     private static function whatsVoiceTenantRows(array $filters): array
     {
-        $params = [
-            ':date_from' => $filters['date_from'] . ' 00:00:00',
-            ':date_to' => $filters['date_to'] . ' 23:59:59',
-        ];
-        $where = [
-            "COALESCE(wc.started_at, wc.answered_at, wc.created_at) BETWEEN :date_from AND :date_to",
-        ];
-        if ($filters['tenant_id'] !== '') {
-            $where[] = 'wc.tenancy_id = :tenancy_id';
-            $params[':tenancy_id'] = $filters['tenant_id'];
+        $rows = [];
+        foreach (self::whatsVoiceFinancialRows($filters) as $row) {
+            $tenancyId = (string)($row['tenancy_id'] ?? '');
+            if ($tenancyId === '') {
+                continue;
+            }
+
+            if (!isset($rows[$tenancyId])) {
+                $rows[$tenancyId] = [
+                    'tenancy_id' => $tenancyId,
+                    'tenancy_name' => trim((string)($row['tenancy_name'] ?? '')) ?: 'Tenant',
+                    'whatsapp_voice_total' => 0,
+                    'whatsapp_voice_minutes' => 0.0,
+                    'revenue' => 0.0,
+                    'cost' => 0.0,
+                ];
+            }
+
+            $rows[$tenancyId]['whatsapp_voice_total']++;
+            $rows[$tenancyId]['whatsapp_voice_minutes'] = round($rows[$tenancyId]['whatsapp_voice_minutes'] + (float)($row['billed_minutes'] ?? 0), 4);
+            $rows[$tenancyId]['revenue'] = round($rows[$tenancyId]['revenue'] + (float)($row['revenue'] ?? 0), 4);
+            $rows[$tenancyId]['cost'] = round($rows[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
         }
 
-        return (new Database())->execute(
-            "SELECT wc.tenancy_id,
-                    t.name AS tenancy_name,
-                    COUNT(DISTINCT wc.call_id) AS whatsapp_voice_total,
-                    COALESCE(SUM(wc.final_price), 0) AS revenue,
-                    COALESCE(SUM(wc.base_cost), 0) AS cost
-             FROM whatsapp_call_cdr wc
-             LEFT JOIN tenancies t ON t.id = wc.tenancy_id
-             WHERE " . implode(' AND ', $where) . "
-               AND wc.balance_debited_at IS NOT NULL
-             GROUP BY wc.tenancy_id, t.name",
-            $params
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        return array_values($rows);
     }
 
     private static function seedTenantRow(?array $current, array $row): array
@@ -1885,5 +1891,97 @@ class PlatformConsumptionDashboardService
         }
 
         return self::$schemaCache[$cacheKey] = (bool)$row;
+    }
+
+    private static function applyWhatsVoiceStatusFilter(array &$where, array &$params, string $status, string $alias = 'wc'): void
+    {
+        $normalized = strtolower(trim($status));
+        if (in_array($normalized, ['', 'all', 'delivered', 'sent', 'read'], true)) {
+            return;
+        }
+
+        $prefix = $alias !== '' ? $alias . '.' : '';
+        $statusExpr = "UPPER(COALESCE({$prefix}status, ''))";
+
+        if ($normalized === 'answered') {
+            $where[] = "{$statusExpr} IN ('COMPLETED', 'ANSWER', 'ACCEPTED')";
+            return;
+        }
+
+        if ($normalized === 'busy') {
+            $where[] = "{$statusExpr} = 'BUSY'";
+            return;
+        }
+
+        if ($normalized === 'cancelled') {
+            $where[] = "{$statusExpr} = 'CANCELLED'";
+            return;
+        }
+
+        if ($normalized === 'failed') {
+            $where[] = "{$statusExpr} IN ('FAILED', 'NOANSWER', 'NOT_ANSWERED', 'BUSY', 'CANCELLED')";
+        }
+    }
+
+    private static function whatsVoiceFinancialRows(array $filters, bool $withDay = false): array
+    {
+        if (!self::allowsProduct($filters, 'whatsapp_voice')) {
+            return [];
+        }
+
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+            ':voice_source' => 'whatsapp_voice_call_debited',
+        ];
+
+        $tenantWhere = '';
+        if ($filters['tenant_id'] !== '') {
+            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        $slugPlaceholders = [];
+        foreach (self::REVENUE_SLUGS as $index => $slug) {
+            $key = ':wa_voice_slug_' . $index;
+            $slugPlaceholders[] = $key;
+            $params[$key] = $slug;
+        }
+
+        $outerWhere = [];
+        self::applyWhatsVoiceStatusFilter($outerWhere, $params, $filters['status'] ?? 'all', 'wc');
+
+        $daySelect = $withDay ? 'DATE(x.processed_at) AS day_ref,' : '';
+        $outerClause = $outerWhere !== [] ? 'WHERE ' . implode(' AND ', $outerWhere) : '';
+
+        return (new Database())->execute(
+            "SELECT {$daySelect}
+                    x.tenancy_id,
+                    t.name AS tenancy_name,
+                    x.call_id,
+                    x.revenue,
+                    COALESCE(wc.base_cost, 0) AS cost,
+                    COALESCE(wc.billable_minutes, 0) AS billed_minutes,
+                    COALESCE(wc.direction, '') AS direction,
+                    COALESCE(wc.status, '') AS status_label
+             FROM (
+                SELECT l.tenancy_id,
+                       l.related_id AS call_id,
+                       MAX(l.processed_at) AS processed_at,
+                       COALESCE(SUM(l.amount), 0) AS revenue
+                FROM financial_transaction_ledger l
+                WHERE l.status = 'committed'
+                  AND l.related_type = 'whatsapp_voice_call'
+                  AND l.source = :voice_source
+                  AND l.processed_at BETWEEN :date_from AND :date_to
+                  {$tenantWhere}
+                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
+                GROUP BY l.tenancy_id, l.related_id
+             ) x
+             LEFT JOIN whatsapp_call_cdr wc ON wc.call_id = x.call_id
+             LEFT JOIN tenancies t ON t.id = x.tenancy_id
+             {$outerClause}",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 }

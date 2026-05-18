@@ -108,7 +108,8 @@
                             <th class="px-3 py-3">Tenant</th>
                             <th class="px-3 py-3">SMS</th>
                             <th class="px-3 py-3">Voz</th>
-                            <th class="px-3 py-3">WhatsApp</th>
+                            <th class="px-3 py-3">WA Msg</th>
+                            <th class="px-3 py-3">WA Voz</th>
                             <th class="px-3 py-3">Cobrado</th>
                             <th class="px-3 py-3">Custo</th>
                             <th class="px-3 py-3">Margem</th>
@@ -341,6 +342,7 @@
         amber: { border: 'border-amber-100', text: 'text-amber-600' },
         indigo: { border: 'border-indigo-100', text: 'text-indigo-600' },
         green: { border: 'border-green-100', text: 'text-green-600' },
+        lime: { border: 'border-lime-100', text: 'text-lime-600' },
         violet: { border: 'border-violet-100', text: 'text-violet-600' },
         slate: { border: 'border-slate-100', text: 'text-slate-600' }
     };
@@ -464,10 +466,11 @@
         const cards = [
             card('Custo Total de Voz', currency(products.voice?.cost || 0), `${integer(summary.voice_total)} chamadas no período filtrado.`, 'cyan'),
             card('Custo Total de SMS', currency(products.sms?.cost || 0), `${integer(summary.sms_delivered)} entregues e ${integer(summary.sms_failed)} falhos.`, 'amber'),
-            card('Custo Total de WhatsApp', currency(products.whatsapp?.cost || 0), `${integer(summary.whatsapp_total)} mensagens cobradas e ${integer(summary.whatsapp_read)} lidas.`, 'green'),
+            card('Custo Total de WhatsApp Msg', currency(products.whatsapp?.cost || 0), `${integer(summary.whatsapp_total)} mensagens cobradas e ${integer(summary.whatsapp_read)} lidas.`, 'green'),
+            card('Custo Total de WhatsApp Voz', currency(products.whatsapp_voice?.cost || 0), `${integer(summary.whatsapp_voice_billed)} cobradas | ${decimal(summary.whatsapp_voice_billed_minutes)} min faturados.`, 'lime'),
             card('Custo Global Total', currency(summary.cost_total), 'Soma dos custos reais reconciliados por produto.', 'rose'),
             card('Valor Cobrado', currency(chargedTotal), 'Total efetivamente debitado dos clientes.', 'emerald'),
-            card('Margem Estimada', currency(marginTotal), `Inclui ${currency(products.whatsapp_voice?.cost || 0)} de WhatsApp Voz no total global.`, marginTotal >= 0 ? 'indigo' : 'rose')
+            card('Margem Estimada', currency(marginTotal), `${integer(summary.whatsapp_voice_inbound)} recebidas | ${integer(summary.whatsapp_voice_outbound)} efetuadas na Voz do WhatsApp.`, marginTotal >= 0 ? 'indigo' : 'rose')
         ];
 
         qs('#gc-summary-cards').innerHTML = cards.join('');
@@ -506,7 +509,7 @@
                 billed: currency(products.whatsapp_voice?.revenue || 0),
                 cost: currency(products.whatsapp_voice?.cost || 0),
                 profit: currency(products.whatsapp_voice?.profit || 0),
-                helper: `${integer(summary.whatsapp_voice_answered)} atendidas`
+                helper: `${integer(summary.whatsapp_voice_answered)} atendidas | ${decimal(summary.whatsapp_voice_billed_minutes)} min faturados`
             }
         ];
 
@@ -530,7 +533,7 @@
 
     function renderTopTenants(rows) {
         if (!rows.length) {
-            qs('#gc-top-tenants').innerHTML = '<tr><td colspan="7" class="px-3 py-6 text-center text-sm text-slate-400">Nenhum tenant encontrado para o filtro atual.</td></tr>';
+            qs('#gc-top-tenants').innerHTML = '<tr><td colspan="8" class="px-3 py-6 text-center text-sm text-slate-400">Nenhum tenant encontrado para o filtro atual.</td></tr>';
             return;
         }
 
@@ -542,7 +545,11 @@
                 </td>
                 <td class="px-3 py-3">${integer(row.sms_total)}</td>
                 <td class="px-3 py-3">${integer(row.voice_total)}</td>
-                <td class="px-3 py-3">${integer(Number(row.whatsapp_total || 0) + Number(row.whatsapp_voice_total || 0))}</td>
+                <td class="px-3 py-3">${integer(row.whatsapp_total)}</td>
+                <td class="px-3 py-3">
+                    <p>${integer(row.whatsapp_voice_total)}</p>
+                    <p class="text-xs text-slate-400">${decimal(row.whatsapp_voice_minutes || 0)} min</p>
+                </td>
                 <td class="px-3 py-3 font-semibold text-emerald-600">${currency(row.revenue)}</td>
                 <td class="px-3 py-3 font-semibold text-rose-600">${currency(row.cost)}</td>
                 <td class="px-3 py-3 font-semibold text-indigo-600">${currency(row.profit)}</td>

@@ -40,11 +40,11 @@
 </head>
 
 <body class="auth-page bg-darkSurface font-sans text-white antialiased">
-  <section class="auth-shell min-h-screen flex items-start justify-center px-4 py-6 sm:py-8">
-    <div class="auth-shell__grid max-w-5xl w-full grid lg:grid-cols-12 gap-8 xl:gap-10 items-start lg:items-center">
-      <div class="auth-shell__form-column lg:col-span-7 flex flex-col items-center lg:items-end">
-        <div class="auth-card auth-card--register w-full max-w-[30rem] bg-darkCard rounded-2xl shadow-2xl p-5 sm:p-6 border border-gray-700">
-          <div class="mb-4 flex items-center gap-3">
+  <section class="auth-shell auth-shell--register min-h-screen flex items-start justify-center px-4 py-5 sm:py-6">
+    <div class="auth-shell__grid auth-shell__grid--register max-w-5xl w-full grid lg:grid-cols-12 gap-6 xl:gap-8 items-start lg:items-center">
+      <div class="auth-shell__form-column lg:col-span-8 flex flex-col items-center lg:items-end">
+        <div class="auth-card auth-card--register w-full max-w-[28rem] bg-darkCard rounded-2xl shadow-2xl p-4 sm:p-5 border border-gray-700">
+          <div class="mb-3 flex items-center gap-3">
             <div class="flex h-12 w-12 shrink-0 items-center justify-center">
               <img src="{{URL}}/resources/view/login/assets/images/maxx-logo-transparent.png" alt="Maxx Solutions" class="h-10 w-10 object-contain">
             </div>
@@ -54,23 +54,23 @@
             </div>
           </div>
 
-          <div class="mb-4">
-            <h1 class="text-2xl font-extrabold tracking-tight mb-1.5">Crie sua conta</h1>
-            <p class="text-sm text-gray-400">
+          <div class="mb-3">
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight mb-1">Crie sua conta</h1>
+            <p class="text-sm text-gray-400 leading-5">
               Acesso para Relatórios e Disparos. Já tem conta?
               <a href="{{URL}}/login" class="text-primary-500 font-semibold hover:underline">Entrar</a>
             </p>
           </div>
 
-          <form id="registerForm" class="auth-form space-y-3.5" data-social-registration="{{registerSocialMode}}">
+          <form id="registerForm" class="auth-form space-y-3" data-social-registration="{{registerSocialMode}}">
             <input type="hidden" id="socialRegistration" value="{{registerSocialInput}}">
             <div class="relative flex items-center justify-center">
               <div class="w-full border-t border-gray-700"></div>
               <span class="absolute bg-darkCard px-3 text-xs font-bold uppercase tracking-widest text-gray-500">cadastre-se com</span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button type="button" data-social-provider="google" data-social-url="{{SOCIAL_URL}}/auth/social/google?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button type="button" data-social-provider="google" data-social-url="{{SOCIAL_URL}}/auth/social/google?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5A9.5 9.5 0 1 0 12 21.5c5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6H12Z"/>
                   <path fill="#FBBC05" d="M3.6 7.9 6.8 10.2A5.9 5.9 0 0 1 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5c-3.7 0-7 2.1-8.4 5.4Z"/>
@@ -79,11 +79,11 @@
                 </svg>
                 <span>Google</span>
               </button>
-              <button type="button" data-social-provider="apple" data-social-url="{{SOCIAL_URL}}/auth/social/apple?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+              <button type="button" data-social-provider="apple" data-social-url="{{SOCIAL_URL}}/auth/social/apple?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.702z"/></svg>
                 <span>Apple</span>
               </button>
-              <button type="button" data-social-provider="facebook" data-social-url="{{SOCIAL_URL}}/auth/social/facebook?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
+              <button type="button" data-social-provider="facebook" data-social-url="{{SOCIAL_URL}}/auth/social/facebook?intent=register" class="social-register-btn flex w-full items-center justify-center gap-2 rounded-xl border border-gray-600 bg-transparent px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:border-primary-500/70 hover:bg-slate-700">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.24 10.44 22v-7.03H7.9v-2.91h2.54V9.84c0-2.52 1.49-3.91 3.77-3.91 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.9h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z"/></svg>
                 <span>Facebook</span>
               </button>
@@ -94,34 +94,34 @@
               <span class="absolute bg-darkCard px-3 text-xs font-bold uppercase tracking-widest text-gray-500">ou manual</span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <div>
-                <label for="firstName" class="block mb-1.5 text-xs font-medium text-gray-300">Nome</label>
-                <input type="text" id="firstName" required value="{{registerFirstName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Nome">
+                <label for="firstName" class="block mb-1 text-xs font-medium text-gray-300">Nome</label>
+                <input type="text" id="firstName" required value="{{registerFirstName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200" placeholder="Nome">
               </div>
               <div>
-                <label for="lastName" class="block mb-1.5 text-xs font-medium text-gray-300">Sobrenome</label>
-                <input type="text" id="lastName" required value="{{registerLastName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="Sobrenome">
+                <label for="lastName" class="block mb-1 text-xs font-medium text-gray-300">Sobrenome</label>
+                <input type="text" id="lastName" required value="{{registerLastName}}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200" placeholder="Sobrenome">
               </div>
               <div>
-                <label for="phone" class="block mb-1.5 text-xs font-medium text-gray-300">Telefone</label>
-                <input type="tel" id="phone" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="(00) 00000-0000">
+                <label for="phone" class="block mb-1 text-xs font-medium text-gray-300">Telefone</label>
+                <input type="tel" id="phone" required class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200" placeholder="(00) 00000-0000">
               </div>
               <div>
-                <label for="email" class="block mb-1.5 text-xs font-medium text-gray-300">E-mail</label>
-                <input type="email" id="email" required value="{{registerEmail}}" {{registerEmailReadonly}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200 disabled:cursor-not-allowed disabled:opacity-80" placeholder="nome@empresa.com">
+                <label for="email" class="block mb-1 text-xs font-medium text-gray-300">E-mail</label>
+                <input type="email" id="email" required value="{{registerEmail}}" {{registerEmailReadonly}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200 disabled:cursor-not-allowed disabled:opacity-80" placeholder="nome@empresa.com">
               </div>
               <div class="{{registerPasswordClass}}">
-                <label for="password" class="block mb-1.5 text-xs font-medium text-gray-300">Senha</label>
-                <input type="password" id="password" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+                <label for="password" class="block mb-1 text-xs font-medium text-gray-300">Senha</label>
+                <input type="password" id="password" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200" placeholder="••••••••">
               </div>
               <div class="{{registerPasswordClass}}">
-                <label for="confirmPassword" class="block mb-1.5 text-xs font-medium text-gray-300">Confirmar senha</label>
-                <input type="password" id="confirmPassword" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-3 transition duration-200" placeholder="••••••••">
+                <label for="confirmPassword" class="block mb-1 text-xs font-medium text-gray-300">Confirmar senha</label>
+                <input type="password" id="confirmPassword" {{registerPasswordRequired}} class="bg-gray-700 border border-gray-600 text-white text-sm rounded-xl focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 transition duration-200" placeholder="••••••••">
               </div>
             </div>
 
-            <div class="rounded-xl border border-gray-700 bg-slate-900/30 p-3">
+            <div class="rounded-xl border border-gray-700 bg-slate-900/30 p-2.5">
               <label class="flex items-start cursor-pointer">
                 <input id="acceptTerms" type="checkbox" class="mt-1 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-600 focus:ring-offset-gray-800">
                 <span class="ml-2 text-xs text-gray-400">
@@ -148,11 +148,11 @@
         </div>
       </div>
 
-      <div class="auth-shell__illustration lg:col-span-5 hidden lg:block">
+      <div class="auth-shell__illustration auth-shell__illustration--register lg:col-span-4 hidden lg:block">
         <div class="relative">
           <div class="absolute -top-20 -left-20 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl"></div>
           <div class="absolute -bottom-20 -right-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl"></div>
-          <img src="{{URL}}/resources/view/login/assets/images/flowbite-authentication-illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full transform hover:scale-105 transition duration-700">
+          <img src="{{URL}}/resources/view/login/assets/images/flowbite-authentication-illustration.svg" alt="Ilustração Maxx" class="relative z-10 w-full max-w-md mx-auto transform transition duration-700">
         </div>
       </div>
     </div>

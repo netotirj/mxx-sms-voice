@@ -88,9 +88,22 @@ class ViewComponents
 
     private static function hasPlanFeature(?string $featureKey): bool
     {
-        // O menu lateral deve refletir apenas ACL por rota.
-        // O bloqueio por plano acontece no middleware para exibir a mensagem ao acessar.
-        return true;
+        $featureKey = trim((string)$featureKey);
+        if ($featureKey === '') {
+            return true;
+        }
+
+        $obUser = SessionUser::getLogged() ?? [];
+        if ($obUser === [] || self::isSuperAdmin($obUser)) {
+            return true;
+        }
+
+        $tenancyId = trim((string)($obUser['tenancy_id'] ?? ''));
+        if ($tenancyId === '') {
+            return false;
+        }
+
+        return PlanRuntimeService::canUseFeature($tenancyId, $featureKey);
     }
 
     private static function permissionLookup(array $userPerms): array
@@ -477,6 +490,10 @@ class ViewComponents
             return true;
         }
 
+        if (!self::hasPlanFeature('administrative')) {
+            return false;
+        }
+
         return self::hasPerm($userPerms, ['/support', '/support/tickets']);
     }
 
@@ -800,11 +817,13 @@ class ViewComponents
         }
 
         $canSupportTicketsHeader = self::canSeeSupportTicketsHeader($userBase, $userPerms);
-        $canProductUpdatesHeader = self::hasPerm($userPerms, ['/system-updates', '/system-updates/header']);
-        $canNotificationsCenter = self::hasPerm($userPerms, ['/notifications']);
-        $canNotificationsMarkAllRead = self::hasPerm($userPerms, ['/notifications/mark-all-read']);
-        $canNotificationsDeleteAll = self::hasPerm($userPerms, ['/notifications/delete-all']);
-        $canNotificationsPage = self::hasPerm($userPerms, ['/reports/notifications']);
+        $canAdministrative = self::hasPlanFeature('administrative');
+        $canReports = self::hasPlanFeature('reports');
+        $canProductUpdatesHeader = $canAdministrative && self::hasPerm($userPerms, ['/system-updates', '/system-updates/header']);
+        $canNotificationsCenter = $canAdministrative && self::hasPerm($userPerms, ['/notifications']);
+        $canNotificationsMarkAllRead = $canAdministrative && self::hasPerm($userPerms, ['/notifications/mark-all-read']);
+        $canNotificationsDeleteAll = $canAdministrative && self::hasPerm($userPerms, ['/notifications/delete-all']);
+        $canNotificationsPage = $canReports && self::hasPerm($userPerms, ['/reports/notifications']);
 
         $notificationCenterHtml = $canNotificationsCenter
             ? '

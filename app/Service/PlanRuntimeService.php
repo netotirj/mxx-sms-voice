@@ -579,17 +579,17 @@ class PlanRuntimeService
     private static function featureDeniedMessage(string $featureKey): string
     {
         return match ($featureKey) {
-            'administrative' => 'Seu plano atual não permite acessar o módulo administrativo.',
-            'create_users', 'users' => 'Seu plano atual não permite gerenciar usuários.',
-            'rates' => 'Seu plano atual não permite acessar tarifas.',
-            'permissions' => 'Seu plano atual não permite acessar permissões.',
-            'reports' => 'Seu plano atual não permite acessar relatórios.',
-            'sms', 'campaigns' => 'Seu plano atual não permite usar o módulo SMS.',
-            'whatsapp' => 'Seu plano atual não permite usar o módulo WhatsApp.',
-            'templates' => 'Seu plano atual não permite usar templates.',
-            'callcenter' => 'Seu plano atual não permite usar o módulo Call Center.',
-            'voice', 'webrtc', 'trunks' => 'Seu plano atual não permite usar recursos de voz.',
-            default => 'Seu plano atual não permite esta operação.',
+            'administrative' => 'Este modulo nao esta disponivel no plano contratado.',
+            'create_users', 'users' => 'Este modulo nao esta disponivel no plano contratado.',
+            'rates' => 'Este modulo nao esta disponivel no plano contratado.',
+            'permissions' => 'Este modulo nao esta disponivel no plano contratado.',
+            'reports' => 'Este modulo nao esta disponivel no plano contratado.',
+            'sms', 'campaigns' => 'Este modulo nao esta disponivel no plano contratado.',
+            'whatsapp' => 'Este modulo nao esta disponivel no plano contratado.',
+            'templates' => 'Este modulo nao esta disponivel no plano contratado.',
+            'callcenter' => 'Este modulo nao esta disponivel no plano contratado.',
+            'voice', 'webrtc', 'trunks' => 'Este modulo nao esta disponivel no plano contratado.',
+            default => 'Este modulo nao esta disponivel no plano contratado.',
         };
     }
 

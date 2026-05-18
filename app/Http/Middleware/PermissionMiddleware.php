@@ -55,6 +55,12 @@ class PermissionMiddleware
         ['type' => 'exact', 'match' => '/admin/services-monitor', 'features' => ['administrative']],
         ['type' => 'prefix', 'match' => '/admin/services-monitor/', 'features' => ['administrative']],
 
+        ['type' => 'exact', 'match' => '/global-costs', 'features' => ['administrative']],
+        ['type' => 'prefix', 'match' => '/global-costs/', 'features' => ['administrative']],
+
+        ['type' => 'exact', 'match' => '/admin/platform-consumption', 'features' => ['administrative']],
+        ['type' => 'prefix', 'match' => '/admin/platform-consumption/', 'features' => ['administrative']],
+
         ['type' => 'exact', 'match' => '/site-tests', 'features' => ['administrative']],
         ['type' => 'prefix', 'match' => '/site-tests/', 'features' => ['administrative']],
 
@@ -131,7 +137,7 @@ class PermissionMiddleware
         foreach ($featureKeys as $featureKey) {
             $featureAccess = PlanRuntimeService::assertCanUseFeature((string)$tenancyId, $featureKey);
             if (empty($featureAccess['allowed'])) {
-                return $this->denyRequest($request, $baseUrl, (string)($featureAccess['message'] ?? 'Seu plano atual não permite esta ação!'), $routeName);
+                return $this->denyRequest($request, $baseUrl, (string)($featureAccess['message'] ?? 'Este modulo nao esta disponivel no plano contratado.'), $routeName);
             }
         }
 

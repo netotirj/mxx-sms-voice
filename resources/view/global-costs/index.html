@@ -470,7 +470,7 @@
             card('Custo Total de WhatsApp Voz', currency(services.whatsapp_voice?.cost_total || 0), `${integer(summary.whatsapp_voice_billed)} cobradas | ${decimal(summary.whatsapp_voice_billed_minutes)} min faturados.`, 'lime'),
             card('Custo Global Total', currency(summary.cost_total), 'Soma dos custos reais reconciliados por produto.', 'rose'),
             card('Valor Cobrado', currency(chargedTotal), 'Total efetivamente debitado dos clientes.', 'emerald'),
-            card('Margem Estimada', currency(marginTotal), `${integer(summary.whatsapp_voice_inbound)} recebidas | ${integer(summary.whatsapp_voice_outbound)} efetuadas na Voz do WhatsApp.`, marginTotal >= 0 ? 'indigo' : 'rose')
+            card('Margem Estimada', currency(marginTotal), `Lucro bruto estimado do período filtrado: cobrado menos custo consolidado.`, marginTotal >= 0 ? 'indigo' : 'rose')
         ];
 
         qs('#gc-summary-cards').innerHTML = cards.join('');
@@ -591,10 +591,26 @@
 
         return fallbackRows.map((fallback) => {
             const row = serviceMap[fallback.service_key] || fallback;
+            const serviceKey = String(row.service_key || fallback.service_key || '');
+            const billedCalls = Number(row.billed_calls || 0);
+            const billedMinutes = Number(row.billed_minutes || 0);
+            const meta = (() => {
+                if (serviceKey === 'voice') {
+                    return `${integer(row.volume_total || 0)} chamadas | ${decimal(billedMinutes)} min faturados`;
+                }
+                if (serviceKey === 'whatsapp') {
+                    return `${integer(billedCalls)} mensagens cobradas`;
+                }
+                if (serviceKey === 'whatsapp_voice') {
+                    return `${integer(billedCalls)} cobradas | ${decimal(billedMinutes)} min faturados`;
+                }
+                return `${integer(billedCalls)} entregues`;
+            })();
+
             return {
                 label: String(row.service_label || fallback.service_label),
                 volume: integer(row.volume_total || 0),
-                meta: `${integer(row.billed_calls || 0)} cobrados | ${decimal(row.billed_minutes || 0)} min`,
+                meta,
                 billed: currency(row.charged_total || 0),
                 cost: currency(row.cost_total || 0),
                 profit: currency(row.margin_total || 0),

@@ -2155,6 +2155,7 @@ class PlatformConsumptionDashboardService
                 $products['voice'] ?? [],
                 (int)($summary['voice_total'] ?? 0),
                 [
+                    'billed_calls' => (int)($summary['voice_answered'] ?? 0),
                     'billed_minutes' => (float)($summary['voice_billed_minutes'] ?? 0),
                     'helper' => sprintf(
                         'ASR %s%% | ACD %ss',

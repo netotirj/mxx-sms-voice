@@ -15,7 +15,8 @@ class PlanAccessPolicy
 
     public static function canCreateUsers(string $tenancyId): bool
     {
-        return PlanRuntimeService::canUseFeature($tenancyId, 'create_users');
+        return PlanRuntimeService::canUseFeature($tenancyId, 'administrative')
+            && PlanRuntimeService::canUseFeature($tenancyId, 'create_users');
     }
 
     public static function trunkLimit(string $tenancyId): ?int

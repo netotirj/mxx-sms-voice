@@ -87,8 +87,8 @@ class PermissionsRules {
         '/system-updates' => 'Administrativo: Atualizações',
         '/help' => 'Administrativo: Ajuda',
 
-        '/users' => 'Usuários: Gestão',
-        '/permissions' => 'Permissões: Gestão',
+        '/users' => 'Administrativo: Usuários',
+        '/permissions' => 'Administrativo: Permissões',
         '/rates' => 'Tarifas: Gestão',
         '/reports' => 'Relatórios: Geral',
         '/dashboard' => 'Dashboard: Geral',

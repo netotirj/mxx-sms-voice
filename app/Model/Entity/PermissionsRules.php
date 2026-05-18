@@ -1496,7 +1496,7 @@ class PermissionsRules {
             return $rows;
         }
 
-        $allowedLookup = array_fill_keys(self::getAdminTemplatePermissionRouteIds(), true);
+        $allowedLookup = array_fill_keys(self::getAdminGovernedRouteIds(), true);
         if ($allowedLookup === []) {
             return [];
         }
@@ -1505,6 +1505,20 @@ class PermissionsRules {
             $routeId = (int)($row['route_id'] ?? 0);
             return $routeId > 0 && isset($allowedLookup[$routeId]);
         }));
+    }
+
+    private static function getAdminGovernedRouteIds(): array
+    {
+        return RequestCache::remember('permissions.rules.admin_governed_route_ids', static function (): array {
+            $rows = (new Database())->execute(
+                "SELECT id
+                 FROM sys_routes
+                 WHERE " . self::COLUMN_ACCESS_SCOPE . " = 'tenant'
+                   AND " . self::COLUMN_ASSIGNABLE_BY . " = 'admin'"
+            )->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+            return array_values(array_unique(array_filter(array_map('intval', $rows), static fn (int $id): bool => $id > 0)));
+        });
     }
 
     private static function getAdminTemplatePermissionRouteIds(): array

@@ -1784,7 +1784,7 @@ class PlatformConsumptionDashboardService
         $prefix = $alias !== '' ? $alias . '.' : '';
         $parts = [];
 
-        foreach (['date_send', 'received_at', 'webhook_created', 'created_at'] as $column) {
+        foreach (['received_at', 'webhook_created', 'created_at'] as $column) {
             if (self::columnExists('callback', $column)) {
                 $parts[] = $prefix . $column;
             }

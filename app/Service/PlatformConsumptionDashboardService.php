@@ -820,7 +820,7 @@ class PlatformConsumptionDashboardService
                 DATE(l.processed_at) AS day_ref,
                 CASE
                     WHEN l.source = 'sms_batch_callback' THEN 'sms'
-                    WHEN l.source IN ('voice_cdr_usage', 'voice_service_fee') THEN 'voice'
+                    WHEN l.source IN ('voice_cdr_usage', 'voice_service_fee', 'voice_cdr') THEN 'voice'
                     WHEN l.source IN ('whatsapp_voice_call_debited', 'whatsapp_voice') THEN 'whatsapp_voice'
                     ELSE 'whatsapp'
                 END AS product,
@@ -2234,7 +2234,7 @@ class PlatformConsumptionDashboardService
     {
         return match ($product) {
             'sms' => ['sms_batch_callback'],
-            'voice' => ['voice_cdr_usage', 'voice_service_fee'],
+            'voice' => ['voice_cdr_usage', 'voice_service_fee', 'voice_cdr'],
             'whatsapp' => ['whatsapp_whatsapp_delivered', 'whatsapp_whatsapp_auth', 'whatsapp_whatsapp_batch_auth', ...self::legacyRevenueSources('whatsapp')],
             'whatsapp_voice' => ['whatsapp_voice_call_debited', ...self::legacyRevenueSources('whatsapp_voice')],
             default => [],

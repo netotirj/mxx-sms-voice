@@ -40,15 +40,18 @@ class SystemSchemaMaintenance
 
         foreach (PermissionsRules::superAdminOnlyRoutePrefixes() as $prefix) {
             $normalizedPrefix = PermissionsRules::normalizeGovernancePrefixPublic($prefix);
+            $patterns = PermissionsRules::governancePrefixSqlPatternsPublic($prefix);
             $db->execute(
                 "UPDATE sys_routes
                  SET " . PermissionsRules::columnAccessScope() . " = 'platform',
                      " . PermissionsRules::columnAssignableBy() . " = 'super_admin'
                  WHERE route_path = :prefix
-                    OR route_path LIKE :prefix_like",
+                    OR route_path LIKE :prefix_like_slash
+                    OR route_path LIKE :prefix_like_dash",
                 [
                     ':prefix' => $normalizedPrefix,
-                    ':prefix_like' => $normalizedPrefix . '%',
+                    ':prefix_like_slash' => $patterns['slash'],
+                    ':prefix_like_dash' => $patterns['dash'],
                 ]
             );
         }

@@ -14,15 +14,6 @@ use App\Utils\View;
 class PermissionsUsersRoles extends ViewComponents
 {
     private const PROTECTED_ROLE_NAMES = ['super_admin', 'admin'];
-    private const SUPERADMIN_ROUTE_PREFIXES = [
-        '/permissions/global-routes',
-        '/plans',
-        '/support',
-        'ticket.',
-        '/system-updates',
-        '/site-tests',
-        '/reports/notifications',
-    ];
 
     /**
      * Exibe a página principal de permissões
@@ -69,7 +60,9 @@ class PermissionsUsersRoles extends ViewComponents
         }
 
         // Pega o total de rotas do primeiro item do array para o contador do topo
-        $totalRoutes = !empty($roles) ? ($roles[0]['total_routes_system'] ?? 0) : 0;
+        $totalRoutes = $isSuperAdmin
+            ? (!empty($roles) ? (int)($roles[0]['total_routes_system'] ?? 0) : 0)
+            : PermissionsRules::getAssignableRouteCount();
 
         // Retorna o JSON limpo
         return new Response(200, json_encode([
@@ -684,30 +677,6 @@ class PermissionsUsersRoles extends ViewComponents
         return in_array($name, self::PROTECTED_ROLE_NAMES, true);
     }
 
-    private static function isProtectedRoutePath(string $routePath): bool
-    {
-        $normalizedRoutePath = str_starts_with($routePath, 'ticket.')
-            ? trim($routePath)
-            : '/' . trim($routePath, '/');
-
-        foreach (self::SUPERADMIN_ROUTE_PREFIXES as $prefix) {
-            if (str_starts_with($prefix, 'ticket.')) {
-                $prefix = trim($prefix);
-                if ($normalizedRoutePath === $prefix || str_starts_with($normalizedRoutePath, $prefix)) {
-                    return true;
-                }
-                continue;
-            }
-
-            $prefix = '/' . trim($prefix, '/');
-            if ($normalizedRoutePath === $prefix || str_starts_with($normalizedRoutePath, $prefix . '/')) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static function canCurrentUserManageRoute(?array $user, array $route): bool
     {
         if (self::isCurrentUserSuperAdmin($user)) {
@@ -726,6 +695,6 @@ class PermissionsUsersRoles extends ViewComponents
             return false;
         }
 
-        return !self::isProtectedRoutePath($routePath);
+        return $routePath !== '';
     }
 }

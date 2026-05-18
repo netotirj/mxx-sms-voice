@@ -28,6 +28,9 @@ class PermissionsRules {
     ];
     private const SUPERADMIN_ONLY_ROUTE_PREFIXES = [
         '/plans',
+        '/global-costs',
+        '/admin/platform-consumption',
+        '/admin/services-monitor',
         'ticket.',
         '/site-tests',
         '/reports/notifications',
@@ -48,7 +51,7 @@ class PermissionsRules {
         '/webhooks/meta/whatsapp' => 'WhatsApp: Webhooks',
         '/whatsapp' => 'WhatsApp: Compatibilidade',
 
-        '/callcenter/reports' => 'Call Center: Relatórios',
+        '/callcenter/reports' => 'Relatórios: Call Center',
         '/callcenter/monitoring' => 'Call Center: Monitoramento',
         '/callcenter/agent-panel' => 'Call Center: Painel do Agente',
         '/callcenter/agents' => 'Call Center: Agentes',
@@ -74,7 +77,7 @@ class PermissionsRules {
         '/campaign/single-shot' => 'SMS: Envio Único',
         '/campaign' => 'SMS: Campanhas',
 
-        '/reports/notifications' => 'Administrativo: Notificações',
+        '/reports/notifications' => 'Relatórios: Notificações',
         '/notifications' => 'Administrativo: Notificações',
         '/support' => 'Administrativo: Suporte',
         'ticket.' => 'Administrativo: Suporte',
@@ -255,6 +258,8 @@ class PermissionsRules {
             CROSS JOIN (
                 SELECT COUNT(*) AS total_routes_system
                 FROM sys_routes
+                WHERE " . self::COLUMN_ACCESS_SCOPE . " = 'tenant'
+                  AND " . self::COLUMN_ASSIGNABLE_BY . " = 'admin'
             ) tr
             LEFT JOIN (
                 SELECT role_id, tenancy_id, COUNT(*) AS total_users
@@ -291,7 +296,10 @@ class PermissionsRules {
                     t.name AS tenancy_name,
                     t.account_code,
                     CASE WHEN r.user_id IS NULL THEN 'system' ELSE 'custom' END AS type,
-                    tr.total_routes_system,
+                    CASE
+                        WHEN LOWER(TRIM(r.name)) = 'super_admin' THEN tr.total_routes_system
+                        ELSE tr.total_routes_admin
+                    END AS total_routes_system,
                     COALESCE(uc.total_users, 0) AS total_users
                 FROM sys_roles r
                 INNER JOIN tenancies t
@@ -299,7 +307,16 @@ class PermissionsRules {
                 LEFT JOIN sys_role_templates tpl
                     ON tpl.id = r." . self::COLUMN_ROLE_TEMPLATE_ID . "
                 CROSS JOIN (
-                    SELECT COUNT(*) AS total_routes_system
+                    SELECT
+                        COUNT(*) AS total_routes_system,
+                        SUM(
+                            CASE
+                                WHEN " . self::COLUMN_ACCESS_SCOPE . " = 'tenant'
+                                 AND " . self::COLUMN_ASSIGNABLE_BY . " = 'admin'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS total_routes_admin
                     FROM sys_routes
                 ) tr
                 LEFT JOIN (
@@ -820,6 +837,18 @@ class PermissionsRules {
         return array_map(static fn (array $route): int => (int)($route['id'] ?? 0), $routes);
     }
 
+    public static function getAssignableRouteCount(): int
+    {
+        return RequestCache::remember('permissions.rules.assignable_route_count', static function (): int {
+            return (int)(new Database())->execute(
+                "SELECT COUNT(*)
+                 FROM sys_routes
+                 WHERE " . self::COLUMN_ACCESS_SCOPE . " = 'tenant'
+                   AND " . self::COLUMN_ASSIGNABLE_BY . " = 'admin'"
+            )->fetchColumn();
+        });
+    }
+
     private static function syncRouteIntoDefaultAdminTemplate(int $routeId, array $governance): void
     {
         if ($routeId <= 0) {
@@ -886,15 +915,18 @@ class PermissionsRules {
 
         foreach (self::SUPERADMIN_ONLY_ROUTE_PREFIXES as $prefix) {
             $normalizedPrefix = self::normalizeGovernancePrefix($prefix);
+            $patterns = self::governancePrefixSqlPatterns($normalizedPrefix);
             (new Database())->execute(
                 "UPDATE sys_routes
                  SET " . self::COLUMN_ACCESS_SCOPE . " = 'platform',
                      " . self::COLUMN_ASSIGNABLE_BY . " = 'super_admin'
                  WHERE route_path = :prefix
-                    OR route_path LIKE :prefix_like",
+                    OR route_path LIKE :prefix_like_slash
+                    OR route_path LIKE :prefix_like_dash",
                 [
                     ':prefix' => $normalizedPrefix,
-                    ':prefix_like' => $normalizedPrefix . '%',
+                    ':prefix_like_slash' => $patterns['slash'],
+                    ':prefix_like_dash' => $patterns['dash'],
                 ]
             );
         }
@@ -1558,7 +1590,7 @@ class PermissionsRules {
 
     private static function isAdminBaselineExemptRole(string $roleName): bool
     {
-        return in_array(strtolower(trim($roleName)), ['admin', 'super_admin'], true);
+        return strtolower(trim($roleName)) === 'super_admin';
     }
 
     private static function shouldUseTenantTemplateSnapshot(string $roleName): bool
@@ -1779,6 +1811,11 @@ class PermissionsRules {
     public static function normalizeGovernancePrefixPublic(string $prefix): string
     {
         return self::normalizeGovernancePrefix($prefix);
+    }
+
+    public static function governancePrefixSqlPatternsPublic(string $prefix): array
+    {
+        return self::governancePrefixSqlPatterns(self::normalizeGovernancePrefix($prefix));
     }
 
     private static function routeMatchesGovernancePrefix(string $routePath, string $prefix): bool

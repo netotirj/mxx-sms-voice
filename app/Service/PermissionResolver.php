@@ -162,6 +162,7 @@ class PermissionResolver
             $allowedRoutes = $roleId > 0
                 ? self::getRolePermissionNames($roleId, $tenancyId)
                 : [];
+            $allowedRoutes = self::filterGovernedRoutesForUser($user, $allowedRoutes);
 
             $context = [
                 'user_id' => $userId,
@@ -194,6 +195,17 @@ class PermissionResolver
         $cacheKey = 'permissions.route_access.' . $tenancyId . '.' . $userId . '.' . md5($normalizedRoute);
 
         return (bool)RequestCache::remember($cacheKey, function () use ($user, $userId, $tenancyId, $normalizedRoute) {
+            if (!self::routeGovernanceAllowsUser($user, $normalizedRoute)) {
+                PerformanceTelemetry::log('permissions.denied', [
+                    'reason' => 'route_scope',
+                    'user_id' => $userId,
+                    'tenancy_id' => $tenancyId,
+                    'route' => $normalizedRoute,
+                ]);
+
+                return false;
+            }
+
             $context = self::getUserAccessContext($user);
             $roleId = (int)($context['role_id'] ?? 0);
             if ($roleId <= 0) {
@@ -373,6 +385,71 @@ class PermissionResolver
 
             return $exists;
         });
+    }
+
+    private static function routeGovernanceAllowsUser(array $user, string $routePath): bool
+    {
+        if (self::isSuperAdminUser($user)) {
+            return true;
+        }
+
+        $governance = self::routeGovernanceForPath($routePath);
+        $accessScope = strtolower(trim((string)($governance['access_scope'] ?? 'tenant')));
+        $assignableBy = strtolower(trim((string)($governance['assignable_by'] ?? 'admin')));
+
+        return $accessScope === 'tenant' && $assignableBy === 'admin';
+    }
+
+    private static function routeGovernanceForPath(string $routePath): array
+    {
+        $normalized = self::normalizeRoutePath($routePath);
+
+        return (array)RequestCache::remember('permissions.route_governance.' . md5($normalized), static function () use ($normalized): array {
+            $candidates = self::buildRouteCandidates($normalized, false);
+            foreach ($candidates as $candidate) {
+                $row = (new Database())->execute(
+                    "SELECT access_scope, assignable_by
+                     FROM sys_routes
+                     WHERE route_path = :route_path
+                     LIMIT 1",
+                    [':route_path' => $candidate]
+                )->fetch(\PDO::FETCH_ASSOC);
+
+                if (is_array($row)) {
+                    return [
+                        'access_scope' => (string)($row['access_scope'] ?? 'tenant'),
+                        'assignable_by' => (string)($row['assignable_by'] ?? 'admin'),
+                    ];
+                }
+            }
+
+            return [
+                'access_scope' => 'tenant',
+                'assignable_by' => 'admin',
+            ];
+        });
+    }
+
+    private static function filterGovernedRoutesForUser(array $user, array $routes): array
+    {
+        if ($routes === [] || self::isSuperAdminUser($user)) {
+            return $routes;
+        }
+
+        $filtered = [];
+        foreach ($routes as $route) {
+            $normalizedRoute = self::normalizeRoutePath((string)$route);
+            if (self::routeGovernanceAllowsUser($user, $normalizedRoute)) {
+                $filtered[] = $normalizedRoute;
+            }
+        }
+
+        return array_values(array_unique($filtered));
+    }
+
+    private static function isSuperAdminUser(array $user): bool
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? ''))) === 'super_admin';
     }
 
     private static function canInheritFromParentRoute(string $routePath): bool

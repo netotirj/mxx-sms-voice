@@ -303,7 +303,7 @@ class PermissionsRules {
                                 FROM users su
                                 WHERE su.tenancy_id = r.tenancy_id
                                   AND su.role_id = r.id
-                                  AND LOWER(TRIM(COALESCE(su.user_function, su.function, ''))) = 'super_admin'
+                                  AND LOWER(TRIM(COALESCE(su.user_function, ''))) = 'super_admin'
                                 LIMIT 1
                             )
                         THEN tr.total_routes_system
@@ -1632,7 +1632,7 @@ class PermissionsRules {
                      FROM users
                      WHERE tenancy_id = :tenancy_id
                        AND role_id = :role_id
-                       AND LOWER(TRIM(COALESCE(user_function, function, ''))) = 'super_admin'
+                       AND LOWER(TRIM(COALESCE(user_function, ''))) = 'super_admin'
                      LIMIT 1",
                     [
                         ':tenancy_id' => $tenancyId,

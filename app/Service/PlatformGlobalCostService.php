@@ -279,8 +279,10 @@ class PlatformGlobalCostService
         $prefixCode = self::nullableDigits($criteria['prefix_code'] ?? null);
         $provider = self::nullableLower($criteria['provider'] ?? null);
         $carrier = self::nullableLower($criteria['carrier'] ?? null);
+        $providerToken = self::comparableToken($provider);
+        $carrierToken = self::comparableToken($carrier);
 
-        $row = (new Database())->execute(
+        $rows = (new Database())->execute(
             "SELECT *
              FROM " . self::TABLE . "
              WHERE module = :module
@@ -289,26 +291,27 @@ class PlatformGlobalCostService
                AND (route_key IS NULL OR route_key = '' OR route_key = :route_key)
                AND (country_code IS NULL OR country_code = '' OR country_code = :country_code)
                AND (prefix_code IS NULL OR prefix_code = '' OR prefix_code = :prefix_code)
-               AND (provider IS NULL OR provider = '' OR LOWER(provider) = :provider)
-               AND (carrier IS NULL OR carrier = '' OR LOWER(carrier) = :carrier)
-             ORDER BY
-               CASE WHEN route_key = :route_key AND :route_key <> '' THEN 1 ELSE 0 END DESC,
-               CASE WHEN country_code = :country_code AND :country_code <> '' THEN 1 ELSE 0 END DESC,
-               CASE WHEN prefix_code = :prefix_code AND :prefix_code <> '' THEN 1 ELSE 0 END DESC,
-               CASE WHEN LOWER(provider) = :provider AND :provider <> '' THEN 1 ELSE 0 END DESC,
-               CASE WHEN LOWER(carrier) = :carrier AND :carrier <> '' THEN 1 ELSE 0 END DESC,
-               effective_date DESC,
-               id DESC
-             LIMIT 1",
+             ORDER BY effective_date DESC, id DESC",
             [
                 ':module' => $module,
                 ':route_key' => $routeKey ?? '',
                 ':country_code' => $countryCode ?? '',
                 ':prefix_code' => $prefixCode ?? '',
-                ':provider' => $provider ?? '',
-                ':carrier' => $carrier ?? '',
             ]
-        )->fetch(\PDO::FETCH_ASSOC);
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $row = self::pickBestMatchingRow(
+            $rows,
+            [
+                'route_key' => $routeKey,
+                'country_code' => $countryCode,
+                'prefix_code' => $prefixCode,
+                'provider' => $provider,
+                'carrier' => $carrier,
+                'provider_token' => $providerToken,
+                'carrier_token' => $carrierToken,
+            ]
+        );
 
         if ($row) {
             return [
@@ -354,6 +357,97 @@ class PlatformGlobalCostService
         ]);
 
         return round((float)($resolved['cost_price'] ?? 0), 6);
+    }
+
+    private static function pickBestMatchingRow(array $rows, array $criteria): ?array
+    {
+        $bestRow = null;
+        $bestScore = -1;
+
+        foreach ($rows as $row) {
+            $score = self::matchScore($row, $criteria);
+            if ($score < 0) {
+                continue;
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestRow = $row;
+            }
+        }
+
+        return $bestRow;
+    }
+
+    private static function matchScore(array $row, array $criteria): int
+    {
+        $score = 0;
+
+        $routeKey = self::nullableUpper($row['route_key'] ?? null);
+        $countryCode = self::nullableUpper($row['country_code'] ?? null);
+        $prefixCode = self::nullableDigits($row['prefix_code'] ?? null);
+        $provider = self::nullableLower($row['provider'] ?? null);
+        $carrier = self::nullableLower($row['carrier'] ?? null);
+        $providerToken = self::comparableToken($provider);
+        $carrierToken = self::comparableToken($carrier);
+
+        foreach ([
+            ['row' => $routeKey, 'target' => $criteria['route_key'] ?? null, 'weight' => 100],
+            ['row' => $countryCode, 'target' => $criteria['country_code'] ?? null, 'weight' => 30],
+            ['row' => $prefixCode, 'target' => $criteria['prefix_code'] ?? null, 'weight' => 30],
+        ] as $rule) {
+            if ($rule['row'] === null || $rule['row'] === '') {
+                continue;
+            }
+            if (($rule['target'] ?? null) === null || $rule['target'] === '') {
+                continue;
+            }
+            if ((string)$rule['row'] !== (string)$rule['target']) {
+                return -1;
+            }
+            $score += $rule['weight'];
+        }
+
+        $score += self::tokenMatchScore($provider, $providerToken, $criteria['provider'] ?? null, $criteria['provider_token'] ?? null, 20);
+        $score += self::tokenMatchScore($carrier, $carrierToken, $criteria['carrier'] ?? null, $criteria['carrier_token'] ?? null, 20);
+
+        if (($row['effective_date'] ?? null) !== null) {
+            $score += 1;
+        }
+
+        return $score;
+    }
+
+    private static function tokenMatchScore(?string $rowValue, ?string $rowToken, ?string $targetValue, ?string $targetToken, int $weight): int
+    {
+        if ($rowValue === null || $rowValue === '') {
+            return 0;
+        }
+
+        if ($targetValue === null || $targetValue === '') {
+            return 0;
+        }
+
+        if ($rowValue === $targetValue) {
+            return $weight;
+        }
+
+        if ($rowToken !== null && $targetToken !== null && $rowToken === $targetToken) {
+            return max(1, $weight - 2);
+        }
+
+        return -1000;
+    }
+
+    private static function comparableToken(?string $value): ?string
+    {
+        $value = strtolower(trim((string)($value ?? '')));
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^a-z0-9]+/', '', $value) ?: '';
+        return $normalized === '' ? null : $normalized;
     }
 
     public static function auditSummary(): array

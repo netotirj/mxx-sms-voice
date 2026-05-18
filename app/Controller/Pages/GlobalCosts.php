@@ -3,6 +3,7 @@
 namespace App\Controller\Pages;
 
 use App\Http\Response;
+use App\Service\PlatformConsumptionDashboardService;
 use App\Service\PlatformGlobalCostService;
 use App\Session\User as SessionUser;
 use App\Utils\View;
@@ -11,7 +12,7 @@ class GlobalCosts extends ViewComponents
 {
     public static function getPage(): string
     {
-        PlatformGlobalCostService::ensureSchema();
+        PlatformConsumptionDashboardService::ensureRouteCatalog();
         PlatformGlobalCostService::ensureRouteCatalog();
 
         if (!self::isCurrentUserSuperAdmin()) {
@@ -22,6 +23,20 @@ class GlobalCosts extends ViewComponents
             'Maxx Solutions | Custos Globais',
             View::render('/global-costs/index', [])
         );
+    }
+
+    public static function data($request): Response
+    {
+        if ($guard = self::guardSuperAdminJson()) {
+            return $guard;
+        }
+
+        $query = method_exists($request, 'getQueryParams') ? (array)$request->getQueryParams() : ($_GET ?? []);
+
+        return new Response(200, [
+            'status' => 'ok',
+            'data' => PlatformConsumptionDashboardService::dashboard($query),
+        ], 'application/json');
     }
 
     public static function search($request): Response

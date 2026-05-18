@@ -158,15 +158,42 @@ class PlatformConsumptionDashboardService
                 'ledger_financeiro' => [
                     'service' => 'app/Service/FinancialTransactionService.php',
                     'table' => 'financial_transaction_ledger',
+                    'campos' => [
+                        'amount',
+                        'source',
+                        'related_type',
+                        'related_id',
+                        'processed_at',
+                        'metadata_json.billing_leg.slug',
+                        'metadata_json.admin_upstream_total_charge',
+                        'metadata_json.admin_upstream_estimated_cost',
+                    ],
                 ],
                 'cadeia_financeira' => [
                     'service' => 'app/Service/FinancialHierarchyBillingService.php',
                     'audit_table' => 'financial_hierarchy_logs',
                 ],
                 'relatorios_produto' => [
-                    'sms' => 'app/Controller/Pages/Reports.php',
-                    'voice' => 'app/Controller/Pages/Reports.php',
-                    'whatsapp' => 'app/Controller/Pages/Reports.php',
+                    'sms' => [
+                        'controller' => 'app/Controller/Pages/Reports.php',
+                        'table' => 'callback',
+                        'campos' => ['status_sms', 'value_sms', 'operator', 'batch_id', 'tenancy_id', 'update_date'],
+                    ],
+                    'voice' => [
+                        'controller' => 'app/Controller/Pages/Reports.php',
+                        'table' => 'cdr',
+                        'campos' => ['call_id', 'channel_id', 'dialstatus', 'duration_one', 'billed_seconds', 'final_price', 'tenancy_id', 'started'],
+                    ],
+                    'whatsapp' => [
+                        'controller' => 'app/Controller/Pages/Reports.php',
+                        'table' => 'whatsapp_message_cdr',
+                        'campos' => ['wamid', 'status', 'billed', 'cost_brl', 'final_price_brl', 'tenancy_id', 'delivered_at'],
+                    ],
+                    'whatsapp_voice' => [
+                        'controller' => 'app/Controller/Pages/Reports.php',
+                        'table' => 'whatsapp_call_cdr',
+                        'campos' => ['call_id', 'status', 'base_cost', 'final_price', 'balance_debited_at', 'tenancy_id', 'started_at'],
+                    ],
                 ],
             ],
             'partial' => [

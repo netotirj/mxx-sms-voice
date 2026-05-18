@@ -363,10 +363,6 @@ class ViewComponents
             $config .= self::buildMenuItem('/global-costs', 'Custos Globais', 'fa fa-coins', 'text-emerald-600');
         }
 
-        if (self::hasPlanFeature('administrative') && self::hasPerm($userPerms, ['/admin/platform-consumption'])) {
-            $config .= self::buildMenuItem('/admin/platform-consumption', 'Consumo Global', 'fa fa-chart-line', 'text-indigo-600');
-        }
-
         $content = '';
         if ($gestao !== '') $content .= self::buildSectionTitle('Gestão', 'pt-2') . $gestao;
         if ($comunicacao !== '') $content .= self::buildSectionTitle('Comunicação') . $comunicacao;

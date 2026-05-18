@@ -1103,7 +1103,7 @@
 
                 return {
                     title: 'Resumo do SMS Gateway',
-                    subtitle: `DLR por ${smsPeriod.labels.title.toLowerCase()}, respostas recebidas e distribuicao por operadora.`,
+                    subtitle: `DLR por ${String(smsPeriod?.labels?.title ?? 'dia').toLowerCase()}, respostas recebidas e distribuicao por operadora.`,
                     tag: 'SMS',
                     color: '#f59e0b',
                     today: smsPeriod.current,
@@ -1153,7 +1153,7 @@
 
                 return {
                     title: 'Resumo WhatsApp',
-                    subtitle: `Mensagens, voz de entrada e saida, alem do resumo por empresa no filtro de ${whatsPeriod.labels.title.toLowerCase()}.`,
+                    subtitle: `Mensagens, voz de entrada e saida, alem do resumo por empresa no filtro de ${String(whatsPeriod?.labels?.title ?? 'dia').toLowerCase()}.`,
                     tag: 'WHATSAPP',
                     color: '#10b981',
                     today: whatsPeriod.current,
@@ -1203,7 +1203,7 @@
 
             return {
                 title: 'Graficos do Servico: VoIP',
-                subtitle: `Chamadas por ${voicePeriod.labels.title.toLowerCase()}, comparativo do periodo e distribuicao por status.`,
+                subtitle: `Chamadas por ${String(voicePeriod?.labels?.title ?? 'dia').toLowerCase()}, comparativo do periodo e distribuicao por status.`,
                 tag: 'VOIP',
                 color: '#6366f1',
                 today: voicePeriod.current,

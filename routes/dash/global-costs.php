@@ -16,6 +16,17 @@ $obRouter->get('/global-costs', [
     }
 ]);
 
+$obRouter->get('/global-costs/data', [
+    'name' => '/global-costs/data',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies',
+    ],
+    function ($request) {
+        return Pages\GlobalCosts::data($request);
+    }
+]);
+
 $obRouter->get('/global-costs/search', [
     'name' => '/global-costs/search',
     'middlewares' => [

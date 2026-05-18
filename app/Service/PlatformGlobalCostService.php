@@ -83,6 +83,7 @@ class PlatformGlobalCostService
 
         foreach ([
             '/global-costs',
+            '/global-costs/data',
             '/global-costs/search',
             '/global-costs/history',
             '/global-costs/save',

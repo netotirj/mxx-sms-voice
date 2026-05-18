@@ -40,6 +40,12 @@ class PlatformConsumptionDashboardService
         ],
     ];
 
+    private const NULL_SLUG_ACCEPTED_PRODUCTS = [
+        'voice',
+        'whatsapp',
+        'whatsapp_voice',
+    ];
+
     public static function ensureRouteCatalog(): void
     {
         static $done = false;
@@ -157,6 +163,8 @@ class PlatformConsumptionDashboardService
                     ],
                 ],
             ];
+
+            $summary['services'] = self::buildServiceSummaries($summary);
 
             return [
                 'summary' => $summary,
@@ -338,10 +346,10 @@ class PlatformConsumptionDashboardService
                 $params[$key] = $source;
             }
 
-            $legacySourcePlaceholders = [];
-            foreach (self::legacyRevenueSources($product) as $index => $source) {
-                $key = ':legacy_source_' . $product . '_' . $index;
-                $legacySourcePlaceholders[] = $key;
+            $nullSlugSourcePlaceholders = [];
+            foreach (self::nullSlugAcceptedSources($product) as $index => $source) {
+                $key = ':null_slug_source_' . $product . '_' . $index;
+                $nullSlugSourcePlaceholders[] = $key;
                 $params[$key] = $source;
             }
 
@@ -351,9 +359,12 @@ class PlatformConsumptionDashboardService
                 $params[':tenancy_id'] = $filters['tenant_id'];
             }
 
-            $legacyRevenueClause = $legacySourcePlaceholders !== []
-                ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
-                : '';
+            $revenueEligibilityClause = self::revenueEligibilityClause(
+                'l.source',
+                "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
+                $slugPlaceholders,
+                $nullSlugSourcePlaceholders
+            );
 
             $total = (new Database())->execute(
                 "SELECT COALESCE(SUM(l.amount), 0) AS total
@@ -362,10 +373,7 @@ class PlatformConsumptionDashboardService
                    AND l.processed_at BETWEEN :date_from AND :date_to
                    {$tenantWhere}
                    AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-                   AND (
-                       COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                       {$legacyRevenueClause}
-                   )",
+                   AND {$revenueEligibilityClause}",
                 $params
             )->fetchColumn();
 
@@ -788,20 +796,24 @@ class PlatformConsumptionDashboardService
             $params[$key] = $source;
         }
 
-        $legacyRevenueSources = array_values(array_unique(array_merge(
-            self::legacyRevenueSources('whatsapp'),
-            self::legacyRevenueSources('whatsapp_voice')
+        $nullSlugSources = array_values(array_unique(array_merge(
+            self::nullSlugAcceptedSources('voice'),
+            self::nullSlugAcceptedSources('whatsapp'),
+            self::nullSlugAcceptedSources('whatsapp_voice')
         )));
-        $legacySourcePlaceholders = [];
-        foreach ($legacyRevenueSources as $index => $source) {
-            $key = ':series_legacy_source_' . $index;
-            $legacySourcePlaceholders[] = $key;
+        $nullSlugSourcePlaceholders = [];
+        foreach ($nullSlugSources as $index => $source) {
+            $key = ':series_null_slug_source_' . $index;
+            $nullSlugSourcePlaceholders[] = $key;
             $params[$key] = $source;
         }
 
-        $legacyRevenueClause = $legacySourcePlaceholders !== []
-            ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
-            : '';
+        $revenueEligibilityClause = self::revenueEligibilityClause(
+            'l.source',
+            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
+            $slugPlaceholders,
+            $nullSlugSourcePlaceholders
+        );
 
         $rows = (new Database())->execute(
             "SELECT
@@ -818,10 +830,7 @@ class PlatformConsumptionDashboardService
                AND l.processed_at BETWEEN :date_from AND :date_to
                {$tenantWhere}
                AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
-               AND (
-                   COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                   {$legacyRevenueClause}
-               )
+               AND {$revenueEligibilityClause}
              GROUP BY DATE(l.processed_at), product",
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -1397,8 +1406,19 @@ class PlatformConsumptionDashboardService
             }
             $tenants[$tenancyId] = self::seedTenantRow($tenants[$tenancyId] ?? null, $row);
             $tenants[$tenancyId]['whatsapp_voice_total'] += (int)($row['whatsapp_voice_total'] ?? 0);
+            $tenants[$tenancyId]['whatsapp_voice_minutes'] = round($tenants[$tenancyId]['whatsapp_voice_minutes'] + (float)($row['whatsapp_voice_minutes'] ?? 0), 4);
             $tenants[$tenancyId]['revenue'] = round($tenants[$tenancyId]['revenue'] + (float)($row['revenue'] ?? 0), 4);
             $tenants[$tenancyId]['cost'] = round($tenants[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
+        }
+
+        foreach (self::tenantFinancialRevenueRows($filters) as $row) {
+            $tenancyId = (string)($row['tenancy_id'] ?? '');
+            if ($tenancyId === '') {
+                continue;
+            }
+
+            $tenants[$tenancyId] = self::seedTenantRow($tenants[$tenancyId] ?? null, $row);
+            $tenants[$tenancyId]['revenue'] = round((float)($row['revenue'] ?? 0), 4);
         }
 
         foreach ($tenants as $tenancyId => $row) {
@@ -1413,6 +1433,77 @@ class PlatformConsumptionDashboardService
         });
 
         return array_slice(array_values($tenants), 0, 15);
+    }
+
+    private static function tenantFinancialRevenueRows(array $filters): array
+    {
+        FinancialTransactionService::ensureSchema();
+
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+
+        $tenantWhere = '';
+        if ($filters['tenant_id'] !== '') {
+            $tenantWhere = ' AND l.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        $sources = array_values(array_unique(array_merge(
+            self::productRevenueSources('sms'),
+            self::productRevenueSources('voice'),
+            self::productRevenueSources('whatsapp'),
+            self::productRevenueSources('whatsapp_voice')
+        )));
+        $sourcePlaceholders = [];
+        foreach ($sources as $index => $source) {
+            $key = ':tenant_revenue_source_' . $index;
+            $sourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
+        $slugPlaceholders = [];
+        foreach (self::REVENUE_SLUGS as $index => $slug) {
+            $key = ':tenant_revenue_slug_' . $index;
+            $slugPlaceholders[] = $key;
+            $params[$key] = $slug;
+        }
+
+        $nullSlugSources = array_values(array_unique(array_merge(
+            self::nullSlugAcceptedSources('voice'),
+            self::nullSlugAcceptedSources('whatsapp'),
+            self::nullSlugAcceptedSources('whatsapp_voice')
+        )));
+        $nullSlugSourcePlaceholders = [];
+        foreach ($nullSlugSources as $index => $source) {
+            $key = ':tenant_revenue_null_slug_source_' . $index;
+            $nullSlugSourcePlaceholders[] = $key;
+            $params[$key] = $source;
+        }
+
+        $revenueEligibilityClause = self::revenueEligibilityClause(
+            'l.source',
+            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
+            $slugPlaceholders,
+            $nullSlugSourcePlaceholders
+        );
+
+        return (new Database())->execute(
+            "SELECT
+                l.tenancy_id,
+                t.name AS tenancy_name,
+                SUM(l.amount) AS revenue
+             FROM financial_transaction_ledger l
+             LEFT JOIN tenancies t ON t.id = l.tenancy_id
+             WHERE l.status = 'committed'
+               AND l.processed_at BETWEEN :date_from AND :date_to
+               {$tenantWhere}
+               AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
+               AND {$revenueEligibilityClause}
+             GROUP BY l.tenancy_id, t.name",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     private static function smsTenantRows(array $filters): array
@@ -1541,6 +1632,7 @@ class PlatformConsumptionDashboardService
             'voice_total' => 0,
             'whatsapp_total' => 0,
             'whatsapp_voice_total' => 0,
+            'whatsapp_voice_minutes' => 0.0,
             'revenue' => 0.0,
             'cost' => 0.0,
             'profit' => 0.0,
@@ -1987,16 +2079,19 @@ class PlatformConsumptionDashboardService
             $params[$key] = $source;
         }
 
-        $legacySourcePlaceholders = [];
-        foreach (self::legacyRevenueSources('whatsapp_voice') as $index => $source) {
-            $key = ':wa_voice_legacy_source_' . $index;
-            $legacySourcePlaceholders[] = $key;
+        $nullSlugSourcePlaceholders = [];
+        foreach (self::nullSlugAcceptedSources('whatsapp_voice') as $index => $source) {
+            $key = ':wa_voice_null_slug_source_' . $index;
+            $nullSlugSourcePlaceholders[] = $key;
             $params[$key] = $source;
         }
 
-        $legacyRevenueClause = $legacySourcePlaceholders !== []
-            ? " OR l.source IN (" . implode(', ', $legacySourcePlaceholders) . ")"
-            : '';
+        $revenueEligibilityClause = self::revenueEligibilityClause(
+            'l.source',
+            "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '')",
+            $slugPlaceholders,
+            $nullSlugSourcePlaceholders
+        );
 
         $outerWhere = [];
         self::applyWhatsVoiceStatusFilter($outerWhere, $params, $filters['status'] ?? 'all', 'wc');
@@ -2025,10 +2120,7 @@ class PlatformConsumptionDashboardService
                   AND l.source IN (" . implode(', ', $sourcePlaceholders) . ")
                   AND l.processed_at BETWEEN :date_from AND :date_to
                   {$tenantWhere}
-                  AND (
-                      COALESCE(JSON_UNQUOTE(JSON_EXTRACT(l.metadata_json, '$.billing_leg.slug')), '') IN (" . implode(', ', $slugPlaceholders) . ")
-                      {$legacyRevenueClause}
-                  )
+                  AND {$revenueEligibilityClause}
                 GROUP BY l.tenancy_id, l.related_id
              ) x
              LEFT JOIN whatsapp_call_cdr wc ON wc.call_id = x.call_id
@@ -2036,6 +2128,105 @@ class PlatformConsumptionDashboardService
              {$outerClause}",
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function buildServiceSummaries(array $summary): array
+    {
+        $products = (array)($summary['products'] ?? []);
+
+        return [
+            self::serviceSummaryEntry(
+                'sms',
+                'SMS',
+                $products['sms'] ?? [],
+                (int)($summary['sms_total'] ?? 0),
+                [
+                    'billed_calls' => (int)($summary['sms_delivered'] ?? 0),
+                    'helper' => sprintf(
+                        '%d entregues | %d falhos',
+                        (int)($summary['sms_delivered'] ?? 0),
+                        (int)($summary['sms_failed'] ?? 0)
+                    ),
+                ]
+            ),
+            self::serviceSummaryEntry(
+                'voice',
+                'Voz',
+                $products['voice'] ?? [],
+                (int)($summary['voice_total'] ?? 0),
+                [
+                    'billed_minutes' => (float)($summary['voice_billed_minutes'] ?? 0),
+                    'helper' => sprintf(
+                        'ASR %s%% | ACD %ss',
+                        number_format((float)($summary['voice_asr'] ?? 0), 2, '.', ''),
+                        number_format((float)($summary['voice_acd_seconds'] ?? 0), 2, '.', '')
+                    ),
+                ]
+            ),
+            self::serviceSummaryEntry(
+                'whatsapp',
+                'WhatsApp Msg',
+                $products['whatsapp'] ?? [],
+                (int)($summary['whatsapp_total'] ?? 0),
+                [
+                    'billed_calls' => (int)($summary['whatsapp_total'] ?? 0),
+                    'helper' => sprintf(
+                        '%d entregues | %d lidas',
+                        (int)($summary['whatsapp_delivered'] ?? 0),
+                        (int)($summary['whatsapp_read'] ?? 0)
+                    ),
+                ]
+            ),
+            self::serviceSummaryEntry(
+                'whatsapp_voice',
+                'WhatsApp Voz',
+                $products['whatsapp_voice'] ?? [],
+                (int)($summary['whatsapp_voice_total'] ?? 0),
+                [
+                    'billed_minutes' => (float)($summary['whatsapp_voice_billed_minutes'] ?? 0),
+                    'billed_calls' => (int)($summary['whatsapp_voice_billed'] ?? 0),
+                    'helper' => sprintf(
+                        '%d atendidas | %s min faturados',
+                        (int)($summary['whatsapp_voice_answered'] ?? 0),
+                        number_format((float)($summary['whatsapp_voice_billed_minutes'] ?? 0), 2, '.', '')
+                    ),
+                ]
+            ),
+        ];
+    }
+
+    private static function serviceSummaryEntry(string $key, string $label, array $product, int $volumeTotal, array $extra = []): array
+    {
+        $charged = round((float)($product['revenue'] ?? 0), 4);
+        $cost = round((float)($product['cost'] ?? 0), 4);
+        $margin = round((float)($product['profit'] ?? ($charged - $cost)), 4);
+        $marginPercent = $charged > 0 ? round(($margin / $charged) * 100, 2) : 0.0;
+
+        return [
+            'service_key' => $key,
+            'service_label' => $label,
+            'charged_total' => $charged,
+            'cost_total' => $cost,
+            'margin_total' => $margin,
+            'margin_percent' => $marginPercent,
+            'volume_total' => $volumeTotal,
+            'billed_minutes' => round((float)($extra['billed_minutes'] ?? 0), 4),
+            'billed_calls' => (int)($extra['billed_calls'] ?? 0),
+            'helper' => (string)($extra['helper'] ?? ''),
+        ];
+    }
+
+    private static function revenueEligibilityClause(string $sourceExpr, string $slugExpr, array $slugPlaceholders, array $nullSlugSourcePlaceholders = []): string
+    {
+        $slugClause = $slugPlaceholders !== []
+            ? "{$slugExpr} IN (" . implode(', ', $slugPlaceholders) . ')'
+            : '0 = 1';
+
+        if ($nullSlugSourcePlaceholders === []) {
+            return '(' . $slugClause . ')';
+        }
+
+        return '(' . $slugClause . " OR ({$slugExpr} = '' AND {$sourceExpr} IN (" . implode(', ', $nullSlugSourcePlaceholders) . ')))';
     }
 
     private static function productRevenueSources(string $product): array
@@ -2052,5 +2243,14 @@ class PlatformConsumptionDashboardService
     private static function legacyRevenueSources(string $product): array
     {
         return self::LEGACY_REVENUE_SOURCES[$product] ?? [];
+    }
+
+    private static function nullSlugAcceptedSources(string $product): array
+    {
+        if (!in_array($product, self::NULL_SLUG_ACCEPTED_PRODUCTS, true)) {
+            return [];
+        }
+
+        return self::productRevenueSources($product);
     }
 }

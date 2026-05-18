@@ -17,6 +17,14 @@ Gerado automaticamente a partir de `routes/`, `app/Service/ModuleAccessMap.php` 
 - A rota `/callcenter/reports` é fisicamente filha de `/callcenter`, mas comercialmente pertence ao módulo `Relatórios`; sem uma regra exata no mapa oficial, ela tende a cair no módulo errado.
 - As mensagens de bloqueio não carregavam contexto consistente de módulo, o que abria espaço para erro de identificação.
 
+## Addendum do Incidente 2026-05-18
+
+- Comparação principal usada na regressão: `git diff 34585a7..c3d2130` nos arquivos de ACL, menu e plano.
+- O menu e o header estavam carregando permissões apenas por `role_id`, via `PermissionsRules::getRolePermissionsNames($roleId)`, sem filtrar `tenancy_id`. Isso podia fazer o admin enxergar permissões agregadas de outros tenants com o mesmo papel.
+- O layout publicava `permissionsVersionKey` fixo em `1:1`, o que impedia sincronização correta do estado de permissões no front quando papéis eram alterados.
+- O runtime de plano liberava `reports` por fallback textual em `reports_label`, mesmo quando `modules_json.reports = false`. Na prática, bastava o campo legado de descrição existir para o módulo de relatórios ficar aberto.
+- A mensagem comercial foi padronizada para `Este módulo não faz parte do seu plano contratado.` para evitar citar o módulo errado enquanto o bloqueio usa `module_key` e `module_label` apenas como metadado técnico.
+
 ## Matriz Oficial
 
 | Método | Rota | Controller::action | Módulo correto | Permissão | Exige plano? | Menu | Comportamento esperado |

@@ -2,10 +2,9 @@
 
 namespace App\Controller\Pages;
 
-use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
-use App\Model\Entity\UserSearch;
+use App\Service\AuthContext;
 use App\Service\DashboardService;
 use App\Service\PlanRuntimeService;
 use App\Service\WhatsAppBilling;
@@ -32,12 +31,11 @@ class ViewComponents
 
     private static function getMenu(): string
     {
-        $obUser = SessionUser::getLogged();
-        $roleId = (int)($obUser['role_id'] ?? 0);
-
-        $userPerms = self::isSuperAdmin($obUser)
-            ? ['SUPERADMIN']
-            : PermissionsRules::getRolePermissionsNames($roleId);
+        $authContext = AuthContext::current();
+        $userPerms = array_values(array_unique(array_filter(array_map(
+            static fn ($value): string => trim((string)$value),
+            (array)($authContext['permissions'] ?? [])
+        ))));
 
         return View::render('pages/menu', [
             'URL'             => URL,
@@ -748,25 +746,29 @@ class ViewComponents
      */
     private static function getHeader(): string
     {
-        $obUser = SessionUser::getLogged();
-        $user = UserSearch::getUserById($obUser['tenancy_id'], (int)$obUser['id']) ?? [];
-        $userBase = !empty($user) ? $user : $obUser;
-        $roleId = (int)($obUser['role_id'] ?? 0);
-        $userPerms = self::isSuperAdmin($obUser)
-            ? ['SUPERADMIN']
-            : PermissionsRules::getRolePermissionsNames($roleId);
+        $authContext = AuthContext::current(true);
+        $obUser = (array)($authContext['session_user'] ?? SessionUser::getLogged() ?? []);
+        $user = (array)($authContext['profile'] ?? []);
+        $userBase = (array)($authContext['user'] ?? ($user ?: $obUser));
+        $userPerms = array_values(array_unique(array_filter(array_map(
+            static fn ($value): string => trim((string)$value),
+            (array)($authContext['permissions'] ?? [])
+        ))));
 
         $userAvatar = !empty($user['image'])
             ? URL . '/resources/assets/img/' . $user['image']
             : URL . '/resources/assets/img/default-avatar.png';
 
-        $canSwitchPlan = self::canSwitchPlan($userBase);
+        $canSwitchPlan = (bool)($authContext['can_switch_plan'] ?? self::canSwitchPlan($userBase));
 
         $planSwitcherHtml = '';
 
         if ($canSwitchPlan) {
-            $userPlans   = UserPlans::getAllActivePlansByUser((int)$obUser['id'], (string)$obUser['tenancy_id']);
-            $currentPlan = RegisterTenancies::getActivePlanId((string)$obUser['tenancy_id']);
+            $userPlans = (array)($authContext['user_plans'] ?? []);
+            $currentPlan = (int)($authContext['current_plan_id'] ?? 0);
+            if ($currentPlan <= 0) {
+                $currentPlan = RegisterTenancies::getActivePlanId((string)$obUser['tenancy_id']);
+            }
             $planRatesCardHtml = self::getPlanRatesCardHtml(self::getCurrentPlanServiceSummary($obUser, $currentPlan), $obUser, (array)$user, (array)$userBase);
 
             $optionsHTML = '';
@@ -1054,6 +1056,9 @@ class ViewComponents
 
     private static function renderAuthenticatedPage(string $title, string|array|bool $content): string
     {
+        $authContext = AuthContext::current();
+        $permissionVersionKey = (string)($authContext['_permission_version_key'] ?? '1:1');
+
         return View::render('pages/page', [
             'title'   => self::normalizePageTitle($title),
             'menu'    => self::getMenu(),
@@ -1061,7 +1066,7 @@ class ViewComponents
             'content' => $content,
             'footer'  => self::getFooter(),
             'permissionsSyncUrl' => URL . '/me/permissions',
-            'permissionsVersionKey' => '1:1',
+            'permissionsVersionKey' => $permissionVersionKey,
         ]);
     }
 

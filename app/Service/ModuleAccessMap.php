@@ -221,14 +221,7 @@ class ModuleAccessMap
 
     public static function planDeniedMessageForRoute(string $routeName): string
     {
-        $context = self::routeContext($routeName);
-        $moduleLabel = trim((string)($context['module_label'] ?? ''));
-
-        if ($moduleLabel === '') {
-            return self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE;
-        }
-
-        return 'O módulo ' . $moduleLabel . ' não faz parte do seu plano contratado.';
+        return self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE;
     }
 
     public static function matrixRows(): array
@@ -295,9 +288,7 @@ class ModuleAccessMap
             'menus' => array_values(array_filter(array_map('strval', (array)($definition['menus'] ?? [])))),
             'requires_plan' => $features !== [],
             'route_permission_message' => self::routePermissionDeniedMessage(),
-            'plan_message' => $moduleLabel !== ''
-                ? 'O módulo ' . $moduleLabel . ' não faz parte do seu plano contratado.'
-                : self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE,
+            'plan_message' => self::PLAN_MODULE_DENIED_FALLBACK_MESSAGE,
             'matched_by' => $matchedBy,
             'matched_rule' => $matchedRule,
         ];

@@ -414,7 +414,7 @@ class PlanRuntimeService
             'create_users' => $createUsersEnabled,
             'rates' => $ratesEnabled,
             'permissions' => $permissionsEnabled,
-            'reports' => !empty($modules['reports']) || trim((string)($effective['reports_label'] ?? '')) !== '',
+            'reports' => !empty($modules['reports']),
             'campaigns' => !empty($modules['campaigns']) || !empty($modules['sms']) || (int)($effective['campaigns_limit'] ?? $effective['camp_qtd'] ?? 0) !== 0,
             'sms' => !empty($modules['sms']),
             'voice' => !empty($modules['voice']),
@@ -579,17 +579,17 @@ class PlanRuntimeService
     private static function featureDeniedMessage(string $featureKey): string
     {
         return match ($featureKey) {
-            'administrative' => 'Este modulo nao esta disponivel no plano contratado.',
-            'create_users', 'users' => 'Este modulo nao esta disponivel no plano contratado.',
-            'rates' => 'Este modulo nao esta disponivel no plano contratado.',
-            'permissions' => 'Este modulo nao esta disponivel no plano contratado.',
-            'reports' => 'Este modulo nao esta disponivel no plano contratado.',
-            'sms', 'campaigns' => 'Este modulo nao esta disponivel no plano contratado.',
-            'whatsapp' => 'Este modulo nao esta disponivel no plano contratado.',
-            'templates' => 'Este modulo nao esta disponivel no plano contratado.',
-            'callcenter' => 'Este modulo nao esta disponivel no plano contratado.',
-            'voice', 'webrtc', 'trunks' => 'Este modulo nao esta disponivel no plano contratado.',
-            default => 'Este modulo nao esta disponivel no plano contratado.',
+            'administrative' => 'Este módulo não faz parte do seu plano contratado.',
+            'create_users', 'users' => 'Este módulo não faz parte do seu plano contratado.',
+            'rates' => 'Este módulo não faz parte do seu plano contratado.',
+            'permissions' => 'Este módulo não faz parte do seu plano contratado.',
+            'reports' => 'Este módulo não faz parte do seu plano contratado.',
+            'sms', 'campaigns' => 'Este módulo não faz parte do seu plano contratado.',
+            'whatsapp' => 'Este módulo não faz parte do seu plano contratado.',
+            'templates' => 'Este módulo não faz parte do seu plano contratado.',
+            'callcenter' => 'Este módulo não faz parte do seu plano contratado.',
+            'voice', 'webrtc', 'trunks' => 'Este módulo não faz parte do seu plano contratado.',
+            default => 'Este módulo não faz parte do seu plano contratado.',
         };
     }
 

@@ -6,6 +6,8 @@ use WilliamCosta\DatabaseManager\Database;
 
 class PlatformConsumptionDashboardService
 {
+    private const PRODUCT_KEYS = ['sms', 'voice', 'whatsapp', 'whatsapp_voice'];
+
     private const ROUTES = [
         [
             'route_path' => '/admin/platform-consumption',
@@ -255,7 +257,7 @@ class PlatformConsumptionDashboardService
     {
         $today = date('Y-m-d');
 
-        return match ($preset) {
+        [$resolvedFrom, $resolvedTo] = match ($preset) {
             'today' => [$today, $today],
             'yesterday' => [date('Y-m-d', strtotime('-1 day')), date('Y-m-d', strtotime('-1 day'))],
             '30d' => [date('Y-m-d', strtotime('-29 days')), $today],
@@ -265,6 +267,12 @@ class PlatformConsumptionDashboardService
             ],
             default => [date('Y-m-d', strtotime('-6 days')), $today],
         };
+
+        if (strtotime($resolvedFrom) > strtotime($resolvedTo)) {
+            return [$resolvedTo, $resolvedFrom];
+        }
+
+        return [$resolvedFrom, $resolvedTo];
     }
 
     private static function safeDate(string $value): ?string
@@ -295,7 +303,7 @@ class PlatformConsumptionDashboardService
         ];
 
         foreach ($products as $product => $sources) {
-            if ($filters['product'] !== 'all' && $filters['product'] !== $product) {
+            if (!self::allowsProduct($filters, $product)) {
                 continue;
             }
 
@@ -344,10 +352,10 @@ class PlatformConsumptionDashboardService
     private static function costByProduct(array $filters): array
     {
         return [
-            'sms' => self::smsPlatformCost($filters),
-            'voice' => self::voicePlatformCost($filters),
-            'whatsapp' => self::whatsMessageCost($filters),
-            'whatsapp_voice' => self::whatsVoiceCost($filters),
+            'sms' => self::allowsProduct($filters, 'sms') ? self::smsPlatformCost($filters) : 0.0,
+            'voice' => self::allowsProduct($filters, 'voice') ? self::voicePlatformCost($filters) : 0.0,
+            'whatsapp' => self::allowsProduct($filters, 'whatsapp') ? self::whatsMessageCost($filters) : 0.0,
+            'whatsapp_voice' => self::allowsProduct($filters, 'whatsapp_voice') ? self::whatsVoiceCost($filters) : 0.0,
         ];
     }
 
@@ -410,7 +418,7 @@ class PlatformConsumptionDashboardService
             $params[$key] = $slug;
         }
 
-        $total = (new Database())->execute(
+        $ledgerTotal = (new Database())->execute(
             "SELECT COALESCE(SUM(call_cost), 0) AS total
              FROM (
                 SELECT l.related_id,
@@ -426,7 +434,33 @@ class PlatformConsumptionDashboardService
             $params
         )->fetchColumn();
 
-        return round((float)$total, 4);
+        if ((float)$ledgerTotal > 0) {
+            return round((float)$ledgerTotal, 4);
+        }
+
+        $fallbackRows = (new Database())->execute(
+            "SELECT
+                COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key,
+                MAX(COALESCE(c.billsec, c.duration, 0)) AS duration_one,
+                MAX(COALESCE(c.call_minute_cost, 0)) AS call_minute_cost,
+                MAX(COALESCE(c.sms_cost, 0)) AS sms_cost,
+                MAX(UPPER(COALESCE(c.type, 'VOICE'))) AS voice_type
+             FROM cdr c
+             WHERE COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to
+             " . ($filters['tenant_id'] !== '' ? " AND c.tenancy_id = :tenancy_id" : "") . "
+             GROUP BY COALESCE(NULLIF(c.call_id, ''), c.channel_id)",
+            [
+                ':date_from' => $filters['date_from'] . ' 00:00:00',
+                ':date_to' => $filters['date_to'] . ' 23:59:59',
+            ] + ($filters['tenant_id'] !== '' ? [':tenancy_id' => $filters['tenant_id']] : [])
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $computed = 0.0;
+        foreach ($fallbackRows as $row) {
+            $computed += self::fallbackVoiceCallCost($row);
+        }
+
+        return round($computed, 4);
     }
 
     private static function whatsMessageCost(array $filters): float
@@ -521,6 +555,15 @@ class PlatformConsumptionDashboardService
 
     private static function smsAggregate(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'sms')) {
+            return [
+                'total_messages' => 0,
+                'delivered_messages' => 0,
+                'failed_messages' => 0,
+                'sent_messages' => 0,
+            ];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -565,6 +608,18 @@ class PlatformConsumptionDashboardService
 
     private static function voiceAggregate(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'voice')) {
+            return [
+                'total_calls' => 0,
+                'answered_calls' => 0,
+                'busy_calls' => 0,
+                'noanswer_calls' => 0,
+                'failed_calls' => 0,
+                'cancelled_calls' => 0,
+                'billed_seconds' => 0,
+            ];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -634,6 +689,18 @@ class PlatformConsumptionDashboardService
 
     private static function whatsMessageAggregate(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'whatsapp')) {
+            return [
+                'total_messages' => 0,
+                'delivered_messages' => 0,
+                'read_messages' => 0,
+                'failed_messages' => 0,
+                'marketing_messages' => 0,
+                'utility_messages' => 0,
+                'authentication_messages' => 0,
+            ];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -686,6 +753,14 @@ class PlatformConsumptionDashboardService
 
     private static function whatsVoiceAggregate(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'whatsapp_voice')) {
+            return [
+                'total_calls' => 0,
+                'answered_calls' => 0,
+                'failed_calls' => 0,
+            ];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -823,6 +898,10 @@ class PlatformConsumptionDashboardService
 
     private static function fillSmsSeries(array &$series, array $filters): void
     {
+        if (!self::allowsProduct($filters, 'sms')) {
+            return;
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -853,6 +932,10 @@ class PlatformConsumptionDashboardService
 
     private static function fillVoiceSeries(array &$series, array $filters): void
     {
+        if (!self::allowsProduct($filters, 'voice')) {
+            return;
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -889,6 +972,10 @@ class PlatformConsumptionDashboardService
 
     private static function fillWhatsSeries(array &$series, array $filters): void
     {
+        if (!self::allowsProduct($filters, 'whatsapp')) {
+            return;
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -919,6 +1006,10 @@ class PlatformConsumptionDashboardService
 
     private static function fillWhatsVoiceSeries(array &$series, array $filters): void
     {
+        if (!self::allowsProduct($filters, 'whatsapp_voice')) {
+            return;
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -949,6 +1040,10 @@ class PlatformConsumptionDashboardService
 
     private static function smsCostSeries(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'sms')) {
+            return [];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -990,6 +1085,10 @@ class PlatformConsumptionDashboardService
 
     private static function voiceCostSeries(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'voice')) {
+            return [];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -1026,11 +1125,20 @@ class PlatformConsumptionDashboardService
             $params
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        return self::mapDayAmountRows($rows);
+        $mapped = self::mapDayAmountRows($rows);
+        if (array_sum($mapped) > 0) {
+            return $mapped;
+        }
+
+        return self::fallbackVoiceCostSeries($filters);
     }
 
     private static function whatsCostSeries(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'whatsapp')) {
+            return [];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -1058,6 +1166,10 @@ class PlatformConsumptionDashboardService
 
     private static function whatsVoiceCostSeries(array $filters): array
     {
+        if (!self::allowsProduct($filters, 'whatsapp_voice')) {
+            return [];
+        }
+
         $params = [
             ':date_from' => $filters['date_from'] . ' 00:00:00',
             ':date_to' => $filters['date_to'] . ' 23:59:59',
@@ -1101,7 +1213,7 @@ class PlatformConsumptionDashboardService
     {
         $tenants = [];
 
-        foreach (self::smsTenantRows($filters) as $row) {
+        foreach (self::allowsProduct($filters, 'sms') ? self::smsTenantRows($filters) : [] as $row) {
             $tenancyId = (string)($row['tenancy_id'] ?? '');
             if ($tenancyId === '') {
                 continue;
@@ -1110,7 +1222,7 @@ class PlatformConsumptionDashboardService
             $tenants[$tenancyId]['sms_total'] += (int)($row['sms_total'] ?? 0);
         }
 
-        foreach (self::voiceTenantRows($filters) as $row) {
+        foreach (self::allowsProduct($filters, 'voice') ? self::voiceTenantRows($filters) : [] as $row) {
             $tenancyId = (string)($row['tenancy_id'] ?? '');
             if ($tenancyId === '') {
                 continue;
@@ -1119,7 +1231,7 @@ class PlatformConsumptionDashboardService
             $tenants[$tenancyId]['voice_total'] += (int)($row['voice_total'] ?? 0);
         }
 
-        foreach (self::whatsTenantRows($filters) as $row) {
+        foreach (self::allowsProduct($filters, 'whatsapp') ? self::whatsTenantRows($filters) : [] as $row) {
             $tenancyId = (string)($row['tenancy_id'] ?? '');
             if ($tenancyId === '') {
                 continue;
@@ -1130,7 +1242,7 @@ class PlatformConsumptionDashboardService
             $tenants[$tenancyId]['cost'] = round($tenants[$tenancyId]['cost'] + (float)($row['cost'] ?? 0), 4);
         }
 
-        foreach (self::whatsVoiceTenantRows($filters) as $row) {
+        foreach (self::allowsProduct($filters, 'whatsapp_voice') ? self::whatsVoiceTenantRows($filters) : [] as $row) {
             $tenancyId = (string)($row['tenancy_id'] ?? '');
             if ($tenancyId === '') {
                 continue;
@@ -1287,10 +1399,10 @@ class PlatformConsumptionDashboardService
     private static function recentFailures(array $filters): array
     {
         $rows = array_merge(
-            self::smsFailures($filters),
-            self::voiceFailures($filters),
-            self::whatsFailures($filters),
-            self::whatsVoiceFailures($filters)
+            self::allowsProduct($filters, 'sms') ? self::smsFailures($filters) : [],
+            self::allowsProduct($filters, 'voice') ? self::voiceFailures($filters) : [],
+            self::allowsProduct($filters, 'whatsapp') ? self::whatsFailures($filters) : [],
+            self::allowsProduct($filters, 'whatsapp_voice') ? self::whatsVoiceFailures($filters) : []
         );
 
         usort($rows, static function (array $left, array $right): int {
@@ -1492,5 +1604,81 @@ class PlatformConsumptionDashboardService
         }
 
         return $series;
+    }
+
+    private static function allowsProduct(array $filters, string $product): bool
+    {
+        return ($filters['product'] ?? 'all') === 'all' || ($filters['product'] ?? '') === $product;
+    }
+
+    private static function fallbackVoiceCostSeries(array $filters): array
+    {
+        $params = [
+            ':date_from' => $filters['date_from'] . ' 00:00:00',
+            ':date_to' => $filters['date_to'] . ' 23:59:59',
+        ];
+        $where = [
+            "COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at) BETWEEN :date_from AND :date_to",
+        ];
+        if ($filters['tenant_id'] !== '') {
+            $where[] = 'c.tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $filters['tenant_id'];
+        }
+
+        $rows = (new Database())->execute(
+            "SELECT
+                DATE(COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at)) AS day_ref,
+                COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key,
+                MAX(COALESCE(c.billsec, c.duration, 0)) AS duration_one,
+                MAX(COALESCE(c.call_minute_cost, 0)) AS call_minute_cost,
+                MAX(COALESCE(c.sms_cost, 0)) AS sms_cost,
+                MAX(UPPER(COALESCE(c.type, 'VOICE'))) AS voice_type
+             FROM cdr c
+             WHERE " . implode(' AND ', $where) . "
+             GROUP BY DATE(COALESCE(NULLIF(c.started, '0000-00-00 00:00:00'), NULLIF(c.cdr_timestamp, '0000-00-00 00:00:00'), c.created_at)), COALESCE(NULLIF(c.call_id, ''), c.channel_id)",
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $mapped = [];
+        foreach ($rows as $row) {
+            $day = (string)($row['day_ref'] ?? '');
+            if ($day === '') {
+                continue;
+            }
+            $mapped[$day] = round(($mapped[$day] ?? 0) + self::fallbackVoiceCallCost($row), 4);
+        }
+
+        return $mapped;
+    }
+
+    private static function fallbackVoiceCallCost(array $row): float
+    {
+        $type = strtolower(trim((string)($row['voice_type'] ?? 'voice')));
+        if ($type === 'sms') {
+            return round((float)($row['sms_cost'] ?? 0), 4);
+        }
+
+        $duration = (float)($row['duration_one'] ?? 0);
+        $minuteCost = (float)($row['call_minute_cost'] ?? 0);
+        if ($minuteCost <= 0) {
+            return 0.0;
+        }
+
+        $halfRate = $minuteCost / 2;
+        if ($duration <= 30) {
+            return round($halfRate, 4);
+        }
+
+        if ($duration <= 60) {
+            $extra = ceil(($duration - 30) / 6) * 6;
+            $billedDuration = 30 + $extra;
+            $progress = ($billedDuration - 30) / 30;
+            return round($halfRate + ($progress * $halfRate), 4);
+        }
+
+        $extra = ceil(($duration - 60) / 6) * 6;
+        $billedDuration = 60 + $extra;
+
+        return round(($billedDuration / 60) * $minuteCost, 4);
     }
 }

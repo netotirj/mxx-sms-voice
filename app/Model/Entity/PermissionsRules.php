@@ -1012,50 +1012,6 @@ class PermissionsRules {
             return;
         }
 
-        $db = new Database();
-        $expectedRouteIds = self::getDefaultAdminRouteIds();
-        $expectedLookup = array_fill_keys(array_map('intval', $expectedRouteIds), true);
-
-        $currentRouteIds = $db->execute(
-            "SELECT route_id
-             FROM sys_role_template_permissions
-             WHERE template_id = :template_id",
-            [':template_id' => $templateId]
-        )->fetchAll(PDO::FETCH_COLUMN) ?: [];
-
-        foreach ($currentRouteIds as $routeId) {
-            $routeId = (int)$routeId;
-            if ($routeId <= 0 || isset($expectedLookup[$routeId])) {
-                continue;
-            }
-
-            $db->execute(
-                "DELETE FROM sys_role_template_permissions
-                 WHERE template_id = :template_id
-                   AND route_id = :route_id",
-                [
-                    ':template_id' => $templateId,
-                    ':route_id' => $routeId,
-                ]
-            );
-        }
-
-        foreach ($expectedRouteIds as $routeId) {
-            $routeId = (int)$routeId;
-            if ($routeId <= 0) {
-                continue;
-            }
-
-            $db->execute(
-                "INSERT IGNORE INTO sys_role_template_permissions (template_id, route_id)
-                 VALUES (:template_id, :route_id)",
-                [
-                    ':template_id' => $templateId,
-                    ':route_id' => $routeId,
-                ]
-            );
-        }
-
         self::sanitizeTemplatePermissions($templateId);
         self::syncAllRolesBoundToTemplate($templateId);
         self::invalidatePermissionCaches();
@@ -1422,6 +1378,21 @@ class PermissionsRules {
             [':id' => $templateId]
         )->fetchColumn()));
 
+        if (self::templateUsesAppendOnlyGovernance($templateName)) {
+            (new Database())->execute(
+                "DELETE trp
+                 FROM sys_role_template_permissions trp
+                 INNER JOIN sys_routes sr ON sr.id = trp.route_id
+                 WHERE trp.template_id = :template_id
+                   AND (
+                        sr." . self::COLUMN_ACCESS_SCOPE . " <> 'tenant'
+                        OR sr." . self::COLUMN_ASSIGNABLE_BY . " <> 'admin'
+                   )",
+                [':template_id' => $templateId]
+            );
+            return;
+        }
+
         $expectedRouteIds = self::getDefaultTemplateRouteIds($templateName);
         if ($expectedRouteIds !== []) {
             $expectedLookup = array_fill_keys(array_map('intval', $expectedRouteIds), true);
@@ -1468,19 +1439,11 @@ class PermissionsRules {
             return;
         }
 
-        if ($templateName === 'admin') {
-            (new Database())->execute(
-                "DELETE trp
-                 FROM sys_role_template_permissions trp
-                 INNER JOIN sys_routes sr ON sr.id = trp.route_id
-                 WHERE trp.template_id = :template_id
-                   AND (
-                        sr." . self::COLUMN_ACCESS_SCOPE . " <> 'tenant'
-                        OR sr." . self::COLUMN_ASSIGNABLE_BY . " <> 'admin'
-                   )",
-                [':template_id' => $templateId]
-            );
-        }
+    }
+
+    private static function templateUsesAppendOnlyGovernance(string $templateName): bool
+    {
+        return strtolower(trim($templateName)) === 'admin';
     }
 
     private static function sanitizeRolePermissions(int $roleId, string $tenancyId): void

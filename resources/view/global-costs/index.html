@@ -640,8 +640,26 @@
             })
         ]);
 
-        const rowsPayload = await rowsResponse.json();
-        const historyPayload = await historyResponse.json();
+        const rowsBody = await rowsResponse.text();
+        const historyBody = await historyResponse.text();
+        let rowsPayload = null;
+        let historyPayload = null;
+
+        try {
+            rowsPayload = JSON.parse(rowsBody);
+        } catch (_) {
+            throw new Error(rowsBody && rowsBody.trim().startsWith('<')
+                ? 'A rota /global-costs/search retornou HTML em vez de JSON. Verifique login/permissao.'
+                : 'Resposta invalida ao carregar o cadastro de custos globais.');
+        }
+
+        try {
+            historyPayload = JSON.parse(historyBody);
+        } catch (_) {
+            throw new Error(historyBody && historyBody.trim().startsWith('<')
+                ? 'A rota /global-costs/history retornou HTML em vez de JSON. Verifique login/permissao.'
+                : 'Resposta invalida ao carregar o historico de custos globais.');
+        }
 
         if (!rowsResponse.ok || rowsPayload.status !== 'ok') {
             throw new Error(rowsPayload.message || 'Falha ao carregar os custos upstream.');

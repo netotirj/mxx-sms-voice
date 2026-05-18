@@ -1131,11 +1131,38 @@ class PlatformConsumptionDashboardService
     {
         $provider = trim((string)($row['provider_ref'] ?? ''));
         $carrier = CallbackSms::normalizeOperatorForDashboard((string)($row['carrier_ref'] ?? ''));
+        $candidates = [
+            [
+                'provider' => $provider !== '' ? $provider : null,
+                'carrier' => $carrier,
+            ],
+            [
+                'provider' => $provider !== '' ? $provider : null,
+                'carrier' => null,
+            ],
+            [
+                'provider' => null,
+                'carrier' => $carrier,
+            ],
+        ];
 
-        return PlatformGlobalCostService::resolveAmount('SMS', [
-            'provider' => $provider !== '' ? $provider : null,
-            'carrier' => $carrier,
-        ], 0.0);
+        if ($provider !== '' && $carrier !== null && strcasecmp($provider, $carrier) !== 0) {
+            $candidates[] = [
+                'provider' => $carrier,
+                'carrier' => $provider,
+            ];
+            $candidates[] = [
+                'provider' => $carrier,
+                'carrier' => null,
+            ];
+        }
+
+        $resolved = self::resolveCostFromCandidates('SMS', $candidates);
+        if ($resolved > 0) {
+            return $resolved;
+        }
+
+        return PlatformGlobalCostService::resolveAmount('SMS', [], 0.0);
     }
 
     private static function voiceUpstreamRows(array $filters, bool $withDay = false): array
@@ -1183,6 +1210,7 @@ class PlatformConsumptionDashboardService
                     COALESCE(NULLIF(c.call_id, ''), c.channel_id) AS call_key,
                     MAX(COALESCE(c.billsec, c.duration, 0)) AS duration_one,
                     MAX(COALESCE(c.final_price, c.value, 0)) AS revenue_total,
+                    MAX(COALESCE(c.call_minute_cost, 0)) AS call_minute_cost_ref,
                     MAX(COALESCE(c.trunk_id, '')) AS trunk_id_ref,
                     MAX(COALESCE(c.trunk, '')) AS trunk_name_ref,
                     MAX(COALESCE(c.trunk_billing_type, '')) AS trunk_billing_type_ref
@@ -1205,14 +1233,57 @@ class PlatformConsumptionDashboardService
         };
 
         if ($routeKey === null) {
-            return 0.0;
+            return self::fallbackVoiceCallCost([
+                'voice_type' => 'voice',
+                'duration_one' => $row['duration_one'] ?? 0,
+                'call_minute_cost' => $row['call_minute_cost_ref'] ?? 0,
+                'sms_cost' => 0,
+            ]);
         }
 
-        $minuteCost = PlatformGlobalCostService::resolveAmount('VOICE', [
-            'route_key' => $routeKey,
-            'provider' => trim((string)($row['trunk_id_ref'] ?? '')) ?: null,
-            'carrier' => trim((string)($row['trunk_name_ref'] ?? '')) ?: null,
-        ], 0.0);
+        $provider = trim((string)($row['trunk_id_ref'] ?? ''));
+        $carrier = trim((string)($row['trunk_name_ref'] ?? ''));
+        $candidates = [
+            [
+                'route_key' => $routeKey,
+                'provider' => $provider !== '' ? $provider : null,
+                'carrier' => $carrier !== '' ? $carrier : null,
+            ],
+            [
+                'route_key' => $routeKey,
+                'provider' => $provider !== '' ? $provider : null,
+                'carrier' => null,
+            ],
+            [
+                'route_key' => $routeKey,
+                'provider' => null,
+                'carrier' => $carrier !== '' ? $carrier : null,
+            ],
+            [
+                'route_key' => $routeKey,
+                'provider' => null,
+                'carrier' => null,
+            ],
+        ];
+
+        if ($provider !== '' && $carrier !== '' && strcasecmp($provider, $carrier) !== 0) {
+            $candidates[] = [
+                'route_key' => $routeKey,
+                'provider' => $carrier,
+                'carrier' => $provider,
+            ];
+            $candidates[] = [
+                'route_key' => $routeKey,
+                'provider' => $carrier,
+                'carrier' => null,
+            ];
+        }
+
+        $minuteCost = self::resolveCostFromCandidates('VOICE', $candidates);
+
+        if ($minuteCost <= 0) {
+            $minuteCost = round((float)($row['call_minute_cost_ref'] ?? 0), 4);
+        }
 
         if ($minuteCost <= 0) {
             return 0.0;
@@ -1755,6 +1826,29 @@ class PlatformConsumptionDashboardService
         }
 
         return "'UNKNOWN'";
+    }
+
+    private static function resolveCostFromCandidates(string $module, array $candidates): float
+    {
+        foreach ($candidates as $criteria) {
+            $filtered = array_filter(
+                $criteria,
+                static fn (mixed $value): bool => $value !== null && $value !== ''
+            );
+
+            $resolved = PlatformGlobalCostService::resolve($module, $filtered, [
+                'cost_price' => 0,
+                'currency' => 'BRL',
+                'source' => 'dashboard_candidate',
+            ]);
+
+            $amount = round((float)($resolved['cost_price'] ?? 0), 6);
+            if ($amount > 0) {
+                return $amount;
+            }
+        }
+
+        return 0.0;
     }
 
     private static function columnExists(string $table, string $column): bool

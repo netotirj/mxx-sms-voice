@@ -39,11 +39,11 @@
   <script src="{{captchaScriptUrl}}" async defer></script>
 </head>
 
-<body class="bg-darkSurface font-sans text-white antialiased">
-  <section class="min-h-screen flex items-center justify-center py-6 px-4 lg:py-0">
-    <div class="max-w-5xl w-full grid lg:grid-cols-12 gap-8 items-center">
-      <div class="lg:col-span-7 flex flex-col items-center lg:items-end">
-        <div class="w-full max-w-[28rem] bg-darkCard rounded-2xl shadow-2xl p-5 border border-gray-700">
+<body class="auth-page bg-darkSurface font-sans text-white antialiased">
+  <section class="auth-shell min-h-screen flex items-start justify-center px-4 py-6 sm:py-8">
+    <div class="auth-shell__grid max-w-5xl w-full grid lg:grid-cols-12 gap-8 xl:gap-10 items-start lg:items-center">
+      <div class="auth-shell__form-column lg:col-span-7 flex flex-col items-center lg:items-end">
+        <div class="auth-card auth-card--register w-full max-w-[30rem] bg-darkCard rounded-2xl shadow-2xl p-5 sm:p-6 border border-gray-700">
           <div class="mb-4 flex items-center gap-3">
             <div class="flex h-12 w-12 shrink-0 items-center justify-center">
               <img src="{{URL}}/resources/view/login/assets/images/maxx-logo-transparent.png" alt="Maxx Solutions" class="h-10 w-10 object-contain">
@@ -62,7 +62,7 @@
             </p>
           </div>
 
-          <form id="registerForm" class="space-y-3.5" data-social-registration="{{registerSocialMode}}">
+          <form id="registerForm" class="auth-form space-y-3.5" data-social-registration="{{registerSocialMode}}">
             <input type="hidden" id="socialRegistration" value="{{registerSocialInput}}">
             <div class="relative flex items-center justify-center">
               <div class="w-full border-t border-gray-700"></div>
@@ -133,11 +133,11 @@
               </button>
             </div>
 
-            <div class="{{captchaWidgetClass}} flex justify-center">
+            <div class="{{captchaWidgetClass}} auth-captcha flex justify-center">
               <div class="cf-turnstile" data-sitekey="{{captchaSiteKey}}" data-theme="dark" data-language="pt-BR"></div>
             </div>
 
-            <button id="btnRegister" type="submit" class="w-full text-white bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 hover:from-sky-400 hover:via-cyan-400 hover:to-blue-500 focus:ring-4 focus:ring-cyan-800 font-bold rounded-xl text-sm px-5 py-3 text-center transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-950/25">
+            <button id="btnRegister" type="submit" class="auth-primary-button w-full text-white bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-500 hover:from-sky-400 hover:via-cyan-400 hover:to-blue-500 focus:ring-4 focus:ring-cyan-800 font-bold rounded-xl text-sm px-5 py-3 text-center transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-950/25">
               <span class="btn-text">Criar minha conta</span>
               <svg class="btn-spinner hidden h-6 w-6 animate-spin text-white" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
@@ -148,7 +148,7 @@
         </div>
       </div>
 
-      <div class="lg:col-span-5 hidden lg:block">
+      <div class="auth-shell__illustration lg:col-span-5 hidden lg:block">
         <div class="relative">
           <div class="absolute -top-20 -left-20 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl"></div>
           <div class="absolute -bottom-20 -right-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl"></div>
@@ -159,12 +159,12 @@
   </section>
 
   <div id="modalTermos" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 px-4 py-6">
-    <div class="w-full max-w-2xl rounded-2xl border border-gray-700 bg-darkCard shadow-2xl">
+    <div class="w-full max-w-2xl rounded-2xl border border-gray-700 bg-darkCard shadow-2xl max-h-[calc(100dvh-2rem)] overflow-hidden">
       <div class="border-b border-gray-700 px-6 py-4">
         <h2 class="text-lg font-bold text-white">Termos de aceite</h2>
         <p class="mt-1 text-xs text-gray-400">Maxx Solutions - SMS</p>
       </div>
-      <div id="termosContent" class="max-h-80 overflow-y-auto px-6 py-5 text-sm leading-6 text-gray-300">
+      <div id="termosContent" class="max-h-[min(20rem,calc(100dvh-12rem))] overflow-y-auto px-6 py-5 text-sm leading-6 text-gray-300">
         <p class="mb-4">
           Ao criar sua conta, você confirma que as informações fornecidas são verdadeiras e que possui autorização para usar o telefone e o e-mail informados.
         </p>

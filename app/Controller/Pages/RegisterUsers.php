@@ -282,6 +282,7 @@ class RegisterUsers extends ViewComponents
                 null,
                 null,
                 null,
+                null,
                 'bootstrap:' . $invoiceNumber
             );
 

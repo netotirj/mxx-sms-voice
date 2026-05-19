@@ -96,13 +96,6 @@
                     </a>
                 </div>
 
-                <div class="mx-6 mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                        <p class="font-semibold">Agendamento de SMS pela campanha</p>
-                        <p class="text-xs font-medium text-blue-700">Use o icone de relogio nas acoes para programar o disparo da campanha.</p>
-                    </div>
-                </div>
-
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
                     <div class="min-w-0">
                         <div class="relative flex flex-col min-w-0 break-words bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4">
@@ -258,23 +251,23 @@
 
             return `
                 <div class="inline-flex items-center justify-center gap-1">
-                    <button class="btn-send inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Enviar" ${disabledAttr}>
+                    <button type="button" class="btn-send inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Enviar" ${disabledAttr}>
                         <span class="icon-send"><i data-feather="send" class="w-4 h-4"></i></span>
                         <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
                     </button>
-                    <button class="btn-schedule inline-flex items-center gap-1 bg-violet-100 text-violet-700 hover:bg-violet-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" data-name="${name}" title="Agendar campanha" ${disabledAttr}>
+                    <button type="button" class="btn-schedule inline-flex items-center gap-1 bg-violet-100 text-violet-700 hover:bg-violet-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" data-name="${name}" title="Agendar campanha" ${disabledAttr}>
                         <span class="icon-schedule"><i data-feather="clock" class="w-4 h-4"></i></span>
                         <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-violet-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
                     </button>
-                    <button class="btn-edit inline-flex items-center gap-1 bg-orange-100 text-orange-700 hover:bg-orange-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Editar" ${disabledAttr}>
+                    <button type="button" class="btn-edit inline-flex items-center gap-1 bg-orange-100 text-orange-700 hover:bg-orange-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Editar" ${disabledAttr}>
                         <span class="icon-edit"><i data-feather="edit-2" class="w-4 h-4"></i></span>
                         <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
                     </button>
-                    <button class="btn-upload inline-flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Subir nomes" ${disabledAttr}>
+                    <button type="button" class="btn-upload inline-flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs px-2 py-1 rounded ${disabledClass}" data-id="${row.id}" title="Subir nomes" ${disabledAttr}>
                         <span class="icon-upload"><i data-feather="upload" class="w-4 h-4"></i></span>
                         <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
                     </button>
-                    <button class="btn-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-2 py-1 rounded" data-id="${row.id}" data-name="${name}" title="Apagar">
+                    <button type="button" class="btn-delete inline-flex items-center gap-1 bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs px-2 py-1 rounded" data-id="${row.id}" data-name="${name}" title="Apagar">
                         <span class="icon-delete"><i data-feather="trash" class="w-4 h-4"></i></span>
                         <span class="icon-spinner hidden"><svg class="animate-spin h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></span>
                     </button>

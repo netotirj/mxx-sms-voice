@@ -85,58 +85,29 @@ function promptSmsSchedule(campaignName = '') {
         modal.innerHTML = `
             <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
                 <div class="border-b border-slate-200 px-5 py-4">
-                    <h3 class="text-base font-semibold text-slate-900">Disparo da campanha SMS</h3>
-                    <p class="mt-1 text-sm text-slate-500">${campaignName ? `Campanha: ${campaignName}` : 'Escolha se deseja enviar agora ou agendar.'}</p>
+                    <h3 class="text-base font-semibold text-slate-900">Agendar campanha SMS</h3>
+                    <p class="mt-1 text-sm text-slate-500">${campaignName ? `Campanha: ${campaignName}` : 'Selecione a data e hora do disparo.'}</p>
                 </div>
                 <div class="space-y-4 px-5 py-4">
-                    <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
-                        <input type="radio" name="sms_schedule_mode" value="now" checked>
-                        <div>
-                            <p class="text-sm font-medium text-slate-800">Enviar agora</p>
-                            <p class="text-xs text-slate-500">A campanha segue imediatamente para processamento.</p>
-                        </div>
+                    <label class="block">
+                        <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Data e hora</span>
+                        <input id="smsScheduleModalDatetime" type="datetime-local" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     </label>
-                    <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
-                        <input type="radio" name="sms_schedule_mode" value="scheduled">
-                        <div>
-                            <p class="text-sm font-medium text-slate-800">Agendar envio</p>
-                            <p class="text-xs text-slate-500">A campanha vai para a fila central na data escolhida.</p>
-                        </div>
-                    </label>
-                    <div id="smsScheduleModalFields" class="hidden">
-                        <label class="block">
-                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Data e hora</span>
-                            <input id="smsScheduleModalDatetime" type="datetime-local" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                        </label>
-                        <p class="mt-2 text-xs text-slate-500">Timezone detectada: <span id="smsScheduleModalTimezone"></span></p>
-                    </div>
+                    <p class="text-xs text-slate-500">Timezone: <span id="smsScheduleModalTimezone"></span></p>
                 </div>
                 <div class="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
                     <button type="button" id="smsScheduleModalCancel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
-                    <button type="button" id="smsScheduleModalConfirm" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Continuar</button>
+                    <button type="button" id="smsScheduleModalConfirm" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Agendar</button>
                 </div>
             </div>
         `;
 
         document.body.appendChild(modal);
 
-        const modeInputs = modal.querySelectorAll('input[name="sms_schedule_mode"]');
-        const fields = modal.querySelector('#smsScheduleModalFields');
         const dateInput = modal.querySelector('#smsScheduleModalDatetime');
         const timezoneLabel = modal.querySelector('#smsScheduleModalTimezone');
         const tz = browserTimezone();
         if (timezoneLabel) timezoneLabel.textContent = tz;
-
-        const syncFields = () => {
-            const selected = modal.querySelector('input[name="sms_schedule_mode"]:checked')?.value || 'now';
-            fields?.classList.toggle('hidden', selected !== 'scheduled');
-            if (dateInput) {
-                dateInput.required = selected === 'scheduled';
-            }
-        };
-
-        modeInputs.forEach((input) => input.addEventListener('change', syncFields));
-        syncFields();
 
         const close = (result) => {
             modal.remove();
@@ -149,25 +120,22 @@ function promptSmsSchedule(campaignName = '') {
         });
 
         modal.querySelector('#smsScheduleModalConfirm')?.addEventListener('click', () => {
-            const mode = modal.querySelector('input[name="sms_schedule_mode"]:checked')?.value || 'now';
-            if (mode === 'scheduled') {
-                if (!dateInput?.value) {
-                    showError('Informe a data e hora do agendamento.');
-                    dateInput?.focus();
-                    return;
-                }
+            if (!dateInput?.value) {
+                showError('Informe a data e hora do agendamento.');
+                dateInput?.focus();
+                return;
+            }
 
-                const chosen = new Date(dateInput.value);
-                if (Number.isNaN(chosen.getTime()) || chosen <= new Date()) {
-                    showError('Escolha uma data e horario futuros.');
-                    dateInput?.focus();
-                    return;
-                }
+            const chosen = new Date(dateInput.value);
+            if (Number.isNaN(chosen.getTime()) || chosen <= new Date()) {
+                showError('Escolha uma data e horario futuros.');
+                dateInput?.focus();
+                return;
             }
 
             close({
-                schedule_mode: mode,
-                scheduled_at: mode === 'scheduled' ? formatScheduleDatetimeForApi(dateInput.value) : '',
+                schedule_mode: 'scheduled',
+                scheduled_at: formatScheduleDatetimeForApi(dateInput.value),
                 timezone: tz
             });
         });
@@ -635,7 +603,7 @@ $(document).on('click', '.btn-schedule', function () {
     };
 
     promptSmsSchedule(campaignName).then((schedulePayload) => {
-        if (!schedulePayload || schedulePayload.schedule_mode !== 'scheduled') return;
+        if (!schedulePayload) return;
         runSchedule(schedulePayload);
     });
 });

@@ -314,11 +314,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const senderInput = document.getElementById("senderInput");
     const charsetInput = document.getElementById("charsetInput");
-    const scheduleToggle = document.getElementById("campaignScheduleToggle");
-    const scheduleFields = document.getElementById("campaignScheduleFields");
+    const sendModeInput = document.getElementById("campaignSendMode");
+    const scheduleField = document.getElementById("campaignScheduledField");
     const scheduleInput = document.getElementById("campaignScheduledAt");
     const timezoneInput = document.getElementById("campaignTimezone");
+    const timezoneLabel = document.getElementById("campaignTimezoneLabel");
     const statusInput = document.getElementById("status");
+    const createButtonText = document.getElementById("createButtonText");
 
     if (!form || !newButton) return;
 
@@ -326,20 +328,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (timezoneInput) {
         timezoneInput.value = currentTimezone;
     }
+    if (timezoneLabel) {
+        timezoneLabel.textContent = `Timezone: ${currentTimezone}`;
+    }
 
-    const toggleScheduleFields = () => {
-        const enabled = !!scheduleToggle?.checked;
-        scheduleFields?.classList.toggle("hidden", !enabled);
+    const syncCampaignSendMode = () => {
+        const enabled = (sendModeInput?.value || "now") === "schedule";
+        scheduleField?.classList.toggle("hidden", !enabled);
         if (scheduleInput) {
             scheduleInput.required = enabled;
             if (!enabled) {
                 scheduleInput.value = "";
             }
         }
+        if (createButtonText) {
+            createButtonText.textContent = enabled ? "Agendar Campanha" : "Criar";
+        }
     };
 
-    scheduleToggle?.addEventListener("change", toggleScheduleFields);
-    toggleScheduleFields();
+    sendModeInput?.addEventListener("change", syncCampaignSendMode);
+    syncCampaignSendMode();
 
     // Ativa grupos de botões
     function activateGroup(groupId, hiddenInput) {
@@ -384,14 +392,13 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         newButton.disabled = true;
 
-        const btnText = document.getElementById("createButtonText");
         const btnLoader = document.getElementById("createButtonLoader");
-        btnText.textContent = "Enviando...";
+        const scheduleMode = (sendModeInput?.value || "now") === "schedule" ? "scheduled" : "now";
+        createButtonText.textContent = scheduleMode === "scheduled" ? "Agendando..." : "Enviando...";
         btnLoader.classList.remove("hidden");
 
         try {
             const formData = new FormData(form);
-            const scheduleMode = scheduleToggle?.checked ? "scheduled" : "now";
             formData.set("schedule_mode", scheduleMode);
             formData.set("timezone", currentTimezone);
 
@@ -434,7 +441,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showError("Erro de conexão ao enviar a campanha.");
         } finally {
             newButton.disabled = false;
-            btnText.textContent = "Criar";
+            syncCampaignSendMode();
             btnLoader.classList.add("hidden");
         }
     });

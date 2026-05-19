@@ -267,6 +267,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const permissionsSyncUrl = document.querySelector('meta[name="permissions-sync-url"]')?.getAttribute('content') || `${baseUrl}/me/permissions`;
         const tbody       = document.getElementById("notifTableBody");
         const searchInput = document.getElementById("notifSearchInput");
         const typeFilter  = document.getElementById("notifTypeFilter");
@@ -287,6 +288,58 @@
         let notificationUsers = [];
         let currentPage = 1;
         let autoReloadTimer = null;
+        let notificationsPermissionLookup = {};
+        let notificationsIsSuperAdmin = false;
+
+        function hasNotificationsRoutePermission(path) {
+            const normalizedPath = `/${String(path || '').trim().replace(/^\/+|\/+$/g, '')}`.replace(/\/+/g, '/');
+            return notificationsIsSuperAdmin || Boolean(notificationsPermissionLookup[normalizedPath]);
+        }
+
+        function canCreateNotifications() {
+            return hasNotificationsRoutePermission('/reports/notifications/create');
+        }
+
+        function applyNotificationsPermissionVisibility() {
+            if (!createBtn) {
+                return;
+            }
+
+            createBtn.classList.toggle('hidden', !canCreateNotifications());
+            if (!canCreateNotifications()) {
+                createBtn.setAttribute('hidden', 'hidden');
+                closeNotifCreateModal();
+            } else {
+                createBtn.removeAttribute('hidden');
+            }
+        }
+
+        async function syncNotificationsPermissionContext() {
+            try {
+                const response = await fetch(permissionsSyncUrl, {
+                    cache: 'no-store',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-store'
+                    }
+                });
+                const payload = await response.json().catch(() => ({}));
+                const permissions = Array.isArray(payload?.data?.permissions) ? payload.data.permissions : [];
+                notificationsIsSuperAdmin = Boolean(payload?.data?.is_super_admin);
+                notificationsPermissionLookup = permissions.reduce((acc, permission) => {
+                    const key = String(permission || '').trim();
+                    if (key) {
+                        acc[key] = true;
+                    }
+                    return acc;
+                }, {});
+            } catch (error) {
+                notificationsPermissionLookup = {};
+                notificationsIsSuperAdmin = false;
+            }
+
+            applyNotificationsPermissionVisibility();
+        }
 
         // 1. Busca os dados (Padrão Pix)
         async function fetchNotifications(showLoading = true) {
@@ -302,7 +355,7 @@
         }
 
         async function fetchNotificationUsers() {
-            if (createBtn?.dataset?.canCreate !== '1') {
+            if (!canCreateNotifications()) {
                 notificationUsers = [];
                 renderNotificationUserOptions();
                 return;
@@ -347,7 +400,7 @@
         }
 
         window.openNotifCreateModal = function() {
-            if (createBtn?.dataset?.canCreate !== '1') {
+            if (!canCreateNotifications()) {
                 if (typeof notyf !== 'undefined') notyf.error('Você não tem permissão para criar notificações.');
                 return;
             }
@@ -532,9 +585,6 @@
         // Listeners
         reloadBtn.onclick = () => fetchNotifications(true);
         if (createBtn) {
-            if (createBtn.dataset.canCreate !== '1') {
-                createBtn.setAttribute('hidden', 'hidden');
-            }
             createBtn.onclick = openNotifCreateModal;
         }
         createForm.onsubmit = createNotification;
@@ -612,7 +662,9 @@
         // Vincula ao botão que já existe no seu HTML
         document.getElementById('notifExportCsv').onclick = exportNotifCsv;
 
+        syncNotificationsPermissionContext().finally(() => {
+            fetchNotificationUsers();
+        });
         fetchNotifications();
-        fetchNotificationUsers();
     });
 </script>

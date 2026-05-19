@@ -659,7 +659,7 @@
   padding-top: max(18px, calc(env(safe-area-inset-top) + 10px));
 }
 
-@media (max-height: 820px) {
+@media (max-height: 820px) and (max-width: 768px) {
   .auth-page .support-whatsapp-floating:hover,
   .auth-page .support-whatsapp-floating:focus-visible,
   .auth-page .support-whatsapp-floating.is-open {

@@ -455,6 +455,9 @@ class PlanCatalog
         }
 
         $modules = self::normalizeModulesInput($payload['modules'] ?? []);
+        $usersModuleEnabled = !empty($modules['users']);
+        $createUsersRequested = !empty($payload['users_create']) && (string)$payload['users_create'] !== 'n';
+        $modules['create_users'] = $usersModuleEnabled && $createUsersRequested;
         $valueVoiceSource = $payload['value_voice']
             ?? $payload['voice_smart_rate']
             ?? $payload['voice_open_rate']
@@ -481,11 +484,7 @@ class PlanCatalog
             'type_plan' => trim((string)($payload['type_plan'] ?? 'custom')),
             'payment_type' => trim((string)($payload['payment_type'] ?? 'Pré-Pago')),
             'simultaneous_access' => (int)($payload['simultaneous_access'] ?? 0),
-            'users_create' => (
-                !empty($modules['users'])
-                || !empty($modules['create_users'])
-                || (!empty($payload['users_create']) && (string)$payload['users_create'] !== 'n')
-            ) ? 'y' : 'n',
+            'users_create' => $modules['create_users'] ? 'y' : 'n',
             'users_limit' => (int)($payload['users_limit'] ?? 0),
             'sms_limit' => (int)($payload['sms_limit'] ?? 0),
             'voice_limit' => (int)($payload['voice_limit'] ?? 0),
@@ -768,7 +767,6 @@ class PlanCatalog
             }
         }
 
-        $normalized['create_users'] = $normalized['create_users'] || $normalized['users'];
         $normalized['campaigns'] = $normalized['campaigns'] || $normalized['sms'];
 
         if (!isset($providedKeys['callcenter']) && $normalized['voice']) {

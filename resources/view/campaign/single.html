@@ -117,6 +117,32 @@
                     <span>Estou ciente que as mensagens com links serão consideradas spam pelas operadoras.</span>
                 </label>
 
+                <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">Agendamento</p>
+                            <p class="text-xs text-slate-500">Envie agora ou programe o disparo para outro horario.</p>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                            <input id="smsScheduleToggle" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            Agendar envio
+                        </label>
+                    </div>
+
+                    <div id="smsScheduleFields" class="mt-4 hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="block">
+                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Data e hora</span>
+                            <input id="smsScheduledAt" type="datetime-local"
+                                   class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </label>
+                        <label class="block">
+                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Timezone</span>
+                            <input id="smsTimezone" type="text" readonly
+                                   class="w-full rounded-lg border border-slate-300 bg-slate-100 p-2.5 text-sm text-slate-600">
+                        </label>
+                    </div>
+                </div>
+
                 <button id="sendBtnUnique" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 text-sm inline-flex items-center gap-2">
                     <span class="icon-send">Disparar</span>
                     <span class="icon-spinner hidden">
@@ -224,8 +250,37 @@
     const preview = document.getElementById("messagePreview");
     const counter = document.getElementById("counter");
     const warning = document.getElementById("limitWarning");
+    const scheduleToggle = document.getElementById("smsScheduleToggle");
+    const scheduleFields = document.getElementById("smsScheduleFields");
+    const scheduleInput = document.getElementById("smsScheduledAt");
+    const timezoneInput = document.getElementById("smsTimezone");
 
     if (!input) throw new Error("Elemento messageInput não encontrado.");
+
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Sao_Paulo";
+    if (timezoneInput) {
+        timezoneInput.value = browserTimezone;
+    }
+
+    function formatLocalDatetimeForApi(value) {
+        if (!value) return "";
+        return `${value.replace("T", " ")}:00`;
+    }
+
+    function toggleScheduleFields() {
+        if (!scheduleToggle || !scheduleFields) return;
+        const enabled = !!scheduleToggle.checked;
+        scheduleFields.classList.toggle("hidden", !enabled);
+        if (scheduleInput) {
+            scheduleInput.required = enabled;
+            if (!enabled) {
+                scheduleInput.value = "";
+            }
+        }
+    }
+
+    scheduleToggle?.addEventListener("change", toggleScheduleFields);
+    toggleScheduleFields();
 
     let charsetCoding = "0"; // padrão inicial
 
@@ -348,6 +403,28 @@
             formData.append("message", input.value.trim());
             formData.append("optionGroup1", group1Active?.dataset.value || "");
             formData.append("optionGroup2", group2Active?.dataset.value || "");
+            formData.append("timezone", browserTimezone);
+
+            const scheduleMode = scheduleToggle?.checked ? "scheduled" : "now";
+            formData.append("schedule_mode", scheduleMode);
+            if (scheduleMode === "scheduled") {
+                const scheduledAt = formatLocalDatetimeForApi(scheduleInput?.value || "");
+                if (!scheduledAt) {
+                    notyf.error("Informe a data e hora do agendamento.");
+                    toggleButtonSpinner(sendBtn, false);
+                    scheduleInput?.focus();
+                    return;
+                }
+
+                if (new Date(scheduleInput.value) <= new Date()) {
+                    notyf.error("Escolha uma data e horario futuros.");
+                    toggleButtonSpinner(sendBtn, false);
+                    scheduleInput?.focus();
+                    return;
+                }
+
+                formData.append("scheduled_at", scheduledAt);
+            }
 
             phones.forEach((phone, index) => {
                 formData.append(`phones[${index}]`, phone);
@@ -362,7 +439,7 @@
                 const { payload: data, validJson } = await parseJsonResponseSafe(response);
 
                 if (response.ok && Number(data.status || response.status) === 200) {
-                    notyf.success(data.message || "SMS(s) enviado(s) com sucesso!");
+                    notyf.success(data.message || (data.scheduled ? "SMS agendado com sucesso!" : "SMS(s) enviado(s) com sucesso!"));
                     setTimeout(() => {
                         window.location.href = `${baseURL}/reports`;
                     }, 4000);

@@ -528,6 +528,45 @@ class SendSms extends ViewComponents
         $optionGroup1 = $postVars['optionGroup1'] ?? null;
         $optionGroup2 = $postVars['optionGroup2'] ?? "0";
 
+        $scheduleMode = strtolower(trim((string)($postVars['schedule_mode'] ?? 'now')));
+        $scheduledAtInput = trim((string)($postVars['scheduled_at'] ?? ''));
+
+        if ($scheduleMode === 'scheduled' || $scheduledAtInput !== '') {
+            try {
+                $scheduledAt = self::parseScheduledAt($scheduledAtInput);
+                $scheduleId = CampaignSchedulerService::schedule(
+                    $obUser,
+                    'sms',
+                    'SMS Single Shot',
+                    $scheduledAt,
+                    [
+                        'phones' => array_values($phones),
+                        'message' => $message,
+                        'service' => $optionGroup1,
+                        'coding' => $optionGroup2,
+                        'created_via' => 'single_shot_send',
+                    ],
+                    [
+                        'dispatch_mode' => 'persistent_queue',
+                        'timezone' => trim((string)($postVars['timezone'] ?? '')) ?: ($obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo'),
+                    ]
+                );
+
+                return new Response(200, [
+                    'status' => 200,
+                    'scheduled' => true,
+                    'schedule_id' => $scheduleId,
+                    'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+                    'message' => 'SMS agendado com sucesso.',
+                ], 'application/json');
+            } catch (\Throwable $e) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => $e->getMessage(),
+                ], 'application/json');
+            }
+        }
+
         return self::sendSms(
             $obUser,
             null,

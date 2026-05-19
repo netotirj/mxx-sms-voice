@@ -66,6 +66,114 @@ function showError(message) {
     notyf.error(message);
 }
 
+function formatScheduleDatetimeForApi(value) {
+    return value ? `${value.replace('T', ' ')}:00` : '';
+}
+
+function browserTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo';
+}
+
+function promptSmsSchedule(campaignName = '') {
+    return new Promise((resolve) => {
+        const existing = document.getElementById('smsScheduleModal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'smsScheduleModal';
+        modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4';
+        modal.innerHTML = `
+            <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h3 class="text-base font-semibold text-slate-900">Disparo da campanha SMS</h3>
+                    <p class="mt-1 text-sm text-slate-500">${campaignName ? `Campanha: ${campaignName}` : 'Escolha se deseja enviar agora ou agendar.'}</p>
+                </div>
+                <div class="space-y-4 px-5 py-4">
+                    <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+                        <input type="radio" name="sms_schedule_mode" value="now" checked>
+                        <div>
+                            <p class="text-sm font-medium text-slate-800">Enviar agora</p>
+                            <p class="text-xs text-slate-500">A campanha segue imediatamente para processamento.</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+                        <input type="radio" name="sms_schedule_mode" value="scheduled">
+                        <div>
+                            <p class="text-sm font-medium text-slate-800">Agendar envio</p>
+                            <p class="text-xs text-slate-500">A campanha vai para a fila central na data escolhida.</p>
+                        </div>
+                    </label>
+                    <div id="smsScheduleModalFields" class="hidden">
+                        <label class="block">
+                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Data e hora</span>
+                            <input id="smsScheduleModalDatetime" type="datetime-local" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        </label>
+                        <p class="mt-2 text-xs text-slate-500">Timezone detectada: <span id="smsScheduleModalTimezone"></span></p>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+                    <button type="button" id="smsScheduleModalCancel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="button" id="smsScheduleModalConfirm" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Continuar</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const modeInputs = modal.querySelectorAll('input[name="sms_schedule_mode"]');
+        const fields = modal.querySelector('#smsScheduleModalFields');
+        const dateInput = modal.querySelector('#smsScheduleModalDatetime');
+        const timezoneLabel = modal.querySelector('#smsScheduleModalTimezone');
+        const tz = browserTimezone();
+        if (timezoneLabel) timezoneLabel.textContent = tz;
+
+        const syncFields = () => {
+            const selected = modal.querySelector('input[name="sms_schedule_mode"]:checked')?.value || 'now';
+            fields?.classList.toggle('hidden', selected !== 'scheduled');
+            if (dateInput) {
+                dateInput.required = selected === 'scheduled';
+            }
+        };
+
+        modeInputs.forEach((input) => input.addEventListener('change', syncFields));
+        syncFields();
+
+        const close = (result) => {
+            modal.remove();
+            resolve(result);
+        };
+
+        modal.querySelector('#smsScheduleModalCancel')?.addEventListener('click', () => close(null));
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) close(null);
+        });
+
+        modal.querySelector('#smsScheduleModalConfirm')?.addEventListener('click', () => {
+            const mode = modal.querySelector('input[name="sms_schedule_mode"]:checked')?.value || 'now';
+            if (mode === 'scheduled') {
+                if (!dateInput?.value) {
+                    showError('Informe a data e hora do agendamento.');
+                    dateInput?.focus();
+                    return;
+                }
+
+                const chosen = new Date(dateInput.value);
+                if (Number.isNaN(chosen.getTime()) || chosen <= new Date()) {
+                    showError('Escolha uma data e horario futuros.');
+                    dateInput?.focus();
+                    return;
+                }
+            }
+
+            close({
+                schedule_mode: mode,
+                scheduled_at: mode === 'scheduled' ? formatScheduleDatetimeForApi(dateInput.value) : '',
+                timezone: tz
+            });
+        });
+    });
+}
+
 /* ==================== UPLOAD DE ARQUIVOS COM PROGRESS ==================== */
 const uploadForm = document.getElementById('uploadForm');
 if (uploadForm) {
@@ -427,22 +535,29 @@ $(document).on('click', '.btn-edit', function () {
 $(document).on('click', '.btn-send', function () {
     const button = $(this);
     const campaignId = button.data('id');
+    const campaignName = button.data('name') || '';
 
     if (!campaignId) return showError('ID da campanha não encontrado.');
     if (button.prop('disabled')) return;
 
-    const runSend = () => {
+    const runSend = (schedulePayload) => {
         toggleButtonSpinner(button, true);
         let keepLockedAfterResponse = false;
+        const formData = new FormData();
+        if (schedulePayload && typeof schedulePayload === 'object') {
+            Object.entries(schedulePayload).forEach(([key, value]) => {
+                formData.append(key, value ?? '');
+            });
+        }
 
         fetch(`${baseUrl}/campaign/${campaignId}/send`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            body: formData
         })
             .then(async res => {
                 const data = await parseJsonResponse(res);
                 if (res.ok && Number(data.status || res.status) === 200) {
-                    showSuccess(data.message || 'Campanha enviada com sucesso!');
+                    showSuccess(data.message || (data.scheduled ? 'Campanha agendada com sucesso!' : 'Campanha enviada com sucesso!'));
                     refreshCampaigns();
                 } else if (data.__valid_json === false) {
                     keepLockedAfterResponse = true;
@@ -469,7 +584,10 @@ $(document).on('click', '.btn-send', function () {
             });
     };
 
-    runSend();
+    promptSmsSchedule(campaignName).then((schedulePayload) => {
+        if (!schedulePayload) return;
+        runSend(schedulePayload);
+    });
 });
 
 

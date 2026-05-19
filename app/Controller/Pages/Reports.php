@@ -14,10 +14,12 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\Rates;
 use App\Model\Entity\RefillsResellers;
 use App\Model\Entity\UserSearch;
+use App\Service\PermissionResolver;
 use App\Service\PixService;
 use App\Service\WhatsAppBilling;
 use App\Service\WhatsAppCostPolicy;
 use App\Session\User as SessionUser;
+use App\Utils\TenancyHelper;
 use App\Utils\Privacy;
 use App\Utils\View;
 use DateTime;
@@ -41,7 +43,12 @@ class Reports extends ViewComponents
 
     public static function getNotificationsStatus($request): array|bool|string
     {
-        $content = View::render('/reports/notifications', []);
+        $obUser = SessionUser::getLogged() ?? [];
+        $canCreate = self::canManageNotificationsRoute($obUser, '/reports/notifications/create');
+
+        $content = View::render('/reports/notifications', [
+            'notifCreateHidden' => $canCreate ? '' : 'hidden',
+        ]);
         return parent::getComponentsReports('Maxx Solutions - SMS | Reports', $content);
     }
 
@@ -397,6 +404,10 @@ class Reports extends ViewComponents
             return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado'], 'application/json');
         }
 
+        if (!self::canManageNotificationsRoute($obUser, '/reports/notifications/users')) {
+            return new Response(403, ['success' => false, 'message' => 'Você não tem permissão para listar usuários de notificação.'], 'application/json');
+        }
+
         $role = strtolower((string)($obUser['user_function'] ?? $obUser['function'] ?? ''));
         $where = '1=1';
         $params = [];
@@ -429,6 +440,10 @@ class Reports extends ViewComponents
         $obUser = SessionUser::getLogged();
         if (!$obUser) {
             return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado'], 'application/json');
+        }
+
+        if (!self::canManageNotificationsRoute($obUser, '/reports/notifications/create')) {
+            return new Response(403, ['success' => false, 'message' => 'Você não tem permissão para criar notificações.'], 'application/json');
         }
 
         $data = json_decode(file_get_contents('php://input') ?: '', true);
@@ -515,6 +530,19 @@ class Reports extends ViewComponents
     private static function normalizeNotificationType(string $type): string
     {
         return in_array($type, ['info', 'notice', 'warning', 'error', 'success'], true) ? $type : 'info';
+    }
+
+    private static function canManageNotificationsRoute(array $user, string $routePath): bool
+    {
+        if ($user === []) {
+            return false;
+        }
+
+        if (TenancyHelper::isSuperAdmin($user)) {
+            return true;
+        }
+
+        return PermissionResolver::userHasPermission($user, $routePath);
     }
 
     private static function resolveProviderPaymentForPix(string $pixQrCodeId, PixSearch $pix): ?array

@@ -162,6 +162,7 @@ class PermissionResolver
             $allowedRoutes = $roleId > 0
                 ? self::getRolePermissionNames($roleId, $tenancyId)
                 : [];
+            $allowedRoutes = self::filterGovernedRoutesForUser($user, $allowedRoutes);
 
             $context = [
                 'user_id' => $userId,
@@ -194,6 +195,17 @@ class PermissionResolver
         $cacheKey = 'permissions.route_access.' . $tenancyId . '.' . $userId . '.' . md5($normalizedRoute);
 
         return (bool)RequestCache::remember($cacheKey, function () use ($user, $userId, $tenancyId, $normalizedRoute) {
+            if (!self::routeGovernanceAllowsUser($user, $normalizedRoute)) {
+                PerformanceTelemetry::log('permissions.denied', [
+                    'reason' => 'route_scope',
+                    'user_id' => $userId,
+                    'tenancy_id' => $tenancyId,
+                    'route' => $normalizedRoute,
+                ]);
+
+                return false;
+            }
+
             $context = self::getUserAccessContext($user);
             $roleId = (int)($context['role_id'] ?? 0);
             if ($roleId <= 0) {
@@ -207,7 +219,8 @@ class PermissionResolver
             }
 
             $allowedLookup = (array)($context['allowed_lookup'] ?? []);
-            if (self::routeExists($normalizedRoute)) {
+            $routeExists = self::routeExists($normalizedRoute);
+            if ($routeExists) {
                 if (isset($allowedLookup[$normalizedRoute])) {
                     return true;
                 }
@@ -223,9 +236,19 @@ class PermissionResolver
 
                     return false;
                 }
+            } elseif (!self::canInheritFromParentRoute($normalizedRoute)) {
+                PerformanceTelemetry::log('permissions.denied', [
+                    'reason' => 'missing_catalog_route',
+                    'user_id' => $userId,
+                    'tenancy_id' => $tenancyId,
+                    'role_id' => $roleId,
+                    'route' => $normalizedRoute,
+                ]);
+
+                return false;
             }
 
-            $candidates = self::buildRouteCandidates($normalizedRoute, self::routeExists($normalizedRoute));
+            $candidates = self::buildRouteCandidates($normalizedRoute, $routeExists);
 
             foreach ($candidates as $candidate) {
                 if (isset($allowedLookup[$candidate])) {

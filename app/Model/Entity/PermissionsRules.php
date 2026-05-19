@@ -33,6 +33,7 @@ class PermissionsRules {
         '/admin/services-monitor',
         'ticket.',
         '/site-tests',
+        '/reports/notifications',
         '/permissions/global-routes',
     ];
     private const ADMINISTRATIVE_MODULE_GROUPS = [
@@ -914,6 +915,8 @@ class PermissionsRules {
                 OR " . self::COLUMN_ASSIGNABLE_BY . " = ''"
         );
 
+        self::ensureManagedRouteCatalogEntries();
+
         foreach (self::SUPERADMIN_ONLY_ROUTE_PREFIXES as $prefix) {
             $normalizedPrefix = self::normalizeGovernancePrefix($prefix);
             $patterns = self::governancePrefixSqlPatterns($normalizedPrefix);
@@ -934,6 +937,51 @@ class PermissionsRules {
 
         self::ensureAdministrativeRouteGrouping();
         $ensured = true;
+    }
+
+    private static function ensureManagedRouteCatalogEntries(): void
+    {
+        $managedRoutes = [
+            '/reports/notifications',
+            '/reports/notifications-realtime',
+            '/reports/notifications/users',
+            '/reports/notifications/create',
+        ];
+
+        $db = new Database('sys_routes');
+        foreach ($managedRoutes as $routePath) {
+            $normalizedPath = self::normalizeGovernancePrefix($routePath);
+            $governance = self::resolveGovernanceForRoutePath($normalizedPath);
+            $moduleName = self::resolveModuleNameForRoute($normalizedPath, 'Relatórios: Notificações');
+
+            $existingRouteId = (int)(new Database())->execute(
+                "SELECT id
+                 FROM sys_routes
+                 WHERE route_path = :route_path
+                 LIMIT 1",
+                [':route_path' => $normalizedPath]
+            )->fetchColumn();
+
+            if ($existingRouteId > 0) {
+                $db->update(
+                    'id = ' . $existingRouteId,
+                    [
+                        'module_name' => $moduleName,
+                        'route_path' => $normalizedPath,
+                        self::COLUMN_ACCESS_SCOPE => $governance['access_scope'],
+                        self::COLUMN_ASSIGNABLE_BY => $governance['assignable_by'],
+                    ]
+                );
+                continue;
+            }
+
+            $db->insert([
+                'module_name' => $moduleName,
+                'route_path' => $normalizedPath,
+                self::COLUMN_ACCESS_SCOPE => $governance['access_scope'],
+                self::COLUMN_ASSIGNABLE_BY => $governance['assignable_by'],
+            ]);
+        }
     }
 
     public static function isSystemManagedRoleName(string $roleName): bool

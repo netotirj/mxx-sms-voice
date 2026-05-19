@@ -15,6 +15,7 @@ WHERE route_path IN (
         '/admin/platform-consumption',
         '/admin/services-monitor',
         '/site-tests',
+        '/reports/notifications',
         '/permissions/global-routes',
         'ticket.'
     )
@@ -28,6 +29,8 @@ WHERE route_path IN (
    OR route_path LIKE '/admin/services-monitor-%'
    OR route_path LIKE '/site-tests/%'
    OR route_path LIKE '/site-tests-%'
+   OR route_path LIKE '/reports/notifications/%'
+   OR route_path LIKE '/reports/notifications-%'
    OR route_path LIKE '/permissions/global-routes/%'
    OR route_path LIKE '/permissions/global-routes-%'
    OR route_path LIKE 'ticket.%';

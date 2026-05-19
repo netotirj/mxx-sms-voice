@@ -10,6 +10,7 @@ use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\UserPlans;
 use App\Session\User as SessionUser;
+use App\Service\AsteriskBalanceSyncService;
 use App\Service\PermissionResolver;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
@@ -196,6 +197,7 @@ class RegisterUsers extends ViewComponents
             PermissionsRules::syncSchema();
             PermissionResolver::syncSchema();
             Notifications::syncSchema();
+            AsteriskBalanceSyncService::ensureSchema();
             $db->beginTransaction();
 
             // 1️⃣ Criar Tenancy

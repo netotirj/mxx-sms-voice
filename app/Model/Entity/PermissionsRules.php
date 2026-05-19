@@ -1367,6 +1367,10 @@ class PermissionsRules {
             [':id' => $templateId]
         )->fetchColumn()));
 
+        if ($templateName === 'admin') {
+            return;
+        }
+
         if (self::templateUsesAppendOnlyGovernance($templateName)) {
             (new Database())->execute(
                 "DELETE trp

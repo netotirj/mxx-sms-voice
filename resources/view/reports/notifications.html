@@ -20,6 +20,7 @@
                     <div class="flex flex-wrap items-center gap-2 justify-end">
                         <button id="notifNewBtn"
                                 {{notifCreateHidden}}
+                                data-can-create="{{notifCanCreate}}"
                                 class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg
                                        bg-orange-500 text-white hover:bg-orange-600 transition shadow-sm uppercase">
                             <i class="fa fa-plus"></i> Nova notificação
@@ -301,6 +302,12 @@
         }
 
         async function fetchNotificationUsers() {
+            if (createBtn?.dataset?.canCreate !== '1') {
+                notificationUsers = [];
+                renderNotificationUserOptions();
+                return;
+            }
+
             try {
                 const r = await fetch(`${baseUrl}/reports/notifications/users`);
                 const res = await r.json();
@@ -340,6 +347,11 @@
         }
 
         window.openNotifCreateModal = function() {
+            if (createBtn?.dataset?.canCreate !== '1') {
+                if (typeof notyf !== 'undefined') notyf.error('Você não tem permissão para criar notificações.');
+                return;
+            }
+
             createForm?.reset();
             syncNotifCreateScope();
             const modal = document.getElementById('notifCreateModal');
@@ -519,7 +531,12 @@
 
         // Listeners
         reloadBtn.onclick = () => fetchNotifications(true);
-        createBtn.onclick = openNotifCreateModal;
+        if (createBtn) {
+            if (createBtn.dataset.canCreate !== '1') {
+                createBtn.setAttribute('hidden', 'hidden');
+            }
+            createBtn.onclick = openNotifCreateModal;
+        }
         createForm.onsubmit = createNotification;
         createScope.onchange = syncNotifCreateScope;
         [searchInput, typeFilter, statusFilter, dateFrom, dateTo].forEach(el => el.oninput = applyFilters);

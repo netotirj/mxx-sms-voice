@@ -48,6 +48,7 @@ class Reports extends ViewComponents
 
         $content = View::render('/reports/notifications', [
             'notifCreateHidden' => $canCreate ? '' : 'hidden',
+            'notifCanCreate' => $canCreate ? '1' : '0',
         ]);
         return parent::getComponentsReports('Maxx Solutions - SMS | Reports', $content);
     }
@@ -345,15 +346,18 @@ class Reports extends ViewComponents
         $filters = [];
 
         if ($role === 'super_admin') {
-            $filters = []; // Vê tudo global (opcional: filtrar por tenancy se preferir)
+            $filters = ['user_role' => $role]; // Vê tudo global
         } elseif ($role === 'admin') {
             $filters['tenancy_id'] = $tenancyId;
+            $filters['user_role'] = $role;
         } elseif ($role === 'reseller') {
             $filters['tenancy_id'] = $tenancyId;
             $filters['user_id']    = $userId; // 🛡️ Trava: Só vê as próprias notificações
+            $filters['user_role'] = $role;
         } else {
             $filters['tenancy_id'] = $tenancyId;
             $filters['user_id']    = $userId;
+            $filters['user_role'] = $role;
         }
 
         // ==============================
@@ -542,7 +546,7 @@ class Reports extends ViewComponents
             return true;
         }
 
-        return PermissionResolver::userHasPermission($user, $routePath);
+        return PermissionResolver::userCanAccessRoute($user, $routePath);
     }
 
     private static function resolveProviderPaymentForPix(string $pixQrCodeId, PixSearch $pix): ?array

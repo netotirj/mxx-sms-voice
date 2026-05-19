@@ -34,6 +34,9 @@ class SipMonitorCommandRunner
                 'mode' => $profile['mode'],
                 'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
             ],
+            'ssh_probe' => $profile['mode'] === 'ssh'
+                ? self::runSsh($profile, 'printf "ssh-ok"', false)
+                : ['ok' => true, 'status' => 0, 'output' => 'local-mode'],
             'which_sngrep' => self::run('command -v sngrep || which sngrep || true', false),
             'sngrep_version' => self::run('sngrep -V 2>&1 || true', false),
             'which_asterisk' => self::run('command -v asterisk || which asterisk || true', false),
@@ -154,7 +157,7 @@ class SipMonitorCommandRunner
         $strictHostKey = (bool)($profile['strict_host_key'] ?? false);
         $target = $user !== '' ? "{$user}@{$host}" : $host;
 
-        $parts = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-p', (string)$port];
+        $parts = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-p', (string)$port];
         if (!$strictHostKey) {
             $parts[] = '-o';
             $parts[] = 'StrictHostKeyChecking=no';
@@ -168,7 +171,7 @@ class SipMonitorCommandRunner
 
         $remoteCommand = $useSudo ? self::withSudo($profile, $command) : $command;
         $sshPrefix = implode(' ', array_map('escapeshellarg', $parts));
-        $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' -- ' . escapeshellarg($remoteCommand);
+        $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' ' . escapeshellarg($remoteCommand) . ' 2>&1';
 
         return self::runLocal($fullCommand);
     }

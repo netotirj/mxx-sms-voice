@@ -14,6 +14,7 @@ use App\Model\Entity\UserAuthentication;
 use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Service\PlanAccessPolicy;
+use App\Service\CampaignSchedulerService;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
 use App\Service\FinancialTransactionService;
@@ -1905,6 +1906,31 @@ class Voice extends ViewComponents
                 'payload_json' => json_encode($scheduledPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'note' => 'Agendamento criado pelo assistente de campanha de voz'
             ]);
+
+            try {
+                CampaignSchedulerService::schedule(
+                    $obUser,
+                    'voice',
+                    $name,
+                    new \DateTimeImmutable($scheduledAt),
+                    $scheduledPayload,
+                    [
+                        'native_table' => 'campaign_voice_schedules',
+                        'native_id' => $scheduleId,
+                        'legacy_schedule_id' => $scheduleId,
+                        'dispatch_mode' => 'voice_queue',
+                        'timezone' => $obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo',
+                    ]
+                );
+            } catch (\Throwable $e) {
+                CampaignVoiceSchedule::updateStatus($scheduleId, 'failed', $e->getMessage());
+
+                return new Response(500, [
+                    'success' => false,
+                    'message' => 'Falha ao registrar agendamento central da campanha.',
+                    'error' => $e->getMessage(),
+                ], 'application/json');
+            }
 
             return new Response(200, [
                 'success' => true,

@@ -11,11 +11,13 @@ use App\Model\Entity\CallbackSms;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\UserPlans;
+use App\Service\CampaignSchedulerService;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
 use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Service\PlatformGlobalCostService;
+use App\Service\SmsCampaignPreparationService;
 use App\Utils\View;
 
 
@@ -36,7 +38,7 @@ class SendSms extends ViewComponents
         return (float)($summary->value_sms ?? 0);
     }
 
-    private static function buildSmsPreflightPlan(int $userId, string $tenancyId, int $totalUnits, float $retailUnitRate): array
+    public static function buildSmsPreflightPlan(int $userId, string $tenancyId, int $totalUnits, float $retailUnitRate): array
     {
         $context = FinancialHierarchyResolver::resolveContext($userId, $tenancyId);
         $retailAmount = round(max(0, $totalUnits) * max(0, $retailUnitRate), 4);
@@ -142,7 +144,7 @@ class SendSms extends ViewComponents
         return $length <= 160 ? 1 : (int)ceil($length / 153);
     }
 
-    private static function prepareContacts(array $contacts): array
+    public static function prepareContacts(array $contacts): array
     {
         $prepared = [];
         $seen = [];
@@ -434,6 +436,49 @@ class SendSms extends ViewComponents
         if (!$obUser) {
             return new Response(401, ['status'=>401,'message'=>'Usuário não autenticado.'], 'application/json');
         }
+
+        $postVars = $request->getPostVars();
+        $scheduleMode = strtolower(trim((string)($postVars['schedule_mode'] ?? 'now')));
+        $scheduledAtInput = trim((string)($postVars['scheduled_at'] ?? ''));
+
+        if ($scheduleMode === 'scheduled' || $scheduledAtInput !== '') {
+            try {
+                $scheduledAt = self::parseScheduledAt($scheduledAtInput);
+                $prepared = SmsCampaignPreparationService::prepare($obUser, (int)$id);
+                $scheduleId = CampaignSchedulerService::schedule(
+                    $obUser,
+                    'sms',
+                    'SMS Campaign #' . (int)$id,
+                    $scheduledAt,
+                    [
+                        'campaign_id' => (int)$id,
+                        'message_count' => (int)($prepared['total_messages'] ?? 0),
+                        'total_units' => (int)($prepared['total_units'] ?? 0),
+                        'created_via' => 'campaign_send_route',
+                    ],
+                    [
+                        'native_table' => 'campaign',
+                        'native_id' => (int)$id,
+                        'dispatch_mode' => 'persistent_queue',
+                        'timezone' => trim((string)($postVars['timezone'] ?? '')) ?: ($obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo'),
+                    ]
+                );
+
+                return new Response(200, [
+                    'status' => 200,
+                    'scheduled' => true,
+                    'schedule_id' => $scheduleId,
+                    'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+                    'message' => 'Campanha SMS agendada com sucesso.',
+                ], 'application/json');
+            } catch (\Throwable $e) {
+                return new Response(422, [
+                    'status' => 422,
+                    'message' => $e->getMessage(),
+                ], 'application/json');
+            }
+        }
+
         return self::sendSms($obUser, $id);
     }
 
@@ -491,6 +536,25 @@ class SendSms extends ViewComponents
             $optionGroup1,
             $optionGroup2
         );
+    }
+
+    private static function parseScheduledAt(string $scheduledAtInput): \DateTimeImmutable
+    {
+        if ($scheduledAtInput === '') {
+            throw new \RuntimeException('Informe a data e hora do agendamento.');
+        }
+
+        try {
+            $scheduledAt = new \DateTimeImmutable($scheduledAtInput);
+        } catch (\Throwable) {
+            throw new \RuntimeException('Data de agendamento inválida.');
+        }
+
+        if ($scheduledAt <= new \DateTimeImmutable('now')) {
+            throw new \RuntimeException('O agendamento precisa ser para uma data futura.');
+        }
+
+        return $scheduledAt;
     }
 
 

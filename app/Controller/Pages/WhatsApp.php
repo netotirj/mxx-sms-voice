@@ -13,6 +13,7 @@ use App\Model\Entity\WhatsAppOutbox;
 use App\Model\Entity\WhatsAppTemplate;
 use App\Model\Entity\UserSearch;
 use App\Model\Entity\UserAuthentication;
+use App\Service\CampaignSchedulerService;
 use App\Service\MetaWhatsAppCloudApi;
 use App\Service\PlanAccessPolicy;
 use App\Service\PlanLimitEnforcementService;
@@ -31,6 +32,7 @@ use App\Service\WhatsAppAccountVoice;
 use App\Service\WhatsAppSupportDesk;
 use App\Service\WhatsAppTemplateBlueprintLibrary;
 use App\Service\WhatsAppTemplateVariableResolver;
+use App\Service\WhatsAppCampaignDispatchService;
 use App\Session\User as SessionUser;
 use App\Utils\AsteriskEnv;
 use App\Support\RequestCache;
@@ -3593,201 +3595,87 @@ HTML;
             ]);
         }
 
-        WhatsAppCampaign::markStatus((int)$campaign['id'], 'queued');
-
-        $queued = 0;
-        $failed = 0;
-        $errors = [];
-        $outboxIds = [];
-        $templateCategory = null;
-        $template = null;
-
-        if ($campaign['message_type'] === 'template') {
-            $template = WhatsAppTemplate::getByNameForUser(
-                (string)$campaign['template_name'],
-                (string)($campaign['template_language'] ?: 'pt_BR'),
-                $obUser
-            );
-
-            if (!$template) {
-                WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
-
-                return self::json(404, [
-                    'success' => false,
-                    'message' => 'Template não encontrado.',
-                ]);
-            }
-
-            if (!self::templateMatchesAccount($template, $account)) {
-                WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
-
-                return self::json(403, [
-                    'success' => false,
-                    'message' => 'Template não pertence à WABA selecionada.',
-                ]);
-            }
-
-            if ((string)$template['status'] !== 'approved') {
-                WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
-
+        $scheduledAtRaw = trim((string)($campaign['scheduled_at'] ?? ''));
+        if ($scheduledAtRaw !== '') {
+            try {
+                $scheduledAt = new \DateTimeImmutable($scheduledAtRaw);
+            } catch (\Throwable) {
                 return self::json(422, [
                     'success' => false,
-                    'message' => 'Template ainda não aprovado pela Meta.',
+                    'message' => 'Data de agendamento inválida na campanha.',
                 ]);
             }
 
-            $templateCategory = WhatsAppCostPolicy::normalizeCategory($template['category'] ?? 'MARKETING');
-        }
-
-        foreach ($recipients as $recipient) {
-            try {
-                $recipientPhone = (string)$recipient['phone'];
-                $lastInboundAt = WhatsAppConversation::getLastInboundAt((int)$account['id'], $recipientPhone);
-                $serviceWindowOpen = WhatsAppCostPolicy::isServiceWindowOpen($lastInboundAt);
-
-                if ($campaign['message_type'] === 'text' && !$serviceWindowOpen) {
-                    $failed++;
-                    $error = 'Este contato está fora da janela de 24 horas. Para iniciar uma nova conversa, utilize um template aprovado.';
-                    self::auditTemplateWindowEvent('whatsapp_campaign_free_text_blocked_window_closed', [
-                        'tenancy_id' => (string)$obUser['tenancy_id'],
-                        'user_id' => (int)$obUser['id'],
-                        'account_id' => (int)$account['id'],
-                        'campaign_id' => (int)$campaign['id'],
-                        'contact_phone' => self::maskPhoneForLog($recipientPhone),
-                        'last_inbound_at' => $lastInboundAt,
-                    ]);
-                    $errors[] = ['phone' => $recipientPhone, 'error' => $error];
-                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
-                    continue;
-                }
-
-                if (
-                    $campaign['message_type'] === 'template'
-                    && $templateCategory === WhatsAppCostPolicy::CATEGORY_MARKETING
-                    && WhatsAppConversation::hasMarketingOptOut((int)$account['id'], $recipientPhone)
-                ) {
-                    $failed++;
-                    $error = 'Marketing bloqueado: destinatário solicitou descadastro.';
-                    $errors[] = ['phone' => $recipientPhone, 'error' => $error];
-                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $error);
-                    continue;
-                }
-
-                $variables = json_decode((string)($campaign['template_components'] ?? '[]'), true);
-                if (!is_array($variables)) {
-                    $variables = [];
-                }
-                $recipientVariables = json_decode((string)($recipient['template_variables'] ?? '[]'), true);
-                if (is_array($recipientVariables) && $recipientVariables !== []) {
-                    $variables = array_replace_recursive($variables, $recipientVariables);
-                }
-
-                $templateComponents = [];
-                if ($campaign['message_type'] === 'template') {
-                    $contactContext = self::findContactContextByPhone((string)$obUser['tenancy_id'], $recipientPhone);
-                    $resolvedTemplate = WhatsAppTemplateVariableResolver::buildSendComponents($template, [
-                        'tenancy_id' => $obUser['tenancy_id'],
-                        'tenant_name' => self::tenantName((string)$obUser['tenancy_id']),
-                        'contact_name' => self::nullableString($recipient['name'] ?? null)
-                            ?: self::nullableString($contactContext['name'] ?? null),
-                        'contact_agency' => self::nullableString($contactContext['agency'] ?? $contactContext['agencia'] ?? $contactContext['branch'] ?? null),
-                        'contact_name_fallback' => self::templateContactFallback(),
-                        'contact_phone' => $recipientPhone,
-                    ], $variables);
-                    $templateComponents = $resolvedTemplate['components'];
-                    if (!$serviceWindowOpen) {
-                        self::auditTemplateWindowEvent('whatsapp_campaign_template_reopen_window_closed', [
-                            'tenancy_id' => (string)$obUser['tenancy_id'],
-                            'user_id' => (int)$obUser['id'],
-                            'account_id' => (int)$account['id'],
-                            'campaign_id' => (int)$campaign['id'],
-                            'template_name' => (string)$campaign['template_name'],
-                            'contact_phone' => self::maskPhoneForLog($recipientPhone),
-                            'parameters' => $resolvedTemplate['resolved'] ?? [],
-                            'last_inbound_at' => $lastInboundAt,
-                        ]);
-                    }
-                }
-
-                $plannedMessages = $campaign['message_type'] === 'template'
-                    ? WhatsAppMessagePlanner::planTemplate(
-                        (string)$campaign['template_name'],
-                        (string)($campaign['template_language'] ?: 'pt_BR'),
-                        $templateCategory,
-                        $templateComponents,
-                        $resolvedTemplate['preview_body'] ?? ($template['body'] ?? null)
-                    )
-                    : WhatsAppMessagePlanner::planText((string)$campaign['message_body'], $serviceWindowOpen);
-                if ($campaign['message_type'] === 'template' && isset($plannedMessages[0])) {
-                    $plannedMessages[0]['preview_body'] = $resolvedTemplate['preview_body'] ?? $plannedMessages[0]['body'];
-                    $plannedMessages[0]['template_variables'] = $resolvedTemplate['resolved'] ?? [];
-                }
-
-                foreach ($plannedMessages as $planned) {
-                    if (
-                        ($planned['template_category'] ?? null) === WhatsAppCostPolicy::CATEGORY_MARKETING
-                        && WhatsAppConversation::hasMarketingOptOut((int)$account['id'], $recipientPhone)
-                    ) {
-                        continue;
-                    }
-
-                    $billableMessage = self::withWhatsAppBilling(
+            if ($scheduledAt > new \DateTimeImmutable('now')) {
+                try {
+                    $scheduleId = CampaignSchedulerService::schedule(
+                        $obUser,
+                        'whatsapp',
+                        (string)$campaign['name'],
+                        $scheduledAt,
                         [
-                            'tenancy_id' => $obUser['tenancy_id'],
-                            'user_id' => (int)$obUser['id'],
-                            'account_id' => (int)$account['id'],
                             'campaign_id' => (int)$campaign['id'],
-                            'campaign_recipient_id' => (int)$recipient['id'],
-                            'contact_phone' => $recipientPhone,
-                            'contact_name' => $recipient['name'] ?? null,
+                            'account_id' => (int)$campaign['account_id'],
+                            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
                         ],
-                        $planned,
-                        $serviceWindowOpen
+                        [
+                            'native_table' => 'whatsapp_campaigns',
+                            'native_id' => (int)$campaign['id'],
+                            'dispatch_mode' => 'whatsapp_outbox',
+                            'timezone' => $obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo',
+                        ]
                     );
+                    WhatsAppCampaign::markStatus((int)$campaign['id'], 'scheduled');
 
-                    WhatsAppBilling::assertCanSend(
-                        (int)$obUser['id'],
-                        (string)$obUser['tenancy_id'],
-                        (string)$billableMessage['message_category'],
-                        (float)$billableMessage['price_brl']
-                    );
-                    $outboxIds[] = WhatsAppOutbox::enqueue($billableMessage);
-                    WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'queued', null, null);
-                    $queued++;
+                    return self::json(200, [
+                        'success' => true,
+                        'scheduled' => true,
+                        'schedule_id' => $scheduleId,
+                        'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+                        'message' => 'Campanha WhatsApp agendada com sucesso.',
+                    ]);
+                } catch (\Throwable $e) {
+                    return self::json(422, [
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                    ]);
                 }
-            } catch (\Throwable $e) {
-                $failed++;
-                $errors[] = ['phone' => $recipient['phone'], 'error' => $e->getMessage()];
-                WhatsAppCampaign::updateRecipientResult((int)$recipient['id'], 'failed', null, $e->getMessage());
             }
         }
 
-        WhatsAppCampaign::updateCounters((int)$campaign['id']);
-        $flush = self::flushOutboxNow(array_slice($outboxIds ?? [], 0, 25), 25);
+        try {
+            $result = WhatsAppCampaignDispatchService::enqueueCampaign($obUser, (int)$campaign['id']);
+            $flush = self::flushOutboxNow([], 25);
+            $firstError = $result['errors'][0]['error'] ?? null;
 
-        $firstError = $errors[0]['error'] ?? null;
-        if ($queued === 0 && $failed > 0) {
+            if ((int)($result['queued'] ?? 0) === 0 && (int)($result['failed'] ?? 0) > 0) {
+                return self::json(422, [
+                    'success' => false,
+                    'message' => 'Nenhum contato foi enfileirado. ' . ($firstError ? 'Primeiro erro: ' . $firstError : 'Verifique os dados da campanha.'),
+                    'queued' => (int)($result['queued'] ?? 0),
+                    'failed' => (int)($result['failed'] ?? 0),
+                    'errors' => array_slice((array)($result['errors'] ?? []), 0, 20),
+                ]);
+            }
+
+            return self::json(200, [
+                'success' => true,
+                'message' => (int)($result['failed'] ?? 0) === 0
+                    ? ((int)($result['queued'] ?? 0)) . ' contato(s) enviado(s) para a fila.'
+                    : ((int)($result['queued'] ?? 0)) . ' contato(s) enviado(s) para a fila. ' . ((int)($result['failed'] ?? 0)) . ' contato(s) falharam. ' . ($firstError ? 'Primeiro erro: ' . $firstError : ''),
+                'queued' => (int)($result['queued'] ?? 0),
+                'failed' => (int)($result['failed'] ?? 0),
+                'processed_now' => $flush,
+                'errors' => array_slice((array)($result['errors'] ?? []), 0, 20),
+            ]);
+        } catch (\Throwable $e) {
+            WhatsAppCampaign::markStatus((int)$campaign['id'], 'failed');
+
             return self::json(422, [
                 'success' => false,
-                'message' => 'Nenhum contato foi enfileirado. ' . ($firstError ? 'Primeiro erro: ' . $firstError : 'Verifique os dados da campanha.'),
-                'queued' => $queued,
-                'failed' => $failed,
-                'template_category' => $templateCategory,
-                'errors' => array_slice($errors, 0, 20),
+                'message' => $e->getMessage(),
             ]);
         }
-
-        return self::json(200, [
-            'success' => true,
-            'message' => $failed === 0
-                ? "{$queued} contato(s) enviado(s) para a fila."
-                : "{$queued} contato(s) enviado(s) para a fila. {$failed} contato(s) falharam. " . ($firstError ? 'Primeiro erro: ' . $firstError : ''),
-            'queued' => $queued,
-            'failed' => $failed,
-            'processed_now' => $flush,
-            'template_category' => $templateCategory,
-            'errors' => array_slice($errors, 0, 20),
-        ]);
     }
 
     public static function cancelCampaignCategory($request, int|string $id): Response

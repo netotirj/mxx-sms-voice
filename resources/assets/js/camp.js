@@ -535,7 +535,6 @@ $(document).on('click', '.btn-edit', function () {
 $(document).on('click', '.btn-send', function () {
     const button = $(this);
     const campaignId = button.data('id');
-    const campaignName = button.data('name') || '';
 
     if (!campaignId) return showError('ID da campanha não encontrado.');
     if (button.prop('disabled')) return;
@@ -584,9 +583,60 @@ $(document).on('click', '.btn-send', function () {
             });
     };
 
+    runSend({ schedule_mode: 'now', timezone: browserTimezone() });
+});
+
+$(document).on('click', '.btn-schedule', function () {
+    const button = $(this);
+    const campaignId = button.data('id');
+    const campaignName = button.data('name') || '';
+
+    if (!campaignId) return showError('ID da campanha não encontrado.');
+    if (button.prop('disabled')) return;
+
+    const runSchedule = (schedulePayload) => {
+        toggleButtonSpinner(button, true);
+        let keepLockedAfterResponse = false;
+        const formData = new FormData();
+        if (schedulePayload && typeof schedulePayload === 'object') {
+            Object.entries(schedulePayload).forEach(([key, value]) => {
+                formData.append(key, value ?? '');
+            });
+        }
+
+        fetch(`${baseUrl}/campaign/${campaignId}/send`, {
+            method: 'POST',
+            body: formData
+        })
+            .then(async res => {
+                const data = await parseJsonResponse(res);
+                if (res.ok && Number(data.status || res.status) === 200) {
+                    showSuccess(data.message || 'Campanha agendada com sucesso!');
+                    refreshCampaigns();
+                } else if (data.__valid_json === false) {
+                    keepLockedAfterResponse = true;
+                    showError('O servidor respondeu de forma inválida após o agendamento. Confira os relatórios antes de reenviar.');
+                    lockResendTemporarily(button, 15);
+                } else {
+                    const msg = data.message || 'Erro ao agendar campanha.';
+                    showError(msg);
+                }
+            })
+            .catch(() => {
+                keepLockedAfterResponse = true;
+                showError('Falha ao confirmar o retorno do agendamento. Aguarde e confira os relatórios antes de reenviar.');
+                lockResendTemporarily(button, 15);
+            })
+            .finally(() => {
+                if (!keepLockedAfterResponse) {
+                    toggleButtonSpinner(button, false);
+                }
+            });
+    };
+
     promptSmsSchedule(campaignName).then((schedulePayload) => {
-        if (!schedulePayload) return;
-        runSend(schedulePayload);
+        if (!schedulePayload || schedulePayload.schedule_mode !== 'scheduled') return;
+        runSchedule(schedulePayload);
     });
 });
 

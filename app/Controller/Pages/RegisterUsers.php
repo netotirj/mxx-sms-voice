@@ -375,6 +375,8 @@ class RegisterUsers extends ViewComponents
     {
         $requiredTables = [
             'sys_roles',
+            'sys_role_permissions',
+            'sys_permission_cache_versions',
             'users',
             'mxx_user_plans',
             'tenancy_balance',

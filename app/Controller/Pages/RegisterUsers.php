@@ -191,6 +191,7 @@ class RegisterUsers extends ViewComponents
         $step = 'start';
 
         try {
+            self::validateRegistrationSchema();
             $db->beginTransaction();
 
             // 1️⃣ Criar Tenancy
@@ -330,7 +331,11 @@ class RegisterUsers extends ViewComponents
                 'message' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return ['status' => 'ERROR', 'message' => 'Erro ao finalizar cadastro.'];
+            $publicMessage = str_starts_with($e->getMessage(), 'Estrutura do banco incompleta:')
+                ? $e->getMessage()
+                : 'Erro ao finalizar cadastro.';
+
+            return ['status' => 'ERROR', 'message' => $publicMessage];
         }
     }
 
@@ -364,6 +369,44 @@ class RegisterUsers extends ViewComponents
         }
 
         return $profile;
+    }
+
+    private static function validateRegistrationSchema(): void
+    {
+        $requiredTables = [
+            'sys_roles',
+            'users',
+            'mxx_user_plans',
+            'tenancy_balance',
+            'notifications',
+        ];
+
+        $db = new Database();
+
+        foreach ($requiredTables as $table) {
+            $column = $db->execute(
+                "SELECT COLUMN_NAME, COLUMN_KEY, EXTRA
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = :table
+                   AND COLUMN_NAME = 'id'
+                 LIMIT 1",
+                [':table' => $table]
+            )->fetchObject();
+
+            if (!$column) {
+                throw new \RuntimeException('Estrutura do banco incompleta: coluna id ausente em ' . $table . '.');
+            }
+
+            $columnKey = strtoupper(trim((string)($column->COLUMN_KEY ?? '')));
+            $extra = strtolower(trim((string)($column->EXTRA ?? '')));
+
+            if ($columnKey !== 'PRI' || !str_contains($extra, 'auto_increment')) {
+                throw new \RuntimeException(
+                    'Estrutura do banco incompleta: ' . $table . '.id precisa ser PRIMARY KEY AUTO_INCREMENT.'
+                );
+            }
+        }
     }
 
 }

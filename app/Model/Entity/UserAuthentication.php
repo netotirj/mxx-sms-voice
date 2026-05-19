@@ -37,13 +37,14 @@ class UserAuthentication
             'last_name'    => $this->last_name,
             'email'       => $this->email,
             'job_title'   => $this->job_title,
+            'status_account' => $this->status_account ?? 'active',
             'user_function' => $this->user_function,
             'role_id'       => $this->role_id,
             'password'    => $this->password,
             'status'      => $this->status ?? 'n',
             'account_code' => $this->account_code,
             'createdAt'  => $this->createdAt ?? $now,
-            'updatedAt'  => $this->updated_at ?? $now,
+            'updatedAt'  => $this->updatedAt ?? $now,
         ];
 
         if (!empty($this->tenancy_id)) {

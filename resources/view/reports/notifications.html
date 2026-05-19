@@ -291,6 +291,11 @@
         let notificationsPermissionLookup = {};
         let notificationsIsSuperAdmin = false;
 
+        if (createBtn) {
+            createBtn.classList.add('hidden');
+            createBtn.setAttribute('hidden', 'hidden');
+        }
+
         function hasNotificationsRoutePermission(path) {
             const normalizedPath = `/${String(path || '').trim().replace(/^\/+|\/+$/g, '')}`.replace(/\/+/g, '/');
             return notificationsIsSuperAdmin || Boolean(notificationsPermissionLookup[normalizedPath]);

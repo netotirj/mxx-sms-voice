@@ -162,7 +162,6 @@ class PermissionResolver
             $allowedRoutes = $roleId > 0
                 ? self::getRolePermissionNames($roleId, $tenancyId)
                 : [];
-            $allowedRoutes = self::filterGovernedRoutesForUser($user, $allowedRoutes);
 
             $context = [
                 'user_id' => $userId,
@@ -195,17 +194,6 @@ class PermissionResolver
         $cacheKey = 'permissions.route_access.' . $tenancyId . '.' . $userId . '.' . md5($normalizedRoute);
 
         return (bool)RequestCache::remember($cacheKey, function () use ($user, $userId, $tenancyId, $normalizedRoute) {
-            if (!self::routeGovernanceAllowsUser($user, $normalizedRoute)) {
-                PerformanceTelemetry::log('permissions.denied', [
-                    'reason' => 'route_scope',
-                    'user_id' => $userId,
-                    'tenancy_id' => $tenancyId,
-                    'route' => $normalizedRoute,
-                ]);
-
-                return false;
-            }
-
             $context = self::getUserAccessContext($user);
             $roleId = (int)($context['role_id'] ?? 0);
             if ($roleId <= 0) {

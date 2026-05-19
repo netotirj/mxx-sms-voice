@@ -33,7 +33,6 @@ class PermissionsRules {
         '/admin/services-monitor',
         'ticket.',
         '/site-tests',
-        '/reports/notifications',
         '/permissions/global-routes',
     ];
     private const ADMINISTRATIVE_MODULE_GROUPS = [
@@ -1451,60 +1450,11 @@ class PermissionsRules {
         if ($roleId <= 0 || trim($tenancyId) === '') {
             return;
         }
-
-        $roleName = self::resolveRoleNameById($roleId, $tenancyId);
-        if ($roleName === '' || self::roleShouldBypassAdminBaseline($roleId, $tenancyId, $roleName)) {
-            return;
-        }
-
-        $allowedRouteIds = self::getAdminTemplatePermissionRouteIds();
-        if ($allowedRouteIds === []) {
-            (new Database())->execute(
-                "DELETE FROM sys_role_permissions
-                 WHERE tenancy_id = :tenancy_id
-                   AND role_id = :role_id",
-                [
-                    ':tenancy_id' => $tenancyId,
-                    ':role_id' => $roleId,
-                ]
-            );
-            return;
-        }
-
-        $idsSql = implode(',', array_map('intval', $allowedRouteIds));
-        (new Database())->execute(
-            "DELETE rp
-             FROM sys_role_permissions rp
-             INNER JOIN sys_routes sr ON sr.id = rp.route_id
-             WHERE rp.tenancy_id = :tenancy_id
-               AND rp.role_id = :role_id
-               AND (
-                    sr." . self::COLUMN_ACCESS_SCOPE . " <> 'tenant'
-                    OR sr." . self::COLUMN_ASSIGNABLE_BY . " <> 'admin'
-                    OR rp.route_id NOT IN (" . $idsSql . ")
-               )",
-            [
-                ':tenancy_id' => $tenancyId,
-                ':role_id' => $roleId,
-            ]
-        );
     }
 
     private static function filterPermissionMatrixByAdminBaseline(array $rows, string $roleName, bool $bypass = false): array
     {
-        if ($rows === [] || $bypass || self::isAdminBaselineExemptRole($roleName)) {
-            return $rows;
-        }
-
-        $allowedLookup = array_fill_keys(self::getAdminGovernedRouteIds(), true);
-        if ($allowedLookup === []) {
-            return [];
-        }
-
-        return array_values(array_filter($rows, static function (array $row) use ($allowedLookup): bool {
-            $routeId = (int)($row['route_id'] ?? 0);
-            return $routeId > 0 && isset($allowedLookup[$routeId]);
-        }));
+        return $rows;
     }
 
     private static function getAdminGovernedRouteIds(): array

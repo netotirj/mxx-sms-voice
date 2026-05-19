@@ -4222,13 +4222,20 @@ class Voice extends ViewComponents
             $response = $asterisk->updateExtension($query, $payload);
 
             if (!empty($response['ok']) && $response['ok'] === true) {
-                $obAgente = AgentsPortal::getAgentByExtension($id, $tenantId);
-                if ($obAgente instanceof AgentsPortal) {
-                    $obAgente->name     = $nomeFinal;
-                    $obAgente->user_id  = $targetUserId;
-                    $obAgente->status   = ($inputData['account_status'] === 'active') ? 'y' : 'n';
-                    $obAgente->password = password_hash($inputData['password'], PASSWORD_DEFAULT);
-                    $obAgente->atualizar();
+                $syncOk = self::syncPortalAgentFromSipUpdate(
+                    $tenantId,
+                    $targetUserId,
+                    (string)$id,
+                    $nomeFinal,
+                    (string)$inputData['password'],
+                    (string)($inputData['account_status'] ?? 'active')
+                );
+
+                if (!$syncOk) {
+                    return new Response(500, json_encode([
+                        'success' => false,
+                        'message' => 'Ramal atualizado no Asterisk, mas falhou ao sincronizar a tabela de agentes.'
+                    ]), 'application/json');
                 }
 
                 return new Response(200, json_encode([
@@ -4362,6 +4369,12 @@ class Voice extends ViewComponents
 
             // ✅ Se tudo deu certo
             if (!empty($response['ok']) && $response['ok'] === true) {
+                $obAgente = AgentsPortal::getAgentByExtension($id, (string)$obUser['tenancy_id']);
+                if ($obAgente instanceof AgentsPortal) {
+                    $obAgente->status = $newStatus === 'active' ? 'y' : 'n';
+                    $obAgente->atualizar();
+                }
+
                 return new Response(200, [
                     'success' => true,
                     'message' => "Status do ramal {$id} atualizado para '{$newStatus}'.",
@@ -4383,6 +4396,37 @@ class Voice extends ViewComponents
                 'message' => 'Erro ao atualizar status: ' . $e->getMessage()
             ], 'application/json');
         }
+    }
+
+    private static function syncPortalAgentFromSipUpdate(
+        string $tenantId,
+        int $targetUserId,
+        string $extension,
+        string $name,
+        string $rawPassword,
+        string $accountStatus
+    ): bool {
+        $hashedPassword = password_hash($rawPassword, PASSWORD_DEFAULT);
+        $portalStatus = $accountStatus === 'active' ? 'y' : 'n';
+
+        $obAgente = AgentsPortal::getAgentByExtension($extension, $tenantId);
+        if ($obAgente instanceof AgentsPortal) {
+            $obAgente->name = $name;
+            $obAgente->user_id = $targetUserId;
+            $obAgente->status = $portalStatus;
+            $obAgente->password = $hashedPassword;
+            return $obAgente->atualizar();
+        }
+
+        $obAgente = new AgentsPortal();
+        $obAgente->tenancy_id = $tenantId;
+        $obAgente->user_id = $targetUserId;
+        $obAgente->name = $name;
+        $obAgente->extension = $extension;
+        $obAgente->password = $hashedPassword;
+        $obAgente->status = $portalStatus;
+
+        return $obAgente->cadastrar();
     }
 
 

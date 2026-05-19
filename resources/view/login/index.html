@@ -172,6 +172,8 @@
   <script src="{{URL}}/resources/view/login/assets/js/notify.js"></script>
   <script src="{{URL}}/resources/view/login/assets/js/support-whatsapp.js?v=20260515-1"></script>
   <script>
+    const SESSION_STATE_KEY = 'app_session_state';
+    const LAST_ACTIVITY_KEY = 'app_last_activity_at';
     const loginForm = document.getElementById('loginForm');
     const btnLogin = document.getElementById('btnLogin');
     const btnText = btnLogin.querySelector('.btn-text');
@@ -205,6 +207,13 @@
         }
       ]
     });
+
+    function resetClientSessionState() {
+      const now = Date.now();
+      localStorage.removeItem(SESSION_STATE_KEY);
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+      sessionStorage.clear();
+    }
 
     const authParams = new URLSearchParams(window.location.search);
     const authStatus = authParams.get('auth_status');
@@ -253,6 +262,7 @@
         const data = await response.json();
 
         if (data.status === 'OK') {
+          resetClientSessionState();
           notyf.success('Bem-vindo à Maxx Solutions!');
           localStorage.setItem('loginSuccess', data.message);
           setTimeout(() => window.location.href = "{{URL}}/dashboard", 1200);

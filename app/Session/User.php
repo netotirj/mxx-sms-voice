@@ -54,6 +54,12 @@ class User
     {
         self::ensureSessionStarted();
 
+        if (!headers_sent()) {
+            session_regenerate_id(true);
+        }
+
+        $_SESSION = [];
+
         $_SESSION['user'] = [
             'id'            => $obUser->id,
             'name'          => $obUser->name ?? '',
@@ -189,8 +195,13 @@ class User
         self::expireRememberMeCookie();
 
         // Limpa sessão
-        unset($_SESSION['user']);
+        $_SESSION = [];
         self::clearRuntimeCaches();
+
+        if (!headers_sent()) {
+            self::expirePhpSessionCookie();
+        }
+
         session_destroy();
     }
 
@@ -211,6 +222,19 @@ class User
     {
         $cookieParams = self::cookieParams();
         setcookie('remember_me', '', [
+            'expires' => time() - 3600,
+            'path' => $cookieParams['path'],
+            'domain' => $cookieParams['domain'],
+            'secure' => $cookieParams['secure'],
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    private static function expirePhpSessionCookie(): void
+    {
+        $cookieParams = self::cookieParams();
+        setcookie(session_name(), '', [
             'expires' => time() - 3600,
             'path' => $cookieParams['path'],
             'domain' => $cookieParams['domain'],

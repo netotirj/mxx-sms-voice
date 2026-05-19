@@ -126,6 +126,14 @@ class SipMonitorCommandRunner
         ];
     }
 
+    public static function readSmallFile(string $path, bool $useSudo = true, int $maxBytes = 4096): string
+    {
+        $maxBytes = max(128, min(65536, $maxBytes));
+        $command = 'if [ -f ' . escapeshellarg($path) . ' ]; then head -c ' . $maxBytes . ' ' . escapeshellarg($path) . '; fi';
+        $result = self::run($command, $useSudo);
+        return trim((string)($result['output'] ?? ''));
+    }
+
     public static function remotePathForSession(int $sessionId, string $filename): string
     {
         $profile = self::profile();

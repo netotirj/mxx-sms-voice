@@ -239,6 +239,13 @@ class SipMonitorSessionService
                 continue;
             }
 
+            if ((int)($stream['pid'] ?? 0) <= 0 && !empty($stream['pid_path'])) {
+                $pidValue = SipMonitorCommandRunner::readSmallFile((string)$stream['pid_path'], true, 64);
+                if (preg_match('/(\d+)/', $pidValue, $matches)) {
+                    $streams[$source]['pid'] = (int)$matches[1];
+                }
+            }
+
             $cursor = (int)($cursors[$source] ?? 0);
             $read = SipMonitorCommandRunner::readSince($logPath, $cursor, 65536);
             $chunk = (string)($read['chunk'] ?? '');
@@ -251,11 +258,24 @@ class SipMonitorSessionService
         }
 
         $notes['cursors'] = $cursors;
+        $notes['streams'] = $streams;
+
+        $primaryPid = 0;
+        foreach ($streams as $stream) {
+            $streamPid = (int)($stream['pid'] ?? 0);
+            if ($streamPid > 0) {
+                $primaryPid = $streamPid;
+                break;
+            }
+        }
+
         SipMonitorSession::update($sessionId, [
+            'pid' => $primaryPid > 0 ? $primaryPid : null,
             'notes' => json_encode($notes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'status' => in_array((string)$session['status'], ['stopped', 'expired', 'failed'], true) ? (string)$session['status'] : 'running',
         ]);
 
+        $payload['session'] = self::decorateSession(SipMonitorSession::findById($sessionId) ?: $session);
         $payload['events'] = self::buildEventSummary($sessionId);
         return $payload;
     }

@@ -15,6 +15,7 @@ use App\Model\Entity\UserSearch;
 use App\Model\Entity\UserAuthentication;
 use App\Service\MetaWhatsAppCloudApi;
 use App\Service\PlanAccessPolicy;
+use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Service\CallPermissionService;
 use App\Service\WhatsAppCallingBridge;
@@ -1346,6 +1347,19 @@ HTML;
             return self::json(422, [
                 'success' => false,
                 'message' => 'Informe o texto do template para criar na Meta, ou clique em Sincronizar para importar templates já aprovados.',
+            ]);
+        }
+
+        $templateLimit = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'templates', 1);
+        if (empty($templateLimit['allowed'])) {
+            return self::json(403, [
+                'success' => false,
+                'message' => $templateLimit['message'] ?? 'Limite de templates do plano atingido.',
+                'meta' => [
+                    'usage' => (int)($templateLimit['usage'] ?? 0),
+                    'projected_usage' => (int)($templateLimit['projected_usage'] ?? 0),
+                    'limit' => $templateLimit['limit'] ?? null,
+                ],
             ]);
         }
 
@@ -2714,11 +2728,33 @@ HTML;
             $metaTemplates = is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [];
             $seenMetaTemplates = $metaTemplates;
             $metaIndex = self::indexMetaTemplates($metaTemplates);
+            $currentTemplateUsage = PlanLimitEnforcementService::getUsage((string)$obUser['tenancy_id'], 'templates');
+            $templateLimit = PlanLimitEnforcementService::getLimit((string)$obUser['tenancy_id'], 'templates');
             foreach ($metaTemplates as $template) {
-                if (is_array($template)) {
-                    WhatsAppTemplate::upsertFromMeta($account, $template, $obUser);
-                    $synced++;
+                if (!is_array($template)) {
+                    continue;
                 }
+
+                $name = (string)($template['name'] ?? '');
+                $language = (string)($template['language'] ?? '');
+                $existing = ($name !== '' && $language !== '')
+                    ? WhatsAppTemplate::findByMetaIdentity((string)$account['tenancy_id'], (string)($account['waba_id'] ?? ''), $name, $language)
+                    : null;
+
+                if (!$existing && $templateLimit !== null && $templateLimit >= 0 && $currentTemplateUsage >= $templateLimit) {
+                    $errors[] = [
+                        'account_id' => (int)$account['id'],
+                        'template' => $name,
+                        'error' => 'Limite de templates do plano atingido.',
+                    ];
+                    continue;
+                }
+
+                WhatsAppTemplate::upsertFromMeta($account, $template, $obUser);
+                if (!$existing) {
+                    $currentTemplateUsage++;
+                }
+                $synced++;
             }
 
             foreach (self::localTemplatesForAccount($account) as $template) {
@@ -3458,6 +3494,14 @@ HTML;
             return self::json(422, [
                 'success' => false,
                 'message' => 'Informe ao menos um destinatário válido.',
+            ]);
+        }
+
+        $campaignLimit = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'campaigns', 1);
+        if (empty($campaignLimit['allowed'])) {
+            return self::json(403, [
+                'success' => false,
+                'message' => $campaignLimit['message'] ?? 'Limite de campanhas do plano atingido.',
             ]);
         }
 
@@ -6358,6 +6402,17 @@ HTML;
                     || (string)($template['language'] ?? '') !== $language
                 ) {
                     continue;
+                }
+
+                $existing = WhatsAppTemplate::findByMetaIdentity((string)$account['tenancy_id'], (string)($account['waba_id'] ?? ''), $name, $language);
+                if (!$existing) {
+                    $templateLimit = PlanLimitEnforcementService::assertWithinLimitForUser($user, 'templates', 1);
+                    if (empty($templateLimit['allowed'])) {
+                        return self::json(403, [
+                            'success' => false,
+                            'message' => $templateLimit['message'] ?? 'Limite de templates do plano atingido.',
+                        ]);
+                    }
                 }
 
                 WhatsAppTemplate::upsertFromMeta($account, $template, $user);

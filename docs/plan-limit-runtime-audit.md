@@ -2,6 +2,10 @@
 
 Data: 2026-05-18
 
+Atualização de enforcement: 2026-05-18
+
+Commit de implementação: pendente neste relatório local
+
 ## Resumo executivo
 
 O sistema hoje possui duas camadas reais de governanca comercial por plano:
@@ -10,6 +14,16 @@ O sistema hoje possui duas camadas reais de governanca comercial por plano:
 - alguns limites numericos pontuais via `PlanAccessPolicy`
 
 Porem, a maior parte dos campos numericos exibidos na tela de planos ainda nao possui bloqueio operacional real no backend. Em varios casos, o campo existe no banco, aparece no frontend e entra no runtime, mas nao ha chamada efetiva da validacao no fluxo de negocio.
+
+Status apos a implementacao cirurgica desta fase:
+
+- `users_limit`: implementado
+- `sms_limit`: implementado
+- `voice_limit`: implementado
+- `campaigns_limit`: implementado
+- `templates_limit`: implementado
+
+Os limites acima agora possuem enforcement real no backend por meio de [PlanLimitEnforcementService.php](/c:/wamp64/www/sms/app/Service/PlanLimitEnforcementService.php).
 
 ## Estrutura atual no banco
 
@@ -397,3 +411,185 @@ O sistema nao prova bloqueio real, hoje, para:
 - chamadas simultaneas como capacidade de voz
 
 Se nao ha validacao no backend, nesta auditoria o item foi considerado `NAO BLOQUEADO`.
+
+## Atualizacao apos implementacao
+
+### Service central criado
+
+Arquivo criado:
+
+- [PlanLimitEnforcementService.php](/c:/wamp64/www/sms/app/Service/PlanLimitEnforcementService.php)
+
+Responsabilidades implementadas:
+
+- `getLimit(tenant, key)`
+- `getUsage(tenant, key)`
+- `assertWithinLimit(tenant, key, increment)`
+- `assertWithinLimitForUser(user, key, increment)`
+- log de bloqueio via `PerformanceTelemetry`
+
+### Regras de limite adotadas
+
+Para os limites numericos desta fase, a regra aplicada ficou:
+
+- `< 0` = ilimitado
+- `0` = bloqueado
+- `> 0` = limite aplicado
+- chave ausente no runtime = sem enforcement por este service
+
+Observacao:
+
+- `simultaneous_access` manteve o comportamento legado proprio em `PlanAccessPolicy`
+- esta fase nao alterou a semantica anterior do controle de login
+
+### Pontos de enforcement implementados
+
+#### users_limit
+
+Bloqueios adicionados em:
+
+- [Users.php](/c:/wamp64/www/sms/app/Controller/Pages/Users.php)
+
+Pontos:
+
+- abertura da tela de novo usuario
+- POST de criacao de usuario
+
+Uso considerado:
+
+- quantidade atual de registros do tenant na tabela `users`
+
+#### sms_limit
+
+Bloqueio adicionado em:
+
+- [SendSms.php](/c:/wamp64/www/sms/app/Controller/Pages/SendSms.php)
+
+Pontos:
+
+- envio avulso
+- envio de campanha SMS
+
+Uso considerado:
+
+- quantidade mensal de registros de SMS do tenant na tabela `callback`
+- status considerados: `ACCEPTED`, `SENT`, `DELIVERED`, `UNDELIVERABLE`, `EXPIRED`
+
+Incremento aplicado na validacao:
+
+- quantidade de destinatarios preparados para envio no request atual
+
+Limitacao semantica:
+
+- o sistema agora trata `sms_limit` como quantidade mensal de mensagens/recipientes enviados
+- nao como quantidade de segmentos operadora
+
+#### voice_limit
+
+Bloqueio adicionado em:
+
+- [Voice.php](/c:/wamp64/www/sms/app/Controller/Pages/Voice.php)
+
+Pontos:
+
+- criacao/disparo de campanha de voz
+- criacao de campanha agendada de voz
+
+Uso considerado:
+
+- quantidade mensal de tentativas outbound no `cdr`
+- exclusao de registros `service_fee`
+
+Incremento aplicado na validacao:
+
+- quantidade de contatos que serao enfileirados no request atual
+
+Decisao tecnica adotada:
+
+- `voice_limit` foi implementado como limite mensal de tentativas de chamada originadas pelo sistema
+- nao como chamadas simultaneas
+- nao como minutos faturados
+
+Motivo:
+
+- e a interpretacao mais segura que permite bloquear antes da origem da chamada com a estrutura atual
+
+#### campaigns_limit
+
+Bloqueios adicionados em:
+
+- [Campaign.php](/c:/wamp64/www/sms/app/Controller/Pages/Campaign.php)
+- [Voice.php](/c:/wamp64/www/sms/app/Controller/Pages/Voice.php)
+- [WhatsApp.php](/c:/wamp64/www/sms/app/Controller/Pages/WhatsApp.php)
+- [MarketingCampaignService.php](/c:/wamp64/www/sms/app/Service/MarketingCampaignService.php)
+
+Uso considerado:
+
+- campanhas SMS em `campaign`
+- campanhas de voz em `campaign_voice`
+- agendamentos de voz em `campaign_voice_schedules`
+- campanhas WhatsApp em `whatsapp_campaigns`
+- campanhas de marketing em `marketing_campaigns`
+
+Contagem aplicada:
+
+- campanhas nao finalizadas/canceladas/excluidas, conforme semantica de cada tabela
+
+#### templates_limit
+
+Bloqueios adicionados em:
+
+- [WhatsApp.php](/c:/wamp64/www/sms/app/Controller/Pages/WhatsApp.php)
+
+Pontos:
+
+- criacao de template proprio
+- importacao de template existente da Meta
+- sincronizacao em lote com a Meta, impedindo novas entradas quando o limite ja foi atingido
+
+Uso considerado:
+
+- templates de tenant em `whatsapp_templates`
+- exclui templates de sistema
+- exclui templates `disabled`
+
+### Arquivos alterados nesta fase
+
+- [app/Service/PlanLimitEnforcementService.php](/c:/wamp64/www/sms/app/Service/PlanLimitEnforcementService.php)
+- [app/Controller/Pages/Users.php](/c:/wamp64/www/sms/app/Controller/Pages/Users.php)
+- [app/Controller/Pages/SendSms.php](/c:/wamp64/www/sms/app/Controller/Pages/SendSms.php)
+- [app/Controller/Pages/Campaign.php](/c:/wamp64/www/sms/app/Controller/Pages/Campaign.php)
+- [app/Controller/Pages/Voice.php](/c:/wamp64/www/sms/app/Controller/Pages/Voice.php)
+- [app/Controller/Pages/WhatsApp.php](/c:/wamp64/www/sms/app/Controller/Pages/WhatsApp.php)
+- [app/Service/MarketingCampaignService.php](/c:/wamp64/www/sms/app/Service/MarketingCampaignService.php)
+
+### Testes executados
+
+Validacao executada nesta etapa:
+
+- `php -l app/Service/PlanLimitEnforcementService.php`
+- `php -l app/Controller/Pages/Users.php`
+- `php -l app/Controller/Pages/SendSms.php`
+- `php -l app/Controller/Pages/Campaign.php`
+- `php -l app/Controller/Pages/Voice.php`
+- `php -l app/Controller/Pages/WhatsApp.php`
+- `php -l app/Service/MarketingCampaignService.php`
+
+Nao executado nesta etapa:
+
+- teste funcional com banco real para cada cenario de limite
+- simulacao fim-a-fim de envio SMS, voz, campanha e template em ambiente vivo
+
+### Status final dos 5 limites desta fase
+
+- `users_limit`: `ENFORCED`
+- `sms_limit`: `ENFORCED`
+- `voice_limit`: `ENFORCED`
+- `campaigns_limit`: `ENFORCED`
+- `templates_limit`: `ENFORCED`
+
+### Limitacoes restantes
+
+- `sms_limit` usa contagem mensal de mensagens registradas, nao segmentos da operadora
+- `voice_limit` usa contagem mensal de tentativas de chamadas outbound, nao minutos faturados
+- se a regra comercial desejada para `voice_limit` for minutos, sera melhor criar um campo especifico ou redefinir explicitamente a semantica atual

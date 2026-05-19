@@ -13,6 +13,7 @@ use \App\Model\Entity\UserSearch;
 use \App\Model\Entity\PermissionsRules;
 use App\Service\ManualTopupService;
 use App\Service\PlanAccessPolicy;
+use App\Service\PlanLimitEnforcementService;
 use DateTime;
 use Exception;
 use Random\RandomException;
@@ -102,6 +103,14 @@ class Users extends ViewComponents
             return new Response(403, [
                 'status' => 403,
                 'message' => 'Seu plano atual não permite criar usuários adicionais.'
+            ], 'application/json');
+        }
+
+        $limitAccess = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'users', 1);
+        if (empty($limitAccess['allowed'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => $limitAccess['message'] ?? 'Limite de usuários do plano atingido.'
             ], 'application/json');
         }
 
@@ -233,6 +242,14 @@ class Users extends ViewComponents
             return new Response(403, json_encode([
                 'status' => 'ERROR',
                 'message' => 'Seu plano atual não permite criar usuários adicionais.'
+            ]), 'application/json');
+        }
+
+        $limitAccess = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'users', 1);
+        if (empty($limitAccess['allowed'])) {
+            return new Response(403, json_encode([
+                'status' => 'ERROR',
+                'message' => $limitAccess['message'] ?? 'Limite de usuários do plano atingido.'
             ]), 'application/json');
         }
 

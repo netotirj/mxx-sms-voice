@@ -57,6 +57,11 @@ class MarketingCampaignService
         $now = date('Y-m-d H:i:s');
 
         if ($isCreate) {
+            $campaignLimit = PlanLimitEnforcementService::assertWithinLimitForUser($user, 'campaigns', 1);
+            if (empty($campaignLimit['allowed'])) {
+                throw new \RuntimeException($campaignLimit['message'] ?? 'Limite de campanhas do plano atingido.');
+            }
+
             $campaignId = MarketingCampaign::createCampaign([
                 'tenancy_id' => (string)($user['tenancy_id'] ?? ''),
                 'created_by' => (int)($user['id'] ?? 0),

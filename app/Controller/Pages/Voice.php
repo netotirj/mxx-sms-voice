@@ -17,6 +17,7 @@ use App\Service\PlanAccessPolicy;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
 use App\Service\FinancialTransactionService;
+use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Service\PlatformGlobalCostService;
 use App\Service\WhatsAppBilling;
@@ -1822,6 +1823,30 @@ class Voice extends ViewComponents
         // =======================
         $jobId = "job:voice:" . bin2hex(random_bytes(10));
         $jobIdCampaign = bin2hex(random_bytes(10));
+
+        $campaignLimit = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'campaigns', 1);
+        if (empty($campaignLimit['allowed'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => $campaignLimit['message'] ?? 'Limite de campanhas do plano atingido.'
+            ], 'application/json');
+        }
+
+        $voiceLimit = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'voice', count($contactList), [
+            'period' => 'current_month',
+        ]);
+        if (empty($voiceLimit['allowed'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => $voiceLimit['message'] ?? 'Limite de voz do plano atingido.',
+                'meta' => [
+                    'usage' => (int)($voiceLimit['usage'] ?? 0),
+                    'projected_usage' => (int)($voiceLimit['projected_usage'] ?? 0),
+                    'limit' => $voiceLimit['limit'] ?? null,
+                    'period' => (string)($voiceLimit['period'] ?? 'current_month'),
+                ],
+            ], 'application/json');
+        }
 
         if ($scheduleMode === 'scheduled') {
             $scheduledPayload = [

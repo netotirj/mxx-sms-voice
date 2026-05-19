@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Utils\View;
 use App\Model\Entity\CampaignSearch;
@@ -184,6 +185,15 @@ class Campaign extends ViewComponents
                         ->fetch(\PDO::FETCH_ASSOC);
                 }
             );
+
+            $campaignLimit = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'campaigns', 1);
+            if (empty($campaignLimit['allowed'])) {
+                return new Response(403, [
+                    'success' => false,
+                    'status'  => 403,
+                    'message' => $campaignLimit['message'] ?? 'Limite de campanhas do plano atingido.'
+                ], 'application/json');
+            }
 
 
 

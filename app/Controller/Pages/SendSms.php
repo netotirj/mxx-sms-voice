@@ -13,6 +13,7 @@ use App\Model\Entity\CampaignBatch;
 use App\Model\Entity\UserPlans;
 use App\Service\FinancialHierarchyBillingService;
 use App\Service\FinancialHierarchyResolver;
+use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Service\PlatformGlobalCostService;
 use App\Utils\View;
@@ -231,6 +232,23 @@ class SendSms extends ViewComponents
 
         $totalMessages = count($contacts);
         $totalUnits = array_sum(array_column($contacts, 'sms_units'));
+
+        $limitAccess = PlanLimitEnforcementService::assertWithinLimitForUser($obUser, 'sms', $totalMessages, [
+            'period' => 'current_month',
+        ]);
+        if (empty($limitAccess['allowed'])) {
+            return new Response(403, [
+                'status' => 403,
+                'message' => $limitAccess['message'] ?? 'Limite de SMS do plano atingido.',
+                'meta' => [
+                    'usage' => (int)($limitAccess['usage'] ?? 0),
+                    'projected_usage' => (int)($limitAccess['projected_usage'] ?? 0),
+                    'limit' => $limitAccess['limit'] ?? null,
+                    'period' => (string)($limitAccess['period'] ?? 'current_month'),
+                ],
+            ], 'application/json');
+        }
+
         if ($isReseller) {
 
             $resellerInfo = UserSearch::getResellers($obUser['tenancy_id'], $obUser['id']);

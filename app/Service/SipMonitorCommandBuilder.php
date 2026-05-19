@@ -71,6 +71,10 @@ class SipMonitorCommandBuilder
     {
         $timeoutSeconds = max(60, ((int)$request['duration_minutes']) * 60);
         $command = ['sngrep'];
+        $textPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.txt');
+
+        $command[] = '-N';
+        $command[] = '--text';
 
         $iface = trim((string)($request['interface'] ?? ''));
         if ($iface !== '') {
@@ -78,9 +82,8 @@ class SipMonitorCommandBuilder
             $command[] = $iface;
         }
 
-        $pcapPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'capture-sngrep.pcap');
         $command[] = '-O';
-        $command[] = $pcapPath;
+        $command[] = $textPath;
 
         $ports = ['port ' . (int)$request['port']];
         if (!empty($request['include_tls'])) {
@@ -92,20 +95,15 @@ class SipMonitorCommandBuilder
             $bpf .= ' and host ' . $request['filter_value'];
         }
 
-        $supportsScript = SipMonitorCommandRunner::supportsBinary('script', false);
         $supportsTimeout = SipMonitorCommandRunner::supportsBinary('timeout', false);
-
         $baseCommand = self::quoteCommand(array_merge($command, [$bpf]));
-        if ($supportsScript) {
-            $baseCommand = 'script -qefc ' . escapeshellarg($baseCommand) . ' /dev/null';
-        }
         if ($supportsTimeout) {
             $baseCommand = 'timeout --signal=TERM ' . $timeoutSeconds . 's ' . $baseCommand;
         }
 
         return [
             'command' => $baseCommand,
-            'pcap_path' => $pcapPath,
+            'log_path' => $textPath,
             'filter_label' => $bpf,
         ];
     }

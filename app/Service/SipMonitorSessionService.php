@@ -114,12 +114,11 @@ class SipMonitorSessionService
 
         if (in_array($resolvedMode, ['sngrep', 'both'], true)) {
             $script = SipMonitorCommandBuilder::buildSngrepScript($sessionId, $request);
-            $logPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.log');
+            $logPath = (string)($script['log_path'] ?? SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.txt'));
             $started = SipMonitorCommandRunner::startBackground($script['command'], $logPath, true);
             $streams['sngrep'] = [
                 'pid' => (int)($started['pid'] ?? 0),
                 'log_path' => $logPath,
-                'pcap_path' => $script['pcap_path'],
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
                 'started_ok' => (bool)($started['ok'] ?? false),

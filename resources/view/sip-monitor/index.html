@@ -464,6 +464,12 @@
 
         appendChunk(source, chunk) {
             if (!chunk) {
+                const target = document.getElementById(source === 'sngrep' ? 'sipMonitorSngrepTerminal' : 'sipMonitorPjsipTerminal');
+                if (target && !this.buffers[source] && this.activeSession?.id) {
+                    target.textContent = source === 'sngrep'
+                        ? 'Captura SNGREP ativa. Aguardando tráfego SIP novo para preencher a saída textual...'
+                        : 'PJSIP Logger ativo. Aguardando tráfego SIP novo...';
+                }
                 return;
             }
 

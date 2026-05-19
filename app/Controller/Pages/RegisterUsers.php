@@ -188,11 +188,13 @@ class RegisterUsers extends ViewComponents
         $accountCode = self::generateUniqueAccountCode();
         $db = new Database();
 
+        $step = 'start';
+
         try {
-            self::ensureRegistrationSchema();
             $db->beginTransaction();
 
             // 1️⃣ Criar Tenancy
+            $step = 'create_tenancy';
             $obTenancy = new RegisterTenancies();
             $obTenancy->id = $tenancyId;
             $obTenancy->name = $name;
@@ -207,6 +209,7 @@ class RegisterUsers extends ViewComponents
             }
 
             // 2️⃣ Criar papel admin global da tenancy
+            $step = 'create_admin_role';
             $roleId = PermissionsRules::registerRole(
                 'admin',
                 'Administrador',
@@ -223,6 +226,7 @@ class RegisterUsers extends ViewComponents
             PermissionsRules::initAdminPermissions($tenancyId, $roleId);
 
             // 3️⃣ Criar Usuário admin
+            $step = 'create_admin_user';
             $obUser = new UserAuthentication();
             $obUser->name = $name;
             $obUser->account_code = $accountCode;
@@ -243,9 +247,11 @@ class RegisterUsers extends ViewComponents
             }
 
             // 4️⃣ Vincular o usuário ao papel criado
+            $step = 'assign_role_to_user';
             PermissionsRules::assignRoleToUser($newUserId, $tenancyId, $roleId);
 
             // 5️⃣ Configurações iniciais de plano e saldo
+            $step = 'create_bootstrap_plan';
             $userPlanId = UserPlans::createUserPlan([
                 'user_id'    => $newUserId,
                 'plan_id'    => self::BOOTSTRAP_PLAN_ID,
@@ -258,6 +264,7 @@ class RegisterUsers extends ViewComponents
             }
 
             $invoiceNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+            $step = 'seed_bootstrap_balance';
             $balanceInserted = BalanceSms::insertBalance(
                 $newUserId,
                 self::BOOTSTRAP_PLAN_ID,
@@ -281,11 +288,13 @@ class RegisterUsers extends ViewComponents
                 throw new \RuntimeException('Erro ao aplicar crédito inicial da conta.');
             }
 
+            $step = 'update_active_plan';
             if (!RegisterTenancies::updateActivePlan($tenancyId, $userPlanId)) {
                 throw new \RuntimeException('Erro ao definir plano ativo inicial da tenancy.');
             }
 
             // 6️⃣ Notificação de boas-vindas
+            $step = 'create_welcome_notification';
             $notificationId = Notifications::insertNotifications(
                 $tenancyId,
                 $newUserId,
@@ -298,6 +307,7 @@ class RegisterUsers extends ViewComponents
                 throw new \RuntimeException('Erro ao finalizar cadastro da notificação inicial.');
             }
 
+            $step = 'commit';
             $db->commit();
 
             $obUser->id = $newUserId;
@@ -314,6 +324,7 @@ class RegisterUsers extends ViewComponents
 
             error_log(json_encode([
                 'event' => 'register_account_failed',
+                'step' => $step,
                 'tenancy_id' => $tenancyId,
                 'email' => $email,
                 'message' => $e->getMessage(),
@@ -355,54 +366,4 @@ class RegisterUsers extends ViewComponents
         return $profile;
     }
 
-    private static function ensureRegistrationSchema(): void
-    {
-        static $ensured = false;
-        if ($ensured) {
-            return;
-        }
-
-        $checks = [
-            'users' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
-            'sys_roles' => 'INT(11) NOT NULL AUTO_INCREMENT',
-            'mxx_user_plans' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
-            'tenancy_balance' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
-            'notifications' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
-        ];
-
-        foreach ($checks as $table => $definition) {
-            self::ensureAutoIncrementId($table, $definition);
-        }
-
-        $ensured = true;
-    }
-
-    private static function ensureAutoIncrementId(string $table, string $definition): void
-    {
-        $db = new Database();
-        $column = $db->execute(
-            "SELECT COLUMN_NAME, EXTRA
-             FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME = :table
-               AND COLUMN_NAME = 'id'
-             LIMIT 1",
-            [':table' => $table]
-        )->fetchObject();
-
-        if (!$column) {
-            return;
-        }
-
-        $extra = strtolower(trim((string)($column->EXTRA ?? '')));
-        if (str_contains($extra, 'auto_increment')) {
-            return;
-        }
-
-        $db->execute(sprintf(
-            'ALTER TABLE `%s` MODIFY `id` %s',
-            $table,
-            $definition
-        ));
-    }
 }

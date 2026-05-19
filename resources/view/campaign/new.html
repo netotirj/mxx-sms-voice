@@ -120,31 +120,52 @@
                         <span>Estou ciente que mensagens com links podem ser consideradas spam pelas operadoras.</span>
                     </label>
 
-                    <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                            <label class="block">
-                                <span class="mb-1 block text-sm font-semibold text-slate-800">Modo de envio</span>
-                                <select id="campaignSendMode" class="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="now">Criar campanha agora</option>
-                                    <option value="schedule">Agendar campanha</option>
-                                </select>
-                            </label>
+                    <div id="campaignSchedulePanel" class="hidden mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <div class="flex flex-col gap-3">
+                            <div class="flex items-start gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                    AG
+                                </div>
+                                <div>
+                                    <h5 class="text-sm font-bold text-slate-800">Agendar campanha</h5>
+                                    <p id="campaignScheduleSummary" class="text-xs text-orange-700 mt-1">
+                                        Selecione a data e o horário do agendamento.
+                                    </p>
+                                </div>
+                            </div>
 
-                            <label id="campaignScheduledField" class="hidden block">
-                                <span class="mb-1 block text-sm font-semibold text-slate-800">Agendar para</span>
-                                <input id="campaignScheduledAt" name="scheduled_at" type="datetime-local"
-                                       class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <span id="campaignTimezoneLabel" class="mt-2 block text-xs text-slate-500"></span>
-                                <input id="campaignTimezone" name="timezone" type="hidden">
-                            </label>
+                            <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 md:items-end">
+                                <label class="block">
+                                    <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Data</span>
+                                    <input id="campaignScheduleDate" type="date"
+                                           class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                </label>
+                                <label class="block">
+                                    <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Horário</span>
+                                    <input id="campaignScheduleTime" type="time"
+                                           class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                </label>
+                                <button id="cancelCampaignScheduleBtn" type="button"
+                                        class="h-14 px-5 text-sm font-semibold border border-slate-200 rounded-xl text-slate-600 bg-white hover:bg-slate-50 transition">
+                                    Cancelar agendamento
+                                </button>
+                            </div>
+
+                            <span id="campaignTimezoneLabel" class="text-xs text-slate-500"></span>
+                            <input id="campaignTimezone" name="timezone" type="hidden">
+                            <input id="campaignScheduledAt" name="scheduled_at" type="hidden">
                         </div>
                     </div>
 
                     <!-- Botões -->
                     <div class="flex justify-end gap-2 mt-6">
+                        <button id="scheduleCampaignBtn" type="button"
+                                class="inline-flex items-center justify-center px-6 py-2 text-amber-700 text-sm font-bold rounded-lg border border-amber-200 bg-amber-50 transition-transform hover:-translate-y-0.5 hover:bg-amber-100">
+                            Agendar campanha
+                        </button>
                         <button id="createButton" type="submit"
                                 class="inline-flex items-center justify-center px-6 py-2 text-white text-sm font-bold uppercase rounded-lg bg-gradient-to-tl from-green-500 to-green-700 shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
-                            <span id="createButtonText">Criar</span>
+                            <span id="createButtonText">Criar agora</span>
                             <svg id="createButtonLoader" class="animate-spin h-5 w-5 ml-2 hidden text-white" xmlns="http://www.w3.org/2000/svg"
                                  fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

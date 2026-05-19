@@ -314,8 +314,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const senderInput = document.getElementById("senderInput");
     const charsetInput = document.getElementById("charsetInput");
-    const sendModeInput = document.getElementById("campaignSendMode");
-    const scheduleField = document.getElementById("campaignScheduledField");
+    const schedulePanel = document.getElementById("campaignSchedulePanel");
+    const scheduleButton = document.getElementById("scheduleCampaignBtn");
+    const cancelScheduleButton = document.getElementById("cancelCampaignScheduleBtn");
+    const scheduleDateInput = document.getElementById("campaignScheduleDate");
+    const scheduleTimeInput = document.getElementById("campaignScheduleTime");
+    const scheduleSummary = document.getElementById("campaignScheduleSummary");
     const scheduleInput = document.getElementById("campaignScheduledAt");
     const timezoneInput = document.getElementById("campaignTimezone");
     const timezoneLabel = document.getElementById("campaignTimezoneLabel");
@@ -332,22 +336,55 @@ document.addEventListener("DOMContentLoaded", () => {
         timezoneLabel.textContent = `Timezone: ${currentTimezone}`;
     }
 
-    const syncCampaignSendMode = () => {
-        const enabled = (sendModeInput?.value || "now") === "schedule";
-        scheduleField?.classList.toggle("hidden", !enabled);
-        if (scheduleInput) {
-            scheduleInput.required = enabled;
-            if (!enabled) {
-                scheduleInput.value = "";
-            }
-        }
-        if (createButtonText) {
-            createButtonText.textContent = enabled ? "Agendar Campanha" : "Criar";
-        }
+    const pad = (value) => String(value).padStart(2, "0");
+    const toDateValue = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const toTimeValue = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+    const parseCampaignScheduleDateTime = () => {
+        const dateValue = scheduleDateInput?.value || "";
+        const timeValue = scheduleTimeInput?.value || "";
+        if (!dateValue || !timeValue) return null;
+        const value = new Date(`${dateValue}T${timeValue}:00`);
+        return Number.isNaN(value.getTime()) ? null : value;
     };
 
-    sendModeInput?.addEventListener("change", syncCampaignSendMode);
-    syncCampaignSendMode();
+    const syncCampaignScheduleSummary = () => {
+        if (!scheduleSummary) return;
+        const value = parseCampaignScheduleDateTime();
+        if (!value) {
+            scheduleSummary.textContent = "Selecione a data e o horário do agendamento.";
+            return;
+        }
+        scheduleSummary.textContent = `Agendado para ${value.toLocaleDateString('pt-BR')} às ${toTimeValue(value)}.`;
+    };
+
+    const setCampaignScheduleMode = (enabled) => {
+        schedulePanel?.classList.toggle("hidden", !enabled);
+        scheduleButton?.classList.toggle("hidden", enabled);
+        newButton.dataset.scheduleMode = enabled ? "scheduled" : "now";
+
+        if (createButtonText) {
+            createButtonText.textContent = enabled ? "Agendar campanha" : "Criar agora";
+        }
+
+        if (enabled) {
+            const minDate = new Date(Date.now() + 10 * 60 * 1000);
+            if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toDateValue(minDate);
+            if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+        } else {
+            if (scheduleDateInput) scheduleDateInput.value = "";
+            if (scheduleTimeInput) scheduleTimeInput.value = "";
+            if (scheduleInput) scheduleInput.value = "";
+        }
+
+        syncCampaignScheduleSummary();
+    };
+
+    scheduleButton?.addEventListener("click", () => setCampaignScheduleMode(true));
+    cancelScheduleButton?.addEventListener("click", () => setCampaignScheduleMode(false));
+    scheduleDateInput?.addEventListener("input", syncCampaignScheduleSummary);
+    scheduleTimeInput?.addEventListener("input", syncCampaignScheduleSummary);
+    setCampaignScheduleMode(false);
 
     // Ativa grupos de botões
     function activateGroup(groupId, hiddenInput) {
@@ -393,7 +430,7 @@ document.addEventListener("DOMContentLoaded", () => {
         newButton.disabled = true;
 
         const btnLoader = document.getElementById("createButtonLoader");
-        const scheduleMode = (sendModeInput?.value || "now") === "schedule" ? "scheduled" : "now";
+        const scheduleMode = newButton.dataset.scheduleMode === "scheduled" ? "scheduled" : "now";
         createButtonText.textContent = scheduleMode === "scheduled" ? "Agendando..." : "Enviando...";
         btnLoader.classList.remove("hidden");
 
@@ -403,16 +440,19 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.set("timezone", currentTimezone);
 
             if (scheduleMode === "scheduled") {
-                const scheduledAt = formatScheduleDatetimeForApi(scheduleInput?.value || "");
+                const scheduledDate = parseCampaignScheduleDateTime();
+                const scheduledAt = scheduledDate
+                    ? `${scheduledDate.getFullYear()}-${pad(scheduledDate.getMonth() + 1)}-${pad(scheduledDate.getDate())} ${pad(scheduledDate.getHours())}:${pad(scheduledDate.getMinutes())}:00`
+                    : "";
                 if (!scheduledAt) {
                     showError("Informe a data e hora do agendamento.");
-                    scheduleInput?.focus();
+                    scheduleDateInput?.focus();
                     return;
                 }
 
-                if (new Date(scheduleInput.value) <= new Date()) {
+                if ((scheduledDate || new Date(0)) <= new Date()) {
                     showError("Escolha uma data e horario futuros.");
-                    scheduleInput?.focus();
+                    scheduleDateInput?.focus();
                     return;
                 }
 
@@ -441,7 +481,11 @@ document.addEventListener("DOMContentLoaded", () => {
             showError("Erro de conexão ao enviar a campanha.");
         } finally {
             newButton.disabled = false;
-            syncCampaignSendMode();
+            if (scheduleMode === "scheduled") {
+                createButtonText.textContent = "Agendar campanha";
+            } else {
+                createButtonText.textContent = "Criar agora";
+            }
             btnLoader.classList.add("hidden");
         }
     });

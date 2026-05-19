@@ -10,12 +10,8 @@ use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\UserPlans;
 use App\Session\User as SessionUser;
-use App\Service\AsteriskBalanceSyncService;
-use App\Service\PermissionResolver;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
-use Throwable;
-use WilliamCosta\DatabaseManager\Database;
 
 class RegisterUsers extends ViewComponents
 {
@@ -186,79 +182,56 @@ class RegisterUsers extends ViewComponents
             return ['status' => 'ERROR', 'message' => 'Telefone já cadastrado.'];
         }
 
+        // 1️⃣ Criar Tenancy
         $tenancyId   = Uuid::uuid4()->toString();
         $accountCode = self::generateUniqueAccountCode();
-        $db = new Database();
 
-        $step = 'start';
+        $obTenancy = new RegisterTenancies();
+        $obTenancy->id = $tenancyId;
+        $obTenancy->name = $name;
+        $obTenancy->tenancy_phone = $phone;
+        $obTenancy->account_code = $accountCode;
+        $obTenancy->status = 'active';
+        $obTenancy->created_at = date('Y-m-d H:i:s');
+        $obTenancy->updated_at = date('Y-m-d H:i:s');
 
-        try {
-            self::validateRegistrationSchema();
-            PermissionsRules::syncSchema();
-            PermissionResolver::syncSchema();
-            Notifications::syncSchema();
-            AsteriskBalanceSyncService::ensureSchema();
-            $db->beginTransaction();
+        if (!$obTenancy->insertUserTenancy()) {
+            return ['status' => 'ERROR', 'message' => 'Erro ao criar tenancy.'];
+        }
 
-            // 1️⃣ Criar Tenancy
-            $step = 'create_tenancy';
-            $obTenancy = new RegisterTenancies();
-            $obTenancy->id = $tenancyId;
-            $obTenancy->name = $name;
-            $obTenancy->tenancy_phone = $phone;
-            $obTenancy->account_code = $accountCode;
-            $obTenancy->status = 'active';
-            $obTenancy->created_at = date('Y-m-d H:i:s');
-            $obTenancy->updated_at = date('Y-m-d H:i:s');
+        // 2️⃣ CRIAR PAPEL ADMIN E LIBERAR ROTAS GLOBAIS
+        $roleId = PermissionsRules::registerRole(
+            'admin',
+            'Administrador',
+            'y',
+            $tenancyId,
+            null,
+            null
+        );
 
-            if (!$obTenancy->insertUserTenancy()) {
-                throw new \RuntimeException('Erro ao criar tenancy.');
-            }
+        PermissionsRules::initAdminPermissions($tenancyId, $roleId);
 
-            // 2️⃣ Criar papel admin global da tenancy
-            $step = 'create_admin_role';
-            $roleId = PermissionsRules::registerRole(
-                'admin',
-                'Administrador',
-                'y',
-                $tenancyId,
-                null,
-                null
-            );
+        // 3️⃣ Criar Usuário
+        $obUser = new UserAuthentication();
+        $obUser->name = $name;
+        $obUser->account_code = $accountCode;
+        $obUser->last_name = $lastname;
+        $obUser->email = $email;
+        $obUser->password = password_hash($password, PASSWORD_DEFAULT);
+        $obUser->status = 'n';
+        $obUser->tenancy_id = $tenancyId;
+        $obUser->user_function = 'admin';
+        $obUser->role_id = $roleId;
+        $obUser->createdAt = date('Y-m-d H:i:s');
+        $obUser->updatedAt = date('Y-m-d H:i:s');
 
-            if ($roleId <= 0) {
-                throw new \RuntimeException('Erro ao criar papel administrativo.');
-            }
+        $newUserId = (int)$obUser->RegisterUsers();
 
-            PermissionsRules::initAdminPermissions($tenancyId, $roleId);
-
-            // 3️⃣ Criar Usuário admin
-            $step = 'create_admin_user';
-            $obUser = new UserAuthentication();
-            $obUser->name = $name;
-            $obUser->account_code = $accountCode;
-            $obUser->last_name = $lastname;
-            $obUser->email = $email;
-            $obUser->password = password_hash($password, PASSWORD_DEFAULT);
-            $obUser->status_account = 'active';
-            $obUser->status = 'n';
-            $obUser->tenancy_id = $tenancyId;
-            $obUser->user_function = 'admin';
-            $obUser->role_id = $roleId;
-            $obUser->createdAt = date('Y-m-d H:i:s');
-            $obUser->updatedAt = date('Y-m-d H:i:s');
-
-            $newUserId = (int)$obUser->RegisterUsers();
-            if ($newUserId <= 0) {
-                throw new \RuntimeException('Erro ao criar usuário administrador.');
-            }
-
-            // 4️⃣ Vincular o usuário ao papel criado
-            $step = 'assign_role_to_user';
+        if ($newUserId > 0) {
+            // 4️⃣ Vincula o usuário ao papel de admin criado no passo 2
             PermissionsRules::assignRoleToUser($newUserId, $tenancyId, $roleId);
 
-            // 5️⃣ Configurações iniciais de plano e saldo
-            $step = 'create_bootstrap_plan';
+            // 5️⃣ Configurações de Plano e Saldo (SMS)
             $userPlanId = UserPlans::createUserPlan([
                 'user_id'    => $newUserId,
                 'plan_id'    => self::BOOTSTRAP_PLAN_ID,
@@ -266,13 +239,8 @@ class RegisterUsers extends ViewComponents
                 'status'     => 'confirmed'
             ]);
 
-            if ($userPlanId <= 0) {
-                throw new \RuntimeException('Erro ao vincular plano inicial da conta.');
-            }
-
             $invoiceNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
-            $step = 'seed_bootstrap_balance';
-            $balanceInserted = BalanceSms::insertBalance(
+            BalanceSms::insertBalance(
                 $newUserId,
                 self::BOOTSTRAP_PLAN_ID,
                 $tenancyId,
@@ -292,31 +260,16 @@ class RegisterUsers extends ViewComponents
                 'bootstrap:' . $invoiceNumber
             );
 
-            if (!$balanceInserted) {
-                throw new \RuntimeException('Erro ao aplicar crédito inicial da conta.');
-            }
+            RegisterTenancies::updateActivePlan($tenancyId, $userPlanId);
 
-            $step = 'update_active_plan';
-            if (!RegisterTenancies::updateActivePlan($tenancyId, $userPlanId)) {
-                throw new \RuntimeException('Erro ao definir plano ativo inicial da tenancy.');
-            }
-
-            // 6️⃣ Notificação de boas-vindas
-            $step = 'create_welcome_notification';
-            $notificationId = Notifications::insertNotifications(
+            // 6️⃣ Notificação
+            Notifications::insertNotifications(
                 $tenancyId,
                 $newUserId,
                 "🎉 Bem-vindo(a)!",
                 "Conta criada! Você recebeu R$ 3,00 de crédito inicial.",
                 'notice'
             );
-
-            if ($notificationId === false) {
-                throw new \RuntimeException('Erro ao finalizar cadastro da notificação inicial.');
-            }
-
-            $step = 'commit';
-            $db->commit();
 
             $obUser->id = $newUserId;
 
@@ -325,25 +278,9 @@ class RegisterUsers extends ViewComponents
                 'message' => 'Usuário cadastrado com sucesso.',
                 'user' => $obUser,
             ];
-        } catch (Throwable $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-
-            error_log(json_encode([
-                'event' => 'register_account_failed',
-                'step' => $step,
-                'tenancy_id' => $tenancyId,
-                'email' => $email,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-            $publicMessage = str_starts_with($e->getMessage(), 'Estrutura do banco incompleta:')
-                ? $e->getMessage()
-                : 'Erro ao finalizar cadastro. Etapa: ' . $step . '. Detalhe: ' . $e->getMessage();
-
-            return ['status' => 'ERROR', 'message' => $publicMessage];
         }
+
+        return ['status' => 'ERROR', 'message' => 'Erro ao finalizar cadastro.'];
     }
 
     private static function normalizePhone(string $phone): string
@@ -377,45 +314,4 @@ class RegisterUsers extends ViewComponents
 
         return $profile;
     }
-
-    private static function validateRegistrationSchema(): void
-    {
-        $requiredTables = [
-            'sys_roles',
-            'sys_role_permissions',
-            'sys_permission_cache_versions',
-            'users',
-            'mxx_user_plans',
-            'tenancy_balance',
-            'notifications',
-        ];
-
-        $db = new Database();
-
-        foreach ($requiredTables as $table) {
-            $column = $db->execute(
-                "SELECT COLUMN_NAME, COLUMN_KEY, EXTRA
-                 FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = :table
-                   AND COLUMN_NAME = 'id'
-                 LIMIT 1",
-                [':table' => $table]
-            )->fetchObject();
-
-            if (!$column) {
-                throw new \RuntimeException('Estrutura do banco incompleta: coluna id ausente em ' . $table . '.');
-            }
-
-            $columnKey = strtoupper(trim((string)($column->COLUMN_KEY ?? '')));
-            $extra = strtolower(trim((string)($column->EXTRA ?? '')));
-
-            if ($columnKey !== 'PRI' || !str_contains($extra, 'auto_increment')) {
-                throw new \RuntimeException(
-                    'Estrutura do banco incompleta: ' . $table . '.id precisa ser PRIMARY KEY AUTO_INCREMENT.'
-                );
-            }
-        }
-    }
-
 }

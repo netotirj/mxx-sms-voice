@@ -119,6 +119,7 @@ class SipMonitorSessionService
             $streams['sngrep'] = [
                 'pid' => (int)($started['pid'] ?? 0),
                 'log_path' => $logPath,
+                'pid_path' => (string)($started['pid_path'] ?? ''),
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
                 'started_ok' => (bool)($started['ok'] ?? false),
@@ -135,6 +136,7 @@ class SipMonitorSessionService
             $streams['pjsip'] = [
                 'pid' => (int)($started['pid'] ?? 0),
                 'log_path' => $logPath,
+                'pid_path' => (string)($started['pid_path'] ?? ''),
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
                 'started_ok' => (bool)($started['ok'] ?? false),

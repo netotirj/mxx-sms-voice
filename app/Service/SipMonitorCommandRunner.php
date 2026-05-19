@@ -67,18 +67,27 @@ class SipMonitorCommandRunner
     {
         $profile = self::profile();
         $dir = dirname($outputPath);
+        $pidPath = $outputPath . '.pid';
         $command = 'mkdir -p ' . escapeshellarg($dir)
             . ' && touch ' . escapeshellarg($outputPath)
+            . ' && : > ' . escapeshellarg($pidPath)
+            . ' && printf %s\\n ' . escapeshellarg('[monitor] bootstrap ' . date('Y-m-d H:i:s')) . ' >> ' . escapeshellarg($outputPath)
             . ' && nohup sh -lc ' . escapeshellarg($shellScript)
-            . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & echo $!';
+            . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & PID=$!; printf %s "$PID" > ' . escapeshellarg($pidPath) . '; printf "__PID__:%s\n" "$PID"';
 
         $result = ($profile['mode'] ?? 'local') === 'ssh'
             ? self::runSsh($profile, $command, $useSudo)
             : self::runLocal($useSudo ? self::withSudo($profile, $command) : $command);
 
-        $pid = (int)trim((string)($result['output'] ?? '0'));
+        $output = trim((string)($result['output'] ?? ''));
+        $pid = 0;
+        if (preg_match('/__PID__:(\d+)/', $output, $matches)) {
+            $pid = (int)$matches[1];
+        } elseif (preg_match('/(\d+)/', $output, $matches)) {
+            $pid = (int)$matches[1];
+        }
 
-        return $result + ['pid' => $pid];
+        return $result + ['pid' => $pid, 'pid_path' => $pidPath];
     }
 
     public static function killProcess(?int $pid, bool $useSudo = true): array

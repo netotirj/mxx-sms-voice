@@ -135,24 +135,63 @@
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 md:items-end">
-                                <label class="block">
-                                    <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Data</span>
-                                    <input id="campaignScheduleDate" type="date"
-                                           class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
-                                </label>
-                                <label class="block">
-                                    <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Horário</span>
-                                    <input id="campaignScheduleTime" type="time"
-                                           class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
-                                </label>
+                                <div class="relative">
+                                    <label for="campaignScheduleDate" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                        Data
+                                    </label>
+                                    <input id="campaignScheduleDate"
+                                           type="text"
+                                           inputmode="numeric"
+                                           autocomplete="off"
+                                           placeholder="dd/mm/aaaa"
+                                           class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                    <button id="campaignScheduleDatePickerBtn"
+                                            type="button"
+                                            class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                        <i class="fa fa-calendar"></i>
+                                    </button>
+                                    <div id="campaignScheduleCalendar"
+                                         class="hidden absolute left-0 top-full mt-2 z-50 w-full md:w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <button id="campaignSchedulePrevMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">‹</button>
+                                            <div id="campaignScheduleCalendarTitle" class="text-sm font-bold text-slate-700"></div>
+                                            <button id="campaignScheduleNextMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">›</button>
+                                        </div>
+                                        <div class="grid gap-1 text-center text-[10px] font-bold uppercase text-slate-400 mb-2"
+                                             style="grid-template-columns: repeat(7, minmax(0, 1fr));">
+                                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                                        </div>
+                                        <div id="campaignScheduleCalendarDays"
+                                             class="grid gap-1"
+                                             style="grid-template-columns: repeat(7, minmax(0, 1fr));"></div>
+                                    </div>
+                                </div>
+
+                                <div class="relative">
+                                    <label for="campaignScheduleTime" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                        Horário
+                                    </label>
+                                    <input id="campaignScheduleTime"
+                                           type="text"
+                                           inputmode="numeric"
+                                           autocomplete="off"
+                                           placeholder="hh:mm"
+                                           class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                    <button id="campaignScheduleTimePickerBtn"
+                                            type="button"
+                                            class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                        <i class="fa fa-clock"></i>
+                                    </button>
+                                    <div id="campaignScheduleTimeOptions"
+                                         class="hidden absolute left-0 top-full mt-2 z-50 w-full rounded-xl border border-slate-200 bg-white shadow-xl p-2 overflow-y-auto"
+                                         style="max-height: 11rem; overflow-y: auto; overscroll-behavior: contain;"></div>
+                                </div>
                                 <button id="cancelCampaignScheduleBtn" type="button"
                                         class="h-14 px-5 text-sm font-semibold border border-slate-200 rounded-xl text-slate-600 bg-white hover:bg-slate-50 transition">
                                     Cancelar agendamento
                                 </button>
                             </div>
 
-                            <span id="campaignTimezoneLabel" class="text-xs text-slate-500"></span>
-                            <input id="campaignTimezone" name="timezone" type="hidden">
                             <input id="campaignScheduledAt" name="scheduled_at" type="hidden">
                         </div>
                     </div>

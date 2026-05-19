@@ -132,23 +132,62 @@
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 md:items-end">
-                            <label class="block">
-                                <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Data</span>
-                                <input id="singleSmsScheduleDate" type="date"
-                                       class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
-                            </label>
-                            <label class="block">
-                                <span class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">Horário</span>
-                                <input id="singleSmsScheduleTime" type="time"
-                                       class="w-full h-14 px-4 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
-                            </label>
+                            <div class="relative">
+                                <label for="singleSmsScheduleDate" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                    Data
+                                </label>
+                                <input id="singleSmsScheduleDate"
+                                       type="text"
+                                       inputmode="numeric"
+                                       autocomplete="off"
+                                       placeholder="dd/mm/aaaa"
+                                       class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                <button id="singleSmsScheduleDatePickerBtn"
+                                        type="button"
+                                        class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                    <i class="fa fa-calendar"></i>
+                                </button>
+                                <div id="singleSmsScheduleCalendar"
+                                     class="hidden absolute left-0 top-full mt-2 z-50 w-full md:w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-4">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <button id="singleSmsSchedulePrevMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">‹</button>
+                                        <div id="singleSmsScheduleCalendarTitle" class="text-sm font-bold text-slate-700"></div>
+                                        <button id="singleSmsScheduleNextMonth" type="button" class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50">›</button>
+                                    </div>
+                                    <div class="grid gap-1 text-center text-[10px] font-bold uppercase text-slate-400 mb-2"
+                                         style="grid-template-columns: repeat(7, minmax(0, 1fr));">
+                                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                                    </div>
+                                    <div id="singleSmsScheduleCalendarDays"
+                                         class="grid gap-1"
+                                         style="grid-template-columns: repeat(7, minmax(0, 1fr));"></div>
+                                </div>
+                            </div>
+
+                            <div class="relative">
+                                <label for="singleSmsScheduleTime" class="block text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">
+                                    Horário
+                                </label>
+                                <input id="singleSmsScheduleTime"
+                                       type="text"
+                                       inputmode="numeric"
+                                       autocomplete="off"
+                                       placeholder="hh:mm"
+                                       class="w-full h-14 pl-4 pr-12 border border-slate-200 rounded-xl text-sm bg-white focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+                                <button id="singleSmsScheduleTimePickerBtn"
+                                        type="button"
+                                        class="absolute right-2 bottom-2 w-10 h-10 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50">
+                                    <i class="fa fa-clock"></i>
+                                </button>
+                                <div id="singleSmsScheduleTimeOptions"
+                                     class="hidden absolute left-0 top-full mt-2 z-50 w-full rounded-xl border border-slate-200 bg-white shadow-xl p-2 overflow-y-auto"
+                                     style="max-height: 11rem; overflow-y: auto; overscroll-behavior: contain;"></div>
+                            </div>
                             <button id="cancelSingleSmsScheduleBtn" type="button"
                                     class="h-14 px-5 text-sm font-semibold border border-slate-200 rounded-xl text-slate-600 bg-white hover:bg-slate-50 transition">
                                 Cancelar agendamento
                             </button>
                         </div>
-
-                        <span id="singleSmsTimezoneLabel" class="text-xs text-slate-500"></span>
                     </div>
                 </div>
 
@@ -271,33 +310,54 @@
     const scheduleDateInput = document.getElementById("singleSmsScheduleDate");
     const scheduleTimeInput = document.getElementById("singleSmsScheduleTime");
     const scheduleSummary = document.getElementById("singleSmsScheduleSummary");
-    const timezoneLabel = document.getElementById("singleSmsTimezoneLabel");
+    const scheduleCalendar = document.getElementById("singleSmsScheduleCalendar");
+    const scheduleCalendarDays = document.getElementById("singleSmsScheduleCalendarDays");
+    const scheduleCalendarTitle = document.getElementById("singleSmsScheduleCalendarTitle");
+    const schedulePrevMonth = document.getElementById("singleSmsSchedulePrevMonth");
+    const scheduleNextMonth = document.getElementById("singleSmsScheduleNextMonth");
+    const scheduleDatePickerBtn = document.getElementById("singleSmsScheduleDatePickerBtn");
+    const scheduleTimePickerBtn = document.getElementById("singleSmsScheduleTimePickerBtn");
+    const scheduleTimeOptions = document.getElementById("singleSmsScheduleTimeOptions");
 
     if (!input) throw new Error("Elemento messageInput não encontrado.");
-
-    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Sao_Paulo";
-    if (timezoneLabel) {
-        timezoneLabel.textContent = `Timezone: ${browserTimezone}`;
-    }
 
     function pad(num) {
         return String(num).padStart(2, "0");
     }
 
-    function toDateValue(date) {
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    function toPtDateValue(date) {
+        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
     }
 
     function toTimeValue(date) {
         return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
     }
 
+    function parsePtDate(value) {
+        const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!match) return null;
+
+        const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        if (
+            date.getFullYear() !== Number(match[3]) ||
+            date.getMonth() !== Number(match[2]) - 1 ||
+            date.getDate() !== Number(match[1])
+        ) return null;
+
+        return date;
+    }
+
     function parseSingleSmsScheduleDateTime() {
-        const dateValue = scheduleDateInput?.value || "";
-        const timeValue = scheduleTimeInput?.value || "";
-        if (!dateValue || !timeValue) return null;
-        const value = new Date(`${dateValue}T${timeValue}:00`);
-        return Number.isNaN(value.getTime()) ? null : value;
+        const date = parsePtDate(scheduleDateInput?.value || "");
+        const timeMatch = String(scheduleTimeInput?.value || "").match(/^(\d{2}):(\d{2})$/);
+        if (!date || !timeMatch) return null;
+
+        const hours = Number(timeMatch[1]);
+        const minutes = Number(timeMatch[2]);
+        if (hours > 23 || minutes > 59) return null;
+
+        date.setHours(hours, minutes, 0, 0);
+        return date;
     }
 
     function scheduledAtForApi() {
@@ -313,7 +373,97 @@
             scheduleSummary.textContent = "Selecione a data e o horário do agendamento.";
             return;
         }
-        scheduleSummary.textContent = `Agendado para ${value.toLocaleDateString('pt-BR')} às ${toTimeValue(value)}.`;
+        scheduleSummary.textContent = `Agendado para ${toPtDateValue(value)} às ${toTimeValue(value)}.`;
+    }
+
+    function fillMinimumSingleSmsSchedule() {
+        const minDate = new Date(Date.now() + 5 * 60 * 1000);
+        if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toPtDateValue(minDate);
+        if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+        syncSingleSmsScheduleSummary();
+    }
+
+    function renderSingleSmsScheduleCalendar() {
+        if (!scheduleCalendarDays || !scheduleCalendarTitle) return;
+
+        if (!window.__singleSmsScheduleMonthCursor) {
+            window.__singleSmsScheduleMonthCursor = new Date();
+            window.__singleSmsScheduleMonthCursor.setDate(1);
+        }
+
+        const cursor = window.__singleSmsScheduleMonthCursor;
+        const monthName = cursor.toLocaleDateString("pt-BR", {
+            month: "long",
+            year: "numeric"
+        });
+        scheduleCalendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+        scheduleCalendarDays.innerHTML = "";
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+
+        for (let i = 0; i < firstDay.getDay(); i++) {
+            scheduleCalendarDays.insertAdjacentHTML("beforeend", `<span class="h-9"></span>`);
+        }
+
+        for (let day = 1; day <= lastDay.getDate(); day++) {
+            const current = new Date(cursor.getFullYear(), cursor.getMonth(), day);
+            const disabled = current < today;
+            const selected = scheduleDateInput?.value === toPtDateValue(current);
+
+            scheduleCalendarDays.insertAdjacentHTML("beforeend", `
+                <button type="button"
+                        class="h-9 rounded-lg text-xs font-semibold transition ${disabled ? "text-slate-300 cursor-not-allowed bg-slate-50" : selected ? "bg-emerald-500 text-white" : "text-slate-600 hover:bg-emerald-50"}"
+                        data-date="${toPtDateValue(current)}"
+                        ${disabled ? "disabled" : ""}>
+                    ${day}
+                </button>
+            `);
+        }
+    }
+
+    function renderSingleSmsTimeOptions() {
+        if (!scheduleTimeOptions) return;
+
+        scheduleTimeOptions.innerHTML = "";
+        for (let hour = 9; hour <= 18; hour++) {
+            for (const minute of [0, 15, 30, 45]) {
+                if (hour === 18 && minute > 0) continue;
+                const value = `${pad(hour)}:${pad(minute)}`;
+                scheduleTimeOptions.insertAdjacentHTML("beforeend", `
+                    <button type="button"
+                            class="w-full px-3 py-2 rounded-lg text-sm text-slate-700 text-left hover:bg-emerald-50"
+                            data-time="${value}">
+                        ${value}
+                    </button>
+                `);
+            }
+        }
+    }
+
+    function normalizeSingleSmsScheduleDateInput() {
+        if (!scheduleDateInput) return;
+        let value = scheduleDateInput.value.replace(/\D/g, "").slice(0, 8);
+        if (value.length >= 5) value = `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
+        else if (value.length >= 3) value = `${value.slice(0, 2)}/${value.slice(2)}`;
+        scheduleDateInput.value = value;
+        syncSingleSmsScheduleSummary();
+    }
+
+    function normalizeSingleSmsScheduleTimeInput() {
+        if (!scheduleTimeInput) return;
+        let value = scheduleTimeInput.value.replace(/\D/g, "").slice(0, 4);
+        if (value.length >= 3) value = `${value.slice(0, 2)}:${value.slice(2)}`;
+        scheduleTimeInput.value = value;
+        syncSingleSmsScheduleSummary();
+    }
+
+    function closeSingleSmsPickers() {
+        scheduleCalendar?.classList.add("hidden");
+        scheduleTimeOptions?.classList.add("hidden");
     }
 
     function setSingleSmsScheduleMode(enabled) {
@@ -326,21 +476,66 @@
                 sendLabel.textContent = enabled ? "Agendar envio" : "Disparar agora";
             }
         }
-        if (!enabled) {
-            if (scheduleDateInput) scheduleDateInput.value = "";
-            if (scheduleTimeInput) scheduleTimeInput.value = "";
+        if (enabled) {
+            fillMinimumSingleSmsSchedule();
+            renderSingleSmsScheduleCalendar();
+            renderSingleSmsTimeOptions();
+            scheduleDateInput?.focus();
         } else {
-            const minDate = new Date(Date.now() + 10 * 60 * 1000);
-            if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toDateValue(minDate);
-            if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+            closeSingleSmsPickers();
         }
         syncSingleSmsScheduleSummary();
     }
 
     scheduleButton?.addEventListener("click", () => setSingleSmsScheduleMode(true));
     cancelScheduleButton?.addEventListener("click", () => setSingleSmsScheduleMode(false));
-    scheduleDateInput?.addEventListener("input", syncSingleSmsScheduleSummary);
-    scheduleTimeInput?.addEventListener("input", syncSingleSmsScheduleSummary);
+    scheduleDateInput?.addEventListener("input", normalizeSingleSmsScheduleDateInput);
+    scheduleTimeInput?.addEventListener("input", normalizeSingleSmsScheduleTimeInput);
+
+    document.addEventListener("click", (ev) => {
+        if (
+            schedulePanel?.contains(ev.target) ||
+            scheduleDatePickerBtn?.contains(ev.target) ||
+            scheduleTimePickerBtn?.contains(ev.target)
+        ) return;
+
+        closeSingleSmsPickers();
+    });
+
+    scheduleDatePickerBtn?.addEventListener("click", () => {
+        renderSingleSmsScheduleCalendar();
+        scheduleCalendar?.classList.toggle("hidden");
+        scheduleTimeOptions?.classList.add("hidden");
+    });
+    scheduleTimePickerBtn?.addEventListener("click", () => {
+        renderSingleSmsTimeOptions();
+        scheduleTimeOptions?.classList.toggle("hidden");
+        scheduleCalendar?.classList.add("hidden");
+    });
+    schedulePrevMonth?.addEventListener("click", () => {
+        if (!window.__singleSmsScheduleMonthCursor) return;
+        window.__singleSmsScheduleMonthCursor.setMonth(window.__singleSmsScheduleMonthCursor.getMonth() - 1);
+        renderSingleSmsScheduleCalendar();
+    });
+    scheduleNextMonth?.addEventListener("click", () => {
+        if (!window.__singleSmsScheduleMonthCursor) return;
+        window.__singleSmsScheduleMonthCursor.setMonth(window.__singleSmsScheduleMonthCursor.getMonth() + 1);
+        renderSingleSmsScheduleCalendar();
+    });
+    scheduleCalendarDays?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-date]");
+        if (!button) return;
+        if (scheduleDateInput) scheduleDateInput.value = button.dataset.date || "";
+        closeSingleSmsPickers();
+        syncSingleSmsScheduleSummary();
+    });
+    scheduleTimeOptions?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-time]");
+        if (!button) return;
+        if (scheduleTimeInput) scheduleTimeInput.value = button.dataset.time || "";
+        closeSingleSmsPickers();
+        syncSingleSmsScheduleSummary();
+    });
     setSingleSmsScheduleMode(false);
 
     let charsetCoding = "0"; // padrão inicial
@@ -464,7 +659,6 @@
             formData.append("message", input.value.trim());
             formData.append("optionGroup1", group1Active?.dataset.value || "");
             formData.append("optionGroup2", group2Active?.dataset.value || "");
-            formData.append("timezone", browserTimezone);
 
             const scheduleMode = sendBtn?.dataset.scheduleMode === "scheduled" ? "scheduled" : "now";
             formData.append("schedule_mode", scheduleMode);

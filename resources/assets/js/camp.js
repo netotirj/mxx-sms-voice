@@ -320,32 +320,52 @@ document.addEventListener("DOMContentLoaded", () => {
     const scheduleDateInput = document.getElementById("campaignScheduleDate");
     const scheduleTimeInput = document.getElementById("campaignScheduleTime");
     const scheduleSummary = document.getElementById("campaignScheduleSummary");
+    const scheduleCalendar = document.getElementById("campaignScheduleCalendar");
+    const scheduleCalendarDays = document.getElementById("campaignScheduleCalendarDays");
+    const scheduleCalendarTitle = document.getElementById("campaignScheduleCalendarTitle");
+    const schedulePrevMonth = document.getElementById("campaignSchedulePrevMonth");
+    const scheduleNextMonth = document.getElementById("campaignScheduleNextMonth");
+    const scheduleDatePickerBtn = document.getElementById("campaignScheduleDatePickerBtn");
+    const scheduleTimePickerBtn = document.getElementById("campaignScheduleTimePickerBtn");
+    const scheduleTimeOptions = document.getElementById("campaignScheduleTimeOptions");
     const scheduleInput = document.getElementById("campaignScheduledAt");
-    const timezoneInput = document.getElementById("campaignTimezone");
-    const timezoneLabel = document.getElementById("campaignTimezoneLabel");
     const statusInput = document.getElementById("status");
     const createButtonText = document.getElementById("createButtonText");
 
     if (!form || !newButton) return;
 
-    const currentTimezone = browserTimezone();
-    if (timezoneInput) {
-        timezoneInput.value = currentTimezone;
-    }
-    if (timezoneLabel) {
-        timezoneLabel.textContent = `Timezone: ${currentTimezone}`;
-    }
-
     const pad = (value) => String(value).padStart(2, "0");
-    const toDateValue = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const toPtDateValue = (date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
     const toTimeValue = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
+    let scheduleMonthCursor = new Date();
+    scheduleMonthCursor.setDate(1);
+
+    const parsePtDate = (value) => {
+        const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!match) return null;
+
+        const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        if (
+            date.getFullYear() !== Number(match[3]) ||
+            date.getMonth() !== Number(match[2]) - 1 ||
+            date.getDate() !== Number(match[1])
+        ) return null;
+
+        return date;
+    };
+
     const parseCampaignScheduleDateTime = () => {
-        const dateValue = scheduleDateInput?.value || "";
-        const timeValue = scheduleTimeInput?.value || "";
-        if (!dateValue || !timeValue) return null;
-        const value = new Date(`${dateValue}T${timeValue}:00`);
-        return Number.isNaN(value.getTime()) ? null : value;
+        const date = parsePtDate(scheduleDateInput?.value || "");
+        const timeMatch = String(scheduleTimeInput?.value || "").match(/^(\d{2}):(\d{2})$/);
+        if (!date || !timeMatch) return null;
+
+        const hours = Number(timeMatch[1]);
+        const minutes = Number(timeMatch[2]);
+        if (hours > 23 || minutes > 59) return null;
+
+        date.setHours(hours, minutes, 0, 0);
+        return date;
     };
 
     const syncCampaignScheduleSummary = () => {
@@ -355,7 +375,91 @@ document.addEventListener("DOMContentLoaded", () => {
             scheduleSummary.textContent = "Selecione a data e o horário do agendamento.";
             return;
         }
-        scheduleSummary.textContent = `Agendado para ${value.toLocaleDateString('pt-BR')} às ${toTimeValue(value)}.`;
+        scheduleSummary.textContent = `Agendado para ${toPtDateValue(value)} às ${toTimeValue(value)}.`;
+    };
+
+    const fillMinimumCampaignSchedule = () => {
+        const minDate = new Date(Date.now() + 5 * 60 * 1000);
+        if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toPtDateValue(minDate);
+        if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+        syncCampaignScheduleSummary();
+    };
+
+    const renderCampaignScheduleCalendar = () => {
+        if (!scheduleCalendarDays || !scheduleCalendarTitle) return;
+
+        const monthName = scheduleMonthCursor.toLocaleDateString("pt-BR", {
+            month: "long",
+            year: "numeric"
+        });
+        scheduleCalendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+        scheduleCalendarDays.innerHTML = "";
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const firstDay = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth(), 1);
+        const lastDay = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth() + 1, 0);
+
+        for (let i = 0; i < firstDay.getDay(); i++) {
+            scheduleCalendarDays.insertAdjacentHTML("beforeend", `<span class="h-9"></span>`);
+        }
+
+        for (let day = 1; day <= lastDay.getDate(); day++) {
+            const current = new Date(scheduleMonthCursor.getFullYear(), scheduleMonthCursor.getMonth(), day);
+            const disabled = current < today;
+            const selected = scheduleDateInput?.value === toPtDateValue(current);
+
+            scheduleCalendarDays.insertAdjacentHTML("beforeend", `
+                <button type="button"
+                        class="h-9 rounded-lg text-xs font-semibold transition ${disabled ? "text-slate-300 cursor-not-allowed bg-slate-50" : selected ? "bg-emerald-500 text-white" : "text-slate-600 hover:bg-emerald-50"}"
+                        data-date="${toPtDateValue(current)}"
+                        ${disabled ? "disabled" : ""}>
+                    ${day}
+                </button>
+            `);
+        }
+    };
+
+    const renderCampaignTimeOptions = () => {
+        if (!scheduleTimeOptions) return;
+
+        scheduleTimeOptions.innerHTML = "";
+        for (let hour = 9; hour <= 18; hour++) {
+            for (const minute of [0, 15, 30, 45]) {
+                if (hour === 18 && minute > 0) continue;
+                const value = `${pad(hour)}:${pad(minute)}`;
+                scheduleTimeOptions.insertAdjacentHTML("beforeend", `
+                    <button type="button"
+                            class="w-full px-3 py-2 rounded-lg text-sm text-slate-700 text-left hover:bg-emerald-50"
+                            data-time="${value}">
+                        ${value}
+                    </button>
+                `);
+            }
+        }
+    };
+
+    const normalizeCampaignScheduleDateInput = () => {
+        if (!scheduleDateInput) return;
+        let value = scheduleDateInput.value.replace(/\D/g, "").slice(0, 8);
+        if (value.length >= 5) value = `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
+        else if (value.length >= 3) value = `${value.slice(0, 2)}/${value.slice(2)}`;
+        scheduleDateInput.value = value;
+        syncCampaignScheduleSummary();
+    };
+
+    const normalizeCampaignScheduleTimeInput = () => {
+        if (!scheduleTimeInput) return;
+        let value = scheduleTimeInput.value.replace(/\D/g, "").slice(0, 4);
+        if (value.length >= 3) value = `${value.slice(0, 2)}:${value.slice(2)}`;
+        scheduleTimeInput.value = value;
+        syncCampaignScheduleSummary();
+    };
+
+    const closeCampaignSchedulePickers = () => {
+        scheduleCalendar?.classList.add("hidden");
+        scheduleTimeOptions?.classList.add("hidden");
     };
 
     const setCampaignScheduleMode = (enabled) => {
@@ -368,13 +472,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (enabled) {
-            const minDate = new Date(Date.now() + 10 * 60 * 1000);
-            if (scheduleDateInput && !scheduleDateInput.value) scheduleDateInput.value = toDateValue(minDate);
-            if (scheduleTimeInput && !scheduleTimeInput.value) scheduleTimeInput.value = toTimeValue(minDate);
+            fillMinimumCampaignSchedule();
+            renderCampaignScheduleCalendar();
+            renderCampaignTimeOptions();
+            scheduleDateInput?.focus();
         } else {
-            if (scheduleDateInput) scheduleDateInput.value = "";
-            if (scheduleTimeInput) scheduleTimeInput.value = "";
-            if (scheduleInput) scheduleInput.value = "";
+            closeCampaignSchedulePickers();
         }
 
         syncCampaignScheduleSummary();
@@ -382,8 +485,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
     scheduleButton?.addEventListener("click", () => setCampaignScheduleMode(true));
     cancelScheduleButton?.addEventListener("click", () => setCampaignScheduleMode(false));
-    scheduleDateInput?.addEventListener("input", syncCampaignScheduleSummary);
-    scheduleTimeInput?.addEventListener("input", syncCampaignScheduleSummary);
+    scheduleDateInput?.addEventListener("input", normalizeCampaignScheduleDateInput);
+    scheduleTimeInput?.addEventListener("input", normalizeCampaignScheduleTimeInput);
+
+    document.addEventListener("click", (ev) => {
+        if (
+            schedulePanel?.contains(ev.target) ||
+            scheduleDatePickerBtn?.contains(ev.target) ||
+            scheduleTimePickerBtn?.contains(ev.target)
+        ) return;
+
+        closeCampaignSchedulePickers();
+    });
+
+    scheduleDatePickerBtn?.addEventListener("click", () => {
+        renderCampaignScheduleCalendar();
+        scheduleCalendar?.classList.toggle("hidden");
+        scheduleTimeOptions?.classList.add("hidden");
+    });
+
+    scheduleTimePickerBtn?.addEventListener("click", () => {
+        renderCampaignTimeOptions();
+        scheduleTimeOptions?.classList.toggle("hidden");
+        scheduleCalendar?.classList.add("hidden");
+    });
+
+    schedulePrevMonth?.addEventListener("click", () => {
+        scheduleMonthCursor.setMonth(scheduleMonthCursor.getMonth() - 1);
+        renderCampaignScheduleCalendar();
+    });
+
+    scheduleNextMonth?.addEventListener("click", () => {
+        scheduleMonthCursor.setMonth(scheduleMonthCursor.getMonth() + 1);
+        renderCampaignScheduleCalendar();
+    });
+
+    scheduleCalendarDays?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-date]");
+        if (!button) return;
+        if (scheduleDateInput) scheduleDateInput.value = button.dataset.date || "";
+        closeCampaignSchedulePickers();
+        syncCampaignScheduleSummary();
+    });
+
+    scheduleTimeOptions?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-time]");
+        if (!button) return;
+        if (scheduleTimeInput) scheduleTimeInput.value = button.dataset.time || "";
+        closeCampaignSchedulePickers();
+        syncCampaignScheduleSummary();
+    });
+
     setCampaignScheduleMode(false);
 
     // Ativa grupos de botões
@@ -437,7 +589,6 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const formData = new FormData(form);
             formData.set("schedule_mode", scheduleMode);
-            formData.set("timezone", currentTimezone);
 
             if (scheduleMode === "scheduled") {
                 const scheduledDate = parseCampaignScheduleDateTime();

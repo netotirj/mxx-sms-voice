@@ -333,7 +333,7 @@ class RegisterUsers extends ViewComponents
 
             $publicMessage = str_starts_with($e->getMessage(), 'Estrutura do banco incompleta:')
                 ? $e->getMessage()
-                : 'Erro ao finalizar cadastro.';
+                : 'Erro ao finalizar cadastro. Etapa: ' . $step . '. Detalhe: ' . $e->getMessage();
 
             return ['status' => 'ERROR', 'message' => $publicMessage];
         }

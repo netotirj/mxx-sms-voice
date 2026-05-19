@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS sip_monitor_sessions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenancy_id VARCHAR(64) NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    mode VARCHAR(24) NOT NULL,
+    resolved_mode VARCHAR(24) NOT NULL DEFAULT 'auto',
+    filter_type VARCHAR(32) NOT NULL DEFAULT 'all',
+    filter_value VARCHAR(191) NULL,
+    network_interface VARCHAR(64) NULL,
+    port INT UNSIGNED NOT NULL DEFAULT 5060,
+    tls_port INT UNSIGNED NULL,
+    include_tls TINYINT(1) NOT NULL DEFAULT 0,
+    duration_minutes INT UNSIGNED NOT NULL DEFAULT 5,
+    status VARCHAR(24) NOT NULL DEFAULT 'starting',
+    pid INT NULL,
+    notes LONGTEXT NULL,
+    started_at DATETIME NOT NULL,
+    ended_at DATETIME NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_sip_monitor_active (status, expires_at),
+    KEY idx_sip_monitor_user (tenancy_id, user_id, status),
+    KEY idx_sip_monitor_started (started_at),
+    KEY idx_sip_monitor_resolved_mode (resolved_mode, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sip_monitor_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    session_id BIGINT UNSIGNED NOT NULL,
+    source VARCHAR(24) NOT NULL,
+    line VARCHAR(1000) NOT NULL,
+    detected_call_id VARCHAR(255) NULL,
+    detected_method VARCHAR(32) NULL,
+    detected_status VARCHAR(32) NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_sip_monitor_logs_session (session_id, created_at),
+    KEY idx_sip_monitor_logs_source (source, created_at),
+    KEY idx_sip_monitor_logs_call_id (detected_call_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

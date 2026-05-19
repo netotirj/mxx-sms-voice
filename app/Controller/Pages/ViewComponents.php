@@ -349,6 +349,10 @@ class ViewComponents
             $comunicacao .= self::buildMenuItem('/admin/services-monitor', 'Serviços', 'fa fa-heart-pulse', 'text-rose-500');
         }
 
+        if (self::hasPerm($userPerms, ['/admin/sip-monitor'])) {
+            $comunicacao .= self::buildMenuItem('/admin/sip-monitor', 'Monitor SIP', 'fa fa-wave-square', 'text-indigo-500');
+        }
+
         if ($canSeeMarketingAdmin && self::hasPerm($userPerms, ['/system-updates'])) {
             $comunicacao .= self::buildMenuItem('/system-updates/marketing', 'Marketing', 'fa fa-rectangle-ad', 'text-rose-500');
         }

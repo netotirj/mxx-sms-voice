@@ -1,0 +1,514 @@
+<style>
+    #sipMonitorApp .sip-monitor-terminal {
+        min-height: 360px;
+        max-height: 520px;
+        overflow: auto;
+        background: #020617;
+        color: #93c5fd;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    #sipMonitorApp .sip-monitor-tab.active {
+        background: #0f172a;
+        color: #fff;
+        border-color: #0f172a;
+    }
+
+    #sipMonitorApp .sip-monitor-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    #sipMonitorApp .sip-monitor-events tbody tr:nth-child(odd) {
+        background: rgba(248, 250, 252, 0.8);
+    }
+</style>
+
+<div class="w-full px-6 py-6 mx-auto" id="sipMonitorApp">
+    <div class="flex flex-wrap -mx-3">
+        <div class="flex-none w-full max-w-full px-3">
+            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-slate-900 text-white text-lg">
+                            <i class="fa fa-wave-square"></i>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-800">Monitor SIP / SNGREP</h2>
+                            <p class="text-xs text-slate-400">Captura sob demanda para SIP UDP/TCP, SIP TLS e WebRTC via PJSIP Logger.</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span id="sipMonitorSessionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sessão inativa</span>
+                        <span id="sipMonitorCountdown" class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">Tempo restante: --</span>
+                        <button type="button" onclick="sipMonitor.reloadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
+                            <i class="fa fa-rotate-right"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4">
+                    <div class="sip-monitor-grid" id="sipMonitorCards">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Backend</p>
+                            <h4 id="sipMonitorBackendMode" class="mt-2 text-lg font-bold text-slate-800">Carregando...</h4>
+                            <p id="sipMonitorBackendHost" class="mt-1 text-xs text-slate-500">-</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">SNGREP</p>
+                            <h4 id="sipMonitorSngrepStatus" class="mt-2 text-lg font-bold text-slate-800">Verificando...</h4>
+                            <p id="sipMonitorSngrepVersion" class="mt-1 text-xs text-slate-500">-</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Asterisk / PJSIP</p>
+                            <h4 id="sipMonitorAsteriskStatus" class="mt-2 text-lg font-bold text-slate-800">Verificando...</h4>
+                            <p id="sipMonitorAsteriskVersion" class="mt-1 text-xs text-slate-500">-</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Sessões simultâneas</p>
+                            <h4 id="sipMonitorLimitValue" class="mt-2 text-lg font-bold text-slate-800">-</h4>
+                            <p class="mt-1 text-xs text-slate-500">Captura sob demanda e duração máxima limitada.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-6">
+                    <div class="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Nova captura</h3>
+                            <div class="mt-4 space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Tipo de captura</span>
+                                        <select id="sipMonitorMode" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                                            <option value="auto">Automático</option>
+                                            <option value="sngrep">SNGREP rede</option>
+                                            <option value="pjsip">PJSIP Logger</option>
+                                            <option value="both">Ambos</option>
+                                        </select>
+                                    </label>
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Tempo máximo</span>
+                                        <select id="sipMonitorDuration" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                                            <option value="5">5 minutos</option>
+                                            <option value="10">10 minutos</option>
+                                            <option value="15">15 minutos</option>
+                                            <option value="30">30 minutos</option>
+                                        </select>
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Filtro</span>
+                                        <select id="sipMonitorFilterType" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                                            <option value="all">Tudo</option>
+                                            <option value="ip">IP</option>
+                                            <option value="extension">Ramal</option>
+                                            <option value="number">Número</option>
+                                            <option value="call_id">Call-ID</option>
+                                            <option value="trunk">Tronco / Operadora</option>
+                                        </select>
+                                    </label>
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Valor do filtro</span>
+                                        <input id="sipMonitorFilterValue" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700" placeholder="Opcional para filtro Tudo">
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Porta SIP</span>
+                                        <input id="sipMonitorPort" type="number" value="5060" min="1" max="65535" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                                    </label>
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Porta TLS</span>
+                                        <input id="sipMonitorTlsPort" type="number" value="5061" min="1" max="65535" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                                    </label>
+                                    <label class="block">
+                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Interface</span>
+                                        <input id="sipMonitorInterface" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700" placeholder="Ex.: any, eth0">
+                                    </label>
+                                </div>
+
+                                <label class="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                                    <input id="sipMonitorIncludeTls" type="checkbox" class="rounded border-slate-300">
+                                    Incluir análise TLS / WebRTC com PJSIP Logger e porta 5061
+                                </label>
+
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    A captura é temporária, limitada e encerrada automaticamente ao expirar ou ao parar a sessão.
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-3 pt-2">
+                                    <button id="sipMonitorStartBtn" type="button" onclick="sipMonitor.start()" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-emerald-700">
+                                        <i class="fa fa-play"></i> Iniciar captura
+                                    </button>
+                                    <button id="sipMonitorStopBtn" type="button" onclick="sipMonitor.stop()" class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-rose-700" disabled>
+                                        <i class="fa fa-stop"></i> Parar captura
+                                    </button>
+                                    <button type="button" onclick="sipMonitor.clearBuffers()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50">
+                                        <i class="fa fa-broom"></i> Limpar tela
+                                    </button>
+                                    <button type="button" onclick="sipMonitor.emergencyStop()" class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-black uppercase tracking-wide text-amber-700 hover:bg-amber-100">
+                                        <i class="fa fa-triangle-exclamation"></i> Stop emergência
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-100 bg-white p-4">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Saída ao vivo</h3>
+                                    <p id="sipMonitorSessionMeta" class="mt-1 text-xs text-slate-400">Nenhuma sessão ativa.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" class="sip-monitor-tab active rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="sngrep" onclick="sipMonitor.switchTab('sngrep')">SNGREP</button>
+                                    <button type="button" class="sip-monitor-tab rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="pjsip" onclick="sipMonitor.switchTab('pjsip')">PJSIP Logger</button>
+                                    <button type="button" class="sip-monitor-tab rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="events" onclick="sipMonitor.switchTab('events')">Eventos</button>
+                                </div>
+                            </div>
+
+                            <div class="mt-4" data-panel="sngrep">
+                                <pre id="sipMonitorSngrepTerminal" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4">Aguardando captura SNGREP...</pre>
+                            </div>
+
+                            <div class="mt-4 hidden" data-panel="pjsip">
+                                <pre id="sipMonitorPjsipTerminal" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4">Aguardando captura PJSIP Logger...</pre>
+                            </div>
+
+                            <div class="mt-4 hidden" data-panel="events">
+                                <div class="overflow-auto rounded-2xl border border-slate-100">
+                                    <table class="min-w-full text-sm sip-monitor-events">
+                                        <thead class="bg-slate-50">
+                                        <tr>
+                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Call-ID</th>
+                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Métodos</th>
+                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Status</th>
+                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Atrasos</th>
+                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Diagnóstico</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="sipMonitorEventsBody">
+                                        <tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nenhum evento detectado ainda.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Diagnóstico do servidor</h3>
+                        <pre id="sipMonitorDiagnostics" class="mt-4 overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs text-emerald-300" style="max-height: 260px;">Carregando diagnóstico...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const sipMonitor = {
+        baseUrl: document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '',
+        activeSession: null,
+        pollTimer: null,
+        activeTab: 'sngrep',
+        buffers: { sngrep: '', pjsip: '' },
+
+        url(path, params = {}) {
+            const query = new URLSearchParams();
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && String(value) !== '') {
+                    query.set(key, String(value));
+                }
+            });
+            return `${this.baseUrl}${path}${query.toString() ? `?${query}` : ''}`;
+        },
+
+        notify(type, message) {
+            if (window.notyf && typeof window.notyf[type] === 'function') {
+                window.notyf[type](message);
+                return;
+            }
+            alert(message);
+        },
+
+        switchTab(tab) {
+            this.activeTab = tab;
+            document.querySelectorAll('#sipMonitorApp .sip-monitor-tab').forEach((button) => {
+                button.classList.toggle('active', button.dataset.tab === tab);
+            });
+            document.querySelectorAll('#sipMonitorApp [data-panel]').forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.panel !== tab);
+            });
+        },
+
+        clearBuffers() {
+            this.buffers = { sngrep: '', pjsip: '' };
+            document.getElementById('sipMonitorSngrepTerminal').textContent = 'Tela limpa. Aguardando novas linhas...';
+            document.getElementById('sipMonitorPjsipTerminal').textContent = 'Tela limpa. Aguardando novas linhas...';
+        },
+
+        async reloadStatus(silent = false) {
+            try {
+                const response = await fetch(this.url('/admin/sip-monitor/status', { _: Date.now() }));
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao carregar o monitor SIP.');
+                }
+
+                this.renderStatus(result.data);
+                if (this.activeSession?.id) {
+                    this.startPolling();
+                } else {
+                    this.stopPolling();
+                }
+            } catch (error) {
+                if (!silent) {
+                    this.notify('error', error.message || 'Não foi possível carregar o Monitor SIP.');
+                }
+            }
+        },
+
+        renderStatus(data) {
+            const capabilities = data.capabilities || {};
+            const profile = capabilities.profile || {};
+            const active = data.active_session || null;
+            this.activeSession = active;
+
+            document.getElementById('sipMonitorBackendMode').textContent = (profile.mode || 'local').toUpperCase();
+            document.getElementById('sipMonitorBackendHost').textContent = profile.host || '-';
+            document.getElementById('sipMonitorSngrepStatus').textContent = (capabilities.which_sngrep?.output || '').trim() ? 'Disponível' : 'Indisponível';
+            document.getElementById('sipMonitorSngrepVersion').textContent = (capabilities.sngrep_version?.output || '-').trim() || '-';
+            document.getElementById('sipMonitorAsteriskStatus').textContent = (capabilities.which_asterisk?.output || '').trim() ? 'Disponível' : 'Indisponível';
+            document.getElementById('sipMonitorAsteriskVersion').textContent = (capabilities.asterisk_version?.output || '-').trim() || '-';
+            document.getElementById('sipMonitorLimitValue').textContent = String(data.limits?.max_simultaneous || 1);
+
+            const diagnostics = [
+                '$ which sngrep',
+                (capabilities.which_sngrep?.output || '(não encontrado)').trim(),
+                '',
+                '$ sngrep -V',
+                (capabilities.sngrep_version?.output || '(indisponível)').trim(),
+                '',
+                '$ which asterisk',
+                (capabilities.which_asterisk?.output || '(não encontrado)').trim(),
+                '',
+                '$ asterisk -rx "core show version"',
+                (capabilities.asterisk_version?.output || '(indisponível)').trim(),
+                '',
+                '$ asterisk -rx "pjsip show endpoints"',
+                (capabilities.pjsip_endpoints?.output || '(indisponível)').trim(),
+            ].join('\n');
+            document.getElementById('sipMonitorDiagnostics').textContent = diagnostics;
+
+            const badge = document.getElementById('sipMonitorSessionBadge');
+            const countdown = document.getElementById('sipMonitorCountdown');
+            const meta = document.getElementById('sipMonitorSessionMeta');
+            document.getElementById('sipMonitorStartBtn').disabled = !!active;
+            document.getElementById('sipMonitorStopBtn').disabled = !active;
+
+            if (!active) {
+                badge.textContent = 'Sessão inativa';
+                badge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
+                countdown.textContent = 'Tempo restante: --';
+                meta.textContent = 'Nenhuma sessão ativa.';
+                return;
+            }
+
+            badge.textContent = `Sessão #${active.id} • ${String(active.status || 'running').toUpperCase()}`;
+            badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700';
+            meta.textContent = `Modo ${active.resolved_mode || active.mode} • filtro ${active.filter_type}${active.filter_value ? `: ${active.filter_value}` : ''} • iniciado em ${active.started_at}`;
+            this.renderCountdown(active.remaining_seconds || 0);
+        },
+
+        renderCountdown(seconds) {
+            const total = Math.max(0, Number(seconds || 0));
+            const mm = String(Math.floor(total / 60)).padStart(2, '0');
+            const ss = String(total % 60).padStart(2, '0');
+            document.getElementById('sipMonitorCountdown').textContent = `Tempo restante: ${mm}:${ss}`;
+        },
+
+        payload() {
+            return {
+                mode: document.getElementById('sipMonitorMode').value,
+                filter_type: document.getElementById('sipMonitorFilterType').value,
+                filter_value: document.getElementById('sipMonitorFilterValue').value,
+                port: Number(document.getElementById('sipMonitorPort').value || 5060),
+                tls_port: Number(document.getElementById('sipMonitorTlsPort').value || 5061),
+                interface: document.getElementById('sipMonitorInterface').value,
+                duration_minutes: Number(document.getElementById('sipMonitorDuration').value || 5),
+                include_tls: document.getElementById('sipMonitorIncludeTls').checked ? 1 : 0,
+            };
+        },
+
+        async start() {
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.payload()),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao iniciar captura SIP.');
+                }
+
+                this.notify('success', result.message || 'Captura SIP iniciada.');
+                this.buffers = { sngrep: '', pjsip: '' };
+                this.activeSession = result.data || null;
+                await this.reloadStatus(true);
+                this.startPolling();
+            } catch (error) {
+                this.notify('error', error.message || 'Falha ao iniciar captura SIP.');
+            }
+        },
+
+        async stop() {
+            if (!this.activeSession?.id) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: this.activeSession.id }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao parar a captura SIP.');
+                }
+
+                this.notify('success', result.message || 'Captura SIP encerrada.');
+                this.stopPolling();
+                await this.reloadStatus(true);
+            } catch (error) {
+                this.notify('error', error.message || 'Falha ao parar a captura SIP.');
+            }
+        },
+
+        async emergencyStop() {
+            try {
+                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/emergency-stop`, {
+                    method: 'POST',
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha no stop de emergência.');
+                }
+
+                this.notify('success', result.message || 'Sessões SIP encerradas.');
+                this.stopPolling();
+                await this.reloadStatus(true);
+            } catch (error) {
+                this.notify('error', error.message || 'Falha no stop de emergência.');
+            }
+        },
+
+        startPolling() {
+            this.stopPolling();
+            this.pollTimer = window.setInterval(() => this.pollStream(), 2000);
+            this.pollStream();
+        },
+
+        stopPolling() {
+            if (this.pollTimer) {
+                window.clearInterval(this.pollTimer);
+                this.pollTimer = null;
+            }
+        },
+
+        async pollStream() {
+            if (!this.activeSession?.id) {
+                return;
+            }
+
+            try {
+                const response = await fetch(this.url('/admin/sip-monitor/stream', {
+                    session_id: this.activeSession.id,
+                    _: Date.now(),
+                }));
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao carregar stream SIP.');
+                }
+
+                const data = result.data || {};
+                if (data.session) {
+                    this.activeSession = data.session;
+                    this.renderCountdown(this.activeSession.remaining_seconds || 0);
+                    if (!['starting', 'running'].includes(String(this.activeSession.status || ''))) {
+                        this.stopPolling();
+                        this.reloadStatus(true);
+                    }
+                }
+
+                this.appendChunk('sngrep', data.chunks?.sngrep || '');
+                this.appendChunk('pjsip', data.chunks?.pjsip || '');
+                this.renderEvents(data.events || []);
+            } catch (error) {
+                console.error(error);
+            }
+        },
+
+        appendChunk(source, chunk) {
+            if (!chunk) {
+                return;
+            }
+
+            this.buffers[source] = `${this.buffers[source]}${this.buffers[source] ? '\n' : ''}${chunk}`.slice(-60000);
+            const target = document.getElementById(source === 'sngrep' ? 'sipMonitorSngrepTerminal' : 'sipMonitorPjsipTerminal');
+            if (!target) {
+                return;
+            }
+
+            target.textContent = this.buffers[source];
+            target.scrollTop = target.scrollHeight;
+        },
+
+        renderEvents(events) {
+            const tbody = document.getElementById('sipMonitorEventsBody');
+            if (!events.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nenhum evento detectado ainda.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = events.map((item) => {
+                const methods = (item.methods || []).join(', ') || '-';
+                const statuses = (item.statuses || []).join(', ') || '-';
+                const delays = [
+                    item.invite_to_first_response_ms !== null ? `INVITE→1ª resp: ${item.invite_to_first_response_ms}ms` : null,
+                    item.invite_to_180_183_ms !== null ? `INVITE→180/183: ${item.invite_to_180_183_ms}ms` : null,
+                    item.invite_to_200_ms !== null ? `INVITE→200: ${item.invite_to_200_ms}ms` : null,
+                ].filter(Boolean).join('<br>') || '-';
+                const diagnosis = [
+                    item.possible_timeout ? 'Possível timeout' : null,
+                    item.possible_operator_delay ? 'Possível atraso da operadora' : null,
+                ].filter(Boolean).join('<br>') || 'Sem alerta';
+
+                return `
+                    <tr>
+                        <td class="px-3 py-3 text-xs text-slate-700">${item.call_id || '-'}</td>
+                        <td class="px-3 py-3 text-xs text-slate-700">${methods}</td>
+                        <td class="px-3 py-3 text-xs text-slate-700">${statuses}</td>
+                        <td class="px-3 py-3 text-xs text-slate-700">${delays}</td>
+                        <td class="px-3 py-3 text-xs text-slate-700">${diagnosis}</td>
+                    </tr>
+                `;
+            }).join('');
+        },
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        sipMonitor.reloadStatus();
+        sipMonitor.switchTab('sngrep');
+    });
+</script>

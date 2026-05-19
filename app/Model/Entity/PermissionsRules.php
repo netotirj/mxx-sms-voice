@@ -80,6 +80,7 @@ class PermissionsRules {
 
         '/reports/notifications' => 'Relatórios: Notificações',
         '/notifications' => 'Administrativo: Notificações',
+        '/admin/sip-monitor' => 'Administrativo: Monitor SIP',
         '/support' => 'Administrativo: Suporte',
         'ticket.' => 'Administrativo: Suporte',
         '/plans' => 'Administrativo: Planos',

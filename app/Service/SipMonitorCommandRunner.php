@@ -206,6 +206,8 @@ class SipMonitorCommandRunner
             $parts = ['sudo', '-n'];
         }
 
-        return implode(' ', array_map('escapeshellarg', $parts)) . ' ' . $command;
+        return implode(' ', array_map('escapeshellarg', $parts))
+            . ' /usr/bin/sh -lc '
+            . escapeshellarg($command);
     }
 }

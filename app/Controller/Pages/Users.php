@@ -311,6 +311,10 @@ class Users extends ViewComponents
                 (int)$obUser['id'], // $userId (Quem está a criar)
                 null                // $id (Novo registro)
             );
+
+            if ($roleId > 0 && $roleName === 'admin') {
+                PermissionsRules::initAdminPermissions($tenancyId, (int)$roleId);
+            }
         } else {
             $roleId = $roleData->id;
         }
@@ -848,7 +852,7 @@ class Users extends ViewComponents
             'support_ticket_manager' => 'Gestor interno autorizado para tickets',
         ];
 
-        return (int)PermissionsRules::registerRole(
+        $roleId = (int)PermissionsRules::registerRole(
             $roleName,
             $descriptions[$roleName] ?? ('Perfil para ' . ucfirst($roleName)),
             'y',
@@ -856,6 +860,12 @@ class Users extends ViewComponents
             (int)$ownerUser['id'],
             null
         );
+
+        if ($roleId > 0 && $roleName === 'admin') {
+            PermissionsRules::initAdminPermissions($ownerUser['tenancy_id'], $roleId);
+        }
+
+        return $roleId;
     }
 
     private static function grantTicketSupportDefaults(string $tenancyId, int $roleId, string $roleName): void

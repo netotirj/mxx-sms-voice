@@ -1148,6 +1148,7 @@ class PermissionsRules {
             );
         }
 
+        self::sanitizeTemplatePermissions($templateId);
         self::syncAllRolesBoundToTemplate($templateId);
         self::invalidatePermissionCaches();
     }

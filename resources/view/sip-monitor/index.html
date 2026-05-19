@@ -3,6 +3,7 @@
         min-height: 360px;
         max-height: 520px;
         overflow: auto;
+        overscroll-behavior: contain;
         background: #020617;
         color: #93c5fd;
         font-family: Consolas, Monaco, monospace;
@@ -10,6 +11,11 @@
         line-height: 1.55;
         white-space: pre-wrap;
         word-break: break-word;
+    }
+
+    #sipMonitorApp .sip-monitor-scrollbox {
+        overflow: auto;
+        overscroll-behavior: contain;
     }
 
     #sipMonitorApp .sip-monitor-tab.active {
@@ -183,8 +189,23 @@
                                 <pre id="sipMonitorPjsipTerminal" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4">Aguardando captura PJSIP Logger...</pre>
                             </div>
 
+                            <div class="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 lg:grid-cols-3">
+                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                    <strong class="text-slate-700">Última leitura:</strong>
+                                    <span id="sipMonitorLastPoll">--</span>
+                                </div>
+                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                    <strong class="text-slate-700">SNGREP:</strong>
+                                    <span id="sipMonitorSngrepMeta">Aguardando sessão...</span>
+                                </div>
+                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                    <strong class="text-slate-700">PJSIP:</strong>
+                                    <span id="sipMonitorPjsipMeta">Aguardando sessão...</span>
+                                </div>
+                            </div>
+
                             <div class="mt-4 hidden" data-panel="events">
-                                <div class="overflow-auto rounded-2xl border border-slate-100">
+                                <div class="sip-monitor-scrollbox rounded-2xl border border-slate-100">
                                     <table class="min-w-full text-sm sip-monitor-events">
                                         <thead class="bg-slate-50">
                                         <tr>
@@ -205,8 +226,11 @@
                     </div>
 
                     <div class="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Diagnóstico do servidor</h3>
-                        <pre id="sipMonitorDiagnostics" class="mt-4 overflow-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs text-emerald-300" style="max-height: 260px;">Carregando diagnóstico...</pre>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Diagnóstico do servidor</h3>
+                            <p id="sipMonitorDiagnosticsMeta" class="text-xs text-slate-400">Atualizando...</p>
+                        </div>
+                        <pre id="sipMonitorDiagnostics" class="sip-monitor-scrollbox mt-4 rounded-2xl bg-slate-950 px-4 py-4 text-xs text-emerald-300" style="max-height: 260px;">Carregando diagnóstico...</pre>
                     </div>
                 </div>
             </div>
@@ -221,6 +245,65 @@
         pollTimer: null,
         activeTab: 'sngrep',
         buffers: { sngrep: '', pjsip: '' },
+
+        nowLabel() {
+            return new Date().toLocaleString('pt-BR');
+        },
+
+        formatBytes(bytes) {
+            const size = Number(bytes || 0);
+            if (size < 1024) {
+                return `${size} B`;
+            }
+            if (size < 1024 * 1024) {
+                return `${(size / 1024).toFixed(1)} KB`;
+            }
+            return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+        },
+
+        streamMetaLabel(source, state) {
+            if (!this.activeSession?.id) {
+                return 'Aguardando sessão...';
+            }
+            if (!state) {
+                return 'Sem dados ainda.';
+            }
+
+            const label = source === 'sngrep' ? 'arquivo' : 'log';
+            const pid = Number(state.pid || 0);
+            const pidText = pid > 0 ? `PID ${pid}` : 'PID pendente';
+            const fileText = state.exists
+                ? `${label} ${this.formatBytes(state.size || 0)}`
+                : `${label} ausente`;
+            const updatedText = state.updated_at ? `última escrita ${state.updated_at}` : 'sem horário ainda';
+            return `${pidText} • ${fileText} • ${updatedText}`;
+        },
+
+        buildDiagnosticsText(capabilities) {
+            const lines = [
+                `Atualizado em: ${this.nowLabel()}`,
+                '',
+                `$ which sngrep [status ${capabilities.which_sngrep?.status ?? '-'}]`,
+                (capabilities.which_sngrep?.output || '(não encontrado)').trim(),
+                '',
+                `$ ssh probe [status ${capabilities.ssh_probe?.status ?? '-'}]`,
+                (capabilities.ssh_probe?.output || '(sem retorno)').trim(),
+                '',
+                `$ sngrep -V [status ${capabilities.sngrep_version?.status ?? '-'}]`,
+                (capabilities.sngrep_version?.output || '(indisponível)').trim(),
+                '',
+                `$ which asterisk [status ${capabilities.which_asterisk?.status ?? '-'}]`,
+                (capabilities.which_asterisk?.output || '(não encontrado)').trim(),
+                '',
+                `$ asterisk -rx "core show version" [status ${capabilities.asterisk_version?.status ?? '-'}]`,
+                (capabilities.asterisk_version?.output || '(indisponível)').trim(),
+                '',
+                `$ asterisk -rx "pjsip show endpoints" [status ${capabilities.pjsip_endpoints?.status ?? '-'}]`,
+                (capabilities.pjsip_endpoints?.output || '(indisponível)').trim(),
+            ];
+
+            return lines.join('\n');
+        },
 
         url(path, params = {}) {
             const query = new URLSearchParams();
@@ -290,27 +373,8 @@
             document.getElementById('sipMonitorAsteriskStatus').textContent = (capabilities.which_asterisk?.output || '').trim() ? 'Disponível' : 'Indisponível';
             document.getElementById('sipMonitorAsteriskVersion').textContent = (capabilities.asterisk_version?.output || '-').trim() || '-';
             document.getElementById('sipMonitorLimitValue').textContent = String(data.limits?.max_simultaneous || 1);
-
-            const diagnostics = [
-                '$ which sngrep',
-                (capabilities.which_sngrep?.output || '(não encontrado)').trim(),
-                '',
-                '$ ssh probe',
-                (capabilities.ssh_probe?.output || '(sem retorno)').trim(),
-                '',
-                '$ sngrep -V',
-                (capabilities.sngrep_version?.output || '(indisponível)').trim(),
-                '',
-                '$ which asterisk',
-                (capabilities.which_asterisk?.output || '(não encontrado)').trim(),
-                '',
-                '$ asterisk -rx "core show version"',
-                (capabilities.asterisk_version?.output || '(indisponível)').trim(),
-                '',
-                '$ asterisk -rx "pjsip show endpoints"',
-                (capabilities.pjsip_endpoints?.output || '(indisponível)').trim(),
-            ].join('\n');
-            document.getElementById('sipMonitorDiagnostics').textContent = diagnostics;
+            document.getElementById('sipMonitorDiagnosticsMeta').textContent = `Última verificação: ${this.nowLabel()}`;
+            document.getElementById('sipMonitorDiagnostics').textContent = this.buildDiagnosticsText(capabilities);
 
             const badge = document.getElementById('sipMonitorSessionBadge');
             const countdown = document.getElementById('sipMonitorCountdown');
@@ -323,6 +387,9 @@
                 badge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
                 countdown.textContent = 'Tempo restante: --';
                 meta.textContent = 'Nenhuma sessão ativa.';
+                document.getElementById('sipMonitorLastPoll').textContent = '--';
+                document.getElementById('sipMonitorSngrepMeta').textContent = 'Aguardando sessão...';
+                document.getElementById('sipMonitorPjsipMeta').textContent = 'Aguardando sessão...';
                 return;
             }
 
@@ -337,6 +404,12 @@
             const mm = String(Math.floor(total / 60)).padStart(2, '0');
             const ss = String(total % 60).padStart(2, '0');
             document.getElementById('sipMonitorCountdown').textContent = `Tempo restante: ${mm}:${ss}`;
+        },
+
+        renderLiveState(data) {
+            document.getElementById('sipMonitorLastPoll').textContent = data.polled_at || this.nowLabel();
+            document.getElementById('sipMonitorSngrepMeta').textContent = this.streamMetaLabel('sngrep', data.stream_state?.sngrep || null);
+            document.getElementById('sipMonitorPjsipMeta').textContent = this.streamMetaLabel('pjsip', data.stream_state?.pjsip || null);
         },
 
         payload() {
@@ -454,6 +527,7 @@
                     }
                 }
 
+                this.renderLiveState(data);
                 this.appendChunk('sngrep', data.chunks?.sngrep || '');
                 this.appendChunk('pjsip', data.chunks?.pjsip || '');
                 this.renderEvents(data.events || []);

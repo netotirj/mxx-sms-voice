@@ -134,6 +134,34 @@ class SipMonitorCommandRunner
         return trim((string)($result['output'] ?? ''));
     }
 
+    public static function inspectPath(string $path, bool $useSudo = true): array
+    {
+        $command = 'if [ -f ' . escapeshellarg($path) . ' ]; then '
+            . 'printf "__FILE__:%s|%s\n" '
+            . '"$(wc -c < ' . escapeshellarg($path) . ' | tr -d \' \')" '
+            . '"$(date -r ' . escapeshellarg($path) . ' \'+%Y-%m-%d %H:%M:%S\' 2>/dev/null || stat -c \'%y\' ' . escapeshellarg($path) . ' 2>/dev/null | cut -d. -f1)"; '
+            . 'else printf "__MISSING__\n"; fi';
+        $result = self::run($command, $useSudo);
+        $output = trim((string)($result['output'] ?? ''));
+
+        if (!str_starts_with($output, '__FILE__:')) {
+            return [
+                'exists' => false,
+                'size' => 0,
+                'updated_at' => null,
+            ];
+        }
+
+        $value = substr($output, strlen('__FILE__:'));
+        [$size, $updatedAt] = array_pad(explode('|', $value, 2), 2, null);
+
+        return [
+            'exists' => true,
+            'size' => max(0, (int)$size),
+            'updated_at' => $updatedAt ? trim((string)$updatedAt) : null,
+        ];
+    }
+
     public static function remotePathForSession(int $sessionId, string $filename): string
     {
         $profile = self::profile();

@@ -230,6 +230,8 @@ class SipMonitorSessionService
                 'pjsip' => '',
             ],
             'events' => [],
+            'stream_state' => [],
+            'polled_at' => date('Y-m-d H:i:s'),
         ];
 
         foreach (['sngrep', 'pjsip'] as $source) {
@@ -251,6 +253,18 @@ class SipMonitorSessionService
             $chunk = (string)($read['chunk'] ?? '');
             $payload['chunks'][$source] = $chunk;
             $cursors[$source] = (int)($read['cursor'] ?? $cursor);
+
+            $fileState = SipMonitorCommandRunner::inspectPath($logPath, true);
+            $payload['stream_state'][$source] = [
+                'pid' => (int)($streams[$source]['pid'] ?? 0),
+                'started_ok' => (bool)($stream['started_ok'] ?? false),
+                'exists' => (bool)($fileState['exists'] ?? false),
+                'size' => (int)($fileState['size'] ?? 0),
+                'updated_at' => $fileState['updated_at'] ?? null,
+                'cursor' => $cursors[$source],
+                'last_chunk_bytes' => strlen($chunk),
+                'filter' => (string)($stream['filter'] ?? ''),
+            ];
 
             $remainingSlots = max(0, self::MAX_LOG_ROWS_PER_SESSION - SipMonitorLog::countBySession($sessionId));
             $rows = SipMonitorCommandBuilder::parseSipLines($sessionId, $source, $chunk, $remainingSlots);

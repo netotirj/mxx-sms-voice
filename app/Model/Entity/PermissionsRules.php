@@ -33,7 +33,8 @@ class PermissionsRules {
         '/admin/services-monitor',
         'ticket.',
         '/site-tests',
-        '/reports/notifications',
+        '/reports/notifications/create',
+        '/reports/notifications/users',
         '/permissions/global-routes',
     ];
     private const ADMINISTRATIVE_MODULE_GROUPS = [

@@ -16,11 +16,18 @@ WHERE NOT EXISTS (
 
 UPDATE sys_routes
 SET module_name = 'Relatórios: Notificações',
+    access_scope = 'tenant',
+    assignable_by = 'admin'
+WHERE route_path IN (
+    '/reports/notifications',
+    '/reports/notifications-realtime'
+);
+
+UPDATE sys_routes
+SET module_name = 'Relatórios: Notificações',
     access_scope = 'platform',
     assignable_by = 'super_admin'
 WHERE route_path IN (
-    '/reports/notifications',
-    '/reports/notifications-realtime',
     '/reports/notifications/users',
     '/reports/notifications/create'
 );

@@ -698,6 +698,11 @@ class PermissionResolver
         $ensured = true;
     }
 
+    public static function syncSchema(): void
+    {
+        self::ensureDbVersionSchema();
+    }
+
     private static function dbVersionValue(string $scopeType, string $tenancyId, ?int $userId = null): int
     {
         self::ensureDbVersionSchema();

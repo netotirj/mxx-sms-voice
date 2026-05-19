@@ -1329,6 +1329,11 @@ class PermissionsRules {
         self::seedRoleTemplates();
     }
 
+    public static function syncSchema(): void
+    {
+        self::ensureRoleTemplateSchema();
+    }
+
     public static function seedRoleTemplates(): void
     {
         foreach (array_keys(self::getSystemRoleTemplateDefinitions()) as $roleName) {

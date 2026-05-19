@@ -10,6 +10,7 @@ use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
 use App\Model\Entity\UserPlans;
 use App\Session\User as SessionUser;
+use App\Service\PermissionResolver;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
 use Throwable;
@@ -192,6 +193,9 @@ class RegisterUsers extends ViewComponents
 
         try {
             self::validateRegistrationSchema();
+            PermissionsRules::syncSchema();
+            PermissionResolver::syncSchema();
+            Notifications::syncSchema();
             $db->beginTransaction();
 
             // 1️⃣ Criar Tenancy

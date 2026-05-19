@@ -189,6 +189,7 @@ class RegisterUsers extends ViewComponents
         $db = new Database();
 
         try {
+            self::ensureRegistrationSchema();
             $db->beginTransaction();
 
             // 1️⃣ Criar Tenancy
@@ -352,5 +353,56 @@ class RegisterUsers extends ViewComponents
         }
 
         return $profile;
+    }
+
+    private static function ensureRegistrationSchema(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+
+        $checks = [
+            'users' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
+            'sys_roles' => 'INT(11) NOT NULL AUTO_INCREMENT',
+            'mxx_user_plans' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
+            'tenancy_balance' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
+            'notifications' => 'INT(10) UNSIGNED NOT NULL AUTO_INCREMENT',
+        ];
+
+        foreach ($checks as $table => $definition) {
+            self::ensureAutoIncrementId($table, $definition);
+        }
+
+        $ensured = true;
+    }
+
+    private static function ensureAutoIncrementId(string $table, string $definition): void
+    {
+        $db = new Database();
+        $column = $db->execute(
+            "SELECT COLUMN_NAME, EXTRA
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = :table
+               AND COLUMN_NAME = 'id'
+             LIMIT 1",
+            [':table' => $table]
+        )->fetchObject();
+
+        if (!$column) {
+            return;
+        }
+
+        $extra = strtolower(trim((string)($column->EXTRA ?? '')));
+        if (str_contains($extra, 'auto_increment')) {
+            return;
+        }
+
+        $db->execute(sprintf(
+            'ALTER TABLE `%s` MODIFY `id` %s',
+            $table,
+            $definition
+        ));
     }
 }

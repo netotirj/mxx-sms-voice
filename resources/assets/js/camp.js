@@ -375,7 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
             scheduleSummary.textContent = "Selecione a data e o horário do agendamento.";
             return;
         }
-        scheduleSummary.textContent = `Agendado para ${toPtDateValue(value)} às ${toTimeValue(value)}.`;
+        scheduleSummary.textContent = `O disparo foi agendado para ${toPtDateValue(value)} às ${toTimeValue(value)}, horário de Brasília.`;
     };
 
     const fillMinimumCampaignSchedule = () => {

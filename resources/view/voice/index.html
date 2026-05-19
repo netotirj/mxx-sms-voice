@@ -1050,7 +1050,7 @@
             const hours = String(date.getHours()).padStart(2, "0");
             const minutes = String(date.getMinutes()).padStart(2, "0");
 
-            return `Agendada para ${day}/${month}/${year} às ${hours}:${minutes}`;
+                return `Agendada para ${day}/${month}/${year} às ${hours}:${minutes}, horário de Brasília`;
         }
 
         function statusBadge(status, item = {}) {
@@ -2127,7 +2127,7 @@
 
         const date = voiceParseScheduleDateTime();
         summary.textContent = date
-            ? `Agendado para ${voiceScheduleDateLabel(date)} às ${voiceScheduleTimeLabel(date)}.`
+            ? `O disparo foi agendado para ${voiceScheduleDateLabel(date)} às ${voiceScheduleTimeLabel(date)}, horário de Brasília.`
             : "Selecione a data e o horário do agendamento.";
     }
 
@@ -4092,7 +4092,7 @@
                     return;
                 }
 
-                scheduleSummary.textContent = `Agendado para ${toPtDateValue(date)} às ${toTimeValue(date)}.`;
+                scheduleSummary.textContent = `O disparo foi agendado para ${toPtDateValue(date)} às ${toTimeValue(date)}, horário de Brasília.`;
             }
 
             function fillMinimumSchedule() {

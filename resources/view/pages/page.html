@@ -43,7 +43,7 @@
     <!-- Notify CSS -->
     <link href="{{URL}}/resources/view/login/assets/css/notify.css" rel="stylesheet">
     <link href="{{URL}}/resources/view/login/assets/css/auth-notify.css" rel="stylesheet">
-    <link href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css?v=20260507-3" rel="stylesheet">
+    <link href="{{URL}}/resources/view/login/assets/css/support-whatsapp.css?v=20260518-1" rel="stylesheet">
 
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -370,11 +370,11 @@
 </head>
 
 <body
-    class="m-0 font-sans text-base antialiased font-normal dark:bg-slate-900 leading-default bg-gray-50 text-slate-500">
+    class="m-0 min-h-screen min-h-[100dvh] overflow-x-hidden font-sans text-base antialiased font-normal dark:bg-slate-900 leading-default bg-gray-50 text-slate-500">
     <div class="absolute w-full bg-blue-500 dark:hidden min-h-75"></div>
     {{menu}}
 
-    <main class="relative h-full transition-all duration-200 ease-in-out xl:ml-68 rounded-xl">
+    <main class="relative h-full min-h-screen min-h-[100dvh] min-w-0 pb-[clamp(5.5rem,8vh,7rem)] transition-all duration-200 ease-in-out xl:ml-68 rounded-xl">
         {{header}}
         {{content}}
         {{footer}}
@@ -1138,10 +1138,27 @@
                 ? normalizeLower(element.className)
                 : normalizeLower(element.getAttribute('class'));
 
+            if (
+                id.includes('backdrop')
+                || id.includes('overlay')
+                || className.includes('backdrop')
+                || className.includes('overlay')
+            ) {
+                return false;
+            }
+
             const looksLikeModal =
                 role === 'dialog'
                 || element.getAttribute('aria-modal') === 'true'
-                || id.includes('modal')
+                || (
+                    id.includes('modal')
+                    && (
+                        element.classList.contains('hidden')
+                        || className.includes(' hidden')
+                        || className.includes(' items-center')
+                        || className.includes(' justify-center')
+                    )
+                )
                 || className.includes(' modal');
 
             const isFullscreenLayer =
@@ -1158,15 +1175,15 @@
             modal.style.position = 'fixed';
             modal.style.inset = '0';
             modal.style.isolation = 'isolate';
+            modal.classList.add('flex', 'items-start', 'justify-center', 'overflow-y-auto', 'overscroll-contain', 'p-4', 'sm:items-center');
 
-            if (!modal.classList.contains('overflow-y-auto')) {
-                modal.classList.add('overflow-y-auto');
-            }
-
-            const panel = modal.firstElementChild;
-            if (panel instanceof HTMLElement && !panel.style.zIndex) {
-                panel.style.position = panel.style.position || 'relative';
-                panel.style.zIndex = '100051';
+            const panel = modal.lastElementChild;
+            if (panel instanceof HTMLElement) {
+                panel.classList.add('my-auto', 'max-h-[calc(100vh-2rem)]', 'max-h-[calc(100dvh-2rem)]');
+                if (!panel.style.zIndex) {
+                    panel.style.position = panel.style.position || 'relative';
+                    panel.style.zIndex = '100051';
+                }
             }
 
             managedModals.add(modal);

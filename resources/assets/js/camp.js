@@ -475,6 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
             fillMinimumCampaignSchedule();
             renderCampaignScheduleCalendar();
             renderCampaignTimeOptions();
+            schedulePanel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
             scheduleDateInput?.focus();
         } else {
             closeCampaignSchedulePickers();

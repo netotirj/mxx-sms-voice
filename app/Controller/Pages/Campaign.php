@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Service\CampaignSchedulerService;
 use App\Service\PlanLimitEnforcementService;
 use App\Service\PlanRuntimeService;
 use App\Utils\View;
@@ -15,6 +16,25 @@ use App\Utils\CampaignNameCode;
 
 class Campaign extends ViewComponents
 {
+    private static function parseScheduledAt(string $scheduledAtInput): \DateTimeImmutable
+    {
+        if ($scheduledAtInput === '') {
+            throw new \RuntimeException('Informe a data e hora do agendamento.');
+        }
+
+        try {
+            $scheduledAt = new \DateTimeImmutable($scheduledAtInput);
+        } catch (\Throwable) {
+            throw new \RuntimeException('Data de agendamento inválida.');
+        }
+
+        if ($scheduledAt <= new \DateTimeImmutable('now')) {
+            throw new \RuntimeException('O agendamento precisa ser para uma data futura.');
+        }
+
+        return $scheduledAt;
+    }
+
     private static function currentSmsRate(string $tenancyId): float
     {
         $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
@@ -159,12 +179,23 @@ class Campaign extends ViewComponents
             $status  = trim($postVars['status'] ?? 'y');
             $type_msg = trim($postVars['sender_type'] ?? '');
             $charset_msg = trim($postVars['charset'] ?? '');
+            $scheduleMode = strtolower(trim((string)($postVars['schedule_mode'] ?? 'now')));
+            $scheduledAtInput = trim((string)($postVars['scheduled_at'] ?? ''));
+            $timezone = trim((string)($postVars['timezone'] ?? '')) ?: ($obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo');
 
             if (!$baseName || !$message || !$status) {
                 return new Response(422, [
                     'success' => false,
                     'status'  => 422,
                     'message' => 'Preencha todos os campos obrigatórios.'
+                ], 'application/json');
+            }
+
+            if (($scheduleMode === 'scheduled' || $scheduledAtInput !== '') && $status !== 'y') {
+                return new Response(422, [
+                    'success' => false,
+                    'status'  => 422,
+                    'message' => 'Para agendar uma campanha, o status precisa estar como Ativa.'
                 ], 'application/json');
             }
 
@@ -209,12 +240,37 @@ class Campaign extends ViewComponents
             $obCampaign->updated_at = date('Y-m-d H:i:s');
             $obCampaign->register();
 
+            $scheduleId = null;
+            if ($scheduleMode === 'scheduled' || $scheduledAtInput !== '') {
+                $scheduledAt = self::parseScheduledAt($scheduledAtInput);
+                $scheduleId = CampaignSchedulerService::schedule(
+                    $obUser,
+                    'sms',
+                    $name,
+                    $scheduledAt,
+                    [
+                        'campaign_id' => (int)$obCampaign->id,
+                        'created_via' => 'campaign_create_form',
+                    ],
+                    [
+                        'native_table' => 'campaign',
+                        'native_id' => (int)$obCampaign->id,
+                        'dispatch_mode' => 'persistent_queue',
+                        'timezone' => $timezone,
+                    ]
+                );
+            }
+
             return new Response(200, [
                 'success' => true,
                 'status' => 200,
-                'message' => 'Campanha criada com sucesso!',
+                'message' => $scheduleId
+                    ? 'Campanha criada e agendada com sucesso!'
+                    : 'Campanha criada com sucesso!',
                 'campaign_id' => $obCampaign->id,
                 'name' => $name,
+                'scheduled' => $scheduleId !== null,
+                'schedule_id' => $scheduleId,
             ], 'application/json');
 
         } catch (\Exception $e) {

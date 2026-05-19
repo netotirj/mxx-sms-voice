@@ -120,6 +120,32 @@
                         <span>Estou ciente que mensagens com links podem ser consideradas spam pelas operadoras.</span>
                     </label>
 
+                    <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-800">Agendamento</p>
+                                <p class="text-xs text-slate-500">Crie a campanha agora e deixe o disparo programado para depois.</p>
+                            </div>
+                            <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                                <input id="campaignScheduleToggle" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                Agendar envio
+                            </label>
+                        </div>
+
+                        <div id="campaignScheduleFields" class="mt-4 hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Data e hora</span>
+                                <input id="campaignScheduledAt" name="scheduled_at" type="datetime-local"
+                                       class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Timezone</span>
+                                <input id="campaignTimezone" name="timezone" type="text" readonly
+                                       class="w-full rounded-lg border border-slate-300 bg-slate-100 p-2.5 text-sm text-slate-600">
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Botões -->
                     <div class="flex justify-end gap-2 mt-6">
                         <button id="createButton" type="submit"

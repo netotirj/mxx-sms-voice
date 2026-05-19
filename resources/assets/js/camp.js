@@ -314,8 +314,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const senderInput = document.getElementById("senderInput");
     const charsetInput = document.getElementById("charsetInput");
+    const scheduleToggle = document.getElementById("campaignScheduleToggle");
+    const scheduleFields = document.getElementById("campaignScheduleFields");
+    const scheduleInput = document.getElementById("campaignScheduledAt");
+    const timezoneInput = document.getElementById("campaignTimezone");
+    const statusInput = document.getElementById("status");
 
     if (!form || !newButton) return;
+
+    const currentTimezone = browserTimezone();
+    if (timezoneInput) {
+        timezoneInput.value = currentTimezone;
+    }
+
+    const toggleScheduleFields = () => {
+        const enabled = !!scheduleToggle?.checked;
+        scheduleFields?.classList.toggle("hidden", !enabled);
+        if (scheduleInput) {
+            scheduleInput.required = enabled;
+            if (!enabled) {
+                scheduleInput.value = "";
+            }
+        }
+    };
+
+    scheduleToggle?.addEventListener("change", toggleScheduleFields);
+    toggleScheduleFields();
 
     // Ativa grupos de botões
     function activateGroup(groupId, hiddenInput) {
@@ -367,11 +391,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             const formData = new FormData(form);
+            const scheduleMode = scheduleToggle?.checked ? "scheduled" : "now";
+            formData.set("schedule_mode", scheduleMode);
+            formData.set("timezone", currentTimezone);
+
+            if (scheduleMode === "scheduled") {
+                const scheduledAt = formatScheduleDatetimeForApi(scheduleInput?.value || "");
+                if (!scheduledAt) {
+                    showError("Informe a data e hora do agendamento.");
+                    scheduleInput?.focus();
+                    return;
+                }
+
+                if (new Date(scheduleInput.value) <= new Date()) {
+                    showError("Escolha uma data e horario futuros.");
+                    scheduleInput?.focus();
+                    return;
+                }
+
+                if ((statusInput?.value || "y") !== "y") {
+                    showError("Para agendar, a campanha precisa estar ativa.");
+                    statusInput?.focus();
+                    return;
+                }
+
+                formData.set("scheduled_at", scheduledAt);
+            } else {
+                formData.delete("scheduled_at");
+            }
+
             const response = await fetch(`${baseUrl}/campaign/new`, { method: "POST", body: formData });
             const result = await response.json();
 
             if (response.ok) {
-                showSuccess(result.message || "Campanha criada com sucesso!");
+                showSuccess(result.message || (result.scheduled ? "Campanha criada e agendada com sucesso!" : "Campanha criada com sucesso!"));
                 setTimeout(() => window.location.href = `${baseUrl}/campaign`, 900);
             } else {
                 showError(result.message || "Erro ao criar campanha.");
@@ -553,63 +606,6 @@ $(document).on('click', '.btn-send', function () {
 
     runSend({ schedule_mode: 'now', timezone: browserTimezone() });
 });
-
-$(document).on('click', '.btn-schedule', function () {
-    const button = $(this);
-    const campaignId = button.data('id');
-    const campaignName = button.data('name') || '';
-
-    if (!campaignId) return showError('ID da campanha não encontrado.');
-    if (button.prop('disabled')) return;
-
-    const runSchedule = (schedulePayload) => {
-        toggleButtonSpinner(button, true);
-        let keepLockedAfterResponse = false;
-        const formData = new FormData();
-        if (schedulePayload && typeof schedulePayload === 'object') {
-            Object.entries(schedulePayload).forEach(([key, value]) => {
-                formData.append(key, value ?? '');
-            });
-        }
-
-        fetch(`${baseUrl}/campaign/${campaignId}/send`, {
-            method: 'POST',
-            body: formData
-        })
-            .then(async res => {
-                const data = await parseJsonResponse(res);
-                if (res.ok && Number(data.status || res.status) === 200) {
-                    showSuccess(data.message || 'Campanha agendada com sucesso!');
-                    refreshCampaigns();
-                } else if (data.__valid_json === false) {
-                    keepLockedAfterResponse = true;
-                    showError('O servidor respondeu de forma inválida após o agendamento. Confira os relatórios antes de reenviar.');
-                    lockResendTemporarily(button, 15);
-                } else {
-                    const msg = data.message || 'Erro ao agendar campanha.';
-                    showError(msg);
-                }
-            })
-            .catch(() => {
-                keepLockedAfterResponse = true;
-                showError('Falha ao confirmar o retorno do agendamento. Aguarde e confira os relatórios antes de reenviar.');
-                lockResendTemporarily(button, 15);
-            })
-            .finally(() => {
-                if (!keepLockedAfterResponse) {
-                    toggleButtonSpinner(button, false);
-                }
-            });
-    };
-
-    promptSmsSchedule(campaignName).then((schedulePayload) => {
-        if (!schedulePayload) return;
-        runSchedule(schedulePayload);
-    });
-});
-
-
-
 
 /* ======================= BOTÃO DELETAR (em branco por enquanto) ======================= */
 $(document).on('click', '.btn-delete', function () {

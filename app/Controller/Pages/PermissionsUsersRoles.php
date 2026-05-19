@@ -269,11 +269,20 @@ class PermissionsUsersRoles extends ViewComponents
             ]), 'application/json');
         }
 
-        PermissionsRules::syncRoleFromTemplateSnapshot($roleId, $roleTenancyId);
+        $template = PermissionsRules::getRoleTemplateById($templateId);
+        $templateName = strtolower(trim((string)($template['name'] ?? '')));
+        if ($templateName === '') {
+            return new Response(422, json_encode([
+                'status' => 'error',
+                'message' => 'Modelo do sistema vinculado a este papel não foi encontrado.'
+            ]), 'application/json');
+        }
+
+        PermissionsRules::bindRoleToTemplateByName($roleId, $roleTenancyId, $templateName);
 
         return new Response(200, json_encode([
             'status' => 'ok',
-            'message' => 'Permissões sincronizadas com o modelo do sistema.'
+            'message' => 'Papel religado ao modelo do sistema e sincronizado com o padrão global.'
         ]), 'application/json');
     }
 

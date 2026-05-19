@@ -862,17 +862,7 @@ class PermissionsRules {
 
     private static function syncRouteIntoDefaultAdminTemplate(int $routeId, array $governance): void
     {
-        if ($routeId <= 0) {
-            return;
-        }
-
-        $accessScope = strtolower(trim((string)($governance['access_scope'] ?? 'tenant')));
-        $assignableBy = strtolower(trim((string)($governance['assignable_by'] ?? 'admin')));
-        if ($accessScope !== 'tenant' || $assignableBy !== 'admin') {
-            return;
-        }
-
-        self::syncSystemManagedRolePermission('admin', $routeId, 1);
+        return;
     }
 
     /**
@@ -1442,7 +1432,7 @@ class PermissionsRules {
 
     private static function templateUsesAppendOnlyGovernance(string $templateName): bool
     {
-        return strtolower(trim($templateName)) === 'admin';
+        return false;
     }
 
     private static function sanitizeRolePermissions(int $roleId, string $tenancyId): void

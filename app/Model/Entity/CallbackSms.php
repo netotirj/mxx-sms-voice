@@ -102,6 +102,13 @@ class CallbackSms
         return "DATE(COALESCE({$prefix}received_at, {$prefix}update_date, {$prefix}date_send))";
     }
 
+    private static function responseDateTimeExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+
+        return "COALESCE({$prefix}received_at, {$prefix}update_date, {$prefix}date_send)";
+    }
+
     public static function normalizeOperatorForDashboard(?string $operator): ?string
     {
         $value = trim((string)$operator);
@@ -174,7 +181,14 @@ class CallbackSms
      */
 
 
-    public static function countSentSms(int|string|null $userId, ?string $tenancyId, ?int $batchId = null, ?int $resellerId = null): object
+    public static function countSentSms(
+        int|string|null $userId,
+        ?string $tenancyId,
+        ?int $batchId = null,
+        ?int $resellerId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): object
     {
         [$conditions, $params] = self::buildScopeConditions(
             $tenancyId,
@@ -187,6 +201,12 @@ class CallbackSms
         if (!is_null($batchId)) {
             $conditions[] = 'batch_id = :batch_id';
             $params[':batch_id'] = $batchId;
+        }
+
+        if ($startDate !== null && $endDate !== null) {
+            $conditions[] = 'date_send BETWEEN :start_date AND :end_date';
+            $params[':start_date'] = $startDate;
+            $params[':end_date'] = $endDate;
         }
 
         $where = implode(' AND ', $conditions);
@@ -795,7 +815,13 @@ class CallbackSms
         return $data;
     }
 
-    public static function countInboundMoDistinct(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
+    public static function countInboundMoDistinct(
+        ?string $tenancyId,
+        ?int $userId = null,
+        ?int $resellerId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): int
     {
         self::ensureSmsProviderColumn();
 
@@ -803,6 +829,12 @@ class CallbackSms
         $conditions = array_merge($scopeConditions, [
             "(UPPER(COALESCE(status_sms, '')) = 'MO' OR LOWER(COALESCE(webhook_action, '')) = 'mo')"
         ]);
+
+        if ($startDate !== null && $endDate !== null) {
+            $conditions[] = self::responseDateTimeExpression() . ' BETWEEN :start_date AND :end_date';
+            $params[':start_date'] = $startDate;
+            $params[':end_date'] = $endDate;
+        }
 
         $where = implode(' AND ', $conditions);
 

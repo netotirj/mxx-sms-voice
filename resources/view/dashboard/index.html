@@ -533,7 +533,12 @@
 
         const countAnimations = new Map();
         let selectedService = 'voip';
-        let selectedPeriod = 'day';
+        const urlPeriod = new URLSearchParams(window.location.search).get('period');
+        let selectedPeriod = ['day', 'week', 'month'].includes(urlPeriod || '')
+            ? urlPeriod
+            : (['day', 'week', 'month'].includes(localStorage.getItem('dashboardPeriod') || '')
+                ? localStorage.getItem('dashboardPeriod')
+                : 'day');
         let cardsPayload = null;
         let chartsPayload = null;
         let mainChart = null;
@@ -964,6 +969,21 @@
                 ? `totalDiaAtual${suffix}`
                 : `totalMesAtual${suffix}`;
             return Number(chartsPayload?.[key] || 0);
+        }
+
+        function updatePeriodState(period, replaceHistory = true) {
+            selectedPeriod = ['day', 'week', 'month'].includes(period) ? period : 'day';
+            localStorage.setItem('dashboardPeriod', selectedPeriod);
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('period', selectedPeriod);
+            if (replaceHistory) {
+                window.history.replaceState({}, '', url.toString());
+            }
+
+            document.querySelectorAll('.period-filter-btn').forEach((item) => {
+                item.classList.toggle('active', item.dataset.period === selectedPeriod);
+            });
         }
 
         function getTrunkCountsForPeriod() {
@@ -1708,14 +1728,14 @@
 
         document.querySelectorAll('.period-filter-btn').forEach((button) => {
             button.addEventListener('click', () => {
-                selectedPeriod = button.dataset.period || 'day';
-                document.querySelectorAll('.period-filter-btn').forEach((item) => {
-                    item.classList.toggle('active', item === button);
-                });
+                updatePeriodState(button.dataset.period || 'day');
                 mainChartSignature = '';
                 statusChartSignature = '';
                 secondaryChartSignature = '';
                 sipCodeChartSignature = '';
+                chartsPayloadSignature = '';
+                disconnectDashboardStreams();
+                connectDashboardStreams();
                 renderSelectedService();
             });
         });
@@ -1727,6 +1747,12 @@
                 closeSipCodeModal();
             }
         });
+
+        function dashboardStreamUrl(path) {
+            const url = new URL(`${baseUrl}${path}`, window.location.origin);
+            url.searchParams.set('period', selectedPeriod);
+            return url.toString();
+        }
 
         let dashboardReconnectTimer = null;
         let dashboardCardsLastMessageAt = 0;
@@ -1822,8 +1848,8 @@
                 return window.__dashboardSseConnections;
             }
 
-            const cardsSource = new EventSource(`${baseUrl}/dashboard/cards`);
-            const chartsSource = new EventSource(`${baseUrl}/dashboard/charts`);
+            const cardsSource = new EventSource(dashboardStreamUrl('/dashboard/cards'));
+            const chartsSource = new EventSource(dashboardStreamUrl('/dashboard/charts'));
             window.__dashboardSseConnections = {
                 cards: cardsSource,
                 charts: chartsSource
@@ -1945,6 +1971,7 @@
         }
 
         bootstrapStaticCounts();
+        updatePeriodState(selectedPeriod, true);
         connectDashboardStreams();
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {

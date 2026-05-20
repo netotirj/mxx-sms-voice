@@ -499,6 +499,35 @@ class PixSearch
         return $data ? self::hydrate($data) : null;
     }
 
+    public static function getPixLastByRange(?int $userId, ?string $tenancyId, string $startDate, string $endDate): ?self
+    {
+        self::ensureSchema();
+        $where = 'confirmed_date IS NOT NULL
+            AND payment_status IN ("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED")
+            AND confirmed_date BETWEEN :start_date AND :end_date';
+        $params = [
+            ':start_date' => $startDate,
+            ':end_date' => $endDate,
+        ];
+
+        if (!empty($tenancyId)) {
+            $where .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if ($userId !== null) {
+            $where .= ' AND user_id = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        $data = (new Database('webhook_pix'))->select(
+            "$where ORDER BY confirmed_date DESC LIMIT 1",
+            $params
+        )->fetch(\PDO::FETCH_ASSOC);
+
+        return $data ? self::hydrate($data) : null;
+    }
+
     public static function getValuesPixCurrentMonth(?int $userId, ?string $tenancyId): array
     {
         self::ensureSchema();
@@ -519,6 +548,37 @@ class PixSearch
         }
 
         if ($userId !== null) {
+            $query .= ' AND user_id = :user_id';
+            $params[':user_id'] = $userId;
+        }
+
+        $query .= ' ORDER BY confirmed_date ASC';
+
+        return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_OBJ) ?: [];
+    }
+
+    public static function getValuesPixByRange(?int $userId, ?string $tenancyId, string $startDate, string $endDate): array
+    {
+        self::ensureSchema();
+        $query = "
+            SELECT webhook_id, tenancy_id, user_id, value, confirmed_date
+            FROM webhook_pix
+            WHERE confirmed_date IS NOT NULL
+              AND payment_status IN ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+              AND confirmed_date BETWEEN :start_date AND :end_date
+        ";
+
+        $params = [
+            ':start_date' => $startDate,
+            ':end_date' => $endDate,
+        ];
+
+        if (!empty($tenancyId)) {
+            $query .= ' AND tenancy_id = :tenancy_id';
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if (!empty($userId)) {
             $query .= ' AND user_id = :user_id';
             $params[':user_id'] = $userId;
         }

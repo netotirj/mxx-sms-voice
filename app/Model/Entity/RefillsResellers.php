@@ -78,6 +78,35 @@ class RefillsResellers
         return $obj;
     }
 
+    public static function getLastRefillByRange(?int $userId, string $tenancyId, string $startDate, string $endDate): ?self
+    {
+        $where = "tenancy_id = :tenancy_id AND user_id = :user_id AND status = 'completed' AND created_at BETWEEN :start_date AND :end_date";
+        $params = [
+            ':tenancy_id' => $tenancyId,
+            ':user_id' => $userId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate,
+        ];
+
+        $data = (new Database('refills'))->select(
+            "$where ORDER BY created_at DESC LIMIT 1",
+            $params
+        )->fetch();
+
+        if (!$data) {
+            return null;
+        }
+
+        $obj = new self();
+        foreach ($data as $field => $value) {
+            if (property_exists($obj, $field)) {
+                $obj->$field = $value;
+            }
+        }
+
+        return $obj;
+    }
+
     public static function getValuesRefillCurrentMonth(?int $userId, ?string $tenancyId): array
     {
         $query = "
@@ -108,6 +137,40 @@ class RefillsResellers
         }
 
         // Ordenação
+        $query .= " ORDER BY created_at ASC";
+
+        return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_OBJ) ?: [];
+    }
+
+    public static function getValuesRefillByRange(?int $userId, ?string $tenancyId, string $startDate, string $endDate): array
+    {
+        $query = "
+        SELECT 
+            id,
+            user_id,
+            tenancy_id,
+            balance,
+            created_at
+        FROM refills
+        WHERE status = 'completed'
+          AND created_at BETWEEN :start_date AND :end_date
+    ";
+
+        $params = [
+            ':start_date' => $startDate,
+            ':end_date' => $endDate,
+        ];
+
+        if (!empty($tenancyId)) {
+            $query .= " AND tenancy_id = :tenancy_id";
+            $params[':tenancy_id'] = $tenancyId;
+        }
+
+        if (!empty($userId)) {
+            $query .= " AND user_id = :user_id";
+            $params[':user_id'] = $userId;
+        }
+
         $query .= " ORDER BY created_at ASC";
 
         return (new Database())->execute($query, $params)->fetchAll(\PDO::FETCH_OBJ) ?: [];

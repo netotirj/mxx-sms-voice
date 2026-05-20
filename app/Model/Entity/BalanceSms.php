@@ -429,7 +429,12 @@ class BalanceSms
         return $success;
     }
 
-    public static function sumAdminServiceFeeFromLogs(string $tenancyId, int $adminUserId): float
+    public static function sumAdminServiceFeeFromLogs(
+        string $tenancyId,
+        int $adminUserId,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): float
 {
     $sql = "
         SELECT COALESCE(SUM(amount), 0) AS total
@@ -439,11 +444,19 @@ class BalanceSms
           AND description LIKE 'SERVICE_FEE_ADMIN%'
     ";
 
+    $params = [
+        ':tenancy_id' => $tenancyId,
+        ':user_id'    => $adminUserId,
+    ];
+
+    if ($startDate !== null && $endDate !== null) {
+        $sql .= " AND created_at BETWEEN :start_date AND :end_date";
+        $params[':start_date'] = $startDate;
+        $params[':end_date'] = $endDate;
+    }
+
     $row = (new Database('tenancy_balance_logs'))
-        ->execute($sql, [
-            ':tenancy_id' => $tenancyId,
-            ':user_id'    => $adminUserId,
-        ])
+        ->execute($sql, $params)
         ->fetchObject();
 
     return (float)($row->total ?? 0);

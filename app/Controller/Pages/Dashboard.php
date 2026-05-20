@@ -21,6 +21,7 @@ use App\Model\Entity\PixSearch;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\RefillsResellers;
 use App\Service\PlanRuntimeService;
+use App\Service\DashboardPeriodService;
 use App\Service\DashboardService;
 use App\Service\AuthContext;
 use GuzzleHttp\Client;
@@ -214,11 +215,11 @@ class Dashboard extends ViewComponents
         ];
     }
 
-    private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser): array
+    private static function enrichCardsPayload(array $data, array $filters, object $cdr, array $obUser, array $periodRange): array
     {
-        $whatsappSummary = self::buildDashboardWhatsAppSummary($obUser);
-        $whatsappDayCost = self::costMapWhatsAppForPeriod($obUser, 'day');
-        $whatsappTotalCost = (float)($whatsappDayCost['total'] ?? 0);
+        $whatsappSummary = self::buildDashboardWhatsAppSummaryByRange($obUser, $periodRange['start_sql'], $periodRange['end_sql']);
+        $whatsappCost = self::costMapWhatsAppByRange($obUser, $periodRange['start_sql'], $periodRange['end_sql']);
+        $whatsappTotalCost = (float)($whatsappCost['total'] ?? 0);
         $smsTotal = max(0, (int)($data['smsEnviados'] ?? 0));
         $smsDelivered = max(0, (int)($data['smsEntregues'] ?? 0));
         $smsResponses = max(0, (int)($data['smsRespostas'] ?? 0));
@@ -233,7 +234,7 @@ class Dashboard extends ViewComponents
         $data['whatsappVozSaida'] = $whatsappSummary['voice_outbound'];
         $data['whatsappCampanhas'] = $whatsappSummary['campaigns'];
         $data['whatsappContas'] = $whatsappSummary['accounts'];
-        $data['whatsappConsumoCategorias'] = $whatsappDayCost['categories'] ?? [];
+        $data['whatsappConsumoCategorias'] = $whatsappCost['categories'] ?? [];
         $data['smsTaxaEntrega'] = $smsDeliveryRate;
         $data['consumoWhats'] = number_format($whatsappTotalCost, 2, ',', '.');
 
@@ -253,6 +254,12 @@ class Dashboard extends ViewComponents
         $whatsVoiceOutbound = max(0, (int)($data['whatsappVozSaida'] ?? 0));
 
         $data['health'] = self::buildDashboardHealth($filters, $cdr, $obUser);
+        $data['period'] = [
+            'selected' => $periodRange['period'],
+            'timezone' => $periodRange['timezone'],
+            'start' => $periodRange['start_sql'],
+            'end' => $periodRange['end_sql'],
+        ];
         $data['operational_cards'] = [
             'voip' => [
                 'title' => 'VoIP Performance',
@@ -300,10 +307,16 @@ class Dashboard extends ViewComponents
         return round((float)$normalized, 4);
     }
 
-    private static function countSmsResponses(?string $tenancyId, ?int $userId = null, ?int $resellerId = null): int
+    private static function countSmsResponses(
+        ?string $tenancyId,
+        ?int $userId = null,
+        ?int $resellerId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): int
     {
         try {
-            return CallbackSms::countInboundMoDistinct($tenancyId, $userId, $resellerId);
+            return CallbackSms::countInboundMoDistinct($tenancyId, $userId, $resellerId, $startDate, $endDate);
         } catch (\Throwable) {
             return 0;
         }
@@ -616,6 +629,221 @@ class Dashboard extends ViewComponents
         }
 
         return $summary;
+    }
+
+    private static function buildDashboardWhatsAppSummaryByRange(array $obUser, string $startDate, string $endDate): array
+    {
+        $summary = [
+            'sent_messages' => 0,
+            'conversations' => 0,
+            'unread' => 0,
+            'read' => 0,
+            'voice_calls' => 0,
+            'voice_inbound' => 0,
+            'voice_outbound' => 0,
+            'campaigns' => 0,
+            'accounts' => 0,
+        ];
+
+        try {
+            if (!self::whatsappTablesReady()) {
+                throw new \RuntimeException('WhatsApp tables not ready');
+            }
+
+            [$conversationWhere, $conversationParams] = self::buildWhatsAppScopeWhere($obUser, 'wc');
+            [$campaignWhere, $campaignParams] = self::buildWhatsAppScopeWhere($obUser, 'wcamp');
+            [$accountWhere, $accountParams] = self::buildWhatsAppScopeWhere($obUser, 'wa');
+
+            $conversationParams[':wa_start_date'] = $startDate;
+            $conversationParams[':wa_end_date'] = $endDate;
+            $campaignParams[':wa_campaign_start_date'] = $startDate;
+            $campaignParams[':wa_campaign_end_date'] = $endDate;
+
+            $summary['sent_messages'] = self::dashboardScalar(
+                "SELECT COUNT(*) AS total
+                 FROM whatsapp_messages wm
+                 INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+                 WHERE {$conversationWhere}
+                   AND wm.direction = 'outbound'
+                   AND wm.status IN ('sent', 'delivered', 'read')
+                   AND wm.created_at BETWEEN :wa_start_date AND :wa_end_date",
+                $conversationParams
+            );
+
+            $summary['conversations'] = self::dashboardScalar(
+                "SELECT COUNT(*) AS total
+                 FROM whatsapp_conversations wc
+                 WHERE {$conversationWhere}
+                   AND COALESCE(wc.updated_at, wc.created_at) BETWEEN :wa_start_date AND :wa_end_date",
+                $conversationParams
+            );
+
+            $summary['unread'] = self::dashboardScalar(
+                "SELECT COALESCE(SUM(wc.unread_count), 0) AS total
+                 FROM whatsapp_conversations wc
+                 WHERE {$conversationWhere}
+                   AND COALESCE(wc.updated_at, wc.created_at) BETWEEN :wa_start_date AND :wa_end_date",
+                $conversationParams
+            );
+
+            $summary['read'] = self::dashboardScalar(
+                "SELECT COUNT(*) AS total
+                 FROM whatsapp_messages wm
+                 INNER JOIN whatsapp_conversations wc ON wc.id = wm.conversation_id
+                 WHERE {$conversationWhere}
+                   AND wm.direction = 'outbound'
+                   AND wm.status = 'read'
+                   AND wm.created_at BETWEEN :wa_start_date AND :wa_end_date",
+                $conversationParams
+            );
+
+            $summary['campaigns'] = self::dashboardScalar(
+                "SELECT COUNT(*) AS total
+                 FROM whatsapp_campaigns wcamp
+                 WHERE {$campaignWhere}
+                   AND COALESCE(wcamp.scheduled_at, wcamp.created_at) BETWEEN :wa_campaign_start_date AND :wa_campaign_end_date",
+                $campaignParams
+            );
+
+            $summary['accounts'] = self::dashboardScalar(
+                "SELECT COUNT(*) AS total FROM whatsapp_accounts wa WHERE {$accountWhere} AND wa.status = 'active'",
+                $accountParams
+            );
+        } catch (\Throwable) {
+        }
+
+        try {
+            if (self::whatsappCallCdrTableReady()) {
+                [$callWhere, $callParams] = self::buildWhatsAppCallScopeWhere($obUser);
+                $callParams[':wa_call_start_date'] = $startDate;
+                $callParams[':wa_call_end_date'] = $endDate;
+                $dateField = 'COALESCE(wc.started_at, wc.answered_at, wc.created_at)';
+
+                $summary['voice_calls'] = self::dashboardScalar(
+                    "SELECT COUNT(*) AS total
+                     FROM whatsapp_call_cdr wc
+                     LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+                     WHERE {$callWhere}
+                       AND {$dateField} BETWEEN :wa_call_start_date AND :wa_call_end_date",
+                    $callParams
+                );
+
+                $summary['voice_inbound'] = self::dashboardScalar(
+                    "SELECT COUNT(*) AS total
+                     FROM whatsapp_call_cdr wc
+                     LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+                     WHERE {$callWhere}
+                       AND LOWER(COALESCE(wc.direction, '')) = 'inbound'
+                       AND {$dateField} BETWEEN :wa_call_start_date AND :wa_call_end_date",
+                    $callParams
+                );
+
+                $summary['voice_outbound'] = self::dashboardScalar(
+                    "SELECT COUNT(*) AS total
+                     FROM whatsapp_call_cdr wc
+                     LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+                     WHERE {$callWhere}
+                       AND LOWER(COALESCE(wc.direction, '')) = 'outbound'
+                       AND {$dateField} BETWEEN :wa_call_start_date AND :wa_call_end_date",
+                    $callParams
+                );
+            }
+        } catch (\Throwable) {
+        }
+
+        return $summary;
+    }
+
+    private static function costMapWhatsAppByRange(array $obUser, string $startDate, string $endDate): array
+    {
+        [$where, $params] = self::buildWhatsAppCdrScopeWhere($obUser, 'c');
+        $params[':wa_cost_start_date'] = $startDate;
+        $params[':wa_cost_end_date'] = $endDate;
+        $dateField = 'COALESCE(c.delivered_at, c.timestamp, c.created_at)';
+
+        try {
+            $rows = (new Database())->execute(
+                "SELECT c.message_category,
+                        COUNT(*) AS quantity,
+                        COALESCE(SUM(c.price_brl), 0) AS total_cost
+                 FROM whatsapp_message_cdr c
+                 WHERE {$where}
+                   AND {$dateField} BETWEEN :wa_cost_start_date AND :wa_cost_end_date
+                   AND c.direction = 'outbound'
+                   AND c.billed = 1
+                 GROUP BY c.message_category
+                 ORDER BY total_cost DESC",
+                $params
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [
+                'map' => [],
+                'categories' => [],
+                'message_total' => 0,
+                'voice_total' => 0,
+                'total' => 0,
+            ];
+        }
+
+        $map = [];
+        $categories = [];
+        $messageTotal = 0.0;
+        foreach ($rows as $row) {
+            $category = strtolower((string)($row['message_category'] ?? 'marketing'));
+            $label = self::whatsCategoryLabel($category);
+            $cost = (float)($row['total_cost'] ?? 0);
+            $quantity = (int)($row['quantity'] ?? 0);
+
+            $map[$label] = (float)($map[$label] ?? 0) + $cost;
+            $categories[$category] = [
+                'label' => $label,
+                'quantity' => $quantity,
+                'cost' => round($cost, 4),
+            ];
+            $messageTotal += $cost;
+        }
+
+        $voiceTotal = 0.0;
+        if (self::whatsappCallCdrTableReady()) {
+            [$callWhere, $callParams] = self::buildWhatsAppCallScopeWhere($obUser);
+            $callParams[':wa_voice_cost_start_date'] = $startDate;
+            $callParams[':wa_voice_cost_end_date'] = $endDate;
+            $callDateField = 'COALESCE(wc.started_at, wc.answered_at, wc.created_at)';
+
+            try {
+                $voiceRow = (new Database())->execute(
+                    "SELECT COUNT(*) AS quantity, COALESCE(SUM(wc.final_price), 0) AS total_cost
+                     FROM whatsapp_call_cdr wc
+                     LEFT JOIN whatsapp_accounts wa ON wa.id = wc.account_id
+                     WHERE {$callWhere}
+                       AND {$callDateField} BETWEEN :wa_voice_cost_start_date AND :wa_voice_cost_end_date
+                       AND COALESCE(wc.final_price, 0) > 0",
+                    $callParams
+                )->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+                $voiceQuantity = (int)($voiceRow['quantity'] ?? 0);
+                $voiceTotal = (float)($voiceRow['total_cost'] ?? 0);
+
+                if ($voiceQuantity > 0 || $voiceTotal > 0) {
+                    $map['Voz'] = (float)($map['Voz'] ?? 0) + $voiceTotal;
+                    $categories['voice'] = [
+                        'label' => 'Voz',
+                        'quantity' => $voiceQuantity,
+                        'cost' => round($voiceTotal, 4),
+                    ];
+                }
+            } catch (\Throwable) {
+                $voiceTotal = 0.0;
+            }
+        }
+
+        return [
+            'map' => $map,
+            'categories' => $categories,
+            'message_total' => round($messageTotal, 4),
+            'voice_total' => round($voiceTotal, 4),
+            'total' => round($messageTotal + $voiceTotal, 4),
+        ];
     }
 
     private static function whatsPeriodCondition(string $period, string $mode, string $field = 'wm.created_at'): string
@@ -1362,6 +1590,11 @@ class Dashboard extends ViewComponents
         $isReseller   = $role === 'reseller';
         $isAdmin      = $role === 'admin';
         $isSuperAdmin = $role === 'super_admin';
+        $queryParams = method_exists($request, 'getQueryParams') ? (array)$request->getQueryParams() : ($_GET ?? []);
+        $periodRange = DashboardPeriodService::resolve(
+            (string)($queryParams['period'] ?? DashboardPeriodService::DEFAULT_PERIOD),
+            (string)($obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo')
+        );
 
         $calcBalanceVariation = function(array $previousBalances, float $currentBalance): string {
             $gastos = array_map(fn($log) => abs((float)($log->gasto_mes ?? 0)), $previousBalances);
@@ -1376,9 +1609,10 @@ class Dashboard extends ViewComponents
             'role' => $role,
             'tenancy_id' => $obUser['tenancy_id'] ?? null,
             'user_id' => $obUser['id'] ?? null,
+            'period' => $periodRange['period'],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-        $data = DashboardService::remember($cacheKey, 10, function () use ($obUser, $role, $isReseller, $isAdmin, $isSuperAdmin, $calcBalanceVariation) {
+        $data = DashboardService::remember($cacheKey, 10, function () use ($obUser, $role, $isReseller, $isAdmin, $isSuperAdmin, $calcBalanceVariation, $periodRange) {
             // ============================
             // SUPER ADMIN
             // ============================
@@ -1387,26 +1621,30 @@ class Dashboard extends ViewComponents
                     (string)($obUser['tenancy_id'] ?? 'global'),
                     static fn() => DisproClient::getBalanceDISPRO()
                 ) ?? 0;
-                $dataPix = PixSearch::getPixLast($obUser['id'], $obUser['tenancy_id']);
+                $dataPix = PixSearch::getPixLastByRange(null, $obUser['tenancy_id'], $periodRange['start_sql'], $periodRange['end_sql']);
                 $currentPix = ($dataPix && isset($dataPix->value)) ? str_replace('.', ',', sprintf("%0.2f", (float)$dataPix->value)) : '00,00';
                 $currentData = ($dataPix && !empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date)) ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date)) : '--/--/---- --:--';
 
-                $dataSms = CallbackSms::countSentSms(null, null);
+                $dataSms = CallbackSms::countSentSms(null, null, null, null, $periodRange['start_sql'], $periodRange['end_sql']);
                 $currentSms = $dataSms->qtd ?? 0;
-                $smsResponses = self::countSmsResponses(null, null);
+                $smsResponses = self::countSmsResponses(null, null, null, $periodRange['start_sql'], $periodRange['end_sql']);
                 $valueSms = (float)(BalanceSms::getBalanceSms(null, null)->value_sms ?? 0);
                 $dataValue = $currentSms * $valueSms;
 
-                $cdrFilters = ['user_function' => 'super_admin'];
+                $cdrFilters = [
+                    'user_function' => 'super_admin',
+                    'start_date' => $periodRange['start_sql'],
+                    'end_date' => $periodRange['end_sql'],
+                ];
                 $cdr = CdrVoice::countCdrVoice($cdrFilters);
                 $cdrDisposition = $cdr->answer ?? 0;
                 $cdrValue = (float)($cdr->value_total ?? 0);
                 $cdrTaxa = (float)($cdr->taxa_total ?? 0);
                 $cdrTotal = $cdrValue + $cdrTaxa;
 
-                $smsCampaignsRaw = CampaignSearch::countCampaignsByStatus(null, null);
-                $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus(null, null);
-                $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, null, null);
+                $smsCampaignsRaw = CampaignSearch::countCampaignsByStatus(null, null, $periodRange['start_sql'], $periodRange['end_sql']);
+                $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus(null, null, $periodRange['start_sql'], $periodRange['end_sql']);
+                $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, null, null, $periodRange['start_sql'], $periodRange['end_sql']);
                 $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
                 $totalCampaigns = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
                 $totalConsumo = $dataValue + $cdrTotal;
@@ -1434,7 +1672,7 @@ class Dashboard extends ViewComponents
                     'cdrTaxa' => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                     'cdrValue' => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
                 ];
-                return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
+                return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser, $periodRange);
             }
 
             // ============================
@@ -1448,15 +1686,17 @@ class Dashboard extends ViewComponents
 
             $rateData  = Rates::getLatestActiveRate($obUser['tenancy_id'], $obUser['id']);
             $valueSms  = (float)($rateData['rate'] ?? 0);
-            $dataSms   = CallbackSms::countSentSms(null, $obUser['tenancy_id'], null, $obUser['id']);
+            $dataSms   = CallbackSms::countSentSms(null, $obUser['tenancy_id'], null, $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $currentSms = $dataSms->qtd ?? 0;
-            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], null, $obUser['id']);
+            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], null, $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $dataValue  = $currentSms * $valueSms;
 
             $cdrFilters = [
                 'tenancy_id'    => $obUser['tenancy_id'],
                 'user_id'       => $obUser['id'],
-                'user_function' => 'reseller'
+                'user_function' => 'reseller',
+                'start_date'    => $periodRange['start_sql'],
+                'end_date'      => $periodRange['end_sql'],
             ];
             $cdr = CdrVoice::countCdrVoice($cdrFilters);
 
@@ -1465,14 +1705,14 @@ class Dashboard extends ViewComponents
             $cdrTaxa  = (float)($cdr->taxa_total ?? 0);
             $cdrTotal = $cdrValue + $cdrTaxa;
 
-            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], $obUser['id']);
-            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], $obUser['id']);
-            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], $obUser['id']);
+            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
+            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
+            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
             $totalCampaigns  = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
             $totalConsumo = $dataValue + $cdrTotal;
 
-            $dataPix = RefillsResellers::getLastRefill($obUser['id'], $obUser['tenancy_id']);
+            $dataPix = RefillsResellers::getLastRefillByRange($obUser['id'], $obUser['tenancy_id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $currentPix  = $dataPix && isset($dataPix->balance) ? number_format((float)$dataPix->balance, 2, ',', '') : '00,00';
             $currentData = (!empty($dataPix->created_at) && strtotime($dataPix->created_at)) ? date('d/m/Y H:i', strtotime($dataPix->created_at)) : '--/--/---- --:--';
 
@@ -1502,7 +1742,7 @@ class Dashboard extends ViewComponents
                 'cdrTaxa'        => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                 'cdrValue'       => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
             ];
-            return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
+            return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser, $periodRange);
             }
 
             // ============================
@@ -1512,32 +1752,34 @@ class Dashboard extends ViewComponents
             $previousBalances = BalanceSms::getBalanceSmsForPreviousMonths($obUser['id'], $obUser['tenancy_id']);
             $percentChange    = $calcBalanceVariation($previousBalances, $currentBalance);
 
-            $dataPix = PixSearch::getPixLast($obUser['id'], $obUser['tenancy_id']);
+            $dataPix = PixSearch::getPixLastByRange($isAdmin ? null : $obUser['id'], $obUser['tenancy_id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $currentPix  = $dataPix && isset($dataPix->value) ? str_replace('.', ',', sprintf("%05.2f", (float)$dataPix->value)) : '00,00';
             $currentData = (!empty($dataPix->confirmed_date) && strtotime($dataPix->confirmed_date)) ? date('d/m/Y H:i', strtotime($dataPix->confirmed_date)) : '--/--/---- --:--';
 
-            $dataSms = CallbackSms::countSentSms($isAdmin ? null : $obUser['id'], $obUser['tenancy_id']);
+            $dataSms = CallbackSms::countSentSms($isAdmin ? null : $obUser['id'], $obUser['tenancy_id'], null, null, $periodRange['start_sql'], $periodRange['end_sql']);
             $currentSms = $dataSms->qtd ?? 0;
-            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], $isAdmin ? null : $obUser['id']);
+            $smsResponses = self::countSmsResponses($obUser['tenancy_id'], $isAdmin ? null : $obUser['id'], null, $periodRange['start_sql'], $periodRange['end_sql']);
             $valueSms   = (float)(BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'])->value_sms ?? 0);
             $dataValue  = $currentSms * $valueSms;
 
             $cdrFilters = [
                 'tenancy_id'    => $obUser['tenancy_id'],
                 'user_id'       => $isAdmin ? null : $obUser['id'],
-                'user_function' => $role
+                'user_function' => $role,
+                'start_date'    => $periodRange['start_sql'],
+                'end_date'      => $periodRange['end_sql'],
             ];
             $cdr = CdrVoice::countCdrVoice($cdrFilters);
 
             $cdrDisposition = $cdr->answer ?? 0;
             $cdrValue = (float)($cdr->value_total ?? 0);
-            $cdrTaxa  = BalanceSms::sumAdminServiceFeeFromLogs($obUser['tenancy_id'], (int)$obUser['id']);
+            $cdrTaxa  = BalanceSms::sumAdminServiceFeeFromLogs($obUser['tenancy_id'], (int)$obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $cdrTotal = $cdrValue + $cdrTaxa;
             $totalConsumo = $dataValue + $cdrTotal;
 
-            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], null);
-            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], null);
-            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], null);
+            $smsCampaignsRaw   = CampaignSearch::countCampaignsByStatus($obUser['tenancy_id'], $isAdmin ? null : $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
+            $voiceCampaignsRaw = CampaignVoice::countVoiceCampaignsByStatus($obUser['tenancy_id'], $isAdmin ? null : $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
+            $voiceCampaignsRaw = CampaignVoiceSchedule::addPendingToVoiceCounts($voiceCampaignsRaw, $obUser['tenancy_id'], $isAdmin ? null : $obUser['id'], $periodRange['start_sql'], $periodRange['end_sql']);
             $mergedCampaigns = self::mergeCampaignCounts($smsCampaignsRaw, $voiceCampaignsRaw);
             $totalCampaigns  = array_sum($smsCampaignsRaw) + array_sum($voiceCampaignsRaw);
 
@@ -1567,13 +1809,16 @@ class Dashboard extends ViewComponents
                 'cdrTaxa'        => 'R$ ' . number_format($cdrTaxa, 4, ',', '.'),
                 'cdrValue'       => 'R$ ' . number_format($cdrTotal, 4, ',', '.'),
             ];
-            return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser);
+            return self::enrichCardsPayload($data, $cdrFilters, $cdr, $obUser, $periodRange);
         });
 
         echo "data: " . json_encode($data) . "\n\n";
         DashboardService::log('/dashboard/cards', 'sse_emit', $startedAt, [
             'role' => $role,
             'tenancy_id' => $obUser['tenancy_id'] ?? null,
+            'period' => $periodRange['period'],
+            'start' => $periodRange['start_sql'],
+            'end' => $periodRange['end_sql'],
         ]);
         flush();
         exit;
@@ -1607,13 +1852,19 @@ class Dashboard extends ViewComponents
 
             $tenancyId = $obUser['tenancy_id'];
             $userId    = $obUser['id'];
+            $queryParams = method_exists($request, 'getQueryParams') ? (array)$request->getQueryParams() : ($_GET ?? []);
+            $periodRange = DashboardPeriodService::resolve(
+                (string)($queryParams['period'] ?? DashboardPeriodService::DEFAULT_PERIOD),
+                (string)($obUser['timezone'] ?? getenv('APP_TIMEZONE') ?: 'America/Sao_Paulo')
+            );
             $cacheKey = 'dashboard:charts:' . md5(json_encode([
                 'role' => $role,
                 'tenancy_id' => $tenancyId,
                 'user_id' => $userId,
+                'period' => $periodRange['period'],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            $response = DashboardService::remember($cacheKey, 20, function () use ($obUser, $role, $isReseller, $isAdmin, $isSuperAdmin, $tenancyId, $userId) {
+            $response = DashboardService::remember($cacheKey, 20, function () use ($obUser, $role, $isReseller, $isAdmin, $isSuperAdmin, $tenancyId, $userId, $periodRange) {
                 $data = [
                     'statusMes' => [],
                     'statusSemana' => [],
@@ -1713,6 +1964,12 @@ class Dashboard extends ViewComponents
                 $whatsappCharts = self::buildDashboardWhatsAppCharts($obUser);
 
                 return [
+                'activePeriod'           => $periodRange['period'],
+                'periodRange'            => [
+                    'timezone' => $periodRange['timezone'],
+                    'start' => $periodRange['start_sql'],
+                    'end' => $periodRange['end_sql'],
+                ],
                 'statusMapMes'           => $data['statusMes'],
                 'statusMapDia'           => $data['statusDia'],
                 'statusMapSemana'        => $data['statusSemana'] ?? $data['statusDia'],
@@ -1818,6 +2075,7 @@ class Dashboard extends ViewComponents
             DashboardService::log('/dashboard/charts', 'sse_emit', $startedAt, [
                 'role' => $role,
                 'tenancy_id' => $tenancyId ?? null,
+                'period' => $periodRange['period'],
             ]);
             flush();
 

@@ -139,7 +139,13 @@ class CampaignSearch
             ->fetchObject(self::class) ?: null;
     }
 
-    public static function countCampaignsByTenancyAndUser(?string $tenancy_id, ?int $user_id, ?string $status = null): int
+    public static function countCampaignsByTenancyAndUser(
+        ?string $tenancy_id,
+        ?int $user_id,
+        ?string $status = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): int
     {
         $db = new Database('campaign');
 
@@ -151,8 +157,20 @@ class CampaignSearch
         ];
 
         // O status continua sendo um filtro manual (existingWhere)
-        $initialWhere = $status !== null ? "status = :status" : "";
+        $initialConditions = [];
         $params = $status !== null ? [':status' => $status] : [];
+
+        if ($status !== null) {
+            $initialConditions[] = "status = :status";
+        }
+
+        if ($startDate !== null && $endDate !== null) {
+            $initialConditions[] = "created_at BETWEEN :start_date AND :end_date";
+            $params[':start_date'] = $startDate;
+            $params[':end_date'] = $endDate;
+        }
+
+        $initialWhere = implode(' AND ', $initialConditions);
 
         $where = TenancyHelper::applySecurityFilter($initialWhere, $userContext, 'user_id', 'campaign');
 
@@ -167,12 +185,17 @@ class CampaignSearch
         return (int) $count;
     }
 
-    public static function countCampaignsByStatus(?string $tenancyId, ?int $userId = null): array
+    public static function countCampaignsByStatus(
+        ?string $tenancyId,
+        ?int $userId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): array
     {
         return [
-            'ativa'      => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'y'),
-            'finalizada' => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'f'),
-            'inativa'    => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'n'),
+            'ativa'      => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'y', $startDate, $endDate),
+            'finalizada' => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'f', $startDate, $endDate),
+            'inativa'    => self::countCampaignsByTenancyAndUser($tenancyId, $userId, 'n', $startDate, $endDate),
         ];
     }
 

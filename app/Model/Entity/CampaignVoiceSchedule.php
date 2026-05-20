@@ -66,7 +66,12 @@ class CampaignVoiceSchedule
             ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
-    public static function countPending(?string $tenancyId = null, ?int $userId = null): int
+    public static function countPending(
+        ?string $tenancyId = null,
+        ?int $userId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): int
     {
         $where = 'status = :status';
         $params = [':status' => 'pending'];
@@ -81,6 +86,12 @@ class CampaignVoiceSchedule
             $params[':user_id'] = $userId;
         }
 
+        if ($startDate !== null && $endDate !== null) {
+            $where .= ' AND scheduled_at BETWEEN :start_date AND :end_date';
+            $params[':start_date'] = $startDate;
+            $params[':end_date'] = $endDate;
+        }
+
         $row = (new Database('campaign_voice_schedules'))
             ->select($where, $params, null, '1', 'COUNT(*) AS total')
             ->fetch(\PDO::FETCH_ASSOC);
@@ -88,9 +99,15 @@ class CampaignVoiceSchedule
         return (int)($row['total'] ?? 0);
     }
 
-    public static function addPendingToVoiceCounts(array $voiceCounts, ?string $tenancyId = null, ?int $userId = null): array
+    public static function addPendingToVoiceCounts(
+        array $voiceCounts,
+        ?string $tenancyId = null,
+        ?int $userId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): array
     {
-        $voiceCounts['s'] = (int)($voiceCounts['s'] ?? 0) + self::countPending($tenancyId, $userId);
+        $voiceCounts['s'] = (int)($voiceCounts['s'] ?? 0) + self::countPending($tenancyId, $userId, $startDate, $endDate);
         return $voiceCounts;
     }
 

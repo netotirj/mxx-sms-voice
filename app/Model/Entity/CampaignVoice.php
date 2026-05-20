@@ -140,7 +140,12 @@ class CampaignVoice
     }
 
 
-    public static function countVoiceCampaignsByStatus(?string $tenancyId = null, ?int $userId = null): array
+    public static function countVoiceCampaignsByStatus(
+        ?string $tenancyId = null,
+        ?int $userId = null,
+        ?string $startDate = null,
+        ?string $endDate = null
+    ): array
     {
         $userContext = [
             'tenancy_id'    => $tenancyId,
@@ -149,6 +154,13 @@ class CampaignVoice
         ];
 
         $where = TenancyHelper::applySecurityFilter('', $userContext, 'user_id', 'campaign_voice');
+        $params = [];
+
+        if ($startDate !== null && $endDate !== null) {
+            $where .= ($where !== '' ? ' AND ' : '') . 'created_at BETWEEN :start_date AND :end_date';
+            $params[':start_date'] = $startDate;
+            $params[':end_date'] = $endDate;
+        }
 
         $sql = "
             SELECT
@@ -161,7 +173,7 @@ class CampaignVoice
             WHERE {$where}
         ";
 
-        $row = (new Database('campaign_voice'))->execute($sql)->fetchObject();
+        $row = (new Database('campaign_voice'))->execute($sql, $params)->fetchObject();
 
         return [
             'y' => (int)($row->y ?? 0),

@@ -195,34 +195,80 @@ class WhatsAppDynamicPricing
         $countryCode = self::normalizeCountryCode($countryCode);
         $categories = ['marketing', 'utility', 'authentication', 'voice'];
         $prices = [];
+        $syncLog = [];
+        $updatedCount = 0;
+        $skippedCount = 0;
 
         try {
             foreach ($categories as $category) {
                 $prices[$category] = self::calculatePrice($category, $countryCode, 0);
             }
 
-            foreach ($prices as $category => $pricing) {
-                $priceBrl = round((float)($pricing['final_price_brl'] ?? 0), 4);
-                if ($priceBrl <= 0) {
+            $plans = (new Database('mxx_plans'))
+                ->select(
+                    "status = 'active'",
+                    [],
+                    'id ASC',
+                    null,
+                    [
+                        'id',
+                        'value_whatsapp',
+                        'value_whatsapp_marketing',
+                        'value_whatsapp_utility',
+                        'value_whatsapp_authentication',
+                        'whatsapp_voice_price_per_minute',
+                    ]
+                )
+                ->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+            foreach ($plans as $plan) {
+                $planId = (int)($plan['id'] ?? 0);
+                if ($planId <= 0) {
                     continue;
                 }
 
-                (new Database())->execute(
-                    "INSERT INTO plan_whatsapp_pricing (plan_id, category, price_brl, created_at, updated_at)
-                     SELECT id, :category, :price_brl, NOW(), NOW()
-                     FROM mxx_plans
-                     WHERE status = 'active'
-                     ON DUPLICATE KEY UPDATE
-                        price_brl = VALUES(price_brl),
-                        updated_at = NOW()",
-                    [
-                        ':category' => $category,
-                        ':price_brl' => $priceBrl,
-                    ]
-                );
-            }
+                foreach ($prices as $category => $pricing) {
+                    $calculatedPrice = self::normalizeMoney($pricing['final_price_brl'] ?? 0);
+                    if ($calculatedPrice <= 0) {
+                        continue;
+                    }
 
-            self::syncMxxPlanWhatsappColumns($prices);
+                    $currentPrice = self::resolveCurrentPlanWhatsappPrice($plan, $planId, $category);
+                    $finalPrice = self::maxMoney($currentPrice, $calculatedPrice);
+                    $action = self::moneyGreaterThan($calculatedPrice, $currentPrice)
+                        ? 'updated'
+                        : 'skipped_lower_or_equal';
+
+                    (new Database())->execute(
+                        "INSERT INTO plan_whatsapp_pricing (plan_id, category, price_brl, created_at, updated_at)
+                         VALUES (:plan_id, :category, :price_brl, NOW(), NOW())
+                         ON DUPLICATE KEY UPDATE
+                            price_brl = VALUES(price_brl),
+                            updated_at = IF(VALUES(price_brl) > price_brl, NOW(), updated_at)",
+                        [
+                            ':plan_id' => $planId,
+                            ':category' => $category,
+                            ':price_brl' => $finalPrice,
+                        ]
+                    );
+
+                    self::logPlanSyncDecision($planId, $category, $currentPrice, $calculatedPrice, $action, $finalPrice);
+                    $syncLog[] = [
+                        'plan_id' => $planId,
+                        'category' => $category,
+                        'current' => $currentPrice,
+                        'calculated' => $calculatedPrice,
+                        'action' => $action,
+                        'final' => $finalPrice,
+                    ];
+
+                    if ($action === 'updated') {
+                        $updatedCount++;
+                    } else {
+                        $skippedCount++;
+                    }
+                }
+            }
 
             return [
                 'success' => true,
@@ -233,6 +279,9 @@ class WhatsAppDynamicPricing
                     'authentication' => round((float)($prices['authentication']['final_price_brl'] ?? 0), 4),
                     'voice' => round((float)($prices['voice']['final_price_brl'] ?? 0), 4),
                 ],
+                'updated_count' => $updatedCount,
+                'skipped_count' => $skippedCount,
+                'audit' => $syncLog,
                 'synced_at' => date('Y-m-d H:i:s'),
             ];
         } catch (\Throwable $e) {
@@ -831,63 +880,6 @@ class WhatsAppDynamicPricing
         return is_array($row) ? $row : null;
     }
 
-    private static function syncMxxPlanWhatsappColumns(array $prices): void
-    {
-        $marketing = round((float)($prices['marketing']['final_price_brl'] ?? 0), 4);
-        $utility = round((float)($prices['utility']['final_price_brl'] ?? 0), 4);
-        $authentication = round((float)($prices['authentication']['final_price_brl'] ?? 0), 4);
-        $voice = round((float)($prices['voice']['final_price_brl'] ?? 0), 4);
-
-        if ($marketing <= 0 || $utility <= 0 || $authentication <= 0) {
-            return;
-        }
-
-        $columns = self::mxxPlanColumns();
-        $fields = [
-            'value_whatsapp' => $utility,
-        ];
-
-        if (isset($columns['value_whatsapp_marketing'])) {
-            $fields['value_whatsapp_marketing'] = $marketing;
-        }
-
-        if (isset($columns['value_whatsapp_utility'])) {
-            $fields['value_whatsapp_utility'] = $utility;
-        }
-
-        if (isset($columns['value_whatsapp_authentication'])) {
-            $fields['value_whatsapp_authentication'] = $authentication;
-        }
-
-        if ($voice > 0 && isset($columns['whatsapp_voice_price_per_minute'])) {
-            $fields['whatsapp_voice_price_per_minute'] = $voice;
-            if (isset($columns['whatsapp_voice_enabled'])) {
-                $fields['whatsapp_voice_enabled'] = 1;
-            }
-        }
-
-        if (!$fields) {
-            return;
-        }
-
-        $set = [];
-        $params = [];
-        foreach ($fields as $field => $value) {
-            $placeholder = ':' . $field;
-            $set[] = "{$field} = {$placeholder}";
-            $params[$placeholder] = $value;
-        }
-
-        if (isset($columns['updated_at'])) {
-            $set[] = 'updated_at = NOW()';
-        }
-
-        (new Database())->execute(
-            'UPDATE mxx_plans SET ' . implode(', ', $set) . " WHERE status = 'active'",
-            $params
-        );
-    }
-
     private static function ensureVoicePricingSchema(): void
     {
         static $done = false;
@@ -940,24 +932,100 @@ class WhatsAppDynamicPricing
         }
     }
 
-    private static function mxxPlanColumns(): array
-    {
-        static $columns = null;
-        if ($columns === null) {
-            try {
-                $rows = (new Database())->execute('SHOW COLUMNS FROM mxx_plans')->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-                $columns = array_fill_keys(array_map(static fn (array $row): string => (string)$row['Field'], $rows), true);
-            } catch (\Throwable $e) {
-                $columns = [];
-            }
-        }
-
-        return $columns;
-    }
-
     private static function exchangeSafetyMarginPercent(): float
     {
         return (float)TelephonyConfig::env('WHATSAPP_EXCHANGE_SAFETY_MARGIN_PERCENT', 5.0);
+    }
+
+    private static function resolveCurrentPlanWhatsappPrice(array $plan, int $planId, string $category): float
+    {
+        $persisted = self::persistedPlanWhatsappPrice($planId, $category);
+        $catalog = self::catalogPlanWhatsappPrice($plan, $category);
+
+        return self::maxMoney($persisted, $catalog);
+    }
+
+    private static function persistedPlanWhatsappPrice(int $planId, string $category): float
+    {
+        $row = (new Database('plan_whatsapp_pricing'))
+            ->select(
+                'plan_id = :plan_id AND category = :category',
+                [
+                    ':plan_id' => $planId,
+                    ':category' => strtolower(trim($category)),
+                ],
+                'updated_at DESC, id DESC',
+                1,
+                ['price_brl']
+            )
+            ->fetch(\PDO::FETCH_ASSOC);
+
+        return self::normalizeMoney($row['price_brl'] ?? 0);
+    }
+
+    private static function catalogPlanWhatsappPrice(array $plan, string $category): float
+    {
+        $fallback = self::normalizeMoney($plan['value_whatsapp'] ?? 0);
+        $field = match (strtolower(trim($category))) {
+            'marketing' => 'value_whatsapp_marketing',
+            'utility' => 'value_whatsapp_utility',
+            'authentication' => 'value_whatsapp_authentication',
+            'voice' => 'whatsapp_voice_price_per_minute',
+            default => null,
+        };
+
+        if ($field === null) {
+            return $fallback;
+        }
+
+        $value = self::normalizeMoney($plan[$field] ?? 0);
+        return $value > 0 ? $value : $fallback;
+    }
+
+    private static function normalizeMoney(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        if (is_string($value)) {
+            $value = str_replace([' ', 'R$', '.'], '', $value);
+            $value = str_replace(',', '.', $value);
+        }
+
+        return round(max(0, (float)$value), 4);
+    }
+
+    private static function maxMoney(mixed $left, mixed $right): float
+    {
+        $left = self::normalizeMoney($left);
+        $right = self::normalizeMoney($right);
+
+        return self::moneyGreaterThan($left, $right) ? $left : $right;
+    }
+
+    private static function moneyGreaterThan(mixed $left, mixed $right): bool
+    {
+        return self::moneyToScaleInt($left) > self::moneyToScaleInt($right);
+    }
+
+    private static function moneyToScaleInt(mixed $value): int
+    {
+        return (int)round(self::normalizeMoney($value) * 10000);
+    }
+
+    private static function logPlanSyncDecision(int $planId, string $category, float $current, float $calculated, string $action, float $final): void
+    {
+        error_log(sprintf(
+            '[whatsapp_plan_price_sync] at=%s plan_id=%d category=%s current=%.4f calculated=%.4f action=%s final=%.4f',
+            date('Y-m-d H:i:s'),
+            $planId,
+            strtolower(trim($category)),
+            $current,
+            $calculated,
+            $action,
+            $final
+        ));
     }
 
     private static function exchangeAlertThresholdPercent(): float

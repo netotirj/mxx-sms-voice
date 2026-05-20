@@ -5,10 +5,8 @@ namespace App\Controller\Pages;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
 use App\Service\AuthContext;
-use App\Service\DashboardService;
+use App\Service\PlanDisplayPricingService;
 use App\Service\PlanRuntimeService;
-use App\Service\WhatsAppBilling;
-use App\Service\WhatsAppVoiceBilling;
 use App\Session\User as SessionUser;
 use App\Support\RequestCache;
 use App\Utils\View;
@@ -602,53 +600,42 @@ class ViewComponents
 
     private static function resolveHeaderWhatsappRates(?object $summary, array $loggedUser, array $profile = [], array $userBase = []): array
     {
-        $fallback = [
-            'marketing' => (float)($summary->value_whatsapp_marketing ?? 0),
-            'utility' => (float)($summary->value_whatsapp_utility ?? 0),
-            'authentication' => (float)($summary->value_whatsapp_authentication ?? 0),
-            'voice' => (float)($summary->whatsapp_voice_price_per_minute ?? 0),
-        ];
-
-        $planId = (int)($summary->plan_id ?? 0);
-        if ($planId <= 0) {
-            return $fallback;
-        }
-
         $userId = (int)($loggedUser['id'] ?? 0);
         $tenancyId = trim((string)($loggedUser['tenancy_id'] ?? ''));
-        if ($userId <= 0 || $tenancyId === '') {
-            return $fallback;
+        if ($userId <= 0 || $tenancyId === '' || !$summary) {
+            return [
+                'marketing' => (float)($summary->value_whatsapp_marketing ?? 0),
+                'utility' => (float)($summary->value_whatsapp_utility ?? 0),
+                'authentication' => (float)($summary->value_whatsapp_authentication ?? 0),
+                'voice' => (float)($summary->whatsapp_voice_price_per_minute ?? 0),
+            ];
         }
 
+        $planId = (int)($summary->plan_id ?? 0);
         $cacheKey = 'header:whatsapp_rates:plan.'
-            . $planId
+            . max(0, $planId)
             . '.user.' . $userId
             . '.tenancy.' . $tenancyId;
 
-        return RequestCache::remember($cacheKey, static function () use ($cacheKey, $userId, $tenancyId, $fallback): array {
-            return DashboardService::remember($cacheKey, 300, static function () use ($userId, $tenancyId, $fallback): array {
-                try {
-                    $rates = $fallback;
-                    $displayPrices = WhatsAppBilling::categoryDisplayPricesForUser($userId, $tenancyId);
+        return RequestCache::remember($cacheKey, static function () use ($userId, $tenancyId, $summary): array {
+            try {
+                $resolved = PlanDisplayPricingService::getEffectiveWhatsAppRatesForUser($userId, $tenancyId, $summary);
 
-                    foreach (['marketing', 'utility', 'authentication'] as $category) {
-                        $price = round((float)($displayPrices[$category] ?? 0), 4);
-                        if ($price > 0) {
-                            $rates[$category] = $price;
-                        }
-                    }
-
-                    $voicePrice = WhatsAppVoiceBilling::commercialPricePerMinuteForUser($userId, $tenancyId, null, false);
-                    if ($voicePrice > 0) {
-                        $rates['voice'] = round($voicePrice, 4);
-                    }
-
-                    return $rates;
-                } catch (\Throwable $e) {
-                    error_log('[header_whatsapp_rates] ' . $e->getMessage());
-                    return $fallback;
-                }
-            });
+                return [
+                    'marketing' => round((float)($resolved['marketing']['display'] ?? 0), 4),
+                    'utility' => round((float)($resolved['utility']['display'] ?? 0), 4),
+                    'authentication' => round((float)($resolved['authentication']['display'] ?? 0), 4),
+                    'voice' => round((float)($resolved['voice']['display'] ?? 0), 4),
+                ];
+            } catch (\Throwable $e) {
+                error_log('[header_whatsapp_rates] ' . $e->getMessage());
+                return [
+                    'marketing' => (float)($summary->value_whatsapp_marketing ?? 0),
+                    'utility' => (float)($summary->value_whatsapp_utility ?? 0),
+                    'authentication' => (float)($summary->value_whatsapp_authentication ?? 0),
+                    'voice' => (float)($summary->whatsapp_voice_price_per_minute ?? 0),
+                ];
+            }
         });
     }
 

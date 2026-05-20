@@ -344,12 +344,13 @@ class PlanRuntimeService
         $effective['voice_smart_rate'] = (float)($pricing['voice_smart_rate'] ?? $balanceRow['voice_smart_rate'] ?? $plan['voice_smart_rate']);
         $effective['value_torpedo'] = (float)($pricing['value_torpedo'] ?? $balanceRow['value_torpedo'] ?? $plan['value_torpedo']);
         $effective['value_whatsapp'] = (float)($pricing['value_whatsapp'] ?? $balanceRow['value_whatsapp'] ?? $plan['value_whatsapp']);
-        // Tarifas WhatsApp acompanham o cambio; priorizamos o valor atual do plano sincronizado
-        // antes do snapshot aplicado no saldo para evitar exibir preco congelado.
-        $effective['value_whatsapp_marketing'] = (float)($plan['value_whatsapp_marketing'] ?? $pricing['value_whatsapp_marketing'] ?? 0);
-        $effective['value_whatsapp_utility'] = (float)($plan['value_whatsapp_utility'] ?? $pricing['value_whatsapp_utility'] ?? 0);
-        $effective['value_whatsapp_authentication'] = (float)($plan['value_whatsapp_authentication'] ?? $pricing['value_whatsapp_authentication'] ?? 0);
-        $effective['whatsapp_voice_price_per_minute'] = (float)($plan['whatsapp_voice_price_per_minute'] ?? $pricing['whatsapp_voice_price_per_minute'] ?? 0);
+        // Para exibicao e faturamento baseados no plano contratado, o snapshot aplicado
+        // no saldo e a fonte prioritaria. O catalogo atual do plano so entra como fallback
+        // quando nao existe snapshot/valor aplicado para a tenancy.
+        $effective['value_whatsapp_marketing'] = (float)($pricing['value_whatsapp_marketing'] ?? $balanceRow['value_whatsapp_marketing'] ?? $plan['value_whatsapp_marketing'] ?? 0);
+        $effective['value_whatsapp_utility'] = (float)($pricing['value_whatsapp_utility'] ?? $balanceRow['value_whatsapp_utility'] ?? $plan['value_whatsapp_utility'] ?? 0);
+        $effective['value_whatsapp_authentication'] = (float)($pricing['value_whatsapp_authentication'] ?? $balanceRow['value_whatsapp_authentication'] ?? $plan['value_whatsapp_authentication'] ?? 0);
+        $effective['whatsapp_voice_price_per_minute'] = (float)($pricing['whatsapp_voice_price_per_minute'] ?? $balanceRow['whatsapp_voice_price_per_minute'] ?? $plan['whatsapp_voice_price_per_minute'] ?? 0);
         $effective['whatsapp_voice_enabled'] = !empty($pricing['whatsapp_voice_enabled'] ?? $plan['whatsapp_voice_enabled'])
             || $effective['whatsapp_voice_price_per_minute'] > 0;
         $effective['whatsapp_voice_markup_percent'] = (float)($pricing['whatsapp_voice_markup_percent'] ?? $plan['whatsapp_voice_markup_percent'] ?? 0);

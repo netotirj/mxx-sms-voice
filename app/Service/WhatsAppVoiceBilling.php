@@ -20,6 +20,18 @@ class WhatsAppVoiceBilling
         return round((float)($pricingContext['final_price_per_minute_brl'] ?? 0), 4);
     }
 
+    public static function currentQuotePerMinuteForUser(int $userId, string $tenancyId, ?string $phone = null): float
+    {
+        if ($userId <= 0 || trim($tenancyId) === '') {
+            return 0.0;
+        }
+
+        $dynamicPricing = self::dynamicVoicePricing($userId, (string)($phone ?? ''));
+        $dynamic = round((float)($dynamicPricing['final_price_brl'] ?? 0), 4);
+
+        return max(0, $dynamic);
+    }
+
     public static function handleCallWebhook(array $account, array $call, array $value = []): void
     {
         $callId = trim((string)($call['id'] ?? $call['call_id'] ?? ''));

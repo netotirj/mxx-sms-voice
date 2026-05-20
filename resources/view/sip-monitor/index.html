@@ -71,7 +71,7 @@
                         <div class="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
                             <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: inativo</span>
                             <span id="sipJourneyActiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
-                            <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white xl:whitespace-nowrap">
+                            <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white xl:whitespace-nowrap">
                                 <i class="fa fa-play"></i> Iniciar monitoramento
                             </button>
                         </div>
@@ -107,7 +107,7 @@
                             <div class="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                                 <label class="block">
                                     <span class="mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-500">Pesquisar por numero</span>
-                                    <input id="sipJourneyNumberFilter" type="text" inputmode="numeric" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700" placeholder="Ex.: 5521975643710">
+                                    <input id="sipJourneyNumberFilter" type="text" inputmode="numeric" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700" placeholder="Digite o numero para filtrar">
                                 </label>
                                 <p id="sipJourneyFilterMeta" class="mt-2 text-[11px] text-slate-500">Digite um numero para reduzir a busca. Se deixar vazio, mostramos somente a primeira chamada ativa.</p>
                             </div>
@@ -169,8 +169,6 @@
         monitorEnabled: false,
         numberFilter: '',
         maxRenderedCalls: 1,
-        reconnectTimer: null,
-
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
         },
@@ -457,7 +455,7 @@
             button.innerHTML = this.monitorEnabled
                 ? '<i class="fa fa-pause"></i> Pausar monitoramento'
                 : '<i class="fa fa-play"></i> Iniciar monitoramento';
-            button.className = `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wide text-white ${this.monitorEnabled ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-900 hover:bg-slate-800'}`;
+            button.className = `inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white ${this.monitorEnabled ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-900 hover:bg-slate-800'}`;
         },
 
         renderFeedBadge(status = 'inactive') {
@@ -581,6 +579,7 @@
             badge.textContent = `${matches.length} encontrada(s)`;
 
             if (!visible.length) {
+                this.selectedJourneyKey = null;
                 container.innerHTML = `<div class="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">${matches.length ? 'Nenhuma chamada visivel no recorte atual.' : 'Nenhuma chamada encontrada para o numero pesquisado.'}</div>`;
                 return;
             }
@@ -630,7 +629,7 @@
             }
 
             const call = this.selectedJourneyKey ? this.liveJourneyCalls.get(this.selectedJourneyKey) : null;
-            const history = this.selectedJourneyKey ? (this.liveJourneyHistory[this.selectedJourneyKey] || []) : [];
+            const history = call && this.selectedJourneyKey ? (this.liveJourneyHistory[this.selectedJourneyKey] || []) : [];
 
             if (!this.monitorEnabled) {
                 meta.textContent = 'Ative o monitoramento para acompanhar as chamadas.';
@@ -652,14 +651,12 @@
                 return;
             }
 
-            meta.textContent = call
-                ? `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'}`
-                : `Historico recente da chamada ${this.selectedJourneyKey}`;
+            meta.textContent = `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'}`;
 
-            activeBadge.textContent = call ? 'Chamada ao vivo' : 'Historico recente';
-            activeBadge.className = `inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${call ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`;
+            activeBadge.textContent = 'Chamada ao vivo';
+            activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
 
-            if (!history.length && call) {
+            if (!history.length) {
                 this.recordStage(call, this.stageFromCall(call), true);
             }
 
@@ -677,10 +674,7 @@
                 `).join('')
                 : '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transicoes ainda</p></div>';
 
-            raw.textContent = JSON.stringify(this.sanitizeValue(call || {
-                key: this.selectedJourneyKey,
-                history: timelineHistory,
-            }), null, 2);
+            raw.textContent = JSON.stringify(this.sanitizeValue(call), null, 2);
         },
 
         handleUpdate(payload) {
@@ -718,8 +712,10 @@
 
             this.liveJourneyCalls = currentCalls;
             const { visible } = this.filteredCalls();
-            if (!this.selectedJourneyKey || (!currentCalls.has(this.selectedJourneyKey) && !this.liveJourneyHistory[this.selectedJourneyKey])) {
-                this.selectedJourneyKey = visible.length ? this.journeyKey(visible[0]) : this.selectedJourneyKey;
+            if (!visible.length) {
+                this.selectedJourneyKey = null;
+            } else if (!this.selectedJourneyKey || !currentCalls.has(this.selectedJourneyKey)) {
+                this.selectedJourneyKey = this.journeyKey(visible[0]);
             }
 
             this.persistHistory();
@@ -728,10 +724,6 @@
         },
 
         disconnectFeed() {
-            if (this.reconnectTimer) {
-                window.clearTimeout(this.reconnectTimer);
-                this.reconnectTimer = null;
-            }
             if (this.liveJourneySource) {
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
@@ -739,30 +731,10 @@
             this.renderFeedBadge('inactive');
         },
 
-        scheduleReconnect() {
-            if (!this.monitorEnabled || document.hidden) {
-                return;
-            }
-
-            if (this.reconnectTimer) {
-                window.clearTimeout(this.reconnectTimer);
-            }
-
-            this.reconnectTimer = window.setTimeout(() => {
-                this.reconnectTimer = null;
-                this.connectFeed(true);
-            }, 2000);
-        },
-
         connectFeed(forceReconnect = false) {
             if (forceReconnect && this.liveJourneySource) {
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
-            }
-
-            if (this.reconnectTimer) {
-                window.clearTimeout(this.reconnectTimer);
-                this.reconnectTimer = null;
             }
 
             if (!this.monitorEnabled || document.hidden) {
@@ -786,15 +758,9 @@
 
                 source.onerror = () => {
                     this.renderFeedBadge('reconnecting');
-                    if (this.liveJourneySource) {
-                        this.liveJourneySource.close();
-                        this.liveJourneySource = null;
-                    }
-                    this.scheduleReconnect();
                 };
             } catch (error) {
-                this.renderFeedBadge('reconnecting');
-                this.scheduleReconnect();
+                this.renderFeedBadge('inactive');
             }
         },
 
@@ -824,7 +790,7 @@
                 this.numberFilter = String(event.target.value || '').replace(/[^\d+]/g, '');
                 event.target.value = this.numberFilter;
                 const { visible } = this.filteredCalls();
-                this.selectedJourneyKey = visible.length ? this.journeyKey(visible[0]) : this.selectedJourneyKey;
+                this.selectedJourneyKey = visible.length ? this.journeyKey(visible[0]) : null;
                 this.persistHistory();
                 this.renderCalls();
                 this.renderDetails();

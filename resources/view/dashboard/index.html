@@ -533,12 +533,7 @@
 
         const countAnimations = new Map();
         let selectedService = 'voip';
-        const urlPeriod = new URLSearchParams(window.location.search).get('period');
-        let selectedPeriod = ['day', 'week', 'month'].includes(urlPeriod || '')
-            ? urlPeriod
-            : (['day', 'week', 'month'].includes(localStorage.getItem('dashboardPeriod') || '')
-                ? localStorage.getItem('dashboardPeriod')
-                : 'day');
+        let selectedPeriod = 'day';
         let cardsPayload = null;
         let chartsPayload = null;
         let mainChart = null;
@@ -971,19 +966,16 @@
             return Number(chartsPayload?.[key] || 0);
         }
 
-        function updatePeriodState(period, replaceHistory = true) {
-            selectedPeriod = ['day', 'week', 'month'].includes(period) ? period : 'day';
-            localStorage.setItem('dashboardPeriod', selectedPeriod);
-
-            const url = new URL(window.location.href);
-            url.searchParams.set('period', selectedPeriod);
-            if (replaceHistory) {
-                window.history.replaceState({}, '', url.toString());
-            }
+        function updatePeriodState(period) {
+            const normalizedPeriod = ['day', 'week', 'month'].includes(period) ? period : 'day';
+            const hasChanged = selectedPeriod !== normalizedPeriod;
+            selectedPeriod = normalizedPeriod;
 
             document.querySelectorAll('.period-filter-btn').forEach((item) => {
                 item.classList.toggle('active', item.dataset.period === selectedPeriod);
             });
+
+            return hasChanged;
         }
 
         function getTrunkCountsForPeriod() {
@@ -1728,14 +1720,15 @@
 
         document.querySelectorAll('.period-filter-btn').forEach((button) => {
             button.addEventListener('click', () => {
-                updatePeriodState(button.dataset.period || 'day');
+                const hasChanged = updatePeriodState(button.dataset.period || 'day');
+                if (!hasChanged) {
+                    return;
+                }
+
                 mainChartSignature = '';
                 statusChartSignature = '';
                 secondaryChartSignature = '';
                 sipCodeChartSignature = '';
-                chartsPayloadSignature = '';
-                disconnectDashboardStreams();
-                connectDashboardStreams();
                 renderSelectedService();
             });
         });
@@ -1749,9 +1742,7 @@
         });
 
         function dashboardStreamUrl(path) {
-            const url = new URL(`${baseUrl}${path}`, window.location.origin);
-            url.searchParams.set('period', selectedPeriod);
-            return url.toString();
+            return new URL(`${baseUrl}${path}`, window.location.origin).toString();
         }
 
         let dashboardReconnectTimer = null;
@@ -1971,7 +1962,7 @@
         }
 
         bootstrapStaticCounts();
-        updatePeriodState(selectedPeriod, true);
+        updatePeriodState(selectedPeriod);
         connectDashboardStreams();
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {

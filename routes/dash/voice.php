@@ -73,6 +73,17 @@ $obRouter->get('/campaign/voice/sip-trunks/view', [
     }
 ]);
 
+$obRouter->get('/campaign/voice/sip-trunks/{id}/edit', [
+    'name' => '/campaign/voice/sip-trunks/{id}/edit',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::getEditSipTrunks($request, $id));
+    }
+]);
+
 $obRouter->post('/campaign/voice/sip-trunks/{id}/edit', [
     'name' => '/campaign/voice/sip-trunks/{id}/edit', // nome da rota
     'middlewares' => [

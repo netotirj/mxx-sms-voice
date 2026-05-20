@@ -7,6 +7,7 @@ use App\Config\TelephonyConfig;
 class SipMonitorCommandRunner
 {
     private static ?array $capabilitiesCache = null;
+    private static ?array $diagnosticsSnapshotCache = null;
     private static array $supportsBinaryCache = [];
 
     public static function profile(): array
@@ -50,30 +51,88 @@ class SipMonitorCommandRunner
 
     public static function capabilities(): array
     {
-        if (self::$capabilitiesCache !== null) {
-            return self::$capabilitiesCache;
+        return (array)(self::diagnosticsSnapshot()['capabilities'] ?? []);
+    }
+
+    public static function diagnosticsSnapshot(bool $forceRefresh = false): array
+    {
+        if (!$forceRefresh && self::$diagnosticsSnapshotCache !== null) {
+            return self::$diagnosticsSnapshotCache;
         }
 
+        if (!$forceRefresh) {
+            $cached = self::readDiagnosticsSnapshotCache();
+            if ($cached !== null) {
+                self::$diagnosticsSnapshotCache = $cached;
+                self::$capabilitiesCache = (array)($cached['capabilities'] ?? []);
+                return $cached;
+            }
+        }
+
+        try {
+            $snapshot = self::buildDiagnosticsSnapshot();
+        } catch (\Throwable $e) {
+            $stale = self::readDiagnosticsSnapshotCache(true);
+            if ($stale !== null && !$forceRefresh) {
+                $stale['stale'] = true;
+                $stale['error'] = $e->getMessage();
+                self::$diagnosticsSnapshotCache = $stale;
+                self::$capabilitiesCache = (array)($stale['capabilities'] ?? []);
+                return $stale;
+            }
+
+            throw $e;
+        }
+
+        self::$diagnosticsSnapshotCache = $snapshot;
+        self::$capabilitiesCache = (array)($snapshot['capabilities'] ?? []);
+        self::writeDiagnosticsSnapshotCache($snapshot);
+
+        return $snapshot;
+    }
+
+    public static function cachedDiagnosticsSnapshot(): ?array
+    {
+        $cached = self::readDiagnosticsSnapshotCache(true);
+        if ($cached !== null) {
+            self::$diagnosticsSnapshotCache = $cached;
+            self::$capabilitiesCache = (array)($cached['capabilities'] ?? []);
+        }
+
+        return $cached;
+    }
+
+    public static function emptyDiagnosticsSnapshot(): array
+    {
         $profile = self::profile();
 
-        self::$capabilitiesCache = [
-            'profile' => [
-                'mode' => $profile['mode'],
-                'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
+        return [
+            'checked_at' => null,
+            'stale' => false,
+            'connection' => [
+                'ok' => false,
+                'status' => 0,
+                'friendly_message' => 'Diagnóstico SSH ainda não executado nesta sessão.',
+                'output' => '',
+                'stdout' => '',
+                'stderr' => '',
+                'duration_ms' => 0,
             ],
-            'ssh_probe' => $profile['mode'] === 'ssh'
-                ? MonitorSshService::testConnection($profile)
-                : ['ok' => true, 'status' => 0, 'output' => 'local-mode'],
-            'which_sngrep' => self::run('command -v sngrep || which sngrep || true', false),
-            'sngrep_version' => self::run('sngrep -V 2>&1 || true', false),
-            'which_asterisk' => self::run('command -v asterisk || which asterisk || true', false),
-            'asterisk_version' => self::run('asterisk -rx "core show version" 2>&1 || true', true),
-            'pjsip_endpoints' => self::run('asterisk -rx "pjsip show endpoints" 2>&1 || true', true),
-            'which_script' => self::run('command -v script || which script || true', false),
-            'which_timeout' => self::run('command -v timeout || which timeout || true', false),
+            'capabilities' => [
+                'profile' => [
+                    'mode' => $profile['mode'],
+                    'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
+                ],
+                'ssh_probe' => ['ok' => false, 'status' => 0, 'output' => 'pending'],
+                'which_sngrep' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'sngrep_version' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'which_asterisk' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'asterisk_version' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'pjsip_endpoints' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'which_script' => ['ok' => false, 'status' => 0, 'output' => ''],
+                'which_timeout' => ['ok' => false, 'status' => 0, 'output' => ''],
+            ],
         ];
-
-        return self::$capabilitiesCache;
     }
 
     public static function supportsBinary(string $binary, bool $useSudo = false): bool
@@ -216,9 +275,10 @@ class SipMonitorCommandRunner
         return (bool)($result['ok'] ?? false);
     }
 
-    public static function testConnection(): array
+    public static function testConnection(bool $forceRefresh = false): array
     {
-        return MonitorSshService::testConnection(self::profile(), 5);
+        $snapshot = self::diagnosticsSnapshot($forceRefresh);
+        return (array)($snapshot['connection'] ?? []);
     }
 
     public static function remotePathForSession(int $sessionId, string $filename): string
@@ -235,5 +295,104 @@ class SipMonitorCommandRunner
     {
         $value = (int)TelephonyConfig::env('SIP_MONITOR_COMMAND_TIMEOUT_SECONDS', 15);
         return max(5, min(120, $value));
+    }
+
+    private static function diagnosticCommandTimeoutSeconds(): int
+    {
+        $value = (int)TelephonyConfig::env('SIP_MONITOR_DIAGNOSTIC_TIMEOUT_SECONDS', 6);
+        return max(2, min(10, $value));
+    }
+
+    private static function diagnosticsCacheTtlSeconds(): int
+    {
+        $value = (int)TelephonyConfig::env('SIP_MONITOR_STATUS_CACHE_SECONDS', 20);
+        return max(5, min(120, $value));
+    }
+
+    private static function diagnosticsCachePath(): string
+    {
+        $profile = self::profile();
+        $baseDir = rtrim(str_replace('\\', '/', (string)$profile['local_dir']), '/');
+        return $baseDir . '/diagnostics-cache.json';
+    }
+
+    private static function buildDiagnosticsSnapshot(): array
+    {
+        $profile = self::profile();
+        $connection = $profile['mode'] === 'ssh'
+            ? MonitorSshService::testConnection($profile, 5)
+            : ['ok' => true, 'status' => 0, 'output' => 'local-mode'];
+
+        $capabilities = [
+            'profile' => [
+                'mode' => $profile['mode'],
+                'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
+            ],
+            'ssh_probe' => $connection,
+            'which_sngrep' => self::runDiagnostic('command -v sngrep || which sngrep || true', false),
+            'sngrep_version' => self::runDiagnostic('sngrep -V 2>&1 || true', false),
+            'which_asterisk' => self::runDiagnostic('command -v asterisk || which asterisk || true', false),
+            'asterisk_version' => self::runDiagnostic('asterisk -rx "core show version" 2>&1 || true', true),
+            'pjsip_endpoints' => self::runDiagnostic('asterisk -rx "pjsip show endpoints" 2>&1 || true', true),
+            'which_script' => self::runDiagnostic('command -v script || which script || true', false),
+            'which_timeout' => self::runDiagnostic('command -v timeout || which timeout || true', false),
+        ];
+
+        return [
+            'checked_at' => date('Y-m-d H:i:s'),
+            'connection' => $connection,
+            'capabilities' => $capabilities,
+            'stale' => false,
+        ];
+    }
+
+    private static function runDiagnostic(string $command, bool $useSudo = true): array
+    {
+        $profile = self::profile();
+        return MonitorSshService::run($profile, $command, [
+            'use_sudo' => $useSudo,
+            'connect_timeout' => 5,
+            'command_timeout' => self::diagnosticCommandTimeoutSeconds(),
+            'command_label' => 'sip-monitor-diagnostic',
+        ]);
+    }
+
+    private static function readDiagnosticsSnapshotCache(bool $allowStale = false): ?array
+    {
+        $path = self::diagnosticsCachePath();
+        if (!is_file($path)) {
+            return null;
+        }
+
+        $raw = @file_get_contents($path);
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $checkedAt = strtotime((string)($decoded['checked_at'] ?? ''));
+        $isFresh = $checkedAt !== false && (time() - $checkedAt) <= self::diagnosticsCacheTtlSeconds();
+        if (!$allowStale && !$isFresh) {
+            return null;
+        }
+
+        $decoded['stale'] = !$isFresh;
+        return $decoded;
+    }
+
+    private static function writeDiagnosticsSnapshotCache(array $snapshot): void
+    {
+        $path = self::diagnosticsCachePath();
+        $directory = dirname($path);
+
+        if (!is_dir($directory)) {
+            @mkdir($directory, 0777, true);
+        }
+
+        @file_put_contents($path, json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 }

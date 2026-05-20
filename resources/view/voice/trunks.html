@@ -102,7 +102,7 @@
                             </tr>
                             </thead>
 
-                            <tbody class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                            <tbody id="trunksTableBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -190,6 +190,7 @@
                     <div>
                         <label class="block text-sm font-medium mb-1">Password</label>
                         <input name="password"
+                               placeholder="Preencha apenas para alterar a senha"
                                class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
                     </div>
                 </div>
@@ -278,13 +279,10 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
-
-        /* =====================================================
-         * CONFIG
-         * ===================================================== */
         const API = {
-            list:   `${baseUrl}/campaign/voice/sip-trunks/view`,
+            list: `${baseUrl}/campaign/voice/sip-trunks/view`,
             create: `${baseUrl}/campaign/voice/sip-trunks/new`,
+            edit: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
             update: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
             delete: `${baseUrl}/campaign/voice/sip-trunks/delete`,
             status: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/status`
@@ -296,74 +294,53 @@
             page: 1,
             perPage: 10,
             editMode: false,
-            editingId: null
+            editingId: null,
+            isModalOpen: false,
+            listRequestInFlight: false,
+            saveRequestInFlight: false,
+            editRequestInFlight: false
         };
 
-        /* =====================================================
-         * ELEMENTOS
-         * ===================================================== */
-        const tbody        = document.querySelector("tbody");
-        const searchInput  = document.getElementById("searchTrunkInput");
-        const selectAll    = document.getElementById("selectAll");
-        const deleteBtn    = document.getElementById("deleteTrunkSelected");
+        const tbody = document.getElementById("trunksTableBody");
+        const searchInput = document.getElementById("searchTrunkInput");
+        const selectAll = document.getElementById("selectAll");
+        const deleteBtn = document.getElementById("deleteTrunkSelected");
+        const prevBtn = document.getElementById("prevPage");
+        const nextBtn = document.getElementById("nextPage");
+        const pageInfo = document.getElementById("pageInfo");
+        const modal = document.getElementById("trunkModal");
+        const modalTitle = document.getElementById("trunkModalTitle");
+        const form = document.getElementById("trunkForm");
+        const createBtn = document.getElementById("createTrunk");
+        const cancelBtn = document.getElementById("cancelTrunk");
+        const authTypeSel = document.getElementById("auth_type");
+        const authFields = document.getElementById("authFields");
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const auth = { role: "" };
+        let trunksRefreshTimer = null;
 
-        const prevBtn      = document.getElementById("prevPage");
-        const nextBtn      = document.getElementById("nextPage");
-        const pageInfo     = document.getElementById("pageInfo");
+        const FORM_FIELDS = [
+            "trunk_id",
+            "name",
+            "auth_type",
+            "host",
+            "username",
+            "password",
+            "port",
+            "transport",
+            "direction",
+            "cli_type",
+            "techprefix",
+            "dial_prefix",
+            "status"
+        ];
 
-        const modal        = document.getElementById("trunkModal");
-        const modalTitle   = document.getElementById("trunkModalTitle");
-        const form         = document.getElementById("trunkForm");
-
-        const createBtn    = document.getElementById("createTrunk");
-        const cancelBtn    = document.getElementById("cancelTrunk");
-
-        const authTypeSel  = document.getElementById("auth_type");
-        const authFields   = document.getElementById("authFields");
-
-        /* =====================================================
-         * PERMISSÕES
-         * ===================================================== */
         const isSuperAdmin = () => auth.role === "super_admin";
         const isSystemLocked = (trunk) => Number(trunk?.is_system ?? 0) === 1 && !isSuperAdmin();
-
-
-
-        /* =====================================================
-         * UTIL
-         * ===================================================== */
         const formatDate = d => new Date(d).toLocaleDateString("pt-BR");
-
         const selectedIds = () =>
             [...tbody.querySelectorAll(".row-checkbox:checked:not(:disabled)")]
                 .map(cb => cb.value);
-
-        /* =====================================================
-         * MODAL
-         * ===================================================== */
-        const openModal = () => {
-            document.body.classList.add("overflow-hidden");
-            modal.classList.remove("hidden");
-        };
-
-        const closeModal = () => {
-            document.body.classList.remove("overflow-hidden");
-            modal.classList.add("hidden");
-            state.editMode = false;
-            state.editingId = null;
-            form.reset();
-        };
-
-        modal.addEventListener("click", e => {
-            if (e.target === modal) closeModal();
-        });
-
-        /* =====================================================
-         * API
-         * ===================================================== */
-
-        const auth = { role: "" };
-        let trunksRefreshTimer = null;
 
         function buildNoCacheUrl(url) {
             const freshUrl = new URL(url, window.location.origin);
@@ -371,71 +348,187 @@
             return freshUrl.toString();
         }
 
+        async function parseJsonResponse(response, fallbackMessage) {
+            const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+            const redirected = response.redirected || response.url.includes("/login");
+
+            if (redirected) {
+                const error = new Error("Sessão expirada. Faça login novamente.");
+                error.code = response.status || 302;
+                throw error;
+            }
+
+            if (!contentType.includes("application/json")) {
+                const text = await response.text();
+                const message = /<html|<body|<form/i.test(text)
+                    ? "A rota retornou HTML em vez de JSON. Verifique sessão, middleware ou redirecionamento."
+                    : (text || fallbackMessage);
+                const error = new Error(message);
+                error.code = response.status || 500;
+                error.responseText = text;
+                throw error;
+            }
+
+            const payload = await response.json();
+            if (!response.ok || payload?.success === false) {
+                const error = new Error(payload?.message || fallbackMessage);
+                error.code = payload?.status || response.status || 500;
+                error.payload = payload;
+                throw error;
+            }
+
+            return payload;
+        }
+
+        function setSubmitLoading(loading) {
+            state.saveRequestInFlight = loading;
+            submitBtn.disabled = loading;
+            submitBtn.textContent = loading ? "Salvando..." : "Salvar";
+        }
+
+        function openModal() {
+            state.isModalOpen = true;
+            document.body.classList.add("overflow-hidden");
+            modal.classList.remove("hidden");
+        }
+
+        function closeModal() {
+            state.isModalOpen = false;
+            document.body.classList.remove("overflow-hidden");
+            modal.classList.add("hidden");
+            state.editMode = false;
+            state.editingId = null;
+            state.editRequestInFlight = false;
+            setSubmitLoading(false);
+            form.reset();
+            authFields.classList.remove("hidden");
+        }
+
+        function fillFormFromTrunk(trunk) {
+            FORM_FIELDS.forEach((field) => {
+                if (!form.elements[field]) {
+                    return;
+                }
+
+                let value = trunk?.[field] ?? "";
+                if (field === "trunk_id" && !value) {
+                    value = trunk?.trunk_id ?? trunk?.id ?? "";
+                }
+                form.elements[field].value = value;
+            });
+
+            authFields.classList.toggle("hidden", String(trunk?.auth_type || "register") === "ip");
+        }
+
         async function fetchTrunks() {
-            const res = await fetch(buildNoCacheUrl(API.list), {
+            if (state.listRequestInFlight) {
+                return;
+            }
+
+            state.listRequestInFlight = true;
+            try {
+                const res = await fetch(buildNoCacheUrl(API.list), {
+                    cache: "no-store",
+                    headers: {
+                        "Accept": "application/json",
+                        "Cache-Control": "no-cache",
+                        "Pragma": "no-cache",
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    credentials: "same-origin"
+                });
+
+                const json = await parseJsonResponse(res, "Falha ao consultar SIP Trunks.");
+                auth.role = String(json?.meta?.role || "").toLowerCase();
+                state.trunks = Array.isArray(json.data) ? json.data : [];
+                applyFilter();
+            } finally {
+                state.listRequestInFlight = false;
+            }
+        }
+
+        async function fetchTrunkForEdit(id) {
+            const res = await fetch(buildNoCacheUrl(API.edit(id)), {
                 cache: "no-store",
                 headers: {
+                    "Accept": "application/json",
                     "Cache-Control": "no-cache",
-                    "Pragma": "no-cache"
-                }
+                    "Pragma": "no-cache",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                credentials: "same-origin"
             });
-            const json = await res.json();
-            auth.role = String(json?.meta?.role || "").toLowerCase();
-            state.trunks = json.data || [];
-            applyFilter();
-            renderTable();
+
+            const payload = await parseJsonResponse(res, "Falha ao carregar os dados do trunk para edição.");
+            return payload?.data || null;
         }
 
         async function saveTrunk(data) {
             const isEdit = state.editMode && state.editingId;
-
-            const url = isEdit
-                ? API.update(state.editingId)
-                : API.create;
+            const url = isEdit ? API.update(state.editingId) : API.create;
 
             const res = await fetch(url, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                credentials: "same-origin",
                 body: JSON.stringify(data)
             });
 
-            const payload = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(payload?.message || "Erro ao salvar");
-
+            await parseJsonResponse(res, "Erro ao salvar trunk.");
             await fetchTrunks();
         }
 
         async function deleteTrunks(ids) {
             const res = await fetch(API.delete, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                credentials: "same-origin",
                 body: JSON.stringify({ ids })
             });
 
-            if (!res.ok) throw new Error();
+            await parseJsonResponse(res, "Erro ao excluir trunk.");
             await fetchTrunks();
         }
 
         async function toggleStatus(id, status) {
             const res = await fetch(API.status(id), {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                credentials: "same-origin",
                 body: JSON.stringify({ status })
             });
 
-            if (!res.ok) throw new Error();
+            await parseJsonResponse(res, "Erro ao atualizar status.");
         }
 
         function startTrunksAutoRefresh() {
-            if (trunksRefreshTimer) {
-                clearInterval(trunksRefreshTimer);
-            }
-
-            trunksRefreshTimer = setInterval(() => {
-                if (!document.hidden) {
-                    fetchTrunks().catch(() => {});
+            stopTrunksAutoRefresh();
+            trunksRefreshTimer = window.setInterval(() => {
+                if (!document.hidden && !state.isModalOpen && !state.listRequestInFlight) {
+                    fetchTrunks().catch((error) => {
+                        console.error("[trunks] auto-refresh error", error);
+                    });
                 }
             }, 10000);
+        }
+
+        function stopTrunksAutoRefresh() {
+            if (trunksRefreshTimer) {
+                clearInterval(trunksRefreshTimer);
+                trunksRefreshTimer = null;
+            }
         }
 
         /* =====================================================
@@ -673,27 +766,29 @@
             renderTable();
         }
 
-        /* =====================================================
-         * EVENTS
-         * ===================================================== */
         searchInput.addEventListener("input", applyFilter);
 
-        selectAll.addEventListener("change", e => {
-            // ✅ marca só os não disabled
+        selectAll.addEventListener("change", (e) => {
             tbody
                 .querySelectorAll(".row-checkbox:not(:disabled)")
-                .forEach(cb => cb.checked = e.target.checked);
+                .forEach(cb => {
+                    cb.checked = e.target.checked;
+                });
 
             updateDeleteButton();
         });
 
-        tbody.addEventListener("change", async (e) => {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
 
+        tbody.addEventListener("change", async (e) => {
             if (e.target.classList.contains("status-toggle")) {
                 const id = e.target.dataset.id;
                 const trunk = state.trunks.find(t => String(t.id) === String(id));
 
-                // 🔒 trava system para não-super-admin
                 if (trunk && isSystemLocked(trunk)) {
                     e.preventDefault();
                     e.target.checked = (trunk.status === "active");
@@ -702,16 +797,15 @@
                 }
 
                 const status = e.target.checked ? "active" : "inactive";
-
                 e.target.disabled = true;
 
                 try {
                     await toggleStatus(id, status);
                     await fetchTrunks();
                     notyf.success("Status atualizado");
-                } catch {
+                } catch (error) {
                     e.target.checked = !e.target.checked;
-                    notyf.error("Erro ao atualizar status");
+                    notyf.error(error.message || "Erro ao atualizar status");
                 } finally {
                     e.target.disabled = false;
                 }
@@ -724,40 +818,71 @@
             }
         });
 
-        tbody.addEventListener("click", (e) => {
+        tbody.addEventListener("click", async (e) => {
             const link = e.target.closest(".edit-link");
-            if (!link) return;
+            if (!link) {
+                return;
+            }
 
             e.preventDefault();
 
+            if (state.editRequestInFlight) {
+                return;
+            }
+
             const id = link.dataset.id;
             const trunk = state.trunks.find(t => String(t.id) === String(id));
-            if (!trunk) return;
+            if (!trunk) {
+                notyf.error("Trunk não encontrado na listagem atual.");
+                return;
+            }
 
-            // 🔒 trava system para não-super-admin
             if (isSystemLocked(trunk)) {
                 notyf.error("Apenas o Super Admin pode editar trunks de sistema");
                 return;
             }
 
-            state.editMode  = true;
+            state.editRequestInFlight = true;
+            state.editMode = true;
             state.editingId = id;
             modalTitle.textContent = "✏️ Editar SIP Trunk";
-
-            Object.entries(trunk).forEach(([k, v]) => {
-                if (form.elements[k]) form.elements[k].value = v ?? "";
-            });
-
-            authFields.classList.toggle("hidden", trunk.auth_type === "ip");
+            form.reset();
             openModal();
+            setSubmitLoading(true);
+
+            try {
+                const freshTrunk = await fetchTrunkForEdit(id);
+                if (!freshTrunk || typeof freshTrunk !== "object") {
+                    throw new Error("Resposta de edição inválida para o trunk.");
+                }
+
+                fillFormFromTrunk(freshTrunk);
+                notyf.success("Dados do trunk carregados.");
+            } catch (error) {
+                closeModal();
+                console.error("[trunks] edit modal load failed", error);
+                notyf.error(error.message || "Falha ao abrir o modal de edição.");
+            } finally {
+                state.editRequestInFlight = false;
+                setSubmitLoading(false);
+            }
         });
 
-        prevBtn.addEventListener("click", () => { state.page--; renderTable(); });
-        nextBtn.addEventListener("click", () => { state.page++; renderTable(); });
+        prevBtn.addEventListener("click", () => {
+            state.page--;
+            renderTable();
+        });
+
+        nextBtn.addEventListener("click", () => {
+            state.page++;
+            renderTable();
+        });
 
         deleteBtn.addEventListener("click", async () => {
             const ids = selectedIds();
-            if (!ids.length) return;
+            if (!ids.length) {
+                return;
+            }
 
             const confirm = await Swal.fire({
                 title: "Excluir trunks?",
@@ -768,15 +893,25 @@
                 confirmButtonText: "Excluir"
             });
 
-            if (confirm.isConfirmed) {
+            if (!confirm.isConfirmed) {
+                return;
+            }
+
+            try {
                 await deleteTrunks(ids);
                 notyf.success("Trunks removidos");
+            } catch (error) {
+                notyf.error(error.message || "Erro ao excluir trunks.");
             }
         });
 
         createBtn.addEventListener("click", () => {
+            state.editMode = false;
+            state.editingId = null;
             modalTitle.textContent = "➕ Adicionar SIP Trunk";
+            form.reset();
             authFields.classList.remove("hidden");
+            setSubmitLoading(false);
             openModal();
         });
 
@@ -786,11 +921,14 @@
             authFields.classList.toggle("hidden", authTypeSel.value === "ip");
         });
 
-        form.addEventListener("submit", async e => {
+        form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
-            const data = Object.fromEntries(new FormData(form));
+            if (state.saveRequestInFlight) {
+                return;
+            }
 
+            const data = Object.fromEntries(new FormData(form));
             if (data.auth_type === "ip") {
                 delete data.username;
                 delete data.password;
@@ -798,25 +936,33 @@
 
             data.port = Number(data.port || 5060);
 
+            setSubmitLoading(true);
             try {
                 await saveTrunk(data);
                 notyf.success(state.editMode ? "Trunk atualizado" : "Trunk criado");
                 closeModal();
-            } catch (err) {
-                notyf.error(err.message);
+            } catch (error) {
+                console.error("[trunks] save failed", error);
+                notyf.error(error.message || "Falha ao salvar trunk.");
+            } finally {
+                setSubmitLoading(false);
             }
         });
 
-        /* =====================================================
-         * INIT
-         * ===================================================== */
         document.addEventListener("visibilitychange", () => {
-            if (!document.hidden) {
-                fetchTrunks().catch(() => {});
+            if (!document.hidden && !state.isModalOpen) {
+                fetchTrunks().catch((error) => {
+                    console.error("[trunks] visibility refresh failed", error);
+                });
             }
         });
 
-        fetchTrunks();
+        window.addEventListener("beforeunload", stopTrunksAutoRefresh, { once: true });
+
+        fetchTrunks().catch((error) => {
+            console.error("[trunks] initial load failed", error);
+            notyf.error(error.message || "Falha ao carregar trunks.");
+        });
         startTrunksAutoRefresh();
     });
 </script>

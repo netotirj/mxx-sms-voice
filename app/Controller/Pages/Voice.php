@@ -4741,6 +4741,46 @@ class Voice extends ViewComponents
         return $count;
     }
 
+    public static function getEditSipTrunks($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+
+        if (!$obUser) {
+            return new Response(401, [
+                'success' => false,
+                'message' => 'Usuário não autenticado.'
+            ], 'application/json');
+        }
+
+        $query = [
+            'user_id'   => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+        ];
+
+        $asterisk = new AsteriskExtensionsSip();
+        $response = $asterisk->getTrunkById($query, (int)$id);
+        $current = $response['data']['data'] ?? $response['data'] ?? null;
+
+        if (!$current || !is_array($current)) {
+            return new Response(404, [
+                'success' => false,
+                'message' => "SIP Trunk #{$id} não encontrado.",
+                'data' => [],
+            ], 'application/json');
+        }
+
+        $authorization = self::assertCanEditTrunk($obUser, $current);
+        if ($authorization instanceof Response) {
+            return $authorization;
+        }
+
+        return new Response(200, [
+            'success' => true,
+            'message' => 'Dados do SIP Trunk carregados com sucesso.',
+            'data' => $current,
+        ], 'application/json');
+    }
+
     public static function setEditSipTrunks($request, $id): Response
     {
         $obUser = SessionUser::getLogged();
@@ -4780,13 +4820,6 @@ class Voice extends ViewComponents
                     'message' => 'O campo "username" é obrigatório quando auth_type = register.'
                 ], 'application/json');
             }
-
-            if (!array_key_exists('password', $input) || $input['password'] === '') {
-                return new Response(400, [
-                    'success' => false,
-                    'message' => 'O campo "password" é obrigatório quando auth_type = register.'
-                ], 'application/json');
-            }
         }
 
         // Se for ip, não força username/password
@@ -4813,36 +4846,9 @@ class Voice extends ViewComponents
             ], 'application/json');
         }
 
-        $role = strtolower((string)($obUser['function'] ?? ''));
-
-        // 🔒 1) trava trunk de sistema
-        if ((int)($current['is_system'] ?? 0) === 1 && $role !== 'super_admin') {
-            return new Response(403, [
-                'success' => false,
-                'message' => 'Você não tem permissão para editar este trunk.',
-            ], 'application/json');
-        }
-
-        // 🔒 2) autorização por perfil
-        if ($role === 'admin') {
-            if (($current['tenant_id'] ?? null) !== $obUser['tenancy_id']) {
-                return new Response(403, [
-                    'success' => false,
-                    'message' => 'Você não tem permissão para editar este trunk.',
-                ], 'application/json');
-            }
-        } elseif ($role === 'reseller') {
-            if ((int)($current['user_id'] ?? 0) !== (int)$obUser['id']) {
-                return new Response(403, [
-                    'success' => false,
-                    'message' => 'Você não tem permissão para editar este trunk.',
-                ], 'application/json');
-            }
-        } elseif ($role !== 'super_admin') {
-            return new Response(403, [
-                'success' => false,
-                'message' => 'Você não tem permissão para editar trunks.',
-            ], 'application/json');
+        $authorization = self::assertCanEditTrunk($obUser, $current);
+        if ($authorization instanceof Response) {
+            return $authorization;
         }
 
         $serviceSee = 0.03;
@@ -4866,7 +4872,6 @@ class Voice extends ViewComponents
                 'host'       => (string)$input['host'],
                 'auth_type'  => $authType,
                 'username'   => $input['username'] ?? null,
-                'password'   => $input['password'] ?? null,
                 'port'       => (int)($input['port'] ?? 5060),
                 'transport'  => strtolower((string)($input['transport'] ?? 'udp')),
                 'direction'  => strtolower((string)($input['direction'] ?? 'outbound')),
@@ -4879,6 +4884,10 @@ class Voice extends ViewComponents
                 'tenant_id'  => (string)$obUser['tenancy_id'],
                 'user_id'    => (int)$obUser['id'],
             ];
+
+            if ($authType === 'register' && array_key_exists('password', $input) && $input['password'] !== '') {
+                $payload['password'] = $input['password'];
+            }
 
             $response = $asterisk->updateSipTrunks($query, $payload);
 
@@ -4902,6 +4911,49 @@ class Voice extends ViewComponents
                 'message' => 'Erro ao editar SIP Trunk: ' . $e->getMessage()
             ], 'application/json');
         }
+    }
+
+    private static function assertCanEditTrunk(array $user, array $current): ?Response
+    {
+        $role = strtolower((string)($user['function'] ?? ''));
+
+        if ((int)($current['is_system'] ?? 0) === 1 && $role !== 'super_admin') {
+            return new Response(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para editar este trunk.',
+            ], 'application/json');
+        }
+
+        if ($role === 'admin') {
+            if (($current['tenant_id'] ?? null) !== ($user['tenancy_id'] ?? null)) {
+                return new Response(403, [
+                    'success' => false,
+                    'message' => 'Você não tem permissão para editar este trunk.',
+                ], 'application/json');
+            }
+
+            return null;
+        }
+
+        if ($role === 'reseller') {
+            if ((int)($current['user_id'] ?? 0) !== (int)($user['id'] ?? 0)) {
+                return new Response(403, [
+                    'success' => false,
+                    'message' => 'Você não tem permissão para editar este trunk.',
+                ], 'application/json');
+            }
+
+            return null;
+        }
+
+        if ($role !== 'super_admin') {
+            return new Response(403, [
+                'success' => false,
+                'message' => 'Você não tem permissão para editar trunks.',
+            ], 'application/json');
+        }
+
+        return null;
     }
 
     public static function setStatusSipTrunks($request, $id): Response

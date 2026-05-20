@@ -252,6 +252,7 @@
         pollingActive: false,
         pollInFlight: false,
         pollDelayMs: 4000,
+        requestTimeoutMs: 12000,
         activeTab: 'sngrep',
         buffers: { sngrep: '', pjsip: '' },
 
@@ -341,6 +342,49 @@
             return `${this.baseUrl}${path}${query.toString() ? `?${query}` : ''}`;
         },
 
+        async fetchJson(path, options = {}, params = {}) {
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), this.requestTimeoutMs);
+
+            try {
+                const response = await fetch(this.url(path, params), {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        ...(options.headers || {}),
+                    },
+                    ...options,
+                    signal: controller.signal,
+                });
+
+                const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+                const bodyText = await response.text();
+
+                if (response.redirected || response.url.includes('/login')) {
+                    throw new Error('Sua sessão expirou. Faça login novamente.');
+                }
+
+                if (!contentType.includes('application/json')) {
+                    throw new Error('O servidor retornou uma resposta inesperada ao monitor SIP.');
+                }
+
+                const result = bodyText ? JSON.parse(bodyText) : {};
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha ao processar a requisição do monitor SIP.');
+                }
+
+                return result;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    throw new Error('O monitor SIP excedeu o tempo limite de resposta.');
+                }
+                throw error;
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
+        },
+
         notify(type, message) {
             if (window.notyf && typeof window.notyf[type] === 'function') {
                 window.notyf[type](message);
@@ -367,11 +411,7 @@
 
         async testConnection() {
             try {
-                const response = await fetch(this.url('/admin/sip-monitor/test-connection', { _: Date.now() }));
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha no teste de conexão SSH.');
-                }
+                const result = await this.fetchJson('/admin/sip-monitor/test-connection', {}, { _: Date.now() });
                 this.renderConnection(result.data || {});
                 this.showFeedback(result.data?.ok ? 'success' : 'error', result.data?.friendly_message || result.message || 'Teste concluído.');
             } catch (error) {
@@ -398,12 +438,7 @@
 
         async reloadStatus(silent = false) {
             try {
-                const response = await fetch(this.url('/admin/sip-monitor/status', { _: Date.now() }));
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha ao carregar o monitor SIP.');
-                }
-
+                const result = await this.fetchJson('/admin/sip-monitor/status', {}, { _: Date.now() });
                 this.renderStatus(result.data);
                 if (this.activeSession?.id) {
                     this.startPolling();
@@ -493,15 +528,11 @@
 
         async start() {
             try {
-                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/start`, {
+                const result = await this.fetchJson('/admin/sip-monitor/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.payload()),
                 });
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha ao iniciar captura SIP.');
-                }
 
                 this.notify('success', result.message || 'Captura SIP iniciada.');
                 this.showFeedback('success', result.data?.message || result.message || 'Captura executada.');
@@ -521,15 +552,11 @@
             }
 
             try {
-                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/stop`, {
+                const result = await this.fetchJson('/admin/sip-monitor/stop', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: this.activeSession.id }),
                 });
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha ao parar a captura SIP.');
-                }
 
                 this.notify('success', result.message || 'Captura SIP encerrada.');
                 this.stopPolling();
@@ -541,13 +568,9 @@
 
         async emergencyStop() {
             try {
-                const response = await fetch(`${this.baseUrl}/admin/sip-monitor/emergency-stop`, {
+                const result = await this.fetchJson('/admin/sip-monitor/emergency-stop', {
                     method: 'POST',
                 });
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha no stop de emergência.');
-                }
 
                 this.notify('success', result.message || 'Sessões SIP encerradas.');
                 this.stopPolling();
@@ -585,20 +608,16 @@
         },
 
         async pollStream() {
-            if (!this.activeSession?.id || this.pollInFlight) {
+            if (!this.activeSession?.id || this.pollInFlight || document.hidden) {
                 return;
             }
 
             this.pollInFlight = true;
             try {
-                const response = await fetch(this.url('/admin/sip-monitor/stream', {
+                const result = await this.fetchJson('/admin/sip-monitor/stream', {}, {
                     session_id: this.activeSession.id,
                     _: Date.now(),
-                }));
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha ao carregar stream SIP.');
-                }
+                });
 
                 const data = result.data || {};
                 if (data.session) {
@@ -685,5 +704,11 @@
     document.addEventListener('DOMContentLoaded', () => {
         sipMonitor.reloadStatus();
         sipMonitor.switchTab('sngrep');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && sipMonitor.activeSession?.id && !sipMonitor.pollInFlight) {
+            sipMonitor.pollStream();
+        }
     });
 </script>

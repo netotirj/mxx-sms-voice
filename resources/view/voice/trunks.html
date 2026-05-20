@@ -131,26 +131,35 @@
 
     <!-- Modal Trunk -->
     <div id="trunkModal"
-         class="fixed inset-0 z-50 hidden
-            bg-black bg-opacity-50
-            flex items-start justify-center
-            p-4">
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="trunkModalTitle"
+         class="fixed inset-0 z-[100050] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-300">
 
-    <div
-                class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl
-         w-full max-w-md
-         max-h-[90vh]
-         overflow-y-auto
-         scrollbar-thin scrollbar-thumb-slate-300
-         p-6"
-        >
+        <div
+            class="relative z-[100051] w-full max-w-2xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-left shadow-2xl transition-all duration-200 dark:border-slate-700 dark:bg-slate-900">
 
-        <h3 id="trunkModalTitle"
-                class="text-lg font-semibold text-slate-700 dark:text-white mb-4">
-                ➕ Adicionar SIP Trunk
-            </h3>
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
+                <div class="min-w-0">
+                    <h3 id="trunkModalTitle"
+                        class="text-lg font-semibold text-slate-800 dark:text-white">
+                        Adicionar SIP Trunk
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Configure o tronco usando o mesmo padrao visual dos modais do sistema.
+                    </p>
+                </div>
 
-            <form id="trunkForm" class="space-y-3">
+                <button type="button"
+                        id="closeTrunkModal"
+                        data-modal-close
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        aria-label="Fechar modal de trunk">
+                    <i class="fa fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="trunkForm" class="space-y-4 px-6 py-5">
 
                 <input type="hidden" name="trunk_id">
 
@@ -259,14 +268,14 @@
                 </div>
 
                 <!-- Botões -->
-                <div class="flex justify-end gap-3 pt-4">
+                <div class="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
                     <button type="button" id="cancelTrunk"
-                            class="px-4 py-2 text-sm rounded-lg bg-gray-200 dark:bg-slate-700">
+                            class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
                         Cancelar
                     </button>
 
                     <button type="submit"
-                            class="px-4 py-2 text-sm text-white rounded-lg bg-emerald-600">
+                            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
                         Salvar
                     </button>
                 </div>
@@ -313,6 +322,7 @@
         const form = document.getElementById("trunkForm");
         const createBtn = document.getElementById("createTrunk");
         const cancelBtn = document.getElementById("cancelTrunk");
+        const closeModalBtn = document.getElementById("closeTrunkModal");
         const authTypeSel = document.getElementById("auth_type");
         const authFields = document.getElementById("authFields");
         const submitBtn = form.querySelector('button[type="submit"]');
@@ -845,7 +855,7 @@
             state.editRequestInFlight = true;
             state.editMode = true;
             state.editingId = id;
-            modalTitle.textContent = "✏️ Editar SIP Trunk";
+            modalTitle.textContent = "Editar SIP Trunk";
             form.reset();
             openModal();
             setSubmitLoading(true);
@@ -908,7 +918,7 @@
         createBtn.addEventListener("click", () => {
             state.editMode = false;
             state.editingId = null;
-            modalTitle.textContent = "➕ Adicionar SIP Trunk";
+            modalTitle.textContent = "Adicionar SIP Trunk";
             form.reset();
             authFields.classList.remove("hidden");
             setSubmitLoading(false);
@@ -916,6 +926,7 @@
         });
 
         cancelBtn.addEventListener("click", closeModal);
+        closeModalBtn.addEventListener("click", closeModal);
 
         authTypeSel.addEventListener("change", () => {
             authFields.classList.toggle("hidden", authTypeSel.value === "ip");

@@ -55,6 +55,12 @@
         border-left-color: #0f766e;
         background: rgba(13, 148, 136, 0.06);
     }
+
+    #sipMonitorApp .journey-summary {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
 </style>
 
 <div class="w-full px-6 py-6 mx-auto" id="sipMonitorApp">
@@ -114,7 +120,7 @@
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Jornada da Chamada</h3>
-                                <p class="mt-1 text-xs text-slate-400">Timeline ao vivo baseada no feed de chamadas do Asterisk/ARI, com status técnico e explicação em linguagem de cliente.</p>
+                                <p class="mt-1 text-xs text-slate-400">Timeline ao vivo baseada no feed de chamadas do Asterisk/ARI, com status técnico, explicação em linguagem de cliente e ocultação de dados sensíveis da operadora.</p>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: conectando</span>
@@ -139,6 +145,10 @@
                                         <h4 class="text-xs font-black uppercase tracking-wide text-slate-500">Timeline da sessão</h4>
                                         <p id="sipJourneyMeta" class="mt-1 text-xs text-slate-400">Selecione uma chamada ativa para acompanhar os eventos.</p>
                                     </div>
+                                </div>
+
+                                <div id="sipJourneySummary" class="journey-summary mt-4">
+                                    <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">Aguardando tempos da chamada...</div>
                                 </div>
 
                                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
@@ -410,14 +420,84 @@
             return lines.join('\n');
         },
 
+        journeyStorageKey: 'sipMonitorJourneyHistoryV2',
+
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
+        },
+
+        journeyClockMs(value, fallback = null) {
+            if (value === null || value === undefined || value === '') {
+                return fallback;
+            }
+
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric) || numeric <= 0) {
+                return fallback;
+            }
+
+            return numeric > 1000000000000 ? Math.round(numeric) : Math.round(numeric * 1000);
+        },
+
+        formatDurationMs(ms) {
+            const totalSeconds = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+        },
+
+        journeyRawStateText(call) {
+            return String(call?.state_raw || call?.status || '-').trim() || '-';
+        },
+
+        maskIpString(value) {
+            return String(value || '').replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, (match) => {
+                const parts = match.split('.');
+                return parts.length === 4 ? `${parts[0]}.${parts[1]}.xxx.xxx` : match;
+            });
+        },
+
+        isSensitiveJourneyKey(key) {
+            return /tech_?prefix|techprefix|dial_?prefix|prefixo_?tecnico/i.test(String(key || ''));
+        },
+
+        sanitizeJourneyValue(value, key = '') {
+            if (Array.isArray(value)) {
+                return value
+                    .map((item) => this.sanitizeJourneyValue(item, key))
+                    .filter((item) => item !== undefined);
+            }
+
+            if (value && typeof value === 'object') {
+                return Object.entries(value).reduce((acc, [childKey, childValue]) => {
+                    if (this.isSensitiveJourneyKey(childKey)) {
+                        return acc;
+                    }
+
+                    acc[childKey] = this.sanitizeJourneyValue(childValue, childKey);
+                    return acc;
+                }, {});
+            }
+
+            if (typeof value === 'string') {
+                return this.maskIpString(value);
+            }
+
+            return value;
+        },
+
+        sanitizeJourneyCall(call) {
+            return this.sanitizeJourneyValue(call || {});
         },
 
         journeyStageFromCall(call) {
             const raw = String(call?.state_raw || '').toLowerCase();
             if (raw === 'up' || call?.is_up) {
                 return 'answered';
+            }
+            if (raw.includes('hangup') || raw.includes('busy') || raw.includes('failed') || raw.includes('congestion') || raw.includes('cancel')) {
+                return 'failed';
             }
             if (raw.includes('ring')) {
                 return 'ringing';
@@ -435,7 +515,7 @@
                 ringing: 'Ring / Tocando',
                 answered: 'Atendida',
                 ended: 'Encerrada',
-                failed: 'Falhou',
+                failed: 'Nao completada',
             };
             return labels[stage] || stage;
         },
@@ -448,9 +528,97 @@
                 ringing: 'O destino está tocando. Nesse momento normalmente esperamos atendimento do cliente ou do ramal remoto.',
                 answered: 'A chamada foi atendida e a mídia deve estar estabelecida. A contagem de conversa já pode ser considerada.',
                 ended: 'A chamada saiu do feed de chamadas ativas. O fluxo foi encerrado ou expirou naturalmente.',
-                failed: 'O sistema sinalizou falha operacional antes da conversa ser estabelecida.',
+                failed: 'A chamada terminou antes da conversa se estabilizar. Pode indicar ocupado, cancelamento, falha de rota ou interrupção operacional.',
             };
             return explanations[stage] || 'Evento técnico detectado no fluxo da chamada.';
+        },
+
+        journeyStageTimestamp(call, stage, history = []) {
+            const now = Date.now();
+            if (stage === 'dialing') {
+                return this.journeyClockMs(call?.started_at, now);
+            }
+            if (stage === 'answered') {
+                return this.journeyClockMs(call?.answered_at, this.journeyClockMs(call?.started_at, now));
+            }
+            if (stage === 'ended' || stage === 'failed') {
+                return now;
+            }
+
+            const startedAt = this.journeyClockMs(call?.started_at, null);
+            const previousAt = history[history.length - 1]?.at_ms || null;
+            return previousAt || startedAt || now;
+        },
+
+        journeyFinalStageForCall(call) {
+            const currentStage = this.journeyStageFromCall(call);
+            return currentStage === 'answered' ? 'ended' : 'failed';
+        },
+
+        journeySummaryMetrics(call, history = []) {
+            const firstAt = history[0]?.at_ms || this.journeyClockMs(call?.started_at, null);
+            const progressAt = history.find((item) => item.stage === 'progress')?.at_ms || null;
+            const ringingAt = history.find((item) => item.stage === 'ringing')?.at_ms || null;
+            const answeredAt = history.find((item) => item.stage === 'answered')?.at_ms || this.journeyClockMs(call?.answered_at, null);
+            const latestAt = history[history.length - 1]?.at_ms || null;
+
+            return {
+                startedAt: firstAt,
+                progressAt,
+                ringingAt,
+                answeredAt,
+                latestAt,
+                toProgressMs: firstAt && progressAt ? Math.max(0, progressAt - firstAt) : null,
+                toRingingMs: firstAt && ringingAt ? Math.max(0, ringingAt - firstAt) : null,
+                toAnsweredMs: firstAt && answeredAt ? Math.max(0, answeredAt - firstAt) : null,
+                talkingMs: answeredAt && latestAt ? Math.max(0, latestAt - answeredAt) : null,
+            };
+        },
+
+        journeySummaryHtml(call, history = []) {
+            const metrics = this.journeySummaryMetrics(call, history);
+            const cards = [
+                { label: 'Entrada', value: metrics.startedAt ? new Date(metrics.startedAt).toLocaleTimeString('pt-BR') : '--:--:--' },
+                { label: 'Ate progresso', value: metrics.toProgressMs !== null ? this.formatDurationMs(metrics.toProgressMs) : '--:--:--' },
+                { label: 'Ate toque', value: metrics.toRingingMs !== null ? this.formatDurationMs(metrics.toRingingMs) : '--:--:--' },
+                { label: 'Ate atendimento', value: metrics.toAnsweredMs !== null ? this.formatDurationMs(metrics.toAnsweredMs) : '--:--:--' },
+                { label: 'Conversa atual', value: call?.duracao || (metrics.talkingMs !== null ? this.formatDurationMs(metrics.talkingMs) : '--:--:--') },
+            ];
+
+            return cards.map((item) => `
+                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${item.label}</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-700">${item.value}</p>
+                </div>
+            `).join('');
+        },
+
+        persistJourneyCache() {
+            try {
+                window.localStorage.setItem(this.journeyStorageKey, JSON.stringify({
+                    selectedJourneyKey: this.selectedJourneyKey,
+                    liveJourneyHistory: this.liveJourneyHistory,
+                }));
+            } catch (error) {
+                console.warn('[sip-monitor] journey cache persistence failed', error);
+            }
+        },
+
+        restoreJourneyCache() {
+            try {
+                const raw = window.localStorage.getItem(this.journeyStorageKey);
+                if (!raw) {
+                    return;
+                }
+
+                const payload = JSON.parse(raw);
+                this.selectedJourneyKey = payload?.selectedJourneyKey || this.selectedJourneyKey;
+                this.liveJourneyHistory = payload?.liveJourneyHistory && typeof payload.liveJourneyHistory === 'object'
+                    ? payload.liveJourneyHistory
+                    : this.liveJourneyHistory;
+            } catch (error) {
+                console.warn('[sip-monitor] journey cache restore failed', error);
+            }
         },
 
         recordJourneyStage(call, stage, force = false) {
@@ -461,19 +629,29 @@
 
             const history = this.liveJourneyHistory[key] || [];
             const last = history[history.length - 1] || null;
-            if (!force && last && last.stage === stage) {
+            const sanitizedCall = this.sanitizeJourneyCall(call);
+            const rawState = this.journeyRawStateText(sanitizedCall);
+            if (!force && last && last.stage === stage && last.raw_state === rawState) {
                 return;
             }
 
+            const atMs = this.journeyStageTimestamp(sanitizedCall, stage, history);
+            const firstAtMs = history[0]?.at_ms || atMs;
+            const previousAtMs = last?.at_ms || atMs;
+
             history.push({
                 stage,
-                at: new Date().toLocaleString('pt-BR'),
-                raw_state: String(call?.state_raw || call?.status || '').trim() || null,
-                status: String(call?.status || '').trim() || null,
-                explanation: this.journeyExplanation(stage, call),
+                at: new Date(atMs).toLocaleString('pt-BR'),
+                at_ms: atMs,
+                raw_state: rawState,
+                status: String(sanitizedCall?.status || '').trim() || null,
+                explanation: this.journeyExplanation(stage, sanitizedCall),
+                since_start_ms: Math.max(0, atMs - firstAtMs),
+                since_prev_ms: last ? Math.max(0, atMs - previousAtMs) : 0,
             });
 
-            this.liveJourneyHistory[key] = history.slice(-12);
+            this.liveJourneyHistory[key] = history.slice(-20);
+            this.persistJourneyCache();
         },
 
         renderJourneyCalls() {
@@ -495,7 +673,9 @@
                 const key = this.journeyKey(call);
                 const active = key === this.selectedJourneyKey;
                 const stage = this.journeyStageFromCall(call);
-                const stateText = call?.state_raw || call?.status || '-';
+                const stateText = this.journeyRawStateText(call);
+                const history = this.liveJourneyHistory[key] || [];
+                const metrics = this.journeySummaryMetrics(call, history);
                 return `
                     <button type="button" data-journey-key="${key}" class="journey-call-item w-full rounded-2xl border px-3 py-3 text-left transition ${active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
                         <div class="flex items-center justify-between gap-2">
@@ -504,6 +684,9 @@
                         </div>
                         <div class="mt-1 text-xs ${active ? 'text-slate-300' : 'text-slate-500'}">
                             Call-ID: ${call?.call_id || call?.linkedid || call?.id || '-'} • Estado bruto: ${stateText} • Duração: ${call?.duracao || '--:--:--'}
+                        </div>
+                        <div class="mt-2 text-[11px] ${active ? 'text-slate-300' : 'text-slate-400'}">
+                            Entrada: ${metrics.startedAt ? new Date(metrics.startedAt).toLocaleTimeString('pt-BR') : '--:--:--'} • Atendimento: ${metrics.toAnsweredMs !== null ? this.formatDurationMs(metrics.toAnsweredMs) : '--:--:--'}
                         </div>
                     </button>
                 `;
@@ -520,10 +703,11 @@
 
         renderJourneyDetails() {
             const meta = document.getElementById('sipJourneyMeta');
+            const summary = document.getElementById('sipJourneySummary');
             const timeline = document.getElementById('sipJourneyTimeline');
             const raw = document.getElementById('sipJourneyRaw');
             const liveBadge = document.getElementById('sipJourneyActiveBadge');
-            if (!meta || !timeline || !raw || !liveBadge) {
+            if (!meta || !summary || !timeline || !raw || !liveBadge) {
                 return;
             }
 
@@ -534,12 +718,12 @@
                 meta.textContent = 'Selecione uma chamada ativa para acompanhar os eventos.';
                 liveBadge.textContent = 'Sem chamada ao vivo';
                 liveBadge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
+                summary.innerHTML = '<div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">Aguardando tempos da chamada...</div>';
                 timeline.innerHTML = '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Aguardando chamada</p><p class="mt-1 text-xs text-slate-500">Quando uma chamada aparecer no feed ao vivo, a jornada técnica e a leitura humana serão mostradas aqui.</p></div>';
                 raw.textContent = 'Aguardando chamada...';
                 return;
             }
 
-            const latest = history[history.length - 1] || null;
             meta.textContent = call
                 ? `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Duração: ${call.duracao || '--:--:--'}`
                 : `Último histórico de ${this.selectedJourneyKey}`;
@@ -552,16 +736,23 @@
                 this.recordJourneyStage(call, this.journeyStageFromCall(call), true);
             }
 
-            const renderedHistory = (this.liveJourneyHistory[this.selectedJourneyKey] || []).map((item, index, arr) => `
+            const timelineHistory = this.liveJourneyHistory[this.selectedJourneyKey] || [];
+            summary.innerHTML = this.journeySummaryHtml(call || {}, timelineHistory);
+
+            const renderedHistory = timelineHistory.map((item, index, arr) => `
                 <div class="journey-stage ${index === arr.length - 1 ? 'active rounded-r-xl px-3 py-2' : ''}">
                     <p class="text-sm font-semibold text-slate-700">${this.journeyLabel(item.stage)}</p>
                     <p class="mt-1 text-xs text-slate-500">${item.explanation}</p>
                     <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at}${item.raw_state ? ` • bruto: ${item.raw_state}` : ''}</p>
+                    <p class="mt-1 text-[11px] text-slate-400">+${this.formatDurationMs(item.since_start_ms || 0)} desde o inicio${index > 0 ? ` • +${this.formatDurationMs(item.since_prev_ms || 0)} desde a etapa anterior` : ''}</p>
                 </div>
             `).join('');
 
             timeline.innerHTML = renderedHistory || '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transições ainda</p></div>';
-            raw.textContent = JSON.stringify(call || { key: this.selectedJourneyKey, history: this.liveJourneyHistory[this.selectedJourneyKey] || [] }, null, 2);
+            raw.textContent = JSON.stringify(this.sanitizeJourneyValue(call || {
+                key: this.selectedJourneyKey,
+                history: timelineHistory,
+            }), null, 2);
         },
 
         handleJourneyUpdate(payload) {
@@ -580,23 +771,24 @@
                     return;
                 }
 
-                currentCalls.set(key, call);
+                const sanitizedCall = this.sanitizeJourneyCall(call);
+                currentCalls.set(key, sanitizedCall);
                 const previous = this.liveJourneyCalls.get(key) || null;
-                const stage = this.journeyStageFromCall(call);
+                const stage = this.journeyStageFromCall(sanitizedCall);
 
                 if (!previous) {
-                    this.recordJourneyStage(call, 'dialing', true);
+                    this.recordJourneyStage(sanitizedCall, 'dialing', true);
                     if (stage !== 'dialing') {
-                        this.recordJourneyStage(call, stage, true);
+                        this.recordJourneyStage(sanitizedCall, stage, true);
                     }
-                } else if (this.journeyStageFromCall(previous) !== stage || String(previous?.state_raw || '') !== String(call?.state_raw || '')) {
-                    this.recordJourneyStage(call, stage, true);
+                } else if (this.journeyStageFromCall(previous) !== stage || String(previous?.state_raw || '') !== String(sanitizedCall?.state_raw || '')) {
+                    this.recordJourneyStage(sanitizedCall, stage, true);
                 }
             });
 
             for (const [key, call] of this.liveJourneyCalls.entries()) {
                 if (!currentCalls.has(key)) {
-                    this.recordJourneyStage(call, 'ended', true);
+                    this.recordJourneyStage(call, this.journeyFinalStageForCall(call), true);
                 }
             }
 
@@ -606,6 +798,7 @@
             }
 
             this.journeyLastSnapshotAt = new Date().toLocaleString('pt-BR');
+            this.persistJourneyCache();
             this.renderJourneyCalls();
             this.renderJourneyDetails();
         },
@@ -1020,6 +1213,9 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
+        sipMonitor.restoreJourneyCache();
+        sipMonitor.renderJourneyCalls();
+        sipMonitor.renderJourneyDetails();
         sipMonitor.reloadStatus(true, true);
         sipMonitor.switchTab('sngrep');
         sipMonitor.connectJourneyFeed();
@@ -1035,6 +1231,7 @@
     });
 
     window.addEventListener('beforeunload', () => {
+        sipMonitor.persistJourneyCache();
         if (sipMonitor.liveJourneySource) {
             sipMonitor.liveJourneySource.close();
             sipMonitor.liveJourneySource = null;

@@ -235,7 +235,7 @@ class Callcenter extends ViewComponents
                     $nomeExibicao = $campanhasCache[$campaignId];
                 }
 
-                $chamadasFinal[] = [
+                $chamadasFinal[] = self::sanitizeMonitoringCall([
                     'id'            => $call['id'] ?? '',
                     'peer'          => $call['peer'] ?? null,
                     'linkedid'      => $call['linkedid'] ?? null,
@@ -261,7 +261,7 @@ class Callcenter extends ViewComponents
                     'last_dtmf'     => self::dtmfString($call['last_dtmf'] ?? null),
                     'last_dtmf_at'  => $call['last_dtmf_at'] ?? null,
                     'dtmf_source'   => $call['dtmf_source'] ?? null,
-                ];
+                ]);
             }
 
             // 4. STATUS DOS AGENTES
@@ -590,6 +590,55 @@ class Callcenter extends ViewComponents
         }
 
         return preg_replace('/[^\d#*ABCD]/i', '', (string)$value) ?? '';
+    }
+
+    private static function sanitizeMonitoringCall(array $call): array
+    {
+        $sanitized = self::sanitizeMonitoringValue($call);
+        return is_array($sanitized) ? $sanitized : $call;
+    }
+
+    private static function sanitizeMonitoringValue(mixed $value, ?string $key = null): mixed
+    {
+        if (is_array($value)) {
+            $sanitized = [];
+            foreach ($value as $itemKey => $itemValue) {
+                $normalizedKey = is_string($itemKey) ? strtolower($itemKey) : null;
+                if (self::shouldOmitMonitoringKey($normalizedKey)) {
+                    continue;
+                }
+
+                $sanitized[$itemKey] = self::sanitizeMonitoringValue($itemValue, $normalizedKey);
+            }
+
+            return $sanitized;
+        }
+
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        return preg_replace_callback(
+            '/\b(?:\d{1,3}\.){3}\d{1,3}\b/',
+            static function (array $matches): string {
+                $parts = explode('.', $matches[0]);
+                if (count($parts) !== 4) {
+                    return $matches[0];
+                }
+
+                return sprintf('%s.%s.xxx.xxx', $parts[0], $parts[1]);
+            },
+            $value
+        ) ?? $value;
+    }
+
+    private static function shouldOmitMonitoringKey(?string $key): bool
+    {
+        if (!$key) {
+            return false;
+        }
+
+        return (bool)preg_match('/tech_?prefix|techprefix|dial_?prefix|prefixo_?tecnico/i', $key);
     }
 
 

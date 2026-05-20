@@ -68,10 +68,10 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
                             <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: inativo</span>
                             <span id="sipJourneyActiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
-                            <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">
+                            <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white xl:whitespace-nowrap">
                                 <i class="fa fa-play"></i> Iniciar monitoramento
                             </button>
                         </div>
@@ -169,6 +169,7 @@
         monitorEnabled: false,
         numberFilter: '',
         maxRenderedCalls: 1,
+        reconnectTimer: null,
 
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
@@ -197,6 +198,27 @@
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
             return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+        },
+
+        formatJourneyDelay(ms) {
+            if (ms === null || ms === undefined) {
+                return 'Nao detectado';
+            }
+
+            const numeric = Number(ms);
+            if (!Number.isFinite(numeric)) {
+                return 'Nao detectado';
+            }
+
+            if (numeric <= 0) {
+                return '0,001 segundo';
+            }
+
+            if (numeric < 1000) {
+                return `${(numeric / 1000).toFixed(3).replace('.', ',')} segundo`;
+            }
+
+            return this.formatDurationMs(numeric);
         },
 
         formatClock(ms) {
@@ -375,15 +397,20 @@
             const ringingAt = history.find((item) => item.stage === 'ringing')?.at_ms || null;
             const answeredAt = history.find((item) => item.stage === 'answered')?.at_ms || this.journeyClockMs(call?.answered_at, null);
             const latestAt = history[history.length - 1]?.at_ms || answeredAt || firstAt;
+            const toProgressMs = firstAt && progressAt ? Math.max(0, progressAt - firstAt) : null;
+            const fallbackRingingMs = ringingAt === null ? toProgressMs : null;
+            const effectiveRingingAt = ringingAt ?? progressAt ?? null;
 
             return {
                 firstAt,
                 progressAt,
-                ringingAt,
+                ringingAt: effectiveRingingAt,
                 answeredAt,
                 latestAt,
-                toProgressMs: firstAt && progressAt ? Math.max(0, progressAt - firstAt) : null,
-                toRingingMs: firstAt && ringingAt ? Math.max(0, ringingAt - firstAt) : null,
+                toProgressMs,
+                toRingingMs: firstAt && effectiveRingingAt ? Math.max(0, effectiveRingingAt - firstAt) : null,
+                ringingFallbackUsed: ringingAt === null && progressAt !== null,
+                fallbackRingingMs,
                 toAnsweredMs: firstAt && answeredAt ? Math.max(0, answeredAt - firstAt) : null,
                 talkingMs: answeredAt && latestAt ? Math.max(0, latestAt - answeredAt) : null,
             };
@@ -514,9 +541,9 @@
             const hangup = this.hangupInsight(call, history);
             const cards = [
                 { label: 'Entrada', value: this.formatClock(metrics.firstAt), hint: 'Momento em que a chamada entrou no painel.' },
-                { label: 'Ate o progress', value: metrics.toProgressMs === 0 ? 'Instantaneo' : this.formatDurationMs(metrics.toProgressMs), hint: metrics.toProgressMs === null ? 'Nao detectado pelo feed atual.' : metrics.toProgressMs === 0 ? 'A chamada ja entrou no painel com progresso de sinalizacao.' : 'Tempo ate o primeiro progresso de sinalizacao.' },
-                { label: 'Ate o toque', value: metrics.toRingingMs === null ? 'Nao enviado' : this.formatDurationMs(metrics.toRingingMs), hint: metrics.toRingingMs === null ? 'O feed atual do Asterisk/ARI nao trouxe um evento de toque separado nesta chamada.' : 'Tempo ate o destino comecar a tocar.' },
-                { label: 'Ate o atendimento', value: this.formatDurationMs(metrics.toAnsweredMs), hint: metrics.toAnsweredMs === null ? 'A chamada ainda nao foi atendida.' : 'Tempo ate a chamada ser atendida.' },
+                { label: 'Ate o progress', value: this.formatJourneyDelay(metrics.toProgressMs), hint: metrics.toProgressMs === null ? 'Nao detectado pelo feed atual.' : metrics.toProgressMs === 0 ? 'A chamada ja entrou no painel com progresso de sinalizacao.' : 'Tempo ate o primeiro progresso de sinalizacao.' },
+                { label: 'Ate o toque', value: this.formatJourneyDelay(metrics.toRingingMs), hint: metrics.toRingingMs === null ? 'Nao detectado na jornada observada.' : metrics.ringingFallbackUsed ? 'Nesta chamada usamos o progress como fallback de toque, porque ele representa o ringing operacional.' : 'Tempo ate o destino comecar a tocar.' },
+                { label: 'Ate o atendimento', value: this.formatJourneyDelay(metrics.toAnsweredMs), hint: metrics.toAnsweredMs === null ? 'A chamada ainda nao foi atendida.' : 'Tempo ate a chamada ser atendida.' },
                 { label: 'Conversa atual', value: call?.duracao || this.formatDurationMs(metrics.talkingMs), hint: 'Contagem atual da conversa apos o atendimento.' },
                 { label: 'Quem desligou', value: hangup.label, hint: hangup.hint },
             ];
@@ -701,6 +728,10 @@
         },
 
         disconnectFeed() {
+            if (this.reconnectTimer) {
+                window.clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = null;
+            }
             if (this.liveJourneySource) {
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
@@ -708,10 +739,30 @@
             this.renderFeedBadge('inactive');
         },
 
+        scheduleReconnect() {
+            if (!this.monitorEnabled || document.hidden) {
+                return;
+            }
+
+            if (this.reconnectTimer) {
+                window.clearTimeout(this.reconnectTimer);
+            }
+
+            this.reconnectTimer = window.setTimeout(() => {
+                this.reconnectTimer = null;
+                this.connectFeed(true);
+            }, 2000);
+        },
+
         connectFeed(forceReconnect = false) {
             if (forceReconnect && this.liveJourneySource) {
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
+            }
+
+            if (this.reconnectTimer) {
+                window.clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = null;
             }
 
             if (!this.monitorEnabled || document.hidden) {
@@ -739,9 +790,11 @@
                         this.liveJourneySource.close();
                         this.liveJourneySource = null;
                     }
+                    this.scheduleReconnect();
                 };
             } catch (error) {
-                this.renderFeedBadge('inactive');
+                this.renderFeedBadge('reconnecting');
+                this.scheduleReconnect();
             }
         },
 

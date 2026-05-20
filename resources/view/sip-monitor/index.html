@@ -409,12 +409,32 @@
             badge.className = 'inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-rose-700';
         },
 
+        applyDiagnostics(connection, capabilities, limits = null) {
+            const profile = capabilities?.profile || {};
+            const effectiveConnection = connection?.ok ? connection : (capabilities?.ssh_probe || connection || {});
+            this.renderConnection(effectiveConnection || {});
+
+            document.getElementById('sipMonitorBackendMode').textContent = (profile.mode || 'local').toUpperCase();
+            document.getElementById('sipMonitorBackendHost').textContent = profile.host || '-';
+            document.getElementById('sipMonitorSngrepStatus').textContent = (capabilities?.which_sngrep?.output || '').trim() ? 'Disponível' : 'Indisponível';
+            document.getElementById('sipMonitorSngrepVersion').textContent = (capabilities?.sngrep_version?.output || '-').trim() || '-';
+            document.getElementById('sipMonitorAsteriskStatus').textContent = (capabilities?.which_asterisk?.output || '').trim() ? 'Disponível' : 'Indisponível';
+            document.getElementById('sipMonitorAsteriskVersion').textContent = (capabilities?.asterisk_version?.output || '-').trim() || '-';
+            if (limits) {
+                document.getElementById('sipMonitorLimitValue').textContent = String(limits.max_simultaneous || 1);
+            }
+            document.getElementById('sipMonitorDiagnosticsMeta').textContent = `Última verificação: ${this.nowLabel()}`;
+            document.getElementById('sipMonitorDiagnostics').textContent = this.buildDiagnosticsText(capabilities || {});
+        },
+
         async testConnection() {
             try {
                 const result = await this.fetchJson('/admin/sip-monitor/test-connection', {}, { _: Date.now() });
-                this.renderConnection(result.data || {});
-                this.showFeedback(result.data?.ok ? 'success' : 'error', result.data?.friendly_message || result.message || 'Teste concluído.');
-                await this.reloadStatus(true);
+                const payload = result.data || {};
+                const connection = payload.connection || payload || {};
+                this.applyDiagnostics(connection, payload.capabilities || {}, null);
+                this.showFeedback(connection?.ok ? 'success' : 'error', connection?.friendly_message || result.message || 'Teste concluído.');
+                await this.reloadStatus(true, true);
             } catch (error) {
                 this.showFeedback('error', error.message || 'Falha no teste de conexão SSH.');
                 this.notify('error', error.message || 'Falha no teste de conexão SSH.');
@@ -437,9 +457,9 @@
             document.getElementById('sipMonitorPjsipTerminal').textContent = 'Tela limpa. Aguardando novas linhas...';
         },
 
-        async reloadStatus(silent = false) {
+        async reloadStatus(silent = false, forceRefresh = false) {
             try {
-                const result = await this.fetchJson('/admin/sip-monitor/status', {}, { _: Date.now() });
+                const result = await this.fetchJson('/admin/sip-monitor/status', {}, { _: Date.now(), refresh: forceRefresh ? 1 : '' });
                 this.renderStatus(result.data);
                 if (this.activeSession?.id) {
                     this.startPolling();
@@ -455,20 +475,9 @@
 
         renderStatus(data) {
             const capabilities = data.capabilities || {};
-            const profile = capabilities.profile || {};
             const active = data.active_session || null;
             this.activeSession = active;
-            this.renderConnection(data.connection || {});
-
-            document.getElementById('sipMonitorBackendMode').textContent = (profile.mode || 'local').toUpperCase();
-            document.getElementById('sipMonitorBackendHost').textContent = profile.host || '-';
-            document.getElementById('sipMonitorSngrepStatus').textContent = (capabilities.which_sngrep?.output || '').trim() ? 'Disponível' : 'Indisponível';
-            document.getElementById('sipMonitorSngrepVersion').textContent = (capabilities.sngrep_version?.output || '-').trim() || '-';
-            document.getElementById('sipMonitorAsteriskStatus').textContent = (capabilities.which_asterisk?.output || '').trim() ? 'Disponível' : 'Indisponível';
-            document.getElementById('sipMonitorAsteriskVersion').textContent = (capabilities.asterisk_version?.output || '-').trim() || '-';
-            document.getElementById('sipMonitorLimitValue').textContent = String(data.limits?.max_simultaneous || 1);
-            document.getElementById('sipMonitorDiagnosticsMeta').textContent = `Última verificação: ${this.nowLabel()}`;
-            document.getElementById('sipMonitorDiagnostics').textContent = this.buildDiagnosticsText(capabilities);
+            this.applyDiagnostics(data.connection || {}, capabilities, data.limits || null);
 
             const badge = document.getElementById('sipMonitorSessionBadge');
             const countdown = document.getElementById('sipMonitorCountdown');
@@ -703,7 +712,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-        sipMonitor.reloadStatus();
+        sipMonitor.reloadStatus(true, true);
         sipMonitor.switchTab('sngrep');
     });
 

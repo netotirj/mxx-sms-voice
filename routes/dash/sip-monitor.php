@@ -22,8 +22,8 @@ $obRouter->get('/admin/sip-monitor/status', [
         'require-session-login',
         'require-permissions-tenancies',
     ],
-    function () {
-        return Pages\SipMonitor::status();
+    function ($request) {
+        return Pages\SipMonitor::status($request);
     }
 ]);
 

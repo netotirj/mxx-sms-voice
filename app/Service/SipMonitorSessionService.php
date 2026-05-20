@@ -34,12 +34,14 @@ class SipMonitorSessionService
         return SipMonitorCommandRunner::capabilities();
     }
 
-    public static function statusForUser(array $user): array
+    public static function statusForUser(array $user, bool $forceRefresh = false): array
     {
         self::cleanupExpiredSessions();
 
         $active = SipMonitorSession::findActiveByUser((string)($user['tenancy_id'] ?? ''), (int)($user['id'] ?? 0));
-        $snapshot = SipMonitorCommandRunner::cachedDiagnosticsSnapshot() ?? SipMonitorCommandRunner::emptyDiagnosticsSnapshot();
+        $snapshot = $forceRefresh
+            ? SipMonitorCommandRunner::diagnosticsSnapshot(true)
+            : (SipMonitorCommandRunner::cachedDiagnosticsSnapshot() ?? SipMonitorCommandRunner::emptyDiagnosticsSnapshot());
         $connection = (array)($snapshot['connection'] ?? []);
 
         return [
@@ -321,7 +323,13 @@ class SipMonitorSessionService
 
     public static function testConnection(): array
     {
-        return self::sanitizeExecutionResult(SipMonitorCommandRunner::testConnection(true));
+        $snapshot = SipMonitorCommandRunner::diagnosticsSnapshot(true);
+
+        return [
+            'connection' => self::sanitizeExecutionResult((array)($snapshot['connection'] ?? [])),
+            'capabilities' => (array)($snapshot['capabilities'] ?? []),
+            'checked_at' => (string)($snapshot['checked_at'] ?? ''),
+        ];
     }
 
     public static function cleanupExpiredSessions(): void

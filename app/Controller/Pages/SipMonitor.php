@@ -26,7 +26,7 @@ class SipMonitor extends ViewComponents
         return parent::getComponentsUsers('Maxx Solutions - Monitor SIP / SNGREP', $content);
     }
 
-    public static function status(): Response
+    public static function status($request = null): Response
     {
         $user = self::requireUser();
         if ($user instanceof Response) {
@@ -38,10 +38,18 @@ class SipMonitor extends ViewComponents
         }
 
         SipMonitorSessionService::ensureRouteCatalog();
+        $forceRefresh = false;
+        try {
+            if (is_object($request) && method_exists($request, 'getQueryParams')) {
+                $params = (array)$request->getQueryParams();
+                $forceRefresh = !empty($params['refresh']);
+            }
+        } catch (\Throwable) {
+        }
 
         return self::json(200, [
             'success' => true,
-            'data' => SipMonitorSessionService::statusForUser($user),
+            'data' => SipMonitorSessionService::statusForUser($user, $forceRefresh),
         ]);
     }
 

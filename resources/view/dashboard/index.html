@@ -128,7 +128,7 @@
 
     <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in-slow">
         
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('voip')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('voip')">
             <div id="card-voip" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-indigo-500 opacity-80 hover:opacity-100">
                 <h6 id="card-voip-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-indigo-500"><i class="fa fa-phone"></i></span> VoIP Performance
@@ -144,7 +144,7 @@
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('sms')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('sms')">
             <div id="card-sms" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-amber-500 opacity-80 hover:opacity-100">
                 <h6 id="card-sms-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-amber-500"><i class="fa fa-comment-sms"></i></span> SMS Gateway
@@ -160,7 +160,7 @@
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('whatsapp')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('whatsapp')">
             <div id="card-whatsapp" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-emerald-500 opacity-80 hover:opacity-100">
                 <h6 id="card-whatsapp-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-emerald-500"><i class="fa-brands fa-whatsapp"></i></span> WhatsApp
@@ -453,16 +453,20 @@
     }
 
     .dash-card {
-        transition: box-shadow 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+        transform: translateZ(0);
+        transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+        will-change: transform;
     }
 
     .dash-card:hover {
-        box-shadow: 0 18px 30px -14px rgba(15, 23, 42, 0.18);
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
     }
 
     .service-card-active {
         opacity: 1 !important;
-        box-shadow: 0 18px 30px -14px rgba(15, 23, 42, 0.18);
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
     }
 
     .period-filter-btn {
@@ -842,23 +846,6 @@
         function setValue(id, value) {
             const el = document.getElementById(id);
             if (el) el.textContent = value ?? '--';
-        }
-
-        function setMetricNumber(id, rawValue, prefix = '') {
-            const el = document.getElementById(id);
-            if (!el) return;
-
-            const value = parseNumber(rawValue);
-            let decimals = getForcedDecimals(el);
-            if (decimals === null) {
-                decimals = getSmartDecimals(value, 4);
-            }
-
-            el.dataset.lastValue = String(value);
-            el.textContent = prefix + value.toLocaleString('pt-BR', {
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals
-            });
         }
 
         function normalizeStatusMap(statusMap) {
@@ -1658,79 +1645,62 @@
             sipCodeChart.update('none');
         }
 
-        let dashboardRenderInProgress = false;
-        let dashboardRenderQueued = false;
-
         function renderSelectedService() {
             if (!cardsPayload || !chartsPayload) return;
 
-            if (dashboardRenderInProgress) {
-                dashboardRenderQueued = true;
-                return;
+            const config = getChartConfig(selectedService);
+            setValue('dynamic-title', config.title);
+            setValue('dynamic-subtitle', config.subtitle);
+            setValue('service-tag', config.tag);
+            setValue('logs-title', selectedService === 'whatsapp' ? 'Empresas / Custos' : 'Resumo do Servico');
+            const periodLabels = getPeriodLabel();
+            setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
+            setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
+            setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
+            animateCountUp(document.getElementById('service-stat-today'), config.today);
+            animateCountUp(document.getElementById('service-stat-month'), config.month);
+            const previousStat = document.getElementById('service-stat-previous');
+            if (previousStat) {
+                previousStat.dataset.decimals = config.previousDecimals || 'int';
+            }
+            animateCountUp(previousStat, config.previous, config.previousPrefix || '');
+            setValue('service-stat-today-label', config.todayLabel);
+            setValue('service-stat-month-label', config.monthLabel);
+            setValue('service-stat-previous-label', config.previousLabel);
+            setValue('monitor-footer', `GRAFICOS EM TEMPO REAL • ${cardsPayload?.health?.last_check || '--:--:--'}`);
+
+            config.details.forEach((item, index) => {
+                setValue(`detail-item-${index + 1}-label`, item[0]);
+                setValue(`detail-item-${index + 1}-value`, item[1]);
+            });
+
+            document.querySelectorAll('.service-card').forEach((card) => {
+                card.classList.remove('service-card-active');
+            });
+            document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
+
+            const mainWrap = document.getElementById('service-main-chart-wrap');
+            const secondaryWrap = document.getElementById('service-secondary-chart-wrap');
+            if (mainWrap) {
+                mainWrap.style.height = selectedService === 'whatsapp' ? '240px' : '340px';
+            }
+            if (secondaryWrap) {
+                secondaryWrap.style.height = selectedService === 'whatsapp' ? '240px' : '260px';
             }
 
-            dashboardRenderInProgress = true;
-            try {
-                const config = getChartConfig(selectedService);
-                setValue('dynamic-title', config.title);
-                setValue('dynamic-subtitle', config.subtitle);
-                setValue('service-tag', config.tag);
-                setValue('logs-title', selectedService === 'whatsapp' ? 'Empresas / Custos' : 'Resumo do Servico');
-                const periodLabels = getPeriodLabel();
-                setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
-                setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
-                setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
-                setMetricNumber('service-stat-today', config.today);
-                setMetricNumber('service-stat-month', config.month);
-                const previousStat = document.getElementById('service-stat-previous');
-                if (previousStat) {
-                    previousStat.dataset.decimals = config.previousDecimals || 'int';
-                }
-                setMetricNumber('service-stat-previous', config.previous, config.previousPrefix || '');
-                setValue('service-stat-today-label', config.todayLabel);
-                setValue('service-stat-month-label', config.monthLabel);
-                setValue('service-stat-previous-label', config.previousLabel);
-                setValue('monitor-footer', `GRAFICOS EM TEMPO REAL • ${cardsPayload?.health?.last_check || '--:--:--'}`);
-
-                config.details.forEach((item, index) => {
-                    setValue(`detail-item-${index + 1}-label`, item[0]);
-                    setValue(`detail-item-${index + 1}-value`, item[1]);
-                });
-
-                document.querySelectorAll('.service-card').forEach((card) => {
-                    card.classList.remove('service-card-active');
-                });
-                document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
-
-                const mainWrap = document.getElementById('service-main-chart-wrap');
-                const secondaryWrap = document.getElementById('service-secondary-chart-wrap');
-                if (mainWrap) {
-                    mainWrap.style.height = selectedService === 'whatsapp' ? '240px' : '340px';
-                }
-                if (secondaryWrap) {
-                    secondaryWrap.style.height = selectedService === 'whatsapp' ? '240px' : '260px';
-                }
-
-                buildMainChart(config);
-                buildStatusChart(config);
-                buildSecondaryChart(config);
-                buildSipCodeChart();
-            } finally {
-                dashboardRenderInProgress = false;
-                if (dashboardRenderQueued) {
-                    dashboardRenderQueued = false;
-                    scheduleDashboardRender();
-                }
-            }
+            buildMainChart(config);
+            buildStatusChart(config);
+            buildSecondaryChart(config);
+            buildSipCodeChart();
         }
 
         window.selectService = function (service) {
-            if (selectedService === service && mainChartSignature && statusChartSignature && secondaryChartSignature) {
-                return;
-            }
-
             selectedService = service;
-            scheduleDashboardRender();
+            mainChartSignature = '';
+            statusChartSignature = '';
+            secondaryChartSignature = '';
+            sipCodeChartSignature = '';
+            renderSelectedService();
         };
 
         document.querySelectorAll('.period-filter-btn').forEach((button) => {
@@ -1740,7 +1710,11 @@
                     return;
                 }
 
-                scheduleDashboardRender();
+                mainChartSignature = '';
+                statusChartSignature = '';
+                secondaryChartSignature = '';
+                sipCodeChartSignature = '';
+                renderSelectedService();
             });
         });
 
@@ -1756,116 +1730,239 @@
             return new URL(`${baseUrl}${path}`, window.location.origin).toString();
         }
 
-        let dashboardRenderTimer = null;
+        let dashboardReconnectTimer = null;
         let dashboardCardsLastMessageAt = 0;
         let dashboardChartsLastMessageAt = 0;
+        let dashboardCardsFailureCount = 0;
+        let dashboardChartsFailureCount = 0;
+        const DASHBOARD_CARDS_RETRY_MS = 15000;
+        const DASHBOARD_CHARTS_RETRY_MS = 30000;
+        const DASHBOARD_CARDS_RETRY_MAX_MS = 120000;
+        const DASHBOARD_CHARTS_RETRY_MAX_MS = 180000;
+        const DASHBOARD_SSE_FAILURE_THRESHOLD = 3;
+        const DASHBOARD_SSE_COOLDOWN_MS = 300000;
+        let dashboardSseCooldownUntil = 0;
 
-        function scheduleDashboardRender() {
-            if (dashboardRenderTimer) {
+        function scheduleDashboardReconnect(delay) {
+            if (document.hidden || dashboardReconnectTimer) {
                 return;
             }
 
-            dashboardRenderTimer = window.setTimeout(() => {
-                dashboardRenderTimer = null;
-                if (!cardsPayload || !chartsPayload) {
+            const now = Date.now();
+            if (dashboardSseCooldownUntil > now) {
+                return;
+            }
+
+            dashboardReconnectTimer = window.setTimeout(() => {
+                dashboardReconnectTimer = null;
+                disconnectDashboardStreams();
+                connectDashboardStreams();
+            }, delay);
+        }
+
+        function resetDashboardSseFailures(kind) {
+            if (kind === 'cards') {
+                dashboardCardsFailureCount = 0;
+                return;
+            }
+
+            if (kind === 'charts') {
+                dashboardChartsFailureCount = 0;
+            }
+        }
+
+        function nextDashboardRetryDelay(kind) {
+            if (kind === 'cards') {
+                dashboardCardsFailureCount += 1;
+                return Math.min(
+                    DASHBOARD_CARDS_RETRY_MS * Math.max(1, Math.pow(2, dashboardCardsFailureCount - 1)),
+                    DASHBOARD_CARDS_RETRY_MAX_MS
+                );
+            }
+
+            dashboardChartsFailureCount += 1;
+            return Math.min(
+                DASHBOARD_CHARTS_RETRY_MS * Math.max(1, Math.pow(2, dashboardChartsFailureCount - 1)),
+                DASHBOARD_CHARTS_RETRY_MAX_MS
+            );
+        }
+
+        function shouldTripDashboardCircuitBreaker() {
+            return dashboardCardsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD
+                || dashboardChartsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD;
+        }
+
+        function tripDashboardCircuitBreaker() {
+            dashboardSseCooldownUntil = Date.now() + DASHBOARD_SSE_COOLDOWN_MS;
+            disconnectDashboardStreams();
+            console.warn('Dashboard SSE em cooldown temporario.', {
+                retryAfterMs: DASHBOARD_SSE_COOLDOWN_MS,
+                cardsFailures: dashboardCardsFailureCount,
+                chartsFailures: dashboardChartsFailureCount
+            });
+        }
+
+        function disconnectDashboardStreams() {
+            if (dashboardReconnectTimer) {
+                window.clearTimeout(dashboardReconnectTimer);
+                dashboardReconnectTimer = null;
+            }
+
+            if (window.__dashboardSseConnections) {
+                window.__dashboardSseConnections.cards?.close?.();
+                window.__dashboardSseConnections.charts?.close?.();
+                window.__dashboardSseConnections = null;
+            }
+        }
+
+        function connectDashboardStreams() {
+            if (document.hidden || window.__dashboardSseConnections) {
+                return window.__dashboardSseConnections;
+            }
+
+            if (dashboardSseCooldownUntil > Date.now()) {
+                return window.__dashboardSseConnections;
+            }
+
+            const cardsSource = new EventSource(dashboardStreamUrl('/dashboard/cards'));
+            const chartsSource = new EventSource(dashboardStreamUrl('/dashboard/charts'));
+            window.__dashboardSseConnections = {
+                cards: cardsSource,
+                charts: chartsSource
+            };
+
+            cardsSource.onmessage = function (event) {
+                dashboardCardsLastMessageAt = Date.now();
+                resetDashboardSseFailures('cards');
+                try {
+                    cardsPayload = JSON.parse(event.data);
+                } catch {
                     return;
                 }
 
+                const data = cardsPayload;
+                const health = data.health || {};
+                const metrics = health.metrics || {};
+                const operationalCards = data.operational_cards || {};
+                const campanhas = data.campanhas || {};
+                const totalAtiva = Number(campanhas.ativa || 0);
+                const totalFinalizada = Number(campanhas.finalizada || 0);
+                const totalInativa = Number(campanhas.inativa || 0);
+                const totalProcessando = Number(campanhas.processando || 0);
+                const totalPausada = Number(campanhas.pausada || 0);
+                const totalCancelada = Number(campanhas.cancelada || 0);
+                const totalAgendada = Number(campanhas.agendada || 0);
+                const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
+
+                animateCountUp(document.getElementById('saldo-atual'), data.saldoAtual ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('saldo-taxa'), data.cdrTaxa ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('sms-custo'), data.totalConsumo ?? 0, 'R$ ');
+                animateCountUp(document.getElementById('sms-enviados'), data.smsEnviados ?? 0);
+                animateCountUp(document.getElementById('voz-enviados'), data.disposition ?? 0);
+                animateCountUp(document.getElementById('whatsapp-enviados'), data.whatsappEnviados ?? 0);
+                animateCountUp(document.getElementById('ultimo-pix'), data.ultimoPixValor ?? 0, 'R$ ');
+                setValue('pix-data', data.ultimoPixData || '--/--/----');
+                animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
+                animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
+                animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
+                animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
+                animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
+                animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
+                animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
+                animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
+
+                setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
+                setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
+                setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
+                setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
+                animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
+
+                setOperationalCard('voip', operationalCards.voip);
+                setOperationalCard('sms', operationalCards.sms);
+                setOperationalCard('whatsapp', operationalCards.whatsapp);
+
                 renderSelectedService();
-            }, 60);
+            };
+
+            chartsSource.onmessage = function (event) {
+                dashboardChartsLastMessageAt = Date.now();
+                resetDashboardSseFailures('charts');
+                try {
+                    if (event.data === chartsPayloadSignature) {
+                        return;
+                    }
+
+                    chartsPayloadSignature = event.data;
+                    chartsPayload = JSON.parse(event.data);
+                    renderSelectedService();
+                } catch (error) {
+                    console.error('Erro ao processar graficos do dashboard:', error, event.data);
+                    return;
+                }
+            };
+
+            cardsSource.onerror = function () {
+                if (document.hidden || cardsSource.readyState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextDashboardRetryDelay('cards');
+                if (shouldTripDashboardCircuitBreaker()) {
+                    tripDashboardCircuitBreaker();
+                    return;
+                }
+
+                scheduleDashboardReconnect(delay);
+            };
+
+            chartsSource.onerror = function (event) {
+                const now = Date.now();
+                const lastMessageAge = dashboardChartsLastMessageAt > 0 ? (now - dashboardChartsLastMessageAt) : null;
+                const connectionState = chartsSource.readyState;
+
+                if (document.hidden) {
+                    return;
+                }
+
+                if (connectionState === EventSource.CONNECTING) {
+                    return;
+                }
+
+                const delay = nextDashboardRetryDelay('charts');
+                console.warn('Reconectando stream dos graficos do dashboard.', {
+                    readyState: connectionState,
+                    lastMessageAge,
+                    retryDelay: delay
+                });
+
+                if (shouldTripDashboardCircuitBreaker()) {
+                    tripDashboardCircuitBreaker();
+                    return;
+                }
+
+                scheduleDashboardReconnect(delay);
+            };
+
+            return window.__dashboardSseConnections;
         }
 
-        function applyDashboardCardsPayload(data) {
-            cardsPayload = data || {};
-            dashboardCardsLastMessageAt = Date.now();
-
-            const health = cardsPayload.health || {};
-            const metrics = health.metrics || {};
-            const operationalCards = cardsPayload.operational_cards || {};
-            const campanhas = cardsPayload.campanhas || {};
-            const totalAtiva = Number(campanhas.ativa || 0);
-            const totalFinalizada = Number(campanhas.finalizada || 0);
-            const totalInativa = Number(campanhas.inativa || 0);
-            const totalProcessando = Number(campanhas.processando || 0);
-            const totalPausada = Number(campanhas.pausada || 0);
-            const totalCancelada = Number(campanhas.cancelada || 0);
-            const totalAgendada = Number(campanhas.agendada || 0);
-            const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
-
-            animateCountUp(document.getElementById('saldo-atual'), cardsPayload.saldoAtual ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('saldo-taxa'), cardsPayload.cdrTaxa ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('sms-custo'), cardsPayload.totalConsumo ?? 0, 'R$ ');
-            animateCountUp(document.getElementById('sms-enviados'), cardsPayload.smsEnviados ?? 0);
-            animateCountUp(document.getElementById('voz-enviados'), cardsPayload.disposition ?? 0);
-            animateCountUp(document.getElementById('whatsapp-enviados'), cardsPayload.whatsappEnviados ?? 0);
-            animateCountUp(document.getElementById('ultimo-pix'), cardsPayload.ultimoPixValor ?? 0, 'R$ ');
-            setValue('pix-data', cardsPayload.ultimoPixData || '--/--/----');
-            animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
-            animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
-            animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
-            animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
-            animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
-            animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
-            animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
-            animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
-
-            setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
-            setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
-            setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
-            setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
-            animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
-
-            setOperationalCard('voip', operationalCards.voip);
-            setOperationalCard('sms', operationalCards.sms);
-            setOperationalCard('whatsapp', operationalCards.whatsapp);
-        }
-
-        function applyDashboardChartsPayload(data) {
-            chartsPayload = data || {};
-            dashboardChartsLastMessageAt = Date.now();
-            chartsPayloadSignature = JSON.stringify(chartsPayload);
-            scheduleDashboardRender();
-        }
-
-        async function fetchDashboardSnapshot(path) {
-            const response = await fetch(dashboardStreamUrl(path), {
-                headers: {
-                    Accept: 'text/event-stream',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                cache: 'no-store'
-            });
-
-            const body = await response.text();
-            if (!response.ok) {
-                throw new Error(`Falha ao carregar ${path}: ${response.status}`);
+        bootstrapStaticCounts();
+        updatePeriodState(selectedPeriod);
+        connectDashboardStreams();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                disconnectDashboardStreams();
+                return;
             }
 
-            const match = body.match(/data:\s*(.+)/);
-            if (!match?.[1]) {
-                throw new Error(`Resposta vazia em ${path}`);
+            if (dashboardSseCooldownUntil > 0 && dashboardSseCooldownUntil <= Date.now()) {
+                dashboardSseCooldownUntil = 0;
+                resetDashboardSseFailures('cards');
+                resetDashboardSseFailures('charts');
             }
 
-            return JSON.parse(match[1]);
-        }
-
-        async function loadDashboardSnapshots() {
-            try {
-                const [cardsData, chartsData] = await Promise.all([
-                    fetchDashboardSnapshot('/dashboard/cards'),
-                    fetchDashboardSnapshot('/dashboard/charts')
-                ]);
-                applyDashboardCardsPayload(cardsData);
-                applyDashboardChartsPayload(chartsData);
-            } catch (error) {
-                console.error('Falha ao carregar snapshots do dashboard:', error);
-            }
-        }
-
-        window.addEventListener('load', () => {
-            bootstrapStaticCounts();
-            updatePeriodState(selectedPeriod);
-            loadDashboardSnapshots();
-        }, { once: true });
+            connectDashboardStreams();
+        });
+        window.addEventListener('beforeunload', disconnectDashboardStreams);
     });
 </script>

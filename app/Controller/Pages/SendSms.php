@@ -390,7 +390,10 @@ class SendSms extends ViewComponents
                 $callback->batch_id       = $batchId;
                 $callback->date_send      = date('Y-m-d H:i:s');
 
-                if (strtoupper($smsResult['status'] ?? '') === 'ACCEPTED') {
+                $initialStatus = strtoupper(trim((string)($smsResult['status'] ?? '')));
+                $chargeableOnInsert = ['ACCEPTED', 'SENT', 'DELIVERED', 'UNDELIVERABLE', 'EXPIRED'];
+
+                if (in_array($initialStatus, $chargeableOnInsert, true)) {
                     $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : (float)$obBalance->value_sms);
                     $callback->value_sms = $chargeValue;
                     $totalAccepted++;

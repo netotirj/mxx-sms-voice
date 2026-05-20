@@ -2,6 +2,7 @@
 
 namespace App\Controller\Pages;
 
+use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\UserPlans;
 use App\Service\AuthContext;
@@ -581,21 +582,22 @@ class ViewComponents
 
     private static function getCurrentPlanServiceSummary(array $loggedUser, ?int $currentPlan): ?object
     {
-        $userId = (int)($loggedUser['id'] ?? 0);
         $tenancyId = (string)($loggedUser['tenancy_id'] ?? '');
 
-        if ($userId <= 0 || $tenancyId === '') {
+        if ($tenancyId === '') {
             return null;
         }
 
-        if ($currentPlan && $currentPlan > 0) {
-            $summary = UserPlans::getPlanServiceSummary((int)$currentPlan, $userId, $tenancyId);
-            if ($summary) {
-                return $summary;
-            }
+        $planId = ($currentPlan && $currentPlan > 0)
+            ? (int)$currentPlan
+            : (int)(RegisterTenancies::getActivePlanId($tenancyId) ?? 0);
+
+        if ($planId <= 0) {
+            return null;
         }
 
-        return UserPlans::getLatestBalancePlanServiceSummary($userId, $tenancyId);
+        $plan = PlanCatalog::findById($planId);
+        return $plan ? (object)$plan : null;
     }
 
     private static function resolveHeaderWhatsappRates(?object $summary, array $loggedUser, array $profile = [], array $userBase = []): array
@@ -611,7 +613,7 @@ class ViewComponents
             ];
         }
 
-        $planId = (int)($summary->plan_id ?? 0);
+        $planId = (int)($summary->plan_id ?? $summary->id ?? 0);
         $cacheKey = 'header:whatsapp_rates:plan.'
             . max(0, $planId)
             . '.user.' . $userId

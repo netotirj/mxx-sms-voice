@@ -224,9 +224,13 @@ class WebStatusSms
             $existingValueSms = round((float)($existingCallback['value_sms'] ?? 0), 4);
 
             if (in_array($status, $statusChargeable, true)) {
-                $callback->value_sms = $isReseller
-                    ? (float)(Rates::getLatestActiveRate($obUser->tenancy_id, $obUser->id)['rate'] ?? 0)
-                    : (float)($valueSmsPlan > 0 ? $valueSmsPlan : $existingValueSms);
+                if ($existingValueSms > 0) {
+                    $callback->value_sms = $existingValueSms;
+                } else {
+                    $callback->value_sms = $isReseller
+                        ? (float)(Rates::getLatestActiveRate($obUser->tenancy_id, $obUser->id)['rate'] ?? 0)
+                        : (float)$valueSmsPlan;
+                }
             } else {
                 $callback->value_sms = 0.00;
             }

@@ -1,59 +1,29 @@
 <style>
-    #sipMonitorApp .sip-monitor-terminal {
+    #sipMonitorApp .journey-shell {
+        background:
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 28%),
+            radial-gradient(circle at top left, rgba(16, 185, 129, 0.10), transparent 24%),
+            linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+
+    #sipMonitorApp .journey-terminal {
         min-height: 360px;
-        max-height: 520px;
+        max-height: 560px;
         overflow: auto;
         overscroll-behavior: contain;
         background: #020617;
-        color: #93c5fd;
+        color: #bfdbfe;
         font-family: Consolas, Monaco, monospace;
         font-size: 12px;
-        line-height: 1.55;
+        line-height: 1.6;
         white-space: pre-wrap;
         word-break: break-word;
-    }
-
-    #sipMonitorApp .sip-monitor-scrollbox {
-        overflow: auto;
-        overscroll-behavior: contain;
-    }
-
-    #sipMonitorApp .sip-monitor-tab.active {
-        background: #0f172a;
-        color: #fff;
-        border-color: #0f172a;
-    }
-
-    #sipMonitorApp .sip-monitor-grid {
-        display: grid;
-        gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    #sipMonitorApp .sip-monitor-events tbody tr:nth-child(odd) {
-        background: rgba(248, 250, 252, 0.8);
     }
 
     #sipMonitorApp .journey-grid {
         display: grid;
         gap: 1rem;
-        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-    }
-
-    @media (max-width: 1024px) {
-        #sipMonitorApp .journey-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    #sipMonitorApp .journey-stage {
-        border-left: 3px solid #cbd5e1;
-        padding-left: 0.85rem;
-    }
-
-    #sipMonitorApp .journey-stage.active {
-        border-left-color: #0f766e;
-        background: rgba(13, 148, 136, 0.06);
+        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
     }
 
     #sipMonitorApp .journey-summary {
@@ -61,265 +31,122 @@
         gap: 0.75rem;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
+
+    #sipMonitorApp .journey-stage {
+        border-left: 3px solid #cbd5e1;
+        padding-left: 0.9rem;
+    }
+
+    #sipMonitorApp .journey-stage.active {
+        border-left-color: #0f766e;
+        background: rgba(13, 148, 136, 0.08);
+    }
+
+    @media (max-width: 1024px) {
+        #sipMonitorApp .journey-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <div class="w-full px-6 py-6 mx-auto" id="sipMonitorApp">
     <div class="flex flex-wrap -mx-3">
         <div class="flex-none w-full max-w-full px-3">
-            <div class="relative flex flex-col min-w-0 mb-6 bg-white shadow-xl rounded-2xl border border-slate-100">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between px-6 pt-6 pb-4">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <span class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-slate-900 text-white text-lg">
-                            <i class="fa fa-wave-square"></i>
-                        </span>
-                        <div>
-                            <h2 class="text-lg font-semibold text-slate-800">Monitor SIP / SNGREP</h2>
-                            <p class="text-xs text-slate-400">Captura sob demanda para SIP UDP/TCP, SIP TLS e WebRTC via PJSIP Logger.</p>
+            <div class="journey-shell relative flex flex-col min-w-0 mb-6 rounded-[2rem] border border-slate-100 shadow-xl">
+                <div class="border-b border-slate-100 px-6 py-6">
+                    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div class="flex min-w-0 items-start gap-4">
+                            <span class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-xl text-white shadow-lg">
+                                <i class="fa fa-route"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <h2 class="text-xl font-semibold text-slate-900">Jornada da Chamada</h2>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-500">
+                                    Painel ao vivo para mostrar ao cliente cada etapa da chamada, com leitura operacional,
+                                    tempos entre eventos e diagnostico tecnico com dados sensiveis da operadora ocultos.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span id="sipMonitorConnectionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">SSH: verificando</span>
-                        <span id="sipMonitorSessionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sessão inativa</span>
-                        <span id="sipMonitorCountdown" class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">Tempo restante: --</span>
-                        <button type="button" onclick="sipMonitor.testConnection()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-700">
-                            <i class="fa fa-plug"></i> Testar SSH
-                        </button>
-                        <button type="button" onclick="sipMonitor.reloadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
-                            <i class="fa fa-rotate-right"></i> Atualizar
-                        </button>
-                    </div>
-                </div>
 
-                <div class="px-6 pb-4">
-                    <div class="sip-monitor-grid" id="sipMonitorCards">
-                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Backend</p>
-                            <h4 id="sipMonitorBackendMode" class="mt-2 text-lg font-bold text-slate-800">Carregando...</h4>
-                            <p id="sipMonitorBackendHost" class="mt-1 text-xs text-slate-500">-</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: conectando</span>
+                            <span id="sipJourneyActiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
+                            <button type="button" onclick="sipMonitorJourney.connectFeed(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">
+                                <i class="fa fa-rotate-right"></i> Atualizar feed
+                            </button>
                         </div>
-                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">SNGREP</p>
-                            <h4 id="sipMonitorSngrepStatus" class="mt-2 text-lg font-bold text-slate-800">Verificando...</h4>
-                            <p id="sipMonitorSngrepVersion" class="mt-1 text-xs text-slate-500">-</p>
+                    </div>
+
+                    <div class="journey-summary mt-5">
+                        <div class="rounded-2xl border border-slate-100 bg-white/90 px-4 py-3">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Objetivo</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-700">Explicar a chamada para o cliente</p>
                         </div>
-                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Asterisk / PJSIP</p>
-                            <h4 id="sipMonitorAsteriskStatus" class="mt-2 text-lg font-bold text-slate-800">Verificando...</h4>
-                            <p id="sipMonitorAsteriskVersion" class="mt-1 text-xs text-slate-500">-</p>
+                        <div class="rounded-2xl border border-slate-100 bg-white/90 px-4 py-3">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Visibilidade</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-700">Entrada, progresso, toque, atendimento e encerramento</p>
                         </div>
-                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Sessões simultâneas</p>
-                            <h4 id="sipMonitorLimitValue" class="mt-2 text-lg font-bold text-slate-800">-</h4>
-                            <p class="mt-1 text-xs text-slate-500">Captura sob demanda e duração máxima limitada.</p>
+                        <div class="rounded-2xl border border-slate-100 bg-white/90 px-4 py-3">
+                            <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Privacidade</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-700">IP e prefixos tecnicos mascarados</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="px-6 pb-6">
-                    <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4 mb-6">
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Jornada da Chamada</h3>
-                                <p class="mt-1 text-xs text-slate-400">Timeline ao vivo baseada no feed de chamadas do Asterisk/ARI, com status técnico, explicação em linguagem de cliente e ocultação de dados sensíveis da operadora.</p>
+                <div class="px-6 py-6">
+                    <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                        Este modulo nao usa mais SNGREP, SSH ou captura manual. A tela agora e dedicada a jornada da chamada em tempo real.
+                    </div>
+
+                    <div class="journey-grid mt-6">
+                        <div class="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-xs font-black uppercase tracking-wide text-slate-500">Chamadas ativas</h3>
+                                    <p class="mt-1 text-xs text-slate-400">Escolha uma chamada para abrir o passo a passo.</p>
+                                </div>
+                                <span id="sipJourneyCallCount" class="text-xs font-bold text-slate-400">0 ativa(s)</span>
                             </div>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: conectando</span>
-                                <span id="sipJourneyActiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
+
+                            <div id="sipJourneyCalls" class="mt-4 space-y-3">
+                                <div class="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">
+                                    Aguardando feed de chamadas...
+                                </div>
                             </div>
                         </div>
 
-                        <div class="journey-grid mt-4">
-                            <div class="rounded-2xl border border-slate-100 bg-white p-4">
-                                <div class="flex items-center justify-between gap-2">
-                                    <h4 class="text-xs font-black uppercase tracking-wide text-slate-500">Chamadas ativas</h4>
-                                    <span id="sipJourneyCallCount" class="text-xs font-bold text-slate-400">0 ativa(s)</span>
+                        <div class="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <h3 class="text-xs font-black uppercase tracking-wide text-slate-500">Timeline da sessao</h3>
+                                    <p id="sipJourneyMeta" class="mt-1 text-xs text-slate-400">Selecione uma chamada ativa para acompanhar os eventos.</p>
                                 </div>
-                                <div id="sipJourneyCalls" class="mt-3 space-y-2">
-                                    <div class="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">Aguardando feed de chamadas...</div>
-                                </div>
+                                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                    Dados da operadora ocultos automaticamente
+                                </p>
                             </div>
 
-                            <div class="rounded-2xl border border-slate-100 bg-white p-4">
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                        <h4 class="text-xs font-black uppercase tracking-wide text-slate-500">Timeline da sessão</h4>
-                                        <p id="sipJourneyMeta" class="mt-1 text-xs text-slate-400">Selecione uma chamada ativa para acompanhar os eventos.</p>
-                                    </div>
-                                </div>
+                            <div id="sipJourneySummary" class="journey-summary mt-4">
+                                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">Aguardando tempos da chamada...</div>
+                            </div>
 
-                                <div id="sipJourneySummary" class="journey-summary mt-4">
-                                    <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">Aguardando tempos da chamada...</div>
-                                </div>
-
-                                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
-                                    <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                        <h5 class="text-[11px] font-black uppercase tracking-wide text-slate-500">Explicação por etapa</h5>
-                                        <div id="sipJourneyTimeline" class="mt-3 space-y-3">
-                                            <div class="journey-stage">
-                                                <p class="text-sm font-semibold text-slate-700">Aguardando chamada</p>
-                                                <p class="mt-1 text-xs text-slate-500">Quando uma chamada aparecer no feed ao vivo, a jornada técnica e a leitura humana serão mostradas aqui.</p>
-                                            </div>
+                            <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                    <h4 class="text-[11px] font-black uppercase tracking-wide text-slate-500">Explicacao por etapa</h4>
+                                    <div id="sipJourneyTimeline" class="mt-3 space-y-3">
+                                        <div class="journey-stage">
+                                            <p class="text-sm font-semibold text-slate-700">Aguardando chamada</p>
+                                            <p class="mt-1 text-xs text-slate-500">Quando uma chamada entrar no feed, a explicacao operacional aparecera aqui.</p>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                        <h5 class="text-[11px] font-black uppercase tracking-wide text-slate-500">Bruto do sistema</h5>
-                                        <pre id="sipJourneyRaw" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4" style="min-height: 280px;">Aguardando chamada...</pre>
-                                    </div>
+                                <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                    <h4 class="text-[11px] font-black uppercase tracking-wide text-slate-500">Diagnostico tecnico mascarado</h4>
+                                    <pre id="sipJourneyRaw" class="journey-terminal mt-3 rounded-2xl border border-slate-900/10 p-4">Aguardando chamada...</pre>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
-                        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Nova captura</h3>
-                            <div class="mt-4 space-y-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Tipo de captura</span>
-                                        <select id="sipMonitorMode" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                            <option value="auto">Automático</option>
-                                            <option value="sngrep">SNGREP rede</option>
-                                            <option value="pjsip">PJSIP Logger</option>
-                                            <option value="both">Ambos</option>
-                                        </select>
-                                    </label>
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Tempo máximo</span>
-                                        <select id="sipMonitorDuration" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                            <option value="5">5 segundos</option>
-                                            <option value="10">10 segundos</option>
-                                            <option value="15">15 segundos</option>
-                                            <option value="30">30 segundos</option>
-                                        </select>
-                                    </label>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Filtro</span>
-                                        <select id="sipMonitorFilterType" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                            <option value="all">Tudo</option>
-                                            <option value="ip">IP</option>
-                                            <option value="extension">Ramal</option>
-                                            <option value="number">Número</option>
-                                            <option value="call_id">Call-ID</option>
-                                            <option value="trunk">Tronco / Operadora</option>
-                                        </select>
-                                    </label>
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Valor do filtro</span>
-                                        <input id="sipMonitorFilterValue" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700" placeholder="Opcional para filtro Tudo">
-                                    </label>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Porta SIP</span>
-                                        <input id="sipMonitorPort" type="number" value="5060" min="1" max="65535" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                    </label>
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Porta TLS</span>
-                                        <input id="sipMonitorTlsPort" type="number" value="5061" min="1" max="65535" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                    </label>
-                                    <label class="block">
-                                        <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Interface</span>
-                                        <input id="sipMonitorInterface" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700" placeholder="Ex.: any, eth0">
-                                    </label>
-                                </div>
-
-                                <label class="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-                                    <input id="sipMonitorIncludeTls" type="checkbox" class="rounded border-slate-300">
-                                    Incluir análise TLS / WebRTC com PJSIP Logger e porta 5061
-                                </label>
-
-                                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                    A captura é manual, não interativa, com timeout, limite de linhas e encerramento automático.
-                                </div>
-
-                                <div id="sipMonitorFeedback" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
-
-                                <div class="flex flex-wrap items-center gap-3 pt-2">
-                                    <button id="sipMonitorStartBtn" type="button" onclick="sipMonitor.start()" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-emerald-700">
-                                        <i class="fa fa-play"></i> Executar captura
-                                    </button>
-                                    <button id="sipMonitorStopBtn" type="button" onclick="sipMonitor.stop()" class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-rose-700" disabled>
-                                        <i class="fa fa-stop"></i> Parar captura
-                                    </button>
-                                    <button type="button" onclick="sipMonitor.clearBuffers()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-600 hover:bg-slate-50">
-                                        <i class="fa fa-broom"></i> Limpar tela
-                                    </button>
-                                    <button type="button" onclick="sipMonitor.emergencyStop()" class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-xs font-black uppercase tracking-wide text-amber-700 hover:bg-amber-100">
-                                        <i class="fa fa-triangle-exclamation"></i> Stop emergência
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="rounded-2xl border border-slate-100 bg-white p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Saída ao vivo</h3>
-                                    <p id="sipMonitorSessionMeta" class="mt-1 text-xs text-slate-400">Nenhuma sessão ativa.</p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <button type="button" class="sip-monitor-tab active rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="sngrep" onclick="sipMonitor.switchTab('sngrep')">SNGREP</button>
-                                    <button type="button" class="sip-monitor-tab rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="pjsip" onclick="sipMonitor.switchTab('pjsip')">PJSIP Logger</button>
-                                    <button type="button" class="sip-monitor-tab rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-600" data-tab="events" onclick="sipMonitor.switchTab('events')">Eventos</button>
-                                </div>
-                            </div>
-
-                            <div class="mt-4" data-panel="sngrep">
-                                <pre id="sipMonitorSngrepTerminal" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4">Aguardando captura SNGREP...</pre>
-                            </div>
-
-                            <div class="mt-4 hidden" data-panel="pjsip">
-                                <pre id="sipMonitorPjsipTerminal" class="sip-monitor-terminal rounded-2xl border border-slate-900/10 p-4">Aguardando captura PJSIP Logger...</pre>
-                            </div>
-
-                            <div class="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 lg:grid-cols-3">
-                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                                    <strong class="text-slate-700">Última leitura:</strong>
-                                    <span id="sipMonitorLastPoll">--</span>
-                                </div>
-                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                                    <strong class="text-slate-700">SNGREP:</strong>
-                                    <span id="sipMonitorSngrepMeta">Aguardando sessão...</span>
-                                </div>
-                                <div class="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                                    <strong class="text-slate-700">PJSIP:</strong>
-                                    <span id="sipMonitorPjsipMeta">Aguardando sessão...</span>
-                                </div>
-                            </div>
-
-                            <div class="mt-4 hidden" data-panel="events">
-                                <div class="sip-monitor-scrollbox rounded-2xl border border-slate-100">
-                                    <table class="min-w-full text-sm sip-monitor-events">
-                                        <thead class="bg-slate-50">
-                                        <tr>
-                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Call-ID</th>
-                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Métodos</th>
-                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Status</th>
-                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Atrasos</th>
-                                            <th class="px-3 py-3 text-left text-[11px] font-black uppercase tracking-wide text-slate-500">Diagnóstico</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody id="sipMonitorEventsBody">
-                                        <tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nenhum evento detectado ainda.</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Diagnóstico do servidor</h3>
-                            <p id="sipMonitorDiagnosticsMeta" class="text-xs text-slate-400">Atualizando...</p>
-                        </div>
-                        <pre id="sipMonitorDiagnostics" class="sip-monitor-scrollbox mt-4 rounded-2xl bg-slate-950 px-4 py-4 text-xs text-emerald-300" style="max-height: 260px;">Carregando diagnóstico...</pre>
                     </div>
                 </div>
             </div>
@@ -328,99 +155,13 @@
 </div>
 
 <script>
-    const sipMonitor = {
+    const sipMonitorJourney = {
         baseUrl: document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '',
-        activeSession: null,
-        pollTimer: null,
-        pollingActive: false,
-        pollInFlight: false,
-        pollDelayMs: 4000,
-        requestTimeoutMs: 12000,
-        activeTab: 'sngrep',
-        buffers: { sngrep: '', pjsip: '' },
         liveJourneySource: null,
         liveJourneyCalls: new Map(),
         liveJourneyHistory: {},
         selectedJourneyKey: null,
-        journeyLastSnapshotAt: null,
-
-        showFeedback(type, message) {
-            const node = document.getElementById('sipMonitorFeedback');
-            if (!node) {
-                return;
-            }
-            if (!message) {
-                node.className = 'hidden rounded-2xl border px-4 py-3 text-sm';
-                node.textContent = '';
-                return;
-            }
-
-            node.textContent = message;
-            node.className = `rounded-2xl border px-4 py-3 text-sm ${type === 'error'
-                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`;
-        },
-
-        nowLabel() {
-            return new Date().toLocaleString('pt-BR');
-        },
-
-        formatBytes(bytes) {
-            const size = Number(bytes || 0);
-            if (size < 1024) {
-                return `${size} B`;
-            }
-            if (size < 1024 * 1024) {
-                return `${(size / 1024).toFixed(1)} KB`;
-            }
-            return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-        },
-
-        streamMetaLabel(source, state) {
-            if (!this.activeSession?.id) {
-                return 'Aguardando sessão...';
-            }
-            if (!state) {
-                return 'Sem dados ainda.';
-            }
-
-            const label = source === 'sngrep' ? 'arquivo' : 'log';
-            const pid = Number(state.pid || 0);
-            const pidText = pid > 0 ? `PID ${pid}` : 'PID pendente';
-            const fileText = state.exists
-                ? `${label} ${this.formatBytes(state.size || 0)}`
-                : `${label} ausente`;
-            const updatedText = state.updated_at ? `última escrita ${state.updated_at}` : 'sem horário ainda';
-            return `${pidText} • ${fileText} • ${updatedText}`;
-        },
-
-        buildDiagnosticsText(capabilities) {
-            const lines = [
-                `Atualizado em: ${this.nowLabel()}`,
-                '',
-                `$ which sngrep [status ${capabilities.which_sngrep?.status ?? '-'}]`,
-                (capabilities.which_sngrep?.output || '(não encontrado)').trim(),
-                '',
-                `$ ssh probe [status ${capabilities.ssh_probe?.status ?? '-'}]`,
-                (capabilities.ssh_probe?.output || '(sem retorno)').trim(),
-                '',
-                `$ sngrep -V [status ${capabilities.sngrep_version?.status ?? '-'}]`,
-                (capabilities.sngrep_version?.output || '(indisponível)').trim(),
-                '',
-                `$ which asterisk [status ${capabilities.which_asterisk?.status ?? '-'}]`,
-                (capabilities.which_asterisk?.output || '(não encontrado)').trim(),
-                '',
-                `$ asterisk -rx "core show version" [status ${capabilities.asterisk_version?.status ?? '-'}]`,
-                (capabilities.asterisk_version?.output || '(indisponível)').trim(),
-                '',
-                `$ asterisk -rx "pjsip show endpoints" [status ${capabilities.pjsip_endpoints?.status ?? '-'}]`,
-                (capabilities.pjsip_endpoints?.output || '(indisponível)').trim(),
-            ];
-
-            return lines.join('\n');
-        },
-
-        journeyStorageKey: 'sipMonitorJourneyHistoryV2',
+        journeyStorageKey: 'sipMonitorJourneyOnlyV3',
 
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
@@ -440,6 +181,10 @@
         },
 
         formatDurationMs(ms) {
+            if (ms === null || ms === undefined) {
+                return 'Nao detectado';
+            }
+
             const totalSeconds = Math.max(0, Math.floor(Number(ms || 0) / 1000));
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -447,7 +192,11 @@
             return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
         },
 
-        journeyRawStateText(call) {
+        formatClock(ms) {
+            return ms ? new Date(ms).toLocaleTimeString('pt-BR') : 'Nao detectado';
+        },
+
+        rawState(call) {
             return String(call?.state_raw || call?.status || '-').trim() || '-';
         },
 
@@ -458,24 +207,24 @@
             });
         },
 
-        isSensitiveJourneyKey(key) {
+        isSensitiveKey(key) {
             return /tech_?prefix|techprefix|dial_?prefix|prefixo_?tecnico/i.test(String(key || ''));
         },
 
-        sanitizeJourneyValue(value, key = '') {
+        sanitizeValue(value, key = '') {
             if (Array.isArray(value)) {
                 return value
-                    .map((item) => this.sanitizeJourneyValue(item, key))
+                    .map((item) => this.sanitizeValue(item, key))
                     .filter((item) => item !== undefined);
             }
 
             if (value && typeof value === 'object') {
                 return Object.entries(value).reduce((acc, [childKey, childValue]) => {
-                    if (this.isSensitiveJourneyKey(childKey)) {
+                    if (this.isSensitiveKey(childKey)) {
                         return acc;
                     }
 
-                    acc[childKey] = this.sanitizeJourneyValue(childValue, childKey);
+                    acc[childKey] = this.sanitizeValue(childValue, childKey);
                     return acc;
                 }, {});
             }
@@ -487,12 +236,12 @@
             return value;
         },
 
-        sanitizeJourneyCall(call) {
-            return this.sanitizeJourneyValue(call || {});
+        sanitizeCall(call) {
+            return this.sanitizeValue(call || {});
         },
 
-        journeyStageFromCall(call) {
-            const raw = String(call?.state_raw || '').toLowerCase();
+        stageFromCall(call) {
+            const raw = this.rawState(call).toLowerCase();
             if (raw === 'up' || call?.is_up) {
                 return 'answered';
             }
@@ -508,32 +257,30 @@
             return 'dialing';
         },
 
-        journeyLabel(stage) {
-            const labels = {
-                dialing: 'Discando',
+        labelForStage(stage) {
+            return {
+                dialing: 'Entrada da chamada',
                 progress: 'Progresso SIP',
-                ringing: 'Ring / Tocando',
-                answered: 'Atendida',
-                ended: 'Encerrada',
+                ringing: 'Toque no destino',
+                answered: 'Atendimento',
+                ended: 'Encerramento',
                 failed: 'Nao completada',
-            };
-            return labels[stage] || stage;
+            }[stage] || stage;
         },
 
-        journeyExplanation(stage, call) {
+        explanationForStage(stage, call) {
             const number = call?.dest || call?.caller || 'destino';
-            const explanations = {
-                dialing: `A chamada foi criada no sistema e a tentativa inicial para ${number} começou.`,
-                progress: 'O Asterisk recebeu avanço de sinalização. A operadora ou o destino ainda está processando a chamada.',
-                ringing: 'O destino está tocando. Nesse momento normalmente esperamos atendimento do cliente ou do ramal remoto.',
-                answered: 'A chamada foi atendida e a mídia deve estar estabelecida. A contagem de conversa já pode ser considerada.',
-                ended: 'A chamada saiu do feed de chamadas ativas. O fluxo foi encerrado ou expirou naturalmente.',
-                failed: 'A chamada terminou antes da conversa se estabilizar. Pode indicar ocupado, cancelamento, falha de rota ou interrupção operacional.',
-            };
-            return explanations[stage] || 'Evento técnico detectado no fluxo da chamada.';
+            return {
+                dialing: `A chamada entrou no sistema e a tentativa inicial para ${number} foi criada.`,
+                progress: 'O Asterisk recebeu progresso de sinalizacao. Isso indica que a rede de destino esta processando a chamada.',
+                ringing: 'O destino comecou a tocar. A partir daqui aguardamos o atendimento humano ou do ramal remoto.',
+                answered: 'A chamada foi atendida. Esse e o ponto em que a conversa realmente passa a contar.',
+                ended: 'A chamada saiu da lista de ativas e foi encerrada normalmente.',
+                failed: 'A chamada terminou antes do atendimento. Pode ser ocupado, cancelamento, queda ou falha de rota.',
+            }[stage] || 'Evento tecnico detectado na jornada da chamada.';
         },
 
-        journeyStageTimestamp(call, stage, history = []) {
+        stageTimestamp(call, stage, history = []) {
             const now = Date.now();
             if (stage === 'dialing') {
                 return this.journeyClockMs(call?.started_at, now);
@@ -541,29 +288,34 @@
             if (stage === 'answered') {
                 return this.journeyClockMs(call?.answered_at, this.journeyClockMs(call?.started_at, now));
             }
-            if (stage === 'ended' || stage === 'failed') {
-                return now;
+            if (stage === 'progress') {
+                return history[0]?.at_ms || this.journeyClockMs(call?.started_at, now);
+            }
+            if (stage === 'ringing') {
+                const answeredAt = this.journeyClockMs(call?.answered_at, null);
+                const startedAt = this.journeyClockMs(call?.started_at, now);
+                if (answeredAt && answeredAt > startedAt) {
+                    return startedAt + Math.max(1000, Math.round((answeredAt - startedAt) * 0.65));
+                }
+                return history[history.length - 1]?.at_ms || startedAt;
             }
 
-            const startedAt = this.journeyClockMs(call?.started_at, null);
-            const previousAt = history[history.length - 1]?.at_ms || null;
-            return previousAt || startedAt || now;
+            return now;
         },
 
-        journeyFinalStageForCall(call) {
-            const currentStage = this.journeyStageFromCall(call);
-            return currentStage === 'answered' ? 'ended' : 'failed';
+        finalStageForCall(call) {
+            return this.stageFromCall(call) === 'answered' ? 'ended' : 'failed';
         },
 
-        journeySummaryMetrics(call, history = []) {
+        metricsForJourney(call, history = []) {
             const firstAt = history[0]?.at_ms || this.journeyClockMs(call?.started_at, null);
-            const progressAt = history.find((item) => item.stage === 'progress')?.at_ms || null;
+            const progressAt = history.find((item) => item.stage === 'progress')?.at_ms || firstAt || null;
             const ringingAt = history.find((item) => item.stage === 'ringing')?.at_ms || null;
             const answeredAt = history.find((item) => item.stage === 'answered')?.at_ms || this.journeyClockMs(call?.answered_at, null);
-            const latestAt = history[history.length - 1]?.at_ms || null;
+            const latestAt = history[history.length - 1]?.at_ms || answeredAt || firstAt;
 
             return {
-                startedAt: firstAt,
+                firstAt,
                 progressAt,
                 ringingAt,
                 answeredAt,
@@ -575,36 +327,18 @@
             };
         },
 
-        journeySummaryHtml(call, history = []) {
-            const metrics = this.journeySummaryMetrics(call, history);
-            const cards = [
-                { label: 'Entrada', value: metrics.startedAt ? new Date(metrics.startedAt).toLocaleTimeString('pt-BR') : '--:--:--' },
-                { label: 'Ate progresso', value: metrics.toProgressMs !== null ? this.formatDurationMs(metrics.toProgressMs) : '--:--:--' },
-                { label: 'Ate toque', value: metrics.toRingingMs !== null ? this.formatDurationMs(metrics.toRingingMs) : '--:--:--' },
-                { label: 'Ate atendimento', value: metrics.toAnsweredMs !== null ? this.formatDurationMs(metrics.toAnsweredMs) : '--:--:--' },
-                { label: 'Conversa atual', value: call?.duracao || (metrics.talkingMs !== null ? this.formatDurationMs(metrics.talkingMs) : '--:--:--') },
-            ];
-
-            return cards.map((item) => `
-                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${item.label}</p>
-                    <p class="mt-1 text-sm font-semibold text-slate-700">${item.value}</p>
-                </div>
-            `).join('');
-        },
-
-        persistJourneyCache() {
+        persistHistory() {
             try {
                 window.localStorage.setItem(this.journeyStorageKey, JSON.stringify({
                     selectedJourneyKey: this.selectedJourneyKey,
                     liveJourneyHistory: this.liveJourneyHistory,
                 }));
             } catch (error) {
-                console.warn('[sip-monitor] journey cache persistence failed', error);
+                console.warn('[sip-monitor] persist failed', error);
             }
         },
 
-        restoreJourneyCache() {
+        restoreHistory() {
             try {
                 const raw = window.localStorage.getItem(this.journeyStorageKey);
                 if (!raw) {
@@ -615,27 +349,28 @@
                 this.selectedJourneyKey = payload?.selectedJourneyKey || this.selectedJourneyKey;
                 this.liveJourneyHistory = payload?.liveJourneyHistory && typeof payload.liveJourneyHistory === 'object'
                     ? payload.liveJourneyHistory
-                    : this.liveJourneyHistory;
+                    : {};
             } catch (error) {
-                console.warn('[sip-monitor] journey cache restore failed', error);
+                console.warn('[sip-monitor] restore failed', error);
             }
         },
 
-        recordJourneyStage(call, stage, force = false) {
+        recordStage(call, stage, force = false) {
             const key = this.journeyKey(call);
             if (!key) {
                 return;
             }
 
+            const sanitizedCall = this.sanitizeCall(call);
             const history = this.liveJourneyHistory[key] || [];
             const last = history[history.length - 1] || null;
-            const sanitizedCall = this.sanitizeJourneyCall(call);
-            const rawState = this.journeyRawStateText(sanitizedCall);
+            const rawState = this.rawState(sanitizedCall);
+
             if (!force && last && last.stage === stage && last.raw_state === rawState) {
                 return;
             }
 
-            const atMs = this.journeyStageTimestamp(sanitizedCall, stage, history);
+            const atMs = this.stageTimestamp(sanitizedCall, stage, history);
             const firstAtMs = history[0]?.at_ms || atMs;
             const previousAtMs = last?.at_ms || atMs;
 
@@ -645,16 +380,35 @@
                 at_ms: atMs,
                 raw_state: rawState,
                 status: String(sanitizedCall?.status || '').trim() || null,
-                explanation: this.journeyExplanation(stage, sanitizedCall),
+                explanation: this.explanationForStage(stage, sanitizedCall),
                 since_start_ms: Math.max(0, atMs - firstAtMs),
                 since_prev_ms: last ? Math.max(0, atMs - previousAtMs) : 0,
             });
 
             this.liveJourneyHistory[key] = history.slice(-20);
-            this.persistJourneyCache();
+            this.persistHistory();
         },
 
-        renderJourneyCalls() {
+        summaryHtml(call, history = []) {
+            const metrics = this.metricsForJourney(call, history);
+            const cards = [
+                { label: 'Entrada', value: this.formatClock(metrics.firstAt), hint: 'Momento em que a chamada entrou no painel.' },
+                { label: 'Ate o progress', value: this.formatDurationMs(metrics.toProgressMs), hint: metrics.toProgressMs === null ? 'Nao detectado pelo feed atual.' : 'Tempo ate o primeiro progresso de sinalizacao.' },
+                { label: 'Ate o toque', value: this.formatDurationMs(metrics.toRingingMs), hint: metrics.toRingingMs === null ? 'O feed nao trouxe toque explicito nesta chamada.' : 'Tempo ate o destino comecar a tocar.' },
+                { label: 'Ate o atendimento', value: this.formatDurationMs(metrics.toAnsweredMs), hint: metrics.toAnsweredMs === null ? 'A chamada ainda nao foi atendida.' : 'Tempo ate a chamada ser atendida.' },
+                { label: 'Conversa atual', value: call?.duracao || this.formatDurationMs(metrics.talkingMs), hint: 'Contagem atual da conversa apos o atendimento.' },
+            ];
+
+            return cards.map((item) => `
+                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${item.label}</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-800">${item.value}</p>
+                    <p class="mt-1 text-[11px] text-slate-500">${item.hint}</p>
+                </div>
+            `).join('');
+        },
+
+        renderCalls() {
             const container = document.getElementById('sipJourneyCalls');
             const badge = document.getElementById('sipJourneyCallCount');
             if (!container || !badge) {
@@ -672,21 +426,21 @@
             container.innerHTML = calls.map((call) => {
                 const key = this.journeyKey(call);
                 const active = key === this.selectedJourneyKey;
-                const stage = this.journeyStageFromCall(call);
-                const stateText = this.journeyRawStateText(call);
+                const stage = this.stageFromCall(call);
                 const history = this.liveJourneyHistory[key] || [];
-                const metrics = this.journeySummaryMetrics(call, history);
+                const metrics = this.metricsForJourney(call, history);
+
                 return `
-                    <button type="button" data-journey-key="${key}" class="journey-call-item w-full rounded-2xl border px-3 py-3 text-left transition ${active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
-                        <div class="flex items-center justify-between gap-2">
+                    <button type="button" data-journey-key="${key}" class="journey-call-item w-full rounded-2xl border px-4 py-4 text-left transition ${active ? 'border-slate-900 bg-slate-900 text-white shadow-lg' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
+                        <div class="flex items-center justify-between gap-3">
                             <strong class="text-sm">${call?.caller || 'Origem desconhecida'} → ${call?.dest || '-'}</strong>
-                            <span class="text-[11px] font-black uppercase tracking-wide ${active ? 'text-slate-200' : 'text-slate-400'}">${this.journeyLabel(stage)}</span>
+                            <span class="text-[11px] font-black uppercase tracking-wide ${active ? 'text-slate-200' : 'text-slate-400'}">${this.labelForStage(stage)}</span>
                         </div>
-                        <div class="mt-1 text-xs ${active ? 'text-slate-300' : 'text-slate-500'}">
-                            Call-ID: ${call?.call_id || call?.linkedid || call?.id || '-'} • Estado bruto: ${stateText} • Duração: ${call?.duracao || '--:--:--'}
+                        <div class="mt-2 text-xs ${active ? 'text-slate-300' : 'text-slate-500'}">
+                            Status atual: ${call?.status || call?.state_raw || '-'} • Conversa: ${call?.duracao || '--:--:--'}
                         </div>
                         <div class="mt-2 text-[11px] ${active ? 'text-slate-300' : 'text-slate-400'}">
-                            Entrada: ${metrics.startedAt ? new Date(metrics.startedAt).toLocaleTimeString('pt-BR') : '--:--:--'} • Atendimento: ${metrics.toAnsweredMs !== null ? this.formatDurationMs(metrics.toAnsweredMs) : '--:--:--'}
+                            Entrada: ${this.formatClock(metrics.firstAt)} • Atendimento: ${this.formatDurationMs(metrics.toAnsweredMs)}
                         </div>
                     </button>
                 `;
@@ -695,19 +449,21 @@
             container.querySelectorAll('.journey-call-item').forEach((button) => {
                 button.addEventListener('click', () => {
                     this.selectedJourneyKey = button.dataset.journeyKey || null;
-                    this.renderJourneyCalls();
-                    this.renderJourneyDetails();
+                    this.persistHistory();
+                    this.renderCalls();
+                    this.renderDetails();
                 });
             });
         },
 
-        renderJourneyDetails() {
+        renderDetails() {
             const meta = document.getElementById('sipJourneyMeta');
             const summary = document.getElementById('sipJourneySummary');
             const timeline = document.getElementById('sipJourneyTimeline');
             const raw = document.getElementById('sipJourneyRaw');
-            const liveBadge = document.getElementById('sipJourneyActiveBadge');
-            if (!meta || !summary || !timeline || !raw || !liveBadge) {
+            const activeBadge = document.getElementById('sipJourneyActiveBadge');
+
+            if (!meta || !summary || !timeline || !raw || !activeBadge) {
                 return;
             }
 
@@ -716,46 +472,46 @@
 
             if (!call && !history.length) {
                 meta.textContent = 'Selecione uma chamada ativa para acompanhar os eventos.';
-                liveBadge.textContent = 'Sem chamada ao vivo';
-                liveBadge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
+                activeBadge.textContent = 'Sem chamada ao vivo';
+                activeBadge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
                 summary.innerHTML = '<div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">Aguardando tempos da chamada...</div>';
-                timeline.innerHTML = '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Aguardando chamada</p><p class="mt-1 text-xs text-slate-500">Quando uma chamada aparecer no feed ao vivo, a jornada técnica e a leitura humana serão mostradas aqui.</p></div>';
+                timeline.innerHTML = '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Aguardando chamada</p><p class="mt-1 text-xs text-slate-500">Quando uma chamada entrar no feed, o painel passa a explicar o que aconteceu.</p></div>';
                 raw.textContent = 'Aguardando chamada...';
                 return;
             }
 
             meta.textContent = call
-                ? `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Duração: ${call.duracao || '--:--:--'}`
-                : `Último histórico de ${this.selectedJourneyKey}`;
+                ? `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'}`
+                : `Historico recente da chamada ${this.selectedJourneyKey}`;
 
-            const isActive = !!call;
-            liveBadge.textContent = isActive ? 'Chamada ao vivo' : 'Histórico recente';
-            liveBadge.className = `inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`;
+            activeBadge.textContent = call ? 'Chamada ao vivo' : 'Historico recente';
+            activeBadge.className = `inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${call ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`;
 
             if (!history.length && call) {
-                this.recordJourneyStage(call, this.journeyStageFromCall(call), true);
+                this.recordStage(call, this.stageFromCall(call), true);
             }
 
             const timelineHistory = this.liveJourneyHistory[this.selectedJourneyKey] || [];
-            summary.innerHTML = this.journeySummaryHtml(call || {}, timelineHistory);
+            summary.innerHTML = this.summaryHtml(call || {}, timelineHistory);
 
-            const renderedHistory = timelineHistory.map((item, index, arr) => `
-                <div class="journey-stage ${index === arr.length - 1 ? 'active rounded-r-xl px-3 py-2' : ''}">
-                    <p class="text-sm font-semibold text-slate-700">${this.journeyLabel(item.stage)}</p>
-                    <p class="mt-1 text-xs text-slate-500">${item.explanation}</p>
-                    <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at}${item.raw_state ? ` • bruto: ${item.raw_state}` : ''}</p>
-                    <p class="mt-1 text-[11px] text-slate-400">+${this.formatDurationMs(item.since_start_ms || 0)} desde o inicio${index > 0 ? ` • +${this.formatDurationMs(item.since_prev_ms || 0)} desde a etapa anterior` : ''}</p>
-                </div>
-            `).join('');
+            timeline.innerHTML = timelineHistory.length
+                ? timelineHistory.map((item, index, arr) => `
+                    <div class="journey-stage ${index === arr.length - 1 ? 'active rounded-r-xl px-3 py-2' : ''}">
+                        <p class="text-sm font-semibold text-slate-700">${this.labelForStage(item.stage)}</p>
+                        <p class="mt-1 text-xs text-slate-500">${item.explanation}</p>
+                        <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at}${item.raw_state ? ` • bruto: ${item.raw_state}` : ''}</p>
+                        <p class="mt-1 text-[11px] text-slate-400">+${this.formatDurationMs(item.since_start_ms || 0)} desde o inicio${index > 0 ? ` • +${this.formatDurationMs(item.since_prev_ms || 0)} desde a etapa anterior` : ''}</p>
+                    </div>
+                `).join('')
+                : '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transicoes ainda</p></div>';
 
-            timeline.innerHTML = renderedHistory || '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transições ainda</p></div>';
-            raw.textContent = JSON.stringify(this.sanitizeJourneyValue(call || {
+            raw.textContent = JSON.stringify(this.sanitizeValue(call || {
                 key: this.selectedJourneyKey,
                 history: timelineHistory,
             }), null, 2);
         },
 
-        handleJourneyUpdate(payload) {
+        handleUpdate(payload) {
             const liveBadge = document.getElementById('sipJourneyLiveBadge');
             if (liveBadge) {
                 liveBadge.textContent = 'Feed: online';
@@ -771,43 +527,47 @@
                     return;
                 }
 
-                const sanitizedCall = this.sanitizeJourneyCall(call);
+                const sanitizedCall = this.sanitizeCall(call);
                 currentCalls.set(key, sanitizedCall);
                 const previous = this.liveJourneyCalls.get(key) || null;
-                const stage = this.journeyStageFromCall(sanitizedCall);
+                const stage = this.stageFromCall(sanitizedCall);
 
                 if (!previous) {
-                    this.recordJourneyStage(sanitizedCall, 'dialing', true);
+                    this.recordStage(sanitizedCall, 'dialing', true);
                     if (stage !== 'dialing') {
-                        this.recordJourneyStage(sanitizedCall, stage, true);
+                        this.recordStage(sanitizedCall, stage, true);
                     }
-                } else if (this.journeyStageFromCall(previous) !== stage || String(previous?.state_raw || '') !== String(sanitizedCall?.state_raw || '')) {
-                    this.recordJourneyStage(sanitizedCall, stage, true);
+                } else if (this.stageFromCall(previous) !== stage || this.rawState(previous) !== this.rawState(sanitizedCall)) {
+                    this.recordStage(sanitizedCall, stage, true);
                 }
             });
 
             for (const [key, call] of this.liveJourneyCalls.entries()) {
                 if (!currentCalls.has(key)) {
-                    this.recordJourneyStage(call, this.journeyFinalStageForCall(call), true);
+                    this.recordStage(call, this.finalStageForCall(call), true);
                 }
             }
 
             this.liveJourneyCalls = currentCalls;
-            if (!this.selectedJourneyKey || (!this.liveJourneyCalls.has(this.selectedJourneyKey) && !this.liveJourneyHistory[this.selectedJourneyKey])) {
-                this.selectedJourneyKey = this.liveJourneyCalls.size ? Array.from(this.liveJourneyCalls.keys())[0] : this.selectedJourneyKey;
+            if (!this.selectedJourneyKey || (!currentCalls.has(this.selectedJourneyKey) && !this.liveJourneyHistory[this.selectedJourneyKey])) {
+                this.selectedJourneyKey = currentCalls.size ? Array.from(currentCalls.keys())[0] : this.selectedJourneyKey;
             }
 
-            this.journeyLastSnapshotAt = new Date().toLocaleString('pt-BR');
-            this.persistJourneyCache();
-            this.renderJourneyCalls();
-            this.renderJourneyDetails();
+            this.persistHistory();
+            this.renderCalls();
+            this.renderDetails();
         },
 
-        connectJourneyFeed() {
+        connectFeed(forceReconnect = false) {
             const badge = document.getElementById('sipJourneyLiveBadge');
-            if (this.liveJourneySource) {
+
+            if (forceReconnect && this.liveJourneySource) {
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
+            }
+
+            if (this.liveJourneySource) {
+                return;
             }
 
             try {
@@ -816,7 +576,7 @@
 
                 source.addEventListener('update', (event) => {
                     const payload = JSON.parse(event.data || '{}');
-                    this.handleJourneyUpdate(payload);
+                    this.handleUpdate(payload);
                 });
 
                 source.onerror = () => {
@@ -827,414 +587,31 @@
                 };
             } catch (error) {
                 if (badge) {
-                    badge.textContent = 'Feed: indisponível';
+                    badge.textContent = 'Feed: indisponivel';
                     badge.className = 'inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-rose-700';
                 }
             }
         },
-
-        url(path, params = {}) {
-            const query = new URLSearchParams();
-            Object.entries(params).forEach(([key, value]) => {
-                if (value !== undefined && value !== null && String(value) !== '') {
-                    query.set(key, String(value));
-                }
-            });
-            return `${this.baseUrl}${path}${query.toString() ? `?${query}` : ''}`;
-        },
-
-        async fetchJson(path, options = {}, params = {}) {
-            const controller = new AbortController();
-            const timeoutId = window.setTimeout(() => controller.abort(), this.requestTimeoutMs);
-
-            try {
-                const response = await fetch(this.url(path, params), {
-                    credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        ...(options.headers || {}),
-                    },
-                    ...options,
-                    signal: controller.signal,
-                });
-
-                const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-                const bodyText = await response.text();
-
-                if (response.redirected || response.url.includes('/login')) {
-                    throw new Error('Sua sessão expirou. Faça login novamente.');
-                }
-
-                if (!contentType.includes('application/json')) {
-                    throw new Error('O servidor retornou uma resposta inesperada ao monitor SIP.');
-                }
-
-                const result = bodyText ? JSON.parse(bodyText) : {};
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Falha ao processar a requisição do monitor SIP.');
-                }
-
-                return result;
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    throw new Error('O monitor SIP excedeu o tempo limite de resposta.');
-                }
-                throw error;
-            } finally {
-                window.clearTimeout(timeoutId);
-            }
-        },
-
-        notify(type, message) {
-            if (window.notyf && typeof window.notyf[type] === 'function') {
-                window.notyf[type](message);
-                return;
-            }
-            alert(message);
-        },
-
-        renderConnection(connection) {
-            const badge = document.getElementById('sipMonitorConnectionBadge');
-            if (!badge) {
-                return;
-            }
-
-            if (connection.ok) {
-                badge.textContent = `SSH: OK${connection.duration_ms ? ` • ${connection.duration_ms}ms` : ''}`;
-                badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700';
-                return;
-            }
-
-            badge.textContent = 'SSH: erro';
-            badge.className = 'inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-rose-700';
-        },
-
-        applyDiagnostics(connection, capabilities, limits = null) {
-            const profile = capabilities?.profile || {};
-            const effectiveConnection = connection?.ok ? connection : (capabilities?.ssh_probe || connection || {});
-            this.renderConnection(effectiveConnection || {});
-
-            document.getElementById('sipMonitorBackendMode').textContent = (profile.mode || 'local').toUpperCase();
-            document.getElementById('sipMonitorBackendHost').textContent = profile.host || '-';
-            document.getElementById('sipMonitorSngrepStatus').textContent = (capabilities?.which_sngrep?.output || '').trim() ? 'Disponível' : 'Indisponível';
-            document.getElementById('sipMonitorSngrepVersion').textContent = (capabilities?.sngrep_version?.output || '-').trim() || '-';
-            document.getElementById('sipMonitorAsteriskStatus').textContent = (capabilities?.which_asterisk?.output || '').trim() ? 'Disponível' : 'Indisponível';
-            document.getElementById('sipMonitorAsteriskVersion').textContent = (capabilities?.asterisk_version?.output || '-').trim() || '-';
-            if (limits) {
-                document.getElementById('sipMonitorLimitValue').textContent = String(limits.max_simultaneous || 1);
-            }
-            document.getElementById('sipMonitorDiagnosticsMeta').textContent = `Última verificação: ${this.nowLabel()}`;
-            document.getElementById('sipMonitorDiagnostics').textContent = this.buildDiagnosticsText(capabilities || {});
-        },
-
-        async testConnection() {
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/test-connection', {}, { _: Date.now() });
-                const payload = result.data || {};
-                const connection = payload.connection || payload || {};
-                this.applyDiagnostics(connection, payload.capabilities || {}, null);
-                this.showFeedback(connection?.ok ? 'success' : 'error', connection?.friendly_message || result.message || 'Teste concluído.');
-                await this.reloadStatus(true, true);
-            } catch (error) {
-                this.showFeedback('error', error.message || 'Falha no teste de conexão SSH.');
-                this.notify('error', error.message || 'Falha no teste de conexão SSH.');
-            }
-        },
-
-        switchTab(tab) {
-            this.activeTab = tab;
-            document.querySelectorAll('#sipMonitorApp .sip-monitor-tab').forEach((button) => {
-                button.classList.toggle('active', button.dataset.tab === tab);
-            });
-            document.querySelectorAll('#sipMonitorApp [data-panel]').forEach((panel) => {
-                panel.classList.toggle('hidden', panel.dataset.panel !== tab);
-            });
-        },
-
-        clearBuffers() {
-            this.buffers = { sngrep: '', pjsip: '' };
-            document.getElementById('sipMonitorSngrepTerminal').textContent = 'Tela limpa. Aguardando novas linhas...';
-            document.getElementById('sipMonitorPjsipTerminal').textContent = 'Tela limpa. Aguardando novas linhas...';
-        },
-
-        async reloadStatus(silent = false, forceRefresh = false) {
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/status', {}, { _: Date.now(), refresh: forceRefresh ? 1 : '' });
-                this.renderStatus(result.data);
-                if (this.activeSession?.id) {
-                    this.startPolling();
-                } else {
-                    this.stopPolling();
-                }
-            } catch (error) {
-                if (!silent) {
-                    this.notify('error', error.message || 'Não foi possível carregar o Monitor SIP.');
-                }
-            }
-        },
-
-        renderStatus(data) {
-            const capabilities = data.capabilities || {};
-            const active = data.active_session || null;
-            this.activeSession = active;
-            this.applyDiagnostics(data.connection || {}, capabilities, data.limits || null);
-
-            const badge = document.getElementById('sipMonitorSessionBadge');
-            const countdown = document.getElementById('sipMonitorCountdown');
-            const meta = document.getElementById('sipMonitorSessionMeta');
-            document.getElementById('sipMonitorStartBtn').disabled = !!active;
-            document.getElementById('sipMonitorStopBtn').disabled = !active;
-
-            if (!active) {
-                badge.textContent = 'Sessão inativa';
-                badge.className = 'inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600';
-                countdown.textContent = 'Tempo restante: --';
-                meta.textContent = 'Nenhuma sessão ativa.';
-                document.getElementById('sipMonitorLastPoll').textContent = '--';
-                document.getElementById('sipMonitorSngrepMeta').textContent = 'Aguardando sessão...';
-                document.getElementById('sipMonitorPjsipMeta').textContent = 'Aguardando sessão...';
-                return;
-            }
-
-            const status = String(active.status || 'running');
-            badge.textContent = `Sessão #${active.id} • ${status.toUpperCase()}`;
-            badge.className = `inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${status === 'failed'
-                ? 'bg-rose-50 text-rose-700'
-                : status === 'completed'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'bg-emerald-50 text-emerald-700'}`;
-            meta.textContent = active.message || `Modo ${active.resolved_mode || active.mode} • filtro ${active.filter_type}${active.filter_value ? `: ${active.filter_value}` : ''} • iniciado em ${active.started_at}`;
-            this.renderCountdown(active.remaining_seconds || 0);
-            if (active.message) {
-                this.showFeedback(status === 'failed' ? 'error' : 'success', active.message);
-            }
-        },
-
-        renderCountdown(seconds) {
-            const total = Math.max(0, Number(seconds || 0));
-            const mm = String(Math.floor(total / 60)).padStart(2, '0');
-            const ss = String(total % 60).padStart(2, '0');
-            document.getElementById('sipMonitorCountdown').textContent = `Tempo restante: ${mm}:${ss}`;
-        },
-
-        renderLiveState(data) {
-            document.getElementById('sipMonitorLastPoll').textContent = data.polled_at || this.nowLabel();
-            document.getElementById('sipMonitorSngrepMeta').textContent = this.streamMetaLabel('sngrep', data.stream_state?.sngrep || null);
-            document.getElementById('sipMonitorPjsipMeta').textContent = this.streamMetaLabel('pjsip', data.stream_state?.pjsip || null);
-        },
-
-        payload() {
-            return {
-                mode: document.getElementById('sipMonitorMode').value,
-                filter_type: document.getElementById('sipMonitorFilterType').value,
-                filter_value: document.getElementById('sipMonitorFilterValue').value,
-                port: Number(document.getElementById('sipMonitorPort').value || 5060),
-                tls_port: Number(document.getElementById('sipMonitorTlsPort').value || 5061),
-                interface: document.getElementById('sipMonitorInterface').value,
-                duration_minutes: Number(document.getElementById('sipMonitorDuration').value || 5),
-                include_tls: document.getElementById('sipMonitorIncludeTls').checked ? 1 : 0,
-            };
-        },
-
-        async start() {
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.payload()),
-                });
-
-                this.notify('success', result.message || 'Captura SIP iniciada.');
-                this.showFeedback('success', result.data?.message || result.message || 'Captura executada.');
-                this.buffers = { sngrep: '', pjsip: '' };
-                this.activeSession = result.data || null;
-                await this.reloadStatus(true);
-                this.startPolling();
-            } catch (error) {
-                this.showFeedback('error', error.message || 'Falha ao iniciar captura SIP.');
-                this.notify('error', error.message || 'Falha ao iniciar captura SIP.');
-            }
-        },
-
-        async stop() {
-            if (!this.activeSession?.id) {
-                return;
-            }
-
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/stop', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: this.activeSession.id }),
-                });
-
-                this.notify('success', result.message || 'Captura SIP encerrada.');
-                this.stopPolling();
-                await this.reloadStatus(true);
-            } catch (error) {
-                this.notify('error', error.message || 'Falha ao parar a captura SIP.');
-            }
-        },
-
-        async emergencyStop() {
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/emergency-stop', {
-                    method: 'POST',
-                });
-
-                this.notify('success', result.message || 'Sessões SIP encerradas.');
-                this.stopPolling();
-                await this.reloadStatus(true);
-            } catch (error) {
-                this.notify('error', error.message || 'Falha no stop de emergência.');
-            }
-        },
-
-        startPolling() {
-            this.stopPolling();
-            this.pollingActive = true;
-            this.pollStream();
-        },
-
-        stopPolling() {
-            this.pollingActive = false;
-            if (this.pollTimer) {
-                window.clearTimeout(this.pollTimer);
-                this.pollTimer = null;
-            }
-        },
-
-        scheduleNextPoll() {
-            if (!this.pollingActive || !this.activeSession?.id) {
-                return;
-            }
-            if (this.pollTimer) {
-                window.clearTimeout(this.pollTimer);
-            }
-            this.pollTimer = window.setTimeout(() => {
-                this.pollTimer = null;
-                this.pollStream();
-            }, this.pollDelayMs);
-        },
-
-        async pollStream() {
-            if (!this.activeSession?.id || this.pollInFlight || document.hidden) {
-                return;
-            }
-
-            this.pollInFlight = true;
-            try {
-                const result = await this.fetchJson('/admin/sip-monitor/stream', {}, {
-                    session_id: this.activeSession.id,
-                    _: Date.now(),
-                });
-
-                const data = result.data || {};
-                if (data.session) {
-                    this.activeSession = data.session;
-                    this.renderCountdown(this.activeSession.remaining_seconds || 0);
-                    if (!['starting', 'running'].includes(String(this.activeSession.status || ''))) {
-                        this.stopPolling();
-                        this.reloadStatus(true);
-                    }
-                }
-
-                this.renderLiveState(data);
-                this.appendChunk('sngrep', data.chunks?.sngrep || '');
-                this.appendChunk('pjsip', data.chunks?.pjsip || '');
-                this.renderEvents(data.events || []);
-                if (data.message) {
-                    this.showFeedback(String(this.activeSession?.status || '') === 'failed' ? 'error' : 'success', data.message);
-                }
-            } catch (error) {
-                this.showFeedback('error', error.message || 'Falha ao carregar a captura SIP.');
-                this.notify('error', error.message || 'Falha ao carregar a captura SIP.');
-            } finally {
-                this.pollInFlight = false;
-                if (this.pollingActive && this.activeSession?.id && ['starting', 'running'].includes(String(this.activeSession.status || ''))) {
-                    this.scheduleNextPoll();
-                }
-            }
-        },
-
-        appendChunk(source, chunk) {
-            if (!chunk) {
-                const target = document.getElementById(source === 'sngrep' ? 'sipMonitorSngrepTerminal' : 'sipMonitorPjsipTerminal');
-                if (target && !this.buffers[source] && this.activeSession?.id) {
-                    target.textContent = source === 'sngrep'
-                        ? 'Captura SNGREP ativa. Aguardando tráfego SIP novo para preencher a saída textual...'
-                        : 'PJSIP Logger ativo. Aguardando tráfego SIP novo...';
-                }
-                return;
-            }
-
-            this.buffers[source] = `${this.buffers[source]}${this.buffers[source] ? '\n' : ''}${chunk}`.slice(-60000);
-            const target = document.getElementById(source === 'sngrep' ? 'sipMonitorSngrepTerminal' : 'sipMonitorPjsipTerminal');
-            if (!target) {
-                return;
-            }
-
-            target.textContent = this.buffers[source];
-            target.scrollTop = target.scrollHeight;
-        },
-
-        renderEvents(events) {
-            const tbody = document.getElementById('sipMonitorEventsBody');
-            if (!events.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nenhum evento detectado ainda.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = events.map((item) => {
-                const methods = (item.methods || []).join(', ') || '-';
-                const statuses = (item.statuses || []).join(', ') || '-';
-                const delays = [
-                    item.invite_to_first_response_ms !== null ? `INVITE→1ª resp: ${item.invite_to_first_response_ms}ms` : null,
-                    item.invite_to_180_183_ms !== null ? `INVITE→180/183: ${item.invite_to_180_183_ms}ms` : null,
-                    item.invite_to_200_ms !== null ? `INVITE→200: ${item.invite_to_200_ms}ms` : null,
-                ].filter(Boolean).join('<br>') || '-';
-                const diagnosis = [
-                    item.possible_timeout ? 'Possível timeout' : null,
-                    item.possible_operator_delay ? 'Possível atraso da operadora' : null,
-                ].filter(Boolean).join('<br>') || 'Sem alerta';
-
-                return `
-                    <tr>
-                        <td class="px-3 py-3 text-xs text-slate-700">${item.call_id || '-'}</td>
-                        <td class="px-3 py-3 text-xs text-slate-700">${methods}</td>
-                        <td class="px-3 py-3 text-xs text-slate-700">${statuses}</td>
-                        <td class="px-3 py-3 text-xs text-slate-700">${delays}</td>
-                        <td class="px-3 py-3 text-xs text-slate-700">${diagnosis}</td>
-                    </tr>
-                `;
-            }).join('');
-        },
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-        sipMonitor.restoreJourneyCache();
-        sipMonitor.renderJourneyCalls();
-        sipMonitor.renderJourneyDetails();
-        sipMonitor.reloadStatus(true, true);
-        sipMonitor.switchTab('sngrep');
-        sipMonitor.connectJourneyFeed();
+        sipMonitorJourney.restoreHistory();
+        sipMonitorJourney.renderCalls();
+        sipMonitorJourney.renderDetails();
+        sipMonitorJourney.connectFeed();
     });
 
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && sipMonitor.activeSession?.id && !sipMonitor.pollInFlight) {
-            sipMonitor.pollStream();
-        }
-        if (!document.hidden && !sipMonitor.liveJourneySource) {
-            sipMonitor.connectJourneyFeed();
+        if (!document.hidden) {
+            sipMonitorJourney.connectFeed(true);
         }
     });
 
     window.addEventListener('beforeunload', () => {
-        sipMonitor.persistJourneyCache();
-        if (sipMonitor.liveJourneySource) {
-            sipMonitor.liveJourneySource.close();
-            sipMonitor.liveJourneySource = null;
+        sipMonitorJourney.persistHistory();
+        if (sipMonitorJourney.liveJourneySource) {
+            sipMonitorJourney.liveJourneySource.close();
+            sipMonitorJourney.liveJourneySource = null;
         }
     });
 </script>

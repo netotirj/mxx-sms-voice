@@ -174,6 +174,9 @@
         sipStreamTimer: null,
         sipStreamData: null,
         sipEventSummaries: [],
+        sipSessionPromise: null,
+        sipPollInFlight: false,
+        sipLastPollAt: 0,
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
         },
@@ -349,28 +352,40 @@
                 return this.sipSessionId;
             }
 
-            const refreshQuery = forceRefresh ? '?refresh=1' : '';
-            const status = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/status${refreshQuery}`);
-            const activeSession = status?.active_session || null;
-            if (activeSession?.id) {
-                this.sipSessionId = Number(activeSession.id);
-                this.sipSessionMeta = activeSession;
-                return this.sipSessionId;
+            if (this.sipSessionPromise) {
+                return this.sipSessionPromise;
             }
 
-            const started = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/start`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    mode: 'auto',
-                    duration_minutes: 5,
-                    include_tls: 1,
-                    ...this.sipFilterPayload(),
-                }),
-            });
+            this.sipSessionPromise = (async () => {
+                const refreshQuery = forceRefresh ? '?refresh=1' : '';
+                const status = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/status${refreshQuery}`);
+                const activeSession = status?.active_session || null;
+                if (activeSession?.id) {
+                    this.sipSessionId = Number(activeSession.id);
+                    this.sipSessionMeta = activeSession;
+                    return this.sipSessionId;
+                }
 
-            this.sipSessionId = Number(started?.id || 0) || null;
-            this.sipSessionMeta = started || null;
-            return this.sipSessionId;
+                const started = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/start`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        mode: 'auto',
+                        duration_minutes: 5,
+                        include_tls: 1,
+                        ...this.sipFilterPayload(),
+                    }),
+                });
+
+                this.sipSessionId = Number(started?.id || 0) || null;
+                this.sipSessionMeta = started || null;
+                return this.sipSessionId;
+            })();
+
+            try {
+                return await this.sipSessionPromise;
+            } finally {
+                this.sipSessionPromise = null;
+            }
         },
 
         async stopSipSession() {
@@ -379,6 +394,9 @@
             this.sipSessionMeta = null;
             this.sipStreamData = null;
             this.sipEventSummaries = [];
+            this.sipSessionPromise = null;
+            this.sipPollInFlight = false;
+            this.sipLastPollAt = 0;
 
             if (!sessionId) {
                 return;
@@ -421,22 +439,38 @@
                 return;
             }
 
-            const sessionId = await this.ensureSipSession();
-            if (!sessionId) {
+            if (this.sipPollInFlight) {
                 return;
             }
 
-            const data = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/stream?session_id=${sessionId}`);
-            this.sipStreamData = data || null;
-            this.sipSessionMeta = data?.session || this.sipSessionMeta;
-            this.sipEventSummaries = Array.isArray(data?.events) ? data.events : [];
-
-            const sessionStatus = String(this.sipSessionMeta?.status || '').toLowerCase();
-            if (['completed', 'stopped', 'expired', 'failed'].includes(sessionStatus)) {
-                this.sipSessionId = null;
+            const now = Date.now();
+            if (this.sipLastPollAt && (now - this.sipLastPollAt) < 1500) {
+                return;
             }
 
-            this.renderDetails();
+            this.sipPollInFlight = true;
+            this.sipLastPollAt = now;
+
+            try {
+                const sessionId = await this.ensureSipSession();
+                if (!sessionId) {
+                    return;
+                }
+
+                const data = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/stream?session_id=${sessionId}`);
+                this.sipStreamData = data || null;
+                this.sipSessionMeta = data?.session || this.sipSessionMeta;
+                this.sipEventSummaries = Array.isArray(data?.events) ? data.events : [];
+
+                const sessionStatus = String(this.sipSessionMeta?.status || '').toLowerCase();
+                if (['completed', 'stopped', 'expired', 'failed'].includes(sessionStatus)) {
+                    this.sipSessionId = null;
+                }
+
+                this.renderDetails();
+            } finally {
+                this.sipPollInFlight = false;
+            }
         },
 
         resolveSipEvent(call) {
@@ -731,7 +765,7 @@
                 this.liveJourneyHistory = payload?.liveJourneyHistory && typeof payload.liveJourneyHistory === 'object'
                     ? payload.liveJourneyHistory
                     : {};
-                this.monitorEnabled = !!payload?.monitorEnabled;
+                this.monitorEnabled = false;
                 this.numberFilter = String(payload?.numberFilter || '');
             } catch (error) {
                 console.warn('[sip-monitor] restore failed', error);

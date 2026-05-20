@@ -1645,62 +1645,83 @@
             sipCodeChart.update('none');
         }
 
+        let dashboardRenderInProgress = false;
+        let dashboardRenderQueued = false;
+
         function renderSelectedService() {
             if (!cardsPayload || !chartsPayload) return;
 
-            const config = getChartConfig(selectedService);
-            setValue('dynamic-title', config.title);
-            setValue('dynamic-subtitle', config.subtitle);
-            setValue('service-tag', config.tag);
-            setValue('logs-title', selectedService === 'whatsapp' ? 'Empresas / Custos' : 'Resumo do Servico');
-            const periodLabels = getPeriodLabel();
-            setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
-            setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
-            setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
-            animateCountUp(document.getElementById('service-stat-today'), config.today);
-            animateCountUp(document.getElementById('service-stat-month'), config.month);
-            const previousStat = document.getElementById('service-stat-previous');
-            if (previousStat) {
-                previousStat.dataset.decimals = config.previousDecimals || 'int';
-            }
-            animateCountUp(previousStat, config.previous, config.previousPrefix || '');
-            setValue('service-stat-today-label', config.todayLabel);
-            setValue('service-stat-month-label', config.monthLabel);
-            setValue('service-stat-previous-label', config.previousLabel);
-            setValue('monitor-footer', `GRAFICOS EM TEMPO REAL • ${cardsPayload?.health?.last_check || '--:--:--'}`);
-
-            config.details.forEach((item, index) => {
-                setValue(`detail-item-${index + 1}-label`, item[0]);
-                setValue(`detail-item-${index + 1}-value`, item[1]);
-            });
-
-            document.querySelectorAll('.service-card').forEach((card) => {
-                card.classList.remove('service-card-active');
-            });
-            document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
-
-            const mainWrap = document.getElementById('service-main-chart-wrap');
-            const secondaryWrap = document.getElementById('service-secondary-chart-wrap');
-            if (mainWrap) {
-                mainWrap.style.height = selectedService === 'whatsapp' ? '240px' : '340px';
-            }
-            if (secondaryWrap) {
-                secondaryWrap.style.height = selectedService === 'whatsapp' ? '240px' : '260px';
+            if (dashboardRenderInProgress) {
+                dashboardRenderQueued = true;
+                return;
             }
 
-            buildMainChart(config);
-            buildStatusChart(config);
-            buildSecondaryChart(config);
-            buildSipCodeChart();
+            dashboardRenderInProgress = true;
+            try {
+                const config = getChartConfig(selectedService);
+                setValue('dynamic-title', config.title);
+                setValue('dynamic-subtitle', config.subtitle);
+                setValue('service-tag', config.tag);
+                setValue('logs-title', selectedService === 'whatsapp' ? 'Empresas / Custos' : 'Resumo do Servico');
+                const periodLabels = getPeriodLabel();
+                setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
+                setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
+                setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
+                animateCountUp(document.getElementById('service-stat-today'), config.today);
+                animateCountUp(document.getElementById('service-stat-month'), config.month);
+                const previousStat = document.getElementById('service-stat-previous');
+                if (previousStat) {
+                    previousStat.dataset.decimals = config.previousDecimals || 'int';
+                }
+                animateCountUp(previousStat, config.previous, config.previousPrefix || '');
+                setValue('service-stat-today-label', config.todayLabel);
+                setValue('service-stat-month-label', config.monthLabel);
+                setValue('service-stat-previous-label', config.previousLabel);
+                setValue('monitor-footer', `GRAFICOS EM TEMPO REAL • ${cardsPayload?.health?.last_check || '--:--:--'}`);
+
+                config.details.forEach((item, index) => {
+                    setValue(`detail-item-${index + 1}-label`, item[0]);
+                    setValue(`detail-item-${index + 1}-value`, item[1]);
+                });
+
+                document.querySelectorAll('.service-card').forEach((card) => {
+                    card.classList.remove('service-card-active');
+                });
+                document.getElementById(`card-${selectedService}`)?.classList.add('service-card-active');
+
+                const mainWrap = document.getElementById('service-main-chart-wrap');
+                const secondaryWrap = document.getElementById('service-secondary-chart-wrap');
+                if (mainWrap) {
+                    mainWrap.style.height = selectedService === 'whatsapp' ? '240px' : '340px';
+                }
+                if (secondaryWrap) {
+                    secondaryWrap.style.height = selectedService === 'whatsapp' ? '240px' : '260px';
+                }
+
+                buildMainChart(config);
+                buildStatusChart(config);
+                buildSecondaryChart(config);
+                buildSipCodeChart();
+            } finally {
+                dashboardRenderInProgress = false;
+                if (dashboardRenderQueued) {
+                    dashboardRenderQueued = false;
+                    scheduleDashboardRender();
+                }
+            }
         }
 
         window.selectService = function (service) {
+            if (selectedService === service && mainChartSignature && statusChartSignature && secondaryChartSignature) {
+                return;
+            }
+
             selectedService = service;
             mainChartSignature = '';
             statusChartSignature = '';
             secondaryChartSignature = '';
             sipCodeChartSignature = '';
-            renderSelectedService();
+            scheduleDashboardRender();
         };
 
         document.querySelectorAll('.period-filter-btn').forEach((button) => {
@@ -1714,7 +1735,7 @@
                 statusChartSignature = '';
                 secondaryChartSignature = '';
                 sipCodeChartSignature = '';
-                renderSelectedService();
+                scheduleDashboardRender();
             });
         });
 
@@ -1818,7 +1839,9 @@
                 setOperationalCard('sms', operationalCards.sms);
                 setOperationalCard('whatsapp', operationalCards.whatsapp);
 
-                scheduleDashboardRender();
+                if (!chartsPayload) {
+                    scheduleDashboardRender();
+                }
             };
 
             chartsSource.onmessage = function (event) {

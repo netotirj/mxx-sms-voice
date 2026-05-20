@@ -10,6 +10,7 @@ use App\Model\Entity\SipMonitorSession;
 class SipMonitorSessionService
 {
     private const MAX_LOG_ROWS_PER_SESSION = 400;
+    private const STREAM_META_REFRESH_SECONDS = 15;
 
     public static function ensureRouteCatalog(): void
     {
@@ -223,6 +224,7 @@ class SipMonitorSessionService
         $notes = self::sessionNotes($session);
         $streams = (array)($notes['streams'] ?? []);
         $cursors = (array)($notes['cursors'] ?? []);
+        $streamStateCache = (array)($notes['stream_state'] ?? []);
         $payload = [
             'session' => self::decorateSession($session),
             'chunks' => [
@@ -254,7 +256,22 @@ class SipMonitorSessionService
             $payload['chunks'][$source] = $chunk;
             $cursors[$source] = (int)($read['cursor'] ?? $cursor);
 
-            $fileState = SipMonitorCommandRunner::inspectPath($logPath, true);
+            $cachedState = (array)($streamStateCache[$source] ?? []);
+            $lastCheckedAt = !empty($cachedState['checked_at']) ? strtotime((string)$cachedState['checked_at']) : false;
+            $shouldInspect = $chunk !== ''
+                || $cachedState === []
+                || $lastCheckedAt === false
+                || (time() - $lastCheckedAt) >= self::STREAM_META_REFRESH_SECONDS;
+
+            $fileState = [
+                'exists' => (bool)($cachedState['exists'] ?? false),
+                'size' => (int)($cachedState['size'] ?? 0),
+                'updated_at' => $cachedState['updated_at'] ?? null,
+            ];
+            if ($shouldInspect) {
+                $fileState = SipMonitorCommandRunner::inspectPath($logPath, true);
+            }
+
             $payload['stream_state'][$source] = [
                 'pid' => (int)($streams[$source]['pid'] ?? 0),
                 'started_ok' => (bool)($stream['started_ok'] ?? false),
@@ -264,7 +281,9 @@ class SipMonitorSessionService
                 'cursor' => $cursors[$source],
                 'last_chunk_bytes' => strlen($chunk),
                 'filter' => (string)($stream['filter'] ?? ''),
+                'checked_at' => date('Y-m-d H:i:s'),
             ];
+            $streamStateCache[$source] = $payload['stream_state'][$source];
 
             $remainingSlots = max(0, self::MAX_LOG_ROWS_PER_SESSION - SipMonitorLog::countBySession($sessionId));
             $rows = SipMonitorCommandBuilder::parseSipLines($sessionId, $source, $chunk, $remainingSlots);
@@ -273,6 +292,7 @@ class SipMonitorSessionService
 
         $notes['cursors'] = $cursors;
         $notes['streams'] = $streams;
+        $notes['stream_state'] = $streamStateCache;
 
         $primaryPid = 0;
         foreach ($streams as $stream) {

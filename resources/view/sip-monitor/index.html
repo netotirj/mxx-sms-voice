@@ -243,6 +243,9 @@
         baseUrl: document.querySelector('meta[name="base-url"]')?.getAttribute('content') || '',
         activeSession: null,
         pollTimer: null,
+        pollingActive: false,
+        pollInFlight: false,
+        pollDelayMs: 4000,
         activeTab: 'sngrep',
         buffers: { sngrep: '', pjsip: '' },
 
@@ -491,22 +494,37 @@
 
         startPolling() {
             this.stopPolling();
-            this.pollTimer = window.setInterval(() => this.pollStream(), 2000);
+            this.pollingActive = true;
             this.pollStream();
         },
 
         stopPolling() {
+            this.pollingActive = false;
             if (this.pollTimer) {
-                window.clearInterval(this.pollTimer);
+                window.clearTimeout(this.pollTimer);
                 this.pollTimer = null;
             }
         },
 
+        scheduleNextPoll() {
+            if (!this.pollingActive || !this.activeSession?.id) {
+                return;
+            }
+            if (this.pollTimer) {
+                window.clearTimeout(this.pollTimer);
+            }
+            this.pollTimer = window.setTimeout(() => {
+                this.pollTimer = null;
+                this.pollStream();
+            }, this.pollDelayMs);
+        },
+
         async pollStream() {
-            if (!this.activeSession?.id) {
+            if (!this.activeSession?.id || this.pollInFlight) {
                 return;
             }
 
+            this.pollInFlight = true;
             try {
                 const response = await fetch(this.url('/admin/sip-monitor/stream', {
                     session_id: this.activeSession.id,
@@ -533,6 +551,11 @@
                 this.renderEvents(data.events || []);
             } catch (error) {
                 console.error(error);
+            } finally {
+                this.pollInFlight = false;
+                if (this.pollingActive && this.activeSession?.id && ['starting', 'running'].includes(String(this.activeSession.status || ''))) {
+                    this.scheduleNextPoll();
+                }
             }
         },
 

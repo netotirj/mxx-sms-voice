@@ -69,9 +69,10 @@ class SipMonitorCommandBuilder
 
     public static function buildSngrepScript(int $sessionId, array $request): array
     {
-        $timeoutSeconds = max(60, ((int)$request['duration_minutes']) * 60);
+        $timeoutSeconds = self::captureTimeoutSeconds($request);
+        $maxLines = self::maxLines();
         $command = ['sngrep'];
-        $textPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.txt');
+        $textPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.log');
 
         $command[] = '-N';
         $command[] = '--text';
@@ -95,26 +96,30 @@ class SipMonitorCommandBuilder
             $bpf .= ' and host ' . $request['filter_value'];
         }
 
-        $supportsTimeout = SipMonitorCommandRunner::supportsBinary('timeout', false);
         $baseCommand = self::quoteCommand(array_merge($command, [$bpf]));
-        if ($supportsTimeout) {
-            $baseCommand = 'timeout --signal=TERM ' . $timeoutSeconds . 's ' . $baseCommand;
+        $shell = 'set -o pipefail; ' . $baseCommand . ' 2>&1 | head -n ' . $maxLines;
+        if (SipMonitorCommandRunner::supportsBinary('timeout', false)) {
+            $shell = 'timeout --signal=TERM ' . $timeoutSeconds . 's /usr/bin/env bash -lc ' . escapeshellarg($shell);
+        } else {
+            $shell = '/usr/bin/env bash -lc ' . escapeshellarg($shell);
         }
 
         return [
-            'command' => $baseCommand,
+            'command' => $shell,
             'log_path' => $textPath,
             'filter_label' => $bpf,
+            'timeout_seconds' => $timeoutSeconds,
+            'max_lines' => $maxLines,
         ];
     }
 
     public static function buildPjsipLoggerScript(array $request): array
     {
-        $timeoutSeconds = max(60, ((int)$request['duration_minutes']) * 60);
+        $timeoutSeconds = self::captureTimeoutSeconds($request);
+        $maxLines = self::maxLines();
         $filterType = (string)$request['filter_type'];
         $filterValue = (string)($request['filter_value'] ?? '');
         $supportsScript = SipMonitorCommandRunner::supportsBinary('script', false);
-        $supportsTimeout = SipMonitorCommandRunner::supportsBinary('timeout', false);
 
         $loggerOn = ($filterType === 'ip' && $filterValue !== '')
             ? 'asterisk -rx "pjsip set logger host ' . addslashes($filterValue) . '" >/dev/null 2>&1 || asterisk -rx "pjsip set logger on" >/dev/null 2>&1'
@@ -124,18 +129,22 @@ class SipMonitorCommandBuilder
         if ($supportsScript) {
             $console = 'script -qefc ' . escapeshellarg($console) . ' /dev/null';
         }
-        if ($supportsTimeout) {
-            $console = 'timeout --signal=TERM ' . $timeoutSeconds . 's ' . $console;
-        }
 
-        $shell = 'asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true'
+        $inner = 'set -o pipefail; '
+            . 'asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true'
             . '; ' . $loggerOn
             . '; trap \'asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true\' EXIT INT TERM'
-            . '; ' . $console;
+            . '; ' . $console . ' 2>&1 | head -n ' . $maxLines;
+
+        $shell = SipMonitorCommandRunner::supportsBinary('timeout', false)
+            ? 'timeout --signal=TERM ' . $timeoutSeconds . 's /usr/bin/env bash -lc ' . escapeshellarg($inner)
+            : '/usr/bin/env bash -lc ' . escapeshellarg($inner);
 
         return [
             'command' => $shell,
             'filter_label' => $filterType === 'ip' && $filterValue !== '' ? 'host ' . $filterValue : 'all',
+            'timeout_seconds' => $timeoutSeconds,
+            'max_lines' => $maxLines,
         ];
     }
 
@@ -244,5 +253,16 @@ class SipMonitorCommandBuilder
     private static function sanitizeDuration(int $minutes): int
     {
         return in_array($minutes, [5, 10, 15, 30], true) ? $minutes : 5;
+    }
+
+    public static function captureTimeoutSeconds(array $request): int
+    {
+        $seconds = (int)($request['duration_minutes'] ?? 5);
+        return max(5, min(30, $seconds));
+    }
+
+    public static function maxLines(): int
+    {
+        return  max(50, min(1000, (int)\App\Config\TelephonyConfig::env('SIP_MONITOR_MAX_LINES', 400)));
     }
 }

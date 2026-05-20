@@ -96,6 +96,25 @@ class SipMonitorSession
         return $row ?: null;
     }
 
+    public static function findLatestByUser(string $tenancyId, int $userId): ?array
+    {
+        self::ensureTable();
+
+        $row = (new Database(self::TABLE))
+            ->select(
+                'tenancy_id = :tenancy_id AND user_id = :user_id',
+                [
+                    ':tenancy_id' => $tenancyId,
+                    ':user_id' => $userId,
+                ],
+                'id DESC',
+                '1'
+            )
+            ->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
     public static function countActive(): int
     {
         self::ensureTable();

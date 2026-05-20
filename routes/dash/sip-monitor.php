@@ -27,6 +27,17 @@ $obRouter->get('/admin/sip-monitor/status', [
     }
 ]);
 
+$obRouter->get('/admin/sip-monitor/test-connection', [
+    'name' => '/admin/sip-monitor/test-connection',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies',
+    ],
+    function () {
+        return Pages\SipMonitor::testConnection();
+    }
+]);
+
 $obRouter->post('/admin/sip-monitor/start', [
     'name' => '/admin/sip-monitor/start',
     'middlewares' => [

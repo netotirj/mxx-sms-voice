@@ -47,6 +47,29 @@ class ServicesMonitor extends ViewComponents
         ]);
     }
 
+    public static function testConnection($request): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!self::canManage($user)) {
+            return self::json(403, ['success' => false, 'message' => 'Sem permissão.']);
+        }
+
+        try {
+            $server = trim((string)($request->getQueryParams()['server'] ?? 'local'));
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Teste de conexão executado.',
+                'data' => ServicesMonitorService::testConnection($server),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, ['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
     public static function logs($request): Response
     {
         $user = self::requireUser();

@@ -45,6 +45,31 @@ class SipMonitor extends ViewComponents
         ]);
     }
 
+    public static function testConnection(): Response
+    {
+        $user = self::requireUser();
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!self::canManage($user)) {
+            return self::json(403, ['success' => false, 'message' => 'Sem permissão.']);
+        }
+
+        try {
+            return self::json(200, [
+                'success' => true,
+                'message' => 'Teste de conexão executado.',
+                'data' => SipMonitorSessionService::testConnection(),
+            ]);
+        } catch (\Throwable $e) {
+            return self::json(422, [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public static function start($request): Response
     {
         $user = self::requireUser();

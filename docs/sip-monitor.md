@@ -10,6 +10,14 @@ Fluxos suportados:
 - `PJSIP Logger`: captura SIP TLS/WebRTC já descriptografado pelo Asterisk
 - `Automático`: escolhe `both`, `pjsip` ou `sngrep` conforme backend disponível e filtro
 
+Nesta revisão o painel:
+
+- testa a conexão SSH antes da captura
+- executa somente comandos não interativos e com timeout
+- limita linhas de saída
+- falha cedo no backend e mostra erro amigável no frontend
+- reaproveita a mesma camada SSH do monitoramento de serviços
+
 ## Dependências necessárias
 
 - `sngrep`
@@ -51,6 +59,11 @@ Se o painel estiver fora do host do Asterisk:
 - `SIP_MONITOR_KEY=/caminho/da/chave`
 - `SIP_MONITOR_USE_SUDO=1`
 - `SIP_MONITOR_REMOTE_DIR=/tmp/maxx-sip-monitor`
+- `SIP_MONITOR_COMMAND_TIMEOUT_SECONDS=15`
+- `SIP_MONITOR_MIN_INTERVAL_SECONDS=10`
+- `SIP_MONITOR_MAX_LINES=400`
+- `MONITOR_DEBUG=false`
+- `MONITOR_SSH_DEBUG=false`
 
 Controle de concorrência:
 
@@ -87,6 +100,7 @@ Tabelas criadas:
 
 - `GET /admin/sip-monitor`
 - `GET /admin/sip-monitor/status`
+- `GET /admin/sip-monitor/test-connection`
 - `POST /admin/sip-monitor/start`
 - `POST /admin/sip-monitor/stop`
 - `GET /admin/sip-monitor/stream`
@@ -108,8 +122,9 @@ Perfis liberados:
 ## Como iniciar uma captura
 
 1. Abrir `Administrativo > Monitor SIP`
-2. Escolher modo, filtro, porta, interface e duração
-3. Clicar em `Iniciar captura`
+2. Clicar em `Testar SSH`
+3. Escolher modo, filtro, porta, interface e duração
+4. Clicar em `Executar captura`
 
 ## Como parar uma captura
 

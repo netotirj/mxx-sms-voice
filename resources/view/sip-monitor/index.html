@@ -50,8 +50,12 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <span id="sipMonitorConnectionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">SSH: verificando</span>
                         <span id="sipMonitorSessionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sessão inativa</span>
                         <span id="sipMonitorCountdown" class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">Tempo restante: --</span>
+                        <button type="button" onclick="sipMonitor.testConnection()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-700">
+                            <i class="fa fa-plug"></i> Testar SSH
+                        </button>
                         <button type="button" onclick="sipMonitor.reloadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
                             <i class="fa fa-rotate-right"></i> Atualizar
                         </button>
@@ -101,10 +105,10 @@
                                     <label class="block">
                                         <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">Tempo máximo</span>
                                         <select id="sipMonitorDuration" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
-                                            <option value="5">5 minutos</option>
-                                            <option value="10">10 minutos</option>
-                                            <option value="15">15 minutos</option>
-                                            <option value="30">30 minutos</option>
+                                            <option value="5">5 segundos</option>
+                                            <option value="10">10 segundos</option>
+                                            <option value="15">15 segundos</option>
+                                            <option value="30">30 segundos</option>
                                         </select>
                                     </label>
                                 </div>
@@ -148,12 +152,14 @@
                                 </label>
 
                                 <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                    A captura é temporária, limitada e encerrada automaticamente ao expirar ou ao parar a sessão.
+                                    A captura é manual, não interativa, com timeout, limite de linhas e encerramento automático.
                                 </div>
+
+                                <div id="sipMonitorFeedback" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
 
                                 <div class="flex flex-wrap items-center gap-3 pt-2">
                                     <button id="sipMonitorStartBtn" type="button" onclick="sipMonitor.start()" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-emerald-700">
-                                        <i class="fa fa-play"></i> Iniciar captura
+                                        <i class="fa fa-play"></i> Executar captura
                                     </button>
                                     <button id="sipMonitorStopBtn" type="button" onclick="sipMonitor.stop()" class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-xs font-black uppercase tracking-wide text-white shadow hover:bg-rose-700" disabled>
                                         <i class="fa fa-stop"></i> Parar captura
@@ -249,6 +255,23 @@
         activeTab: 'sngrep',
         buffers: { sngrep: '', pjsip: '' },
 
+        showFeedback(type, message) {
+            const node = document.getElementById('sipMonitorFeedback');
+            if (!node) {
+                return;
+            }
+            if (!message) {
+                node.className = 'hidden rounded-2xl border px-4 py-3 text-sm';
+                node.textContent = '';
+                return;
+            }
+
+            node.textContent = message;
+            node.className = `rounded-2xl border px-4 py-3 text-sm ${type === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`;
+        },
+
         nowLabel() {
             return new Date().toLocaleString('pt-BR');
         },
@@ -326,6 +349,37 @@
             alert(message);
         },
 
+        renderConnection(connection) {
+            const badge = document.getElementById('sipMonitorConnectionBadge');
+            if (!badge) {
+                return;
+            }
+
+            if (connection.ok) {
+                badge.textContent = `SSH: OK${connection.duration_ms ? ` • ${connection.duration_ms}ms` : ''}`;
+                badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700';
+                return;
+            }
+
+            badge.textContent = 'SSH: erro';
+            badge.className = 'inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-rose-700';
+        },
+
+        async testConnection() {
+            try {
+                const response = await fetch(this.url('/admin/sip-monitor/test-connection', { _: Date.now() }));
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha no teste de conexão SSH.');
+                }
+                this.renderConnection(result.data || {});
+                this.showFeedback(result.data?.ok ? 'success' : 'error', result.data?.friendly_message || result.message || 'Teste concluído.');
+            } catch (error) {
+                this.showFeedback('error', error.message || 'Falha no teste de conexão SSH.');
+                this.notify('error', error.message || 'Falha no teste de conexão SSH.');
+            }
+        },
+
         switchTab(tab) {
             this.activeTab = tab;
             document.querySelectorAll('#sipMonitorApp .sip-monitor-tab').forEach((button) => {
@@ -368,6 +422,7 @@
             const profile = capabilities.profile || {};
             const active = data.active_session || null;
             this.activeSession = active;
+            this.renderConnection(data.connection || {});
 
             document.getElementById('sipMonitorBackendMode').textContent = (profile.mode || 'local').toUpperCase();
             document.getElementById('sipMonitorBackendHost').textContent = profile.host || '-';
@@ -396,10 +451,18 @@
                 return;
             }
 
-            badge.textContent = `Sessão #${active.id} • ${String(active.status || 'running').toUpperCase()}`;
-            badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700';
-            meta.textContent = `Modo ${active.resolved_mode || active.mode} • filtro ${active.filter_type}${active.filter_value ? `: ${active.filter_value}` : ''} • iniciado em ${active.started_at}`;
+            const status = String(active.status || 'running');
+            badge.textContent = `Sessão #${active.id} • ${status.toUpperCase()}`;
+            badge.className = `inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${status === 'failed'
+                ? 'bg-rose-50 text-rose-700'
+                : status === 'completed'
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'bg-emerald-50 text-emerald-700'}`;
+            meta.textContent = active.message || `Modo ${active.resolved_mode || active.mode} • filtro ${active.filter_type}${active.filter_value ? `: ${active.filter_value}` : ''} • iniciado em ${active.started_at}`;
             this.renderCountdown(active.remaining_seconds || 0);
+            if (active.message) {
+                this.showFeedback(status === 'failed' ? 'error' : 'success', active.message);
+            }
         },
 
         renderCountdown(seconds) {
@@ -441,11 +504,13 @@
                 }
 
                 this.notify('success', result.message || 'Captura SIP iniciada.');
+                this.showFeedback('success', result.data?.message || result.message || 'Captura executada.');
                 this.buffers = { sngrep: '', pjsip: '' };
                 this.activeSession = result.data || null;
                 await this.reloadStatus(true);
                 this.startPolling();
             } catch (error) {
+                this.showFeedback('error', error.message || 'Falha ao iniciar captura SIP.');
                 this.notify('error', error.message || 'Falha ao iniciar captura SIP.');
             }
         },
@@ -549,8 +614,12 @@
                 this.appendChunk('sngrep', data.chunks?.sngrep || '');
                 this.appendChunk('pjsip', data.chunks?.pjsip || '');
                 this.renderEvents(data.events || []);
+                if (data.message) {
+                    this.showFeedback(String(this.activeSession?.status || '') === 'failed' ? 'error' : 'success', data.message);
+                }
             } catch (error) {
-                console.error(error);
+                this.showFeedback('error', error.message || 'Falha ao carregar a captura SIP.');
+                this.notify('error', error.message || 'Falha ao carregar a captura SIP.');
             } finally {
                 this.pollInFlight = false;
                 if (this.pollingActive && this.activeSession?.id && ['starting', 'running'].includes(String(this.activeSession.status || ''))) {

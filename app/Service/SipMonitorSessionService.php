@@ -20,6 +20,7 @@ class SipMonitorSessionService
             [
                 '/admin/sip-monitor',
                 '/admin/sip-monitor/status',
+                '/admin/sip-monitor/test-connection',
                 '/admin/sip-monitor/start',
                 '/admin/sip-monitor/stop',
                 '/admin/sip-monitor/stream',
@@ -38,8 +39,11 @@ class SipMonitorSessionService
         self::cleanupExpiredSessions();
 
         $active = SipMonitorSession::findActiveByUser((string)($user['tenancy_id'] ?? ''), (int)($user['id'] ?? 0));
+        $connection = SipMonitorCommandRunner::testConnection();
+
         return [
             'capabilities' => self::capabilities(),
+            'connection' => self::sanitizeExecutionResult($connection),
             'active_session' => $active ? self::decorateSession($active) : null,
             'recent_sessions' => array_map([self::class, 'decorateSession'], SipMonitorSession::listRecent(10)),
             'limits' => [
@@ -73,10 +77,16 @@ class SipMonitorSessionService
         }
 
         $request = SipMonitorCommandBuilder::normalizeRequest($input);
+        self::guardRateLimit($tenancyId, $userId);
         $resolvedMode = self::resolveStartMode($request);
+        $connection = SipMonitorCommandRunner::testConnection();
+        if (empty($connection['ok'])) {
+            throw new \RuntimeException((string)($connection['friendly_message'] ?? 'Falha ao conectar no servidor SSH.'));
+        }
 
         $now = date('Y-m-d H:i:s');
-        $expiresAt = date('Y-m-d H:i:s', time() + (((int)$request['duration_minutes']) * 60));
+        $captureSeconds = SipMonitorCommandBuilder::captureTimeoutSeconds($request);
+        $expiresAt = date('Y-m-d H:i:s', time() + $captureSeconds + 5);
 
         $sessionId = SipMonitorSession::create([
             'tenancy_id' => $tenancyId,
@@ -97,8 +107,10 @@ class SipMonitorSessionService
                     'user_name' => (string)($user['name'] ?? ''),
                     'user_email' => (string)($user['email'] ?? ''),
                 ],
-                'profile' => SipMonitorCommandRunner::profile(),
+                'profile' => MonitorSshService::maskProfile(SipMonitorCommandRunner::profile()),
                 'request' => $request,
+                'connection' => self::sanitizeExecutionResult($connection),
+                'capture_seconds' => $captureSeconds,
                 'cursors' => ['sngrep' => 0, 'pjsip' => 0],
                 'streams' => [],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -112,6 +124,14 @@ class SipMonitorSessionService
         if (!$session) {
             throw new \RuntimeException('Falha ao criar a sessão do monitor SIP.');
         }
+
+        try {
+            $session = self::bootstrapSessionStreams($session);
+        } catch (\Throwable $e) {
+            self::appendSessionError($sessionId, $e->getMessage());
+            throw $e;
+        }
+
         return self::decorateSession($session);
     }
 
@@ -241,6 +261,7 @@ class SipMonitorSessionService
 
             $payload['stream_state'][$source] = [
                 'pid' => (int)($streams[$source]['pid'] ?? 0),
+                'running' => SipMonitorCommandRunner::processAlive((int)($streams[$source]['pid'] ?? 0), true),
                 'started_ok' => (bool)($stream['started_ok'] ?? false),
                 'exists' => (bool)($fileState['exists'] ?? false),
                 'size' => (int)($fileState['size'] ?? 0),
@@ -256,6 +277,18 @@ class SipMonitorSessionService
             $rows = SipMonitorCommandBuilder::parseSipLines($sessionId, $source, $chunk, $remainingSlots);
             SipMonitorLog::insertMany($rows);
         }
+
+        $allStopped = true;
+        foreach ($payload['stream_state'] as $state) {
+            if (!empty($state['running'])) {
+                $allStopped = false;
+                break;
+            }
+        }
+
+        $newStatus = in_array((string)$session['status'], ['stopped', 'expired', 'failed'], true)
+            ? (string)$session['status']
+            : ($allStopped ? 'completed' : 'running');
 
         $notes['cursors'] = $cursors;
         $notes['streams'] = $streams;
@@ -273,12 +306,19 @@ class SipMonitorSessionService
         SipMonitorSession::update($sessionId, [
             'pid' => $primaryPid > 0 ? $primaryPid : null,
             'notes' => json_encode($notes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            'status' => in_array((string)$session['status'], ['stopped', 'expired', 'failed'], true) ? (string)$session['status'] : 'running',
+            'status' => $newStatus,
+            'ended_at' => $newStatus === 'completed' ? date('Y-m-d H:i:s') : ($session['ended_at'] ?? null),
         ]);
 
         $payload['session'] = self::decorateSession(SipMonitorSession::findById($sessionId) ?: $session);
         $payload['events'] = self::buildEventSummary($sessionId);
+        $payload['message'] = self::sessionMessage($payload['session']);
         return $payload;
+    }
+
+    public static function testConnection(): array
+    {
+        return self::sanitizeExecutionResult(SipMonitorCommandRunner::testConnection());
     }
 
     public static function cleanupExpiredSessions(): void
@@ -402,6 +442,7 @@ class SipMonitorSessionService
 
         $session['notes'] = $publicNotes;
         $session['remaining_seconds'] = $remaining;
+        $session['message'] = self::sessionMessage($session);
         return $session;
     }
 
@@ -417,6 +458,29 @@ class SipMonitorSessionService
         return max(1, min(10, $value));
     }
 
+    private static function guardRateLimit(string $tenancyId, int $userId): void
+    {
+        $interval = max(0, min(600, (int)TelephonyConfig::env('SIP_MONITOR_MIN_INTERVAL_SECONDS', 10)));
+        if ($interval <= 0) {
+            return;
+        }
+
+        $latest = SipMonitorSession::findLatestByUser($tenancyId, $userId);
+        if (!$latest || empty($latest['created_at'])) {
+            return;
+        }
+
+        $createdAt = strtotime((string)$latest['created_at']);
+        if (!$createdAt) {
+            return;
+        }
+
+        $remaining = ($createdAt + $interval) - time();
+        if ($remaining > 0) {
+            throw new \RuntimeException('Aguarde ' . $remaining . 's antes de iniciar uma nova captura SIP.');
+        }
+    }
+
     private static function startStreamOrFail(int $sessionId, string $source, string $command, string $logPath): array
     {
         $started = SipMonitorCommandRunner::startBackground($command, $logPath, true);
@@ -427,10 +491,13 @@ class SipMonitorSessionService
             return $started;
         }
 
+        $existing = SipMonitorSession::findById($sessionId);
+        $notes = $existing ? self::sessionNotes($existing) : [];
+        $notes['last_error'] = self::sanitizeExecutionResult($started);
         SipMonitorSession::update($sessionId, [
             'status' => 'failed',
             'ended_at' => date('Y-m-d H:i:s'),
-            'notes' => json_encode([
+            'notes' => json_encode($notes + [
                 'failed_source' => $source,
                 'failed_log_path' => $logPath,
                 'bootstrap_output' => mb_substr($output, 0, 2000),
@@ -440,7 +507,7 @@ class SipMonitorSessionService
 
         throw new \RuntimeException(
             'Falha ao iniciar captura ' . strtoupper($source) . '. '
-            . ($output !== '' ? $output : 'O servidor remoto não devolveu saída útil.')
+            . ((string)($started['friendly_message'] ?? '') !== '' ? $started['friendly_message'] : ($output !== '' ? $output : 'O servidor remoto não devolveu saída útil.'))
         );
     }
 
@@ -456,6 +523,7 @@ class SipMonitorSessionService
         $resolvedMode = (string)($session['resolved_mode'] ?? 'auto');
         $primaryPid = null;
         $streams = (array)($notes['streams'] ?? []);
+        $startedPids = [];
 
         if ($streams !== []) {
             return $session;
@@ -471,30 +539,47 @@ class SipMonitorSessionService
                 'pid_path' => (string)($started['pid_path'] ?? ''),
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
+                'timeout_seconds' => (int)($script['timeout_seconds'] ?? 0),
+                'max_lines' => (int)($script['max_lines'] ?? 0),
                 'started_ok' => (bool)($started['ok'] ?? false),
                 'bootstrap_output' => mb_substr(trim((string)($started['output'] ?? '')), 0, 800),
             ];
             if ($primaryPid === null && !empty($started['pid'])) {
                 $primaryPid = (int)$started['pid'];
+            }
+            if (!empty($started['pid'])) {
+                $startedPids[] = (int)$started['pid'];
             }
         }
 
-        if (in_array($resolvedMode, ['pjsip', 'both'], true)) {
-            $script = SipMonitorCommandBuilder::buildPjsipLoggerScript($request);
-            $logPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'pjsip.log');
-            $started = self::startStreamOrFail($sessionId, 'pjsip', $script['command'], $logPath);
-            $streams['pjsip'] = [
-                'pid' => (int)($started['pid'] ?? 0),
-                'log_path' => $logPath,
-                'pid_path' => (string)($started['pid_path'] ?? ''),
-                'command' => $script['command'],
-                'filter' => $script['filter_label'],
-                'started_ok' => (bool)($started['ok'] ?? false),
-                'bootstrap_output' => mb_substr(trim((string)($started['output'] ?? '')), 0, 800),
-            ];
-            if ($primaryPid === null && !empty($started['pid'])) {
-                $primaryPid = (int)$started['pid'];
+        try {
+            if (in_array($resolvedMode, ['pjsip', 'both'], true)) {
+                $script = SipMonitorCommandBuilder::buildPjsipLoggerScript($request);
+                $logPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'pjsip.log');
+                $started = self::startStreamOrFail($sessionId, 'pjsip', $script['command'], $logPath);
+                $streams['pjsip'] = [
+                    'pid' => (int)($started['pid'] ?? 0),
+                    'log_path' => $logPath,
+                    'pid_path' => (string)($started['pid_path'] ?? ''),
+                    'command' => $script['command'],
+                    'filter' => $script['filter_label'],
+                    'timeout_seconds' => (int)($script['timeout_seconds'] ?? 0),
+                    'max_lines' => (int)($script['max_lines'] ?? 0),
+                    'started_ok' => (bool)($started['ok'] ?? false),
+                    'bootstrap_output' => mb_substr(trim((string)($started['output'] ?? '')), 0, 800),
+                ];
+                if ($primaryPid === null && !empty($started['pid'])) {
+                    $primaryPid = (int)$started['pid'];
+                }
+                if (!empty($started['pid'])) {
+                    $startedPids[] = (int)$started['pid'];
+                }
             }
+        } catch (\Throwable $e) {
+            foreach ($startedPids as $pid) {
+                SipMonitorCommandRunner::killProcess($pid, true);
+            }
+            throw $e;
         }
 
         $notes['streams'] = $streams;
@@ -537,5 +622,51 @@ class SipMonitorSessionService
         }
 
         throw new \RuntimeException('Nenhum backend de captura SIP está disponível neste servidor.');
+    }
+
+    private static function sanitizeExecutionResult(array $result): array
+    {
+        return [
+            'ok' => (bool)($result['ok'] ?? false),
+            'status' => (int)($result['status'] ?? 0),
+            'timed_out' => (bool)($result['timed_out'] ?? false),
+            'duration_ms' => (int)($result['duration_ms'] ?? 0),
+            'friendly_message' => (string)($result['friendly_message'] ?? ''),
+            'stdout' => MonitorSshService::summarize((string)($result['stdout'] ?? '')),
+            'stderr' => MonitorSshService::summarize((string)($result['stderr'] ?? '')),
+        ];
+    }
+
+    private static function appendSessionError(int $sessionId, string $message): void
+    {
+        $session = SipMonitorSession::findById($sessionId);
+        if (!$session) {
+            return;
+        }
+
+        $notes = self::sessionNotes($session);
+        $notes['last_error_message'] = $message;
+        SipMonitorSession::update($sessionId, [
+            'notes' => json_encode($notes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+
+    private static function sessionMessage(array $session): string
+    {
+        $notes = self::sessionNotes($session);
+        if (!empty($notes['last_error_message'])) {
+            return (string)$notes['last_error_message'];
+        }
+
+        $status = (string)($session['status'] ?? '');
+        return match ($status) {
+            'starting' => 'Preparando conexão SSH e iniciando captura controlada.',
+            'running' => 'Captura em execução com tempo e linhas limitados.',
+            'completed' => 'Captura concluída. Consulte a saída e os eventos detectados.',
+            'failed' => (string)(($notes['last_error']['friendly_message'] ?? null) ?: 'A captura falhou no servidor remoto.'),
+            'stopped' => 'Captura encerrada manualmente.',
+            'expired' => 'Captura encerrada por tempo limite.',
+            default => 'Sessão de captura SIP.',
+        };
     }
 }

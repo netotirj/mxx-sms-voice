@@ -14,15 +14,35 @@ class SipMonitorCommandRunner
         $host = trim((string)TelephonyConfig::env('SIP_MONITOR_HOST', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', TelephonyConfig::env('SERVERASTERISK', ''))));
         $mode = trim((string)TelephonyConfig::env('SIP_MONITOR_EXEC_MODE', $host !== '' ? 'ssh' : 'local'));
 
+        $profile = MonitorSshService::envProfile(
+            'SIP_MONITOR_HOST',
+            'SIP_MONITOR_USER',
+            'SIP_MONITOR_PORT',
+            'SIP_MONITOR_KEY',
+            'SIP_MONITOR_USE_SUDO',
+            'SIP_MONITOR_SUDO_BIN',
+            'SIP_MONITOR_STRICT_HOST_KEY',
+            [
+                'host' => TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', TelephonyConfig::env('SERVERASTERISK', '')),
+                'user' => TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USER', 'root'),
+                'port' => (int)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_PORT', 22),
+                'identity_file' => TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_KEY', ''),
+                'use_sudo' => filter_var((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USE_SUDO', '1'), FILTER_VALIDATE_BOOL),
+                'sudo_bin' => TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SUDO_BIN', 'sudo -n'),
+                'strict_host_key' => filter_var((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_STRICT_HOST_KEY', '0'), FILTER_VALIDATE_BOOL),
+                'mode' => $mode === 'ssh' ? 'ssh' : 'local',
+            ]
+        );
+
         return [
-            'mode' => $mode === 'ssh' ? 'ssh' : 'local',
-            'host' => $host,
-            'user' => trim((string)TelephonyConfig::env('SIP_MONITOR_USER', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USER', 'root'))),
-            'port' => max(1, (int)TelephonyConfig::env('SIP_MONITOR_PORT', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_PORT', 22))),
-            'identity_file' => trim((string)TelephonyConfig::env('SIP_MONITOR_KEY', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_KEY', ''))),
-            'strict_host_key' => filter_var((string)TelephonyConfig::env('SIP_MONITOR_STRICT_HOST_KEY', '0'), FILTER_VALIDATE_BOOL),
-            'use_sudo' => filter_var((string)TelephonyConfig::env('SIP_MONITOR_USE_SUDO', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USE_SUDO', '1')), FILTER_VALIDATE_BOOL),
-            'sudo_bin' => trim((string)TelephonyConfig::env('SIP_MONITOR_SUDO_BIN', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SUDO_BIN', 'sudo -n'))),
+            'mode' => (string)($profile['mode'] ?? ($mode === 'ssh' ? 'ssh' : 'local')),
+            'host' => (string)($profile['host'] ?? $host),
+            'user' => (string)($profile['user'] ?? 'root'),
+            'port' => (int)($profile['port'] ?? 22),
+            'identity_file' => (string)($profile['identity_file'] ?? ''),
+            'strict_host_key' => (bool)($profile['strict_host_key'] ?? false),
+            'use_sudo' => (bool)($profile['use_sudo'] ?? true),
+            'sudo_bin' => (string)($profile['sudo_bin'] ?? 'sudo -n'),
             'remote_dir' => trim((string)TelephonyConfig::env('SIP_MONITOR_REMOTE_DIR', '/tmp/maxx-sip-monitor')),
             'local_dir' => dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'sip-monitor',
         ];
@@ -42,7 +62,7 @@ class SipMonitorCommandRunner
                 'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
             ],
             'ssh_probe' => $profile['mode'] === 'ssh'
-                ? self::runSsh($profile, 'printf "ssh-ok"', false)
+                ? MonitorSshService::testConnection($profile)
                 : ['ok' => true, 'status' => 0, 'output' => 'local-mode'],
             'which_sngrep' => self::run('command -v sngrep || which sngrep || true', false),
             'sngrep_version' => self::run('sngrep -V 2>&1 || true', false),
@@ -71,11 +91,12 @@ class SipMonitorCommandRunner
     public static function run(string $command, bool $useSudo = true): array
     {
         $profile = self::profile();
-        if (($profile['mode'] ?? 'local') === 'ssh') {
-            return self::runSsh($profile, $command, $useSudo);
-        }
-
-        return self::runLocal($useSudo ? self::withSudo($profile, $command) : $command);
+        return MonitorSshService::run($profile, $command, [
+            'use_sudo' => $useSudo,
+            'connect_timeout' => 5,
+            'command_timeout' => self::commandTimeoutSeconds(),
+            'command_label' => 'sip-monitor-run',
+        ]);
     }
 
     public static function startBackground(string $shellScript, string $outputPath, bool $useSudo = true): array
@@ -94,9 +115,12 @@ class SipMonitorCommandRunner
             $command = 'timeout --signal=TERM 12s /usr/bin/sh -lc ' . escapeshellarg($bootstrap);
         }
 
-        $result = ($profile['mode'] ?? 'local') === 'ssh'
-            ? self::runSsh($profile, $command, $useSudo)
-            : self::runLocal($useSudo ? self::withSudo($profile, $command) : $command);
+        $result = MonitorSshService::run($profile, $command, [
+            'use_sudo' => $useSudo,
+            'connect_timeout' => 5,
+            'command_timeout' => min(20, max(10, self::commandTimeoutSeconds())),
+            'command_label' => 'sip-monitor-start-background',
+        ]);
 
         $output = trim((string)($result['output'] ?? ''));
         $pid = 0;
@@ -181,6 +205,22 @@ class SipMonitorCommandRunner
         ];
     }
 
+    public static function processAlive(?int $pid, bool $useSudo = true): bool
+    {
+        $pid = (int)$pid;
+        if ($pid <= 0) {
+            return false;
+        }
+
+        $result = self::run('kill -0 ' . $pid . ' >/dev/null 2>&1', $useSudo);
+        return (bool)($result['ok'] ?? false);
+    }
+
+    public static function testConnection(): array
+    {
+        return MonitorSshService::testConnection(self::profile(), 5);
+    }
+
     public static function remotePathForSession(int $sessionId, string $filename): string
     {
         $profile = self::profile();
@@ -191,70 +231,9 @@ class SipMonitorCommandRunner
         return $base . '/session-' . $sessionId . '/' . ltrim($filename, '/');
     }
 
-    private static function runLocal(string $command): array
+    private static function commandTimeoutSeconds(): int
     {
-        if (!function_exists('exec')) {
-            return ['ok' => false, 'status' => 127, 'output' => 'exec() desabilitado neste host.'];
-        }
-
-        $output = [];
-        $status = 0;
-        @exec($command, $output, $status);
-
-        return [
-            'ok' => $status === 0,
-            'status' => $status,
-            'output' => implode("\n", $output),
-        ];
-    }
-
-    private static function runSsh(array $profile, string $command, bool $useSudo = true): array
-    {
-        $host = trim((string)($profile['host'] ?? ''));
-        if ($host === '') {
-            return ['ok' => false, 'status' => 127, 'output' => 'Host SSH do monitor SIP não configurado.'];
-        }
-
-        $user = trim((string)($profile['user'] ?? 'root'));
-        $port = max(1, (int)($profile['port'] ?? 22));
-        $identityFile = trim((string)($profile['identity_file'] ?? ''));
-        $strictHostKey = (bool)($profile['strict_host_key'] ?? false);
-        $target = $user !== '' ? "{$user}@{$host}" : $host;
-
-        $parts = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-p', (string)$port];
-        if (!$strictHostKey) {
-            $parts[] = '-o';
-            $parts[] = 'StrictHostKeyChecking=no';
-            $parts[] = '-o';
-            $parts[] = 'UserKnownHostsFile=/dev/null';
-        }
-        if ($identityFile !== '') {
-            $parts[] = '-i';
-            $parts[] = $identityFile;
-        }
-
-        $remoteCommand = $useSudo ? self::withSudo($profile, $command) : $command;
-        $sshPrefix = implode(' ', array_map('escapeshellarg', $parts));
-        $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' ' . escapeshellarg($remoteCommand) . ' 2>&1';
-
-        return self::runLocal($fullCommand);
-    }
-
-    private static function withSudo(array $profile, string $command): string
-    {
-        if (empty($profile['use_sudo'])) {
-            return $command;
-        }
-
-        $sudoBin = trim((string)($profile['sudo_bin'] ?? 'sudo -n'));
-        $parts = preg_split('/\s+/', $sudoBin) ?: [];
-        $parts = array_values(array_filter(array_map(static fn ($value): string => trim((string)$value), $parts)));
-        if ($parts === []) {
-            $parts = ['sudo', '-n'];
-        }
-
-        return implode(' ', array_map('escapeshellarg', $parts))
-            . ' /usr/bin/sh -lc '
-            . escapeshellarg($command);
+        $value = (int)TelephonyConfig::env('SIP_MONITOR_COMMAND_TIMEOUT_SECONDS', 15);
+        return max(5, min(120, $value));
     }
 }

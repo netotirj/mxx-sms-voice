@@ -27,6 +27,17 @@ $obRouter->get('/admin/services-monitor/status', [
     }
 ]);
 
+$obRouter->get('/admin/services-monitor/test-connection', [
+    'name' => '/admin/services-monitor/test-connection',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies',
+    ],
+    function ($request) {
+        return Pages\ServicesMonitor::testConnection($request);
+    }
+]);
+
 $obRouter->get('/admin/services-monitor/logs', [
     'name' => '/admin/services-monitor/logs',
     'middlewares' => [

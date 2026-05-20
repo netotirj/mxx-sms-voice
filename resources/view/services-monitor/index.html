@@ -187,7 +187,12 @@
                         <select id="servicesMonitorServerSelect" onchange="servicesMonitor.changeServer(this.value)" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 outline-none services-monitor-select">
                             <option value="local">Carregando...</option>
                         </select>
+                        <span id="servicesMonitorConnectionBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 services-monitor-host-badge">SSH: verificando...</span>
                         <span id="servicesMonitorHost" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 services-monitor-host-badge">Servidor: ...</span>
+                        <button type="button" onclick="servicesMonitor.testConnection()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-700 services-monitor-update-btn">
+                            <i class="fa fa-plug"></i>
+                            Testar SSH
+                        </button>
                         <button type="button" onclick="servicesMonitor.loadStatus(true)" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white services-monitor-update-btn">
                             <i class="ni ni-refresh"></i>
                             Atualizar
@@ -304,6 +309,43 @@
             return `${this.baseUrl}${path}${suffix ? `?${suffix}` : ''}`;
         },
 
+        renderConnection(connection) {
+            const badge = document.getElementById('servicesMonitorConnectionBadge');
+            if (!badge) return;
+
+            if (connection.ok) {
+                badge.textContent = `SSH: OK${connection.duration_ms ? ` • ${connection.duration_ms}ms` : ''}`;
+                badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 services-monitor-host-badge';
+                return;
+            }
+
+            badge.textContent = `SSH: erro`;
+            badge.className = 'inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-rose-700 services-monitor-host-badge';
+        },
+
+        async testConnection() {
+            try {
+                const response = await fetch(this.url('/admin/services-monitor/test-connection', {
+                    server: this.currentServer,
+                    _: Date.now()
+                }));
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Falha no teste de conexão SSH.');
+                }
+
+                this.renderConnection(result.data || {});
+                if (typeof notyf !== 'undefined') {
+                    const fn = result.data?.ok ? 'success' : 'error';
+                    notyf[fn](result.data?.friendly_message || result.message || 'Teste concluído.');
+                }
+            } catch (error) {
+                if (typeof notyf !== 'undefined') {
+                    notyf.error(error.message || 'Falha no teste de conexão SSH.');
+                }
+            }
+        },
+
         async loadStatus(silent = false) {
             const tbody = document.getElementById('servicesMonitorTableBody');
             if (!silent) {
@@ -331,6 +373,7 @@
             this.currentServer = data.server_key || this.currentServer || 'local';
             this.availableServers = Array.isArray(data.available_servers) ? data.available_servers : [];
             this.renderServerOptions(this.availableServers, this.currentServer);
+            this.renderConnection(data.connection || {});
 
             const hostLabel = [data.server_label || 'Servidor', data.host ? `(${data.host})` : ''].filter(Boolean).join(' ');
             document.getElementById('servicesMonitorHost').textContent = `Servidor: ${hostLabel || 'desconhecido'}`;

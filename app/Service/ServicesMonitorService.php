@@ -27,6 +27,7 @@ class ServicesMonitorService
             [
                 '/admin/services-monitor',
                 '/admin/services-monitor/status',
+                '/admin/services-monitor/test-connection',
                 '/admin/services-monitor/logs',
                 '/admin/services-monitor/restart',
             ]
@@ -50,23 +51,43 @@ class ServicesMonitorService
             'sudo_bin' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_SUDO_BIN', 'sudo -n')),
         ];
 
-        $asteriskHost = trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', ''));
+        $asteriskHost = trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', TelephonyConfig::env('SIP_MONITOR_HOST', TelephonyConfig::env('SERVERASTERISK', ''))));
         if ($asteriskHost !== '') {
+            $sshProfile = MonitorSshService::envProfile(
+                'SERVICES_MONITOR_ASTERISK_HOST',
+                'SERVICES_MONITOR_ASTERISK_USER',
+                'SERVICES_MONITOR_ASTERISK_PORT',
+                'SERVICES_MONITOR_ASTERISK_KEY',
+                'SERVICES_MONITOR_ASTERISK_USE_SUDO',
+                'SERVICES_MONITOR_ASTERISK_SUDO_BIN',
+                'SERVICES_MONITOR_ASTERISK_STRICT_HOST_KEY',
+                [
+                    'host' => TelephonyConfig::env('SIP_MONITOR_HOST', TelephonyConfig::env('SERVERASTERISK', '')),
+                    'user' => TelephonyConfig::env('SIP_MONITOR_USER', 'root'),
+                    'port' => (int)TelephonyConfig::env('SIP_MONITOR_PORT', 22),
+                    'identity_file' => TelephonyConfig::env('SIP_MONITOR_KEY', ''),
+                    'use_sudo' => self::envBool('SIP_MONITOR_USE_SUDO', true),
+                    'sudo_bin' => TelephonyConfig::env('SIP_MONITOR_SUDO_BIN', 'sudo -n'),
+                    'strict_host_key' => self::envBool('SIP_MONITOR_STRICT_HOST_KEY', false),
+                    'mode' => 'ssh',
+                ]
+            );
+
             $profiles['asterisk'] = [
                 'key' => 'asterisk',
                 'label' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_LABEL', 'Asterisk')),
                 'mode' => 'ssh',
-                'host' => $asteriskHost,
-                'user' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_USER', 'root')),
-                'port' => max(1, (int)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_PORT', 22)),
-                'identity_file' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_KEY', '')),
+                'host' => (string)$sshProfile['host'],
+                'user' => (string)$sshProfile['user'],
+                'port' => (int)$sshProfile['port'],
+                'identity_file' => (string)$sshProfile['identity_file'],
                 'services' => self::mergeServices(
                     self::FIXED_WHITELIST,
                     self::parseServiceList((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SERVICES', ''))
                 ),
-                'use_sudo' => self::envBool('SERVICES_MONITOR_ASTERISK_USE_SUDO', false),
-                'sudo_bin' => trim((string)TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_SUDO_BIN', 'sudo -n')),
-                'strict_host_key' => self::envBool('SERVICES_MONITOR_ASTERISK_STRICT_HOST_KEY', false),
+                'use_sudo' => (bool)$sshProfile['use_sudo'],
+                'sudo_bin' => (string)$sshProfile['sudo_bin'],
+                'strict_host_key' => (bool)$sshProfile['strict_host_key'],
             ];
         }
 
@@ -89,6 +110,7 @@ class ServicesMonitorService
     {
         $profile = self::resolveProfile($serverKey);
         $services = self::allowedServices($profile);
+        $connection = self::connectionStatus($profile);
         $heartbeats = ($profile['mode'] ?? 'local') === 'local'
             ? WorkerHeartbeat::listByServices($services)
             : [];
@@ -117,6 +139,7 @@ class ServicesMonitorService
 
         return [
             'supported' => self::systemdSupported($profile),
+            'connection' => $connection,
             'host' => (string)$profile['host'],
             'server_key' => (string)$profile['key'],
             'server_label' => (string)$profile['label'],
@@ -157,6 +180,7 @@ class ServicesMonitorService
             'server_label' => (string)$profile['label'],
             'supported' => true,
             'command_ok' => (bool)$result['ok'],
+            'connection' => self::connectionStatus($profile),
             'permission_denied' => $permissionDenied,
             'permission_hint' => $permissionDenied
                 ? 'Falta acesso ao journalctl. Libere sudo para o usuário do monitor ou adicione o usuário aos grupos systemd-journal/adm.'
@@ -190,6 +214,11 @@ class ServicesMonitorService
             'message' => 'Serviço reiniciado com sucesso.',
             'status' => self::serviceSnapshot($profile, $serviceName),
         ];
+    }
+
+    public static function testConnection(?string $serverKey = null): array
+    {
+        return self::connectionStatus(self::resolveProfile($serverKey));
     }
 
     public static function allowedServices(array $profile): array
@@ -543,102 +572,23 @@ class ServicesMonitorService
             . 'test -x /sbin/' . $binary
         );
 
-        if (($profile['mode'] ?? 'local') === 'ssh') {
-            $result = self::runSshCommand($profile, $command, false);
-            return $result['ok'];
-        }
-
-        $result = self::runLocalCommand($command);
+        $result = MonitorSshService::run($profile, $command, [
+            'use_sudo' => false,
+            'connect_timeout' => 5,
+            'command_timeout' => 8,
+            'command_label' => 'services-monitor-binary-exists',
+        ]);
         return $result['ok'];
     }
 
     private static function runCommandForProfile(array $profile, string $command): array
     {
-        if (($profile['mode'] ?? 'local') === 'ssh') {
-            return self::runSshCommand($profile, $command);
-        }
-
-        return self::runLocalCommand(self::withSudo($profile, $command));
-    }
-
-    private static function runLocalCommand(string $command): array
-    {
-        if (!function_exists('exec')) {
-            return ['ok' => false, 'status' => 127, 'output' => 'exec() desabilitado neste host.'];
-        }
-
-        $output = [];
-        $status = 0;
-        @exec($command, $output, $status);
-
-        return [
-            'ok' => $status === 0,
-            'status' => $status,
-            'output' => implode("\n", $output),
-        ];
-    }
-
-    private static function runSshCommand(array $profile, string $command, bool $useSudo = true): array
-    {
-        $host = trim((string)($profile['host'] ?? ''));
-        if ($host === '') {
-            return ['ok' => false, 'status' => 127, 'output' => 'Host SSH do perfil não configurado.'];
-        }
-
-        $user = trim((string)($profile['user'] ?? 'root'));
-        $port = max(1, (int)($profile['port'] ?? 22));
-        $identityFile = trim((string)($profile['identity_file'] ?? ''));
-        $strictHostKey = (bool)($profile['strict_host_key'] ?? false);
-        $target = $user !== '' ? "{$user}@{$host}" : $host;
-
-        $parts = [
-            'ssh',
-            '-o',
-            'BatchMode=yes',
-            '-o',
-            'ConnectTimeout=5',
-            '-p',
-            (string)$port,
-        ];
-
-        if (!$strictHostKey) {
-            $parts[] = '-o';
-            $parts[] = 'StrictHostKeyChecking=no';
-            $parts[] = '-o';
-            $parts[] = 'UserKnownHostsFile=/dev/null';
-        }
-
-        if ($identityFile !== '') {
-            $parts[] = '-i';
-            $parts[] = $identityFile;
-        }
-
-        $sshPrefix = implode(' ', array_map('escapeshellarg', $parts));
-        $remoteCommand = $useSudo ? self::withSudo($profile, $command) : $command;
-        $fullCommand = $sshPrefix . ' ' . escapeshellarg($target) . ' -- ' . escapeshellarg($remoteCommand);
-
-        return self::runLocalCommand($fullCommand);
-    }
-
-    private static function withSudo(array $profile, string $command): string
-    {
-        if (empty($profile['use_sudo'])) {
-            return $command;
-        }
-
-        $sudoBin = trim((string)($profile['sudo_bin'] ?? 'sudo -n'));
-        if ($sudoBin === '') {
-            $sudoBin = 'sudo -n';
-        }
-
-        $parts = preg_split('/\s+/', $sudoBin) ?: [];
-        $parts = array_values(array_filter(array_map(static fn ($value): string => trim((string)$value), $parts)));
-        if ($parts === []) {
-            $parts = ['sudo', '-n'];
-        }
-
-        $prefix = implode(' ', array_map('escapeshellarg', $parts));
-        return $prefix . ' ' . $command;
+        return MonitorSshService::run($profile, $command, [
+            'use_sudo' => (bool)($profile['use_sudo'] ?? false),
+            'connect_timeout' => 5,
+            'command_timeout' => max(5, min(30, (int)TelephonyConfig::env('SERVICES_MONITOR_COMMAND_TIMEOUT_SECONDS', 12))),
+            'command_label' => 'services-monitor',
+        ]);
     }
 
     private static function parseSystemctlShow(string $raw): array
@@ -805,5 +755,31 @@ class ServicesMonitorService
     {
         $value = strtolower(trim((string)TelephonyConfig::env($key, $default ? 'true' : 'false')));
         return in_array($value, ['1', 'true', 'yes', 'on', 'y'], true);
+    }
+
+    private static function connectionStatus(array $profile): array
+    {
+        if (($profile['mode'] ?? 'local') === 'local') {
+            return [
+                'ok' => true,
+                'status' => 0,
+                'friendly_message' => 'Execução local.',
+                'duration_ms' => 0,
+                'timed_out' => false,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        }
+
+        $result = MonitorSshService::testConnection($profile, 5);
+        return [
+            'ok' => (bool)($result['ok'] ?? false),
+            'status' => (int)($result['status'] ?? 0),
+            'friendly_message' => (string)($result['friendly_message'] ?? ''),
+            'duration_ms' => (int)($result['duration_ms'] ?? 0),
+            'timed_out' => (bool)($result['timed_out'] ?? false),
+            'stdout' => MonitorSshService::summarize((string)($result['stdout'] ?? '')),
+            'stderr' => MonitorSshService::summarize((string)($result['stderr'] ?? '')),
+        ];
     }
 }

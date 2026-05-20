@@ -10,7 +10,6 @@ use App\Session\User as SessionUser;
 use App\Model\Entity\CallbackSms;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CampaignBatch;
-use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\UserPlans;
 use App\Service\CampaignSchedulerService;
 use App\Service\FinancialHierarchyBillingService;
@@ -35,13 +34,8 @@ class SendSms extends ViewComponents
 
     private static function currentSmsRate(string $tenancyId): float
     {
-        $planId = self::activePlanId($tenancyId);
-        if ($planId <= 0) {
-            return 0.0;
-        }
-
-        $plan = PlanCatalog::findById($planId);
-        return (float)($plan['value_sms'] ?? 0);
+        $summary = PlanRuntimeService::getDisplaySummary($tenancyId);
+        return (float)($summary->value_sms ?? 0);
     }
 
     public static function buildSmsPreflightPlan(int $userId, string $tenancyId, int $totalUnits, float $retailUnitRate): array
@@ -285,29 +279,27 @@ class SendSms extends ViewComponents
             }
 
             $obBalance   = BalanceSms::getBalanceSms(null, $obUser['tenancy_id'], $currentPlan);
-            $planSmsRate = self::currentSmsRate((string)$obUser['tenancy_id']);
-            if (!$obBalance || $planSmsRate <= 0) {
+            if (!$obBalance || (float)$obBalance->value_sms <= 0) {
                 return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa da conta principal não configurados.'], 'application/json');
             }
 
         } else {
             // 🔹 Fluxo normal (somente plano)
             $obBalance   = BalanceSms::getBalanceSms($obUser['id'], $obUser['tenancy_id'], $currentPlan);
-            $planSmsRate = self::currentSmsRate((string)$obUser['tenancy_id']);
-            if (!$obBalance || $planSmsRate <= 0) {
+            if (!$obBalance || (float)$obBalance->value_sms <= 0) {
                 return new Response(404, ['status'=>404,'message'=>'Saldo ou tarifa SMS não configurados.'], 'application/json');
             }
-            $valueTotal       = $totalUnits * $planSmsRate;
+            $valueTotal       = $totalUnits * (float)$obBalance->value_sms;
             $availableBalance = (float)$obBalance->balance;
 
             // 🔹 Se não tem saldo nem para 1 SMS, desativa
-            if ($availableBalance < $planSmsRate) {
+            if ($availableBalance < (float)$obBalance->value_sms) {
                 UserPlans::deactivatePlan($currentPlan, $obUser['tenancy_id'], $obUser['id']);
                 return new Response(403, [
                     'status'    => 403,
                     'message'   => 'Saldo insuficiente. Plano foi desativado.',
                     'balance'   => $availableBalance,
-                    'necessary' => $planSmsRate
+                    'necessary' => (float)$obBalance->value_sms
                 ], 'application/json');
             }
 
@@ -326,7 +318,7 @@ class SendSms extends ViewComponents
                 (int)$obUser['id'],
                 (string)$obUser['tenancy_id'],
                 (int)$totalUnits,
-                $isReseller ? (float)$valueSms : $planSmsRate
+                (float)$obBalance->value_sms
             );
             FinancialHierarchyBillingService::assertSufficientBalance($preflightPlan);
         } catch (\Throwable $e) {
@@ -399,7 +391,7 @@ class SendSms extends ViewComponents
                 $callback->date_send      = date('Y-m-d H:i:s');
 
                 if (strtoupper($smsResult['status'] ?? '') === 'ACCEPTED') {
-                    $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : $planSmsRate);
+                    $chargeValue = ((int)$cont['sms_units']) * ($isReseller ? (float)$valueSms : (float)$obBalance->value_sms);
                     $callback->value_sms = $chargeValue;
                     $totalAccepted++;
                 } else {

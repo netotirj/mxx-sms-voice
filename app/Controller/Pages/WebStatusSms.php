@@ -6,9 +6,9 @@ use App\Config\TelephonyConfig;
 use App\Http\Response;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
-use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\Rates;
 use App\Model\Entity\RegisterTenancies;
+use App\Model\Entity\UserPlans;
 use App\Model\Entity\UserSearch;
 use App\Model\Entity\CampaignBatch;
 use DateTime;
@@ -20,20 +20,6 @@ use WilliamCosta\DatabaseManager\Database;
 
 class WebStatusSms
 {
-    private static function currentPlanSmsRate(string $tenancyId, ?int $planId = null): float
-    {
-        $resolvedPlanId = ($planId && $planId > 0)
-            ? $planId
-            : (int)(RegisterTenancies::getActivePlanId($tenancyId) ?? 0);
-
-        if ($resolvedPlanId <= 0) {
-            return 0.0;
-        }
-
-        $plan = PlanCatalog::findById($resolvedPlanId);
-        return round((float)($plan['value_sms'] ?? 0), 4);
-    }
-
     /**
      * Processa a cobrança consolidada do lote usando a cadeia financeira central.
      * @param int $actorUserId       -> usuario que consumiu/originou o lote
@@ -198,7 +184,8 @@ class WebStatusSms
             if (!$batch) continue;
 
             $planId = RegisterTenancies::getActivePlanId($obUser->tenancy_id);
-            $valueSmsPlan = self::currentPlanSmsRate((string)$obUser->tenancy_id, $planId);
+            $planInfo = UserPlans::getUserPlanInfo($planId, $obUser->id, $obUser->tenancy_id);
+            $valueSmsPlan = $planInfo->value_sms ?? 0.00;
 
             $updateDate = $normalizeDate($item['data_atualizacao'] ?? null);
             $dateSend   = $normalizeDate($item['data_insercao'] ?? null);
@@ -229,19 +216,13 @@ class WebStatusSms
 
             $status = strtoupper(trim($callback->status_sms));
             $isReseller = (($obUser->user_function ?? '') === 'reseller');
-            $existingCallback = CallbackSms::findLatestByPartnerAndPhone(
-                (string)$obUser->tenancy_id,
-                (string)$partnerId,
-                (string)$phone
-            );
-            $existingValueSms = round((float)($existingCallback['value_sms'] ?? 0), 4);
 
             if (in_array($status, $statusChargeable, true)) {
                 $callback->value_sms = $isReseller
                     ? (float)(Rates::getLatestActiveRate($obUser->tenancy_id, $obUser->id)['rate'] ?? 0)
-                    : (float)($valueSmsPlan > 0 ? $valueSmsPlan : $existingValueSms);
+                    : (float)$valueSmsPlan;
             } else {
-                $callback->value_sms = $existingValueSms;
+                $callback->value_sms = 0.00;
             }
 
             $rowsUpdated = $callback->updateStatus();

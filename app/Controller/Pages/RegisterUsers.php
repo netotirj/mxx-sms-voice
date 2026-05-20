@@ -8,8 +8,10 @@ use App\Model\Entity\PermissionsRules;
 use App\Model\Entity\RegisterTenancies;
 use App\Model\Entity\BalanceSms;
 use App\Model\Entity\Notifications;
+use App\Model\Entity\PlanCatalog;
 use App\Model\Entity\UserPlans;
 use App\Session\User as SessionUser;
+use App\Service\PlanRuntimeService;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
 
@@ -161,9 +163,14 @@ class RegisterUsers extends ViewComponents
         $email = strtolower(trim((string)($data['email'] ?? '')));
         $password = trim((string)($data['password'] ?? ''));
         $phone = self::normalizePhone((string)($data['phone'] ?? ''));
+        $bootstrapPlan = PlanCatalog::findById(self::BOOTSTRAP_PLAN_ID);
 
         if ($name === '' || $email === '' || $password === '' || $phone === '') {
             return ['status' => 'ERROR', 'message' => 'Nome, e-mail, telefone e senha são obrigatórios.'];
+        }
+
+        if (!$bootstrapPlan) {
+            return ['status' => 'ERROR', 'message' => 'Plano bootstrap padrão não encontrado.'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -232,7 +239,7 @@ class RegisterUsers extends ViewComponents
             PermissionsRules::assignRoleToUser($newUserId, $tenancyId, $roleId);
 
             // 5️⃣ Configurações de Plano e Saldo (SMS)
-            $userPlanId = UserPlans::createUserPlan([
+            UserPlans::createUserPlan([
                 'user_id'    => $newUserId,
                 'plan_id'    => self::BOOTSTRAP_PLAN_ID,
                 'tenancy_id' => $tenancyId,
@@ -240,27 +247,28 @@ class RegisterUsers extends ViewComponents
             ]);
 
             $invoiceNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+            $bootstrapPayload = PlanRuntimeService::buildBalanceInsertPayload($bootstrapPlan);
             BalanceSms::insertBalance(
                 $newUserId,
                 self::BOOTSTRAP_PLAN_ID,
                 $tenancyId,
                 3,
-                0.20,
-                0.35,
-                0.35,
+                (float)($bootstrapPlan['value_sms'] ?? 0),
+                (float)($bootstrapPlan['value_voice'] ?? 0),
+                (float)($bootstrapPlan['value_torpedo'] ?? 0),
                 $invoiceNumber,
-                0.85,
-                0.35,
-                0.70,
-                null,
-                null,
-                null,
-                null,
-                null,
+                (float)($bootstrapPlan['voice_open_rate'] ?? $bootstrapPlan['value_voice'] ?? 0),
+                (float)($bootstrapPlan['voice_smart_rate'] ?? $bootstrapPlan['value_voice'] ?? 0),
+                (float)($bootstrapPlan['value_whatsapp'] ?? 0),
+                (float)($bootstrapPayload['service_fee'] ?? 0),
+                $bootstrapPayload['snapshot_json'] ?? null,
+                $bootstrapPayload['applied_plan_name'] ?? null,
+                $bootstrapPayload['applied_billing_cycle'] ?? null,
+                isset($bootstrapPayload['applied_amount_plan']) ? (float)$bootstrapPayload['applied_amount_plan'] : null,
                 'bootstrap:' . $invoiceNumber
             );
 
-            RegisterTenancies::updateActivePlan($tenancyId, $userPlanId);
+            RegisterTenancies::updateActivePlan($tenancyId, self::BOOTSTRAP_PLAN_ID);
 
             // 6️⃣ Notificação
             Notifications::insertNotifications(

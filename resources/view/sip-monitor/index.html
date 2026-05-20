@@ -927,7 +927,23 @@
             return this.stageFromCall(call) === 'answered' ? 'ended' : 'failed';
         },
 
+        retainCompletedCall(call) {
+            const finalStage = this.finalStageForCall(call);
+            return {
+                ...call,
+                is_up: false,
+                is_retained: true,
+                journey_final_stage: finalStage,
+                status: finalStage === 'ended' ? 'Finalizada' : 'Encerrada sem atendimento',
+                provider_status: finalStage === 'ended' ? 'Call ended' : 'Call failed',
+            };
+        },
+
         sessionStage(call) {
+            if (call?.journey_final_stage) {
+                return String(call.journey_final_stage);
+            }
+
             const legs = Array.isArray(call?.legs) ? call.legs : [call];
             if (legs.some((leg) => this.stageFromCall(leg) === 'answered')) {
                 return 'answered';
@@ -1114,6 +1130,14 @@
                 matches: calls,
                 visible: calls.slice(0, this.maxRenderedCalls),
             };
+        },
+
+        clearJourneyState() {
+            this.liveJourneyCalls = new Map();
+            this.selectedJourneyKey = null;
+            this.sipStreamData = null;
+            this.sipEventSummaries = [];
+            this.persistHistory();
         },
 
         recordStage(call, stage, force = false, meta = {}) {
@@ -1350,13 +1374,21 @@
                 return;
             }
 
+            if (activeCall?.is_retained) {
+                meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Chamada finalizada • Conversa registrada: ${activeCall.duracao || '--:--:--'} • Timeline preservada ate novo monitoramento`;
+                activeBadge.textContent = 'Chamada finalizada';
+                activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-slate-100 text-slate-700';
+            }
+
             if (sipEvent && this.sipTimeline(sipEvent).length) {
                 const sipTimeline = this.sipTimeline(sipEvent);
                 const lastSignal = sipTimeline[sipTimeline.length - 1]?.signal || sipEvent?.final_signal || '-';
                 meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Call-ID SIP: ${sipEvent.call_id || '-'} • Ultimo sinal: ${lastSignal} • Conversa atual: ${activeCall.duracao || '--:--:--'}`;
 
-                activeBadge.textContent = 'SIP confirmado';
-                activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
+                activeBadge.textContent = activeCall?.is_retained ? 'SIP finalizado' : 'SIP confirmado';
+                activeBadge.className = activeCall?.is_retained
+                    ? 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-slate-100 text-slate-700'
+                    : 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
 
                 summary.innerHTML = this.sipSummaryHtml(activeCall, sipEvent);
                 timeline.innerHTML = sipTimeline.map((item, index, arr) => `
@@ -1371,10 +1403,11 @@
                 return;
             }
 
-            meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Status atual: ${activeCall.status || activeCall.state_raw || '-'} • Conversa atual: ${activeCall.duracao || '--:--:--'} • Pernas observadas: ${Array.isArray(activeCall?.legs) ? activeCall.legs.length : 1}`;
-
-            activeBadge.textContent = 'Chamada ao vivo';
-            activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
+            if (!activeCall?.is_retained) {
+                meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Status atual: ${activeCall.status || activeCall.state_raw || '-'} • Conversa atual: ${activeCall.duracao || '--:--:--'} • Pernas observadas: ${Array.isArray(activeCall?.legs) ? activeCall.legs.length : 1}`;
+                activeBadge.textContent = 'Chamada ao vivo';
+                activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
+            }
 
             if (!history.length) {
                 this.recordStage(activeCall, this.sessionStage(activeCall), true, {
@@ -1407,6 +1440,7 @@
         handleUpdate(payload) {
             this.renderFeedBadge('online');
 
+            const previousCalls = new Map(this.liveJourneyCalls);
             const currentCalls = new Map();
             const calls = Array.isArray(payload?.chamadas) ? payload.chamadas : [];
 
@@ -1417,20 +1451,30 @@
                 }
 
                 const sanitizedCall = this.sanitizeCall(call);
-                const previousSession = currentCalls.get(key) || this.liveJourneyCalls.get(key) || null;
+                const previousSession = currentCalls.get(key) || previousCalls.get(key) || null;
                 currentCalls.set(key, this.buildSession(sanitizedCall, previousSession));
             });
 
             currentCalls.forEach((session, key) => {
-                const previous = this.liveJourneyCalls.get(key) || null;
+                const previous = previousCalls.get(key) || null;
                 this.trackSessionLegChanges(session, previous);
             });
 
-            for (const [key, call] of this.liveJourneyCalls.entries()) {
-                if (!currentCalls.has(key)) {
+            for (const [key, call] of previousCalls.entries()) {
+                if (!currentCalls.has(key) && !call?.is_retained) {
                     this.recordStage(call, this.finalStageForCall(call), true, {
                         marker: `session:end:${this.rawState(call)}`,
                     });
+                }
+            }
+
+            if (currentCalls.size === 0 && previousCalls.size > 0) {
+                const retainedKey = previousCalls.has(this.selectedJourneyKey)
+                    ? this.selectedJourneyKey
+                    : previousCalls.keys().next().value;
+                const retainedCall = retainedKey ? previousCalls.get(retainedKey) : null;
+                if (retainedCall) {
+                    currentCalls.set(retainedKey, this.retainCompletedCall(retainedCall));
                 }
             }
 
@@ -1496,6 +1540,7 @@
             this.renderMonitorButton();
 
             if (!this.monitorEnabled) {
+                this.clearJourneyState();
                 this.disconnectFeed();
                 this.stopSipSession().finally(() => {
                     this.renderDetails();

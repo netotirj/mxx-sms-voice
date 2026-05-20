@@ -1770,124 +1770,95 @@
             }, 60);
         }
 
-        function disconnectDashboardStreams() {
-            if (window.__dashboardSseConnections) {
-                window.__dashboardSseConnections.cards?.close?.();
-                window.__dashboardSseConnections.charts?.close?.();
-                window.__dashboardSseConnections = null;
-            }
+        function applyDashboardCardsPayload(data) {
+            cardsPayload = data || {};
+            dashboardCardsLastMessageAt = Date.now();
+
+            const health = cardsPayload.health || {};
+            const metrics = health.metrics || {};
+            const operationalCards = cardsPayload.operational_cards || {};
+            const campanhas = cardsPayload.campanhas || {};
+            const totalAtiva = Number(campanhas.ativa || 0);
+            const totalFinalizada = Number(campanhas.finalizada || 0);
+            const totalInativa = Number(campanhas.inativa || 0);
+            const totalProcessando = Number(campanhas.processando || 0);
+            const totalPausada = Number(campanhas.pausada || 0);
+            const totalCancelada = Number(campanhas.cancelada || 0);
+            const totalAgendada = Number(campanhas.agendada || 0);
+            const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
+
+            animateCountUp(document.getElementById('saldo-atual'), cardsPayload.saldoAtual ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('saldo-taxa'), cardsPayload.cdrTaxa ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('sms-custo'), cardsPayload.totalConsumo ?? 0, 'R$ ');
+            animateCountUp(document.getElementById('sms-enviados'), cardsPayload.smsEnviados ?? 0);
+            animateCountUp(document.getElementById('voz-enviados'), cardsPayload.disposition ?? 0);
+            animateCountUp(document.getElementById('whatsapp-enviados'), cardsPayload.whatsappEnviados ?? 0);
+            animateCountUp(document.getElementById('ultimo-pix'), cardsPayload.ultimoPixValor ?? 0, 'R$ ');
+            setValue('pix-data', cardsPayload.ultimoPixData || '--/--/----');
+            animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
+            animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
+            animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
+            animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
+            animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
+            animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
+            animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
+            animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
+
+            setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
+            setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
+            setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
+            setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
+            animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
+
+            setOperationalCard('voip', operationalCards.voip);
+            setOperationalCard('sms', operationalCards.sms);
+            setOperationalCard('whatsapp', operationalCards.whatsapp);
         }
 
-        function connectDashboardStreams() {
-            if (document.hidden || window.__dashboardSseConnections) {
-                return window.__dashboardSseConnections;
+        function applyDashboardChartsPayload(data) {
+            chartsPayload = data || {};
+            dashboardChartsLastMessageAt = Date.now();
+            chartsPayloadSignature = JSON.stringify(chartsPayload);
+            scheduleDashboardRender();
+        }
+
+        async function fetchDashboardSnapshot(path) {
+            const response = await fetch(dashboardStreamUrl(path), {
+                headers: {
+                    Accept: 'text/event-stream',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                cache: 'no-store'
+            });
+
+            const body = await response.text();
+            if (!response.ok) {
+                throw new Error(`Falha ao carregar ${path}: ${response.status}`);
             }
 
-            const cardsSource = new EventSource(dashboardStreamUrl('/dashboard/cards'));
-            const chartsSource = new EventSource(dashboardStreamUrl('/dashboard/charts'));
-            window.__dashboardSseConnections = {
-                cards: cardsSource,
-                charts: chartsSource
-            };
+            const match = body.match(/data:\s*(.+)/);
+            if (!match?.[1]) {
+                throw new Error(`Resposta vazia em ${path}`);
+            }
 
-            cardsSource.onmessage = function (event) {
-                dashboardCardsLastMessageAt = Date.now();
-                try {
-                    cardsPayload = JSON.parse(event.data);
-                } catch {
-                    return;
-                }
+            return JSON.parse(match[1]);
+        }
 
-                const data = cardsPayload;
-                const health = data.health || {};
-                const metrics = health.metrics || {};
-                const operationalCards = data.operational_cards || {};
-                const campanhas = data.campanhas || {};
-                const totalAtiva = Number(campanhas.ativa || 0);
-                const totalFinalizada = Number(campanhas.finalizada || 0);
-                const totalInativa = Number(campanhas.inativa || 0);
-                const totalProcessando = Number(campanhas.processando || 0);
-                const totalPausada = Number(campanhas.pausada || 0);
-                const totalCancelada = Number(campanhas.cancelada || 0);
-                const totalAgendada = Number(campanhas.agendada || 0);
-                const totalGeral = totalAtiva + totalFinalizada + totalInativa + totalProcessando + totalPausada + totalCancelada + totalAgendada;
-
-                animateCountUp(document.getElementById('saldo-atual'), data.saldoAtual ?? 0, 'R$ ');
-                animateCountUp(document.getElementById('saldo-taxa'), data.cdrTaxa ?? 0, 'R$ ');
-                animateCountUp(document.getElementById('sms-custo'), data.totalConsumo ?? 0, 'R$ ');
-                animateCountUp(document.getElementById('sms-enviados'), data.smsEnviados ?? 0);
-                animateCountUp(document.getElementById('voz-enviados'), data.disposition ?? 0);
-                animateCountUp(document.getElementById('whatsapp-enviados'), data.whatsappEnviados ?? 0);
-                animateCountUp(document.getElementById('ultimo-pix'), data.ultimoPixValor ?? 0, 'R$ ');
-                setValue('pix-data', data.ultimoPixData || '--/--/----');
-                animateCountUp(document.getElementById('campanhas-ativas'), totalGeral);
-                animateCountUp(document.getElementById('campanhas-ativa-total'), totalAtiva);
-                animateCountUp(document.getElementById('campanhas-processando-total'), totalProcessando);
-                animateCountUp(document.getElementById('campanhas-agendada-total'), totalAgendada);
-                animateCountUp(document.getElementById('campanhas-finalizada-total'), totalFinalizada);
-                animateCountUp(document.getElementById('campanhas-inativa-total'), totalInativa);
-                animateCountUp(document.getElementById('campanhas-pausada-total'), totalPausada);
-                animateCountUp(document.getElementById('campanhas-cancelada-total'), totalCancelada);
-
-                setCardState('health-card-asterisk', 'ast-reg-status', 'ast-reg-detail', metrics.asterisk);
-                setCardState('health-card-redis', 'redis-status', 'redis-detail', metrics.redis);
-                setCardState('health-card-trunks', 'trunks-status', 'trunks-detail', metrics.trunks);
-                setCardState('health-card-calls', 'calls-status', 'calls-detail', metrics.calls, 'gradient');
-                animateCountUp(document.getElementById('calls-status'), parseInteger(metrics.calls?.value ?? 0));
-
-                setOperationalCard('voip', operationalCards.voip);
-                setOperationalCard('sms', operationalCards.sms);
-                setOperationalCard('whatsapp', operationalCards.whatsapp);
-
-                if (!chartsPayload) {
-                    scheduleDashboardRender();
-                }
-            };
-
-            chartsSource.onmessage = function (event) {
-                dashboardChartsLastMessageAt = Date.now();
-                try {
-                    if (event.data === chartsPayloadSignature) {
-                        return;
-                    }
-
-                    chartsPayloadSignature = event.data;
-                    chartsPayload = JSON.parse(event.data);
-                    scheduleDashboardRender();
-                } catch (error) {
-                    console.error('Erro ao processar graficos do dashboard:', error, event.data);
-                    return;
-                }
-            };
-
-            cardsSource.onerror = function () {
-                if (!document.hidden) {
-                    console.warn('Stream de cards do dashboard sinalizou erro; aguardando retry nativo do EventSource.');
-                }
-            };
-
-            chartsSource.onerror = function (event) {
-                if (!document.hidden) {
-                    console.warn('Stream de graficos do dashboard sinalizou erro; aguardando retry nativo do EventSource.', {
-                        readyState: chartsSource.readyState
-                    });
-                }
-            };
-
-            return window.__dashboardSseConnections;
+        async function loadDashboardSnapshots() {
+            try {
+                const [cardsData, chartsData] = await Promise.all([
+                    fetchDashboardSnapshot('/dashboard/cards'),
+                    fetchDashboardSnapshot('/dashboard/charts')
+                ]);
+                applyDashboardCardsPayload(cardsData);
+                applyDashboardChartsPayload(chartsData);
+            } catch (error) {
+                console.error('Falha ao carregar snapshots do dashboard:', error);
+            }
         }
 
         bootstrapStaticCounts();
         updatePeriodState(selectedPeriod);
-        connectDashboardStreams();
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                disconnectDashboardStreams();
-                return;
-            }
-
-            connectDashboardStreams();
-        });
-        window.addEventListener('beforeunload', disconnectDashboardStreams);
+        loadDashboardSnapshots();
     });
 </script>

@@ -240,6 +240,9 @@ class Callcenter extends ViewComponents
                     'peer'          => $call['peer'] ?? null,
                     'linkedid'      => $call['linkedid'] ?? null,
                     'call_id'       => $call['call_id'] ?? ($vars['CALL_ID'] ?? $vars['__CALL_ID'] ?? null),
+                    'state_raw'     => $call['state'] ?? null,
+                    'started_at'    => $call['started'] ?? null,
+                    'answered_at'   => $call['answered'] ?? null,
                     'vars'          => [
                         'CALL_ID' => $vars['CALL_ID'] ?? $vars['__CALL_ID'] ?? null,
                         'AGENT_RAMAL' => $vars['AGENT_RAMAL'] ?? null,

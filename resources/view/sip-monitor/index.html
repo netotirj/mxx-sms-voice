@@ -169,6 +169,11 @@
         monitorEnabled: false,
         numberFilter: '',
         maxRenderedCalls: 1,
+        sipSessionId: null,
+        sipSessionMeta: null,
+        sipStreamTimer: null,
+        sipStreamData: null,
+        sipEventSummaries: [],
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
         },
@@ -298,6 +303,243 @@
 
         sanitizeCall(call) {
             return this.sanitizeValue(call || {});
+        },
+
+        normalizeDigits(value) {
+            return String(value || '').replace(/\D+/g, '');
+        },
+
+        parseServerDate(value) {
+            const normalized = String(value || '').trim();
+            if (!normalized) {
+                return null;
+            }
+
+            const parsed = new Date(normalized.replace(' ', 'T'));
+            return Number.isFinite(parsed.getTime()) ? parsed : null;
+        },
+
+        async requestJson(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Accept': 'application/json',
+                    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                    ...(options.headers || {}),
+                },
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload?.success === false) {
+                throw new Error(payload?.message || 'Falha ao consultar o Monitor SIP.');
+            }
+
+            return payload?.data ?? payload;
+        },
+
+        sipFilterPayload() {
+            const digits = this.normalizeDigits(this.numberFilter);
+            return digits
+                ? { filter_type: 'number', filter_value: digits }
+                : { filter_type: 'all', filter_value: '' };
+        },
+
+        async ensureSipSession(forceRefresh = false) {
+            if (this.sipSessionId && !forceRefresh) {
+                return this.sipSessionId;
+            }
+
+            const refreshQuery = forceRefresh ? '?refresh=1' : '';
+            const status = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/status${refreshQuery}`);
+            const activeSession = status?.active_session || null;
+            if (activeSession?.id) {
+                this.sipSessionId = Number(activeSession.id);
+                this.sipSessionMeta = activeSession;
+                return this.sipSessionId;
+            }
+
+            const started = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/start`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    mode: 'auto',
+                    duration_minutes: 5,
+                    include_tls: 1,
+                    ...this.sipFilterPayload(),
+                }),
+            });
+
+            this.sipSessionId = Number(started?.id || 0) || null;
+            this.sipSessionMeta = started || null;
+            return this.sipSessionId;
+        },
+
+        async stopSipSession() {
+            const sessionId = this.sipSessionId;
+            this.sipSessionId = null;
+            this.sipSessionMeta = null;
+            this.sipStreamData = null;
+            this.sipEventSummaries = [];
+
+            if (!sessionId) {
+                return;
+            }
+
+            try {
+                await this.requestJson(`${this.baseUrl}/admin/sip-monitor/stop`, {
+                    method: 'POST',
+                    body: JSON.stringify({ session_id: sessionId }),
+                });
+            } catch (error) {
+                console.warn('[sip-monitor] stop failed', error);
+            }
+        },
+
+        startSipPolling() {
+            if (this.sipStreamTimer) {
+                return;
+            }
+
+            const tick = () => {
+                this.pollSipStream().catch((error) => {
+                    console.warn('[sip-monitor] stream failed', error);
+                });
+            };
+
+            tick();
+            this.sipStreamTimer = window.setInterval(tick, 2000);
+        },
+
+        stopSipPolling() {
+            if (this.sipStreamTimer) {
+                window.clearInterval(this.sipStreamTimer);
+                this.sipStreamTimer = null;
+            }
+        },
+
+        async pollSipStream() {
+            if (!this.monitorEnabled || document.hidden) {
+                return;
+            }
+
+            const sessionId = await this.ensureSipSession();
+            if (!sessionId) {
+                return;
+            }
+
+            const data = await this.requestJson(`${this.baseUrl}/admin/sip-monitor/stream?session_id=${sessionId}`);
+            this.sipStreamData = data || null;
+            this.sipSessionMeta = data?.session || this.sipSessionMeta;
+            this.sipEventSummaries = Array.isArray(data?.events) ? data.events : [];
+
+            const sessionStatus = String(this.sipSessionMeta?.status || '').toLowerCase();
+            if (['completed', 'stopped', 'expired', 'failed'].includes(sessionStatus)) {
+                this.sipSessionId = null;
+            }
+
+            this.renderDetails();
+        },
+
+        resolveSipEvent(call) {
+            const events = Array.isArray(this.sipEventSummaries) ? this.sipEventSummaries : [];
+            if (!events.length) {
+                return null;
+            }
+
+            const candidates = [
+                call?.call_id,
+                call?.linkedid,
+                call?.vars?.CALL_ID,
+                call?.vars?.__CALL_ID,
+            ].filter(Boolean).map((value) => String(value));
+
+            const matchedById = candidates.length
+                ? events.find((event) => candidates.includes(String(event?.call_id || '')))
+                : null;
+
+            if (matchedById) {
+                return matchedById;
+            }
+
+            if (events.length === 1) {
+                return events[0];
+            }
+
+            return null;
+        },
+
+        sipTimeline(event) {
+            return Array.isArray(event?.timeline) ? event.timeline : [];
+        },
+
+        sipTimelineStage(signal) {
+            const normalized = String(signal || '').toUpperCase().trim();
+            if (normalized === 'INVITE') {
+                return 'dialing';
+            }
+            if (normalized === '180 RINGING') {
+                return 'ringing';
+            }
+            if (normalized === '200 OK') {
+                return 'answered';
+            }
+            if (normalized === 'BYE') {
+                return 'ended';
+            }
+            if (normalized === 'CANCEL' || /^(4|5|6)\d\d$/.test(normalized)) {
+                return 'failed';
+            }
+            return 'progress';
+        },
+
+        sipSummaryHtml(call, event) {
+            const timeline = this.sipTimeline(event);
+            const invite = timeline.find((item) => String(item?.signal || '').toUpperCase() === 'INVITE') || null;
+            const firstResponse = timeline.find((item) => /^(100 TRYING|180 RINGING|183 SESSION PROGRESS|200 OK|4\d\d|5\d\d|6\d\d)$/i.test(String(item?.signal || ''))) || null;
+            const progress = timeline.find((item) => String(item?.signal || '').toUpperCase() === '183 SESSION PROGRESS') || null;
+            const ringing = timeline.find((item) => String(item?.signal || '').toUpperCase() === '180 RINGING') || null;
+            const answered = timeline.find((item) => String(item?.signal || '').toUpperCase() === '200 OK') || null;
+            const last = timeline[timeline.length - 1] || null;
+
+            const inviteAt = this.parseServerDate(invite?.at);
+            const firstResponseAt = this.parseServerDate(firstResponse?.at);
+            const progressAt = this.parseServerDate(progress?.at);
+            const ringingAt = this.parseServerDate(ringing?.at);
+            const answeredAt = this.parseServerDate(answered?.at);
+
+            const delta = (start, end) => {
+                if (!start || !end) {
+                    return null;
+                }
+                return Math.max(0, end.getTime() - start.getTime());
+            };
+
+            const cards = [
+                { label: 'Entrada', value: invite?.at || event?.first_seen_at || 'Nao detectado', hint: 'Momento em que o INVITE entrou no monitor SIP.' },
+                { label: 'Primeira resposta', value: firstResponse?.signal || 'Nao detectado', hint: firstResponseAt && inviteAt ? `Resposta em ${this.formatJourneyDelay(delta(inviteAt, firstResponseAt))}.` : 'Sem resposta SIP identificada ainda.' },
+                { label: 'Progress', value: progress?.signal || 'Nao detectado', hint: progressAt && inviteAt ? `A operadora devolveu ${progress.signal} em ${this.formatJourneyDelay(delta(inviteAt, progressAt))}.` : 'Sem 183 Session Progress ate o momento.' },
+                { label: 'Ringing', value: ringing?.signal || 'Nao detectado', hint: ringingAt && inviteAt ? `O toque apareceu em ${this.formatJourneyDelay(delta(inviteAt, ringingAt))}.` : 'Sem 180 Ringing identificado.' },
+                { label: 'Atendimento', value: answered?.signal || 'Nao detectado', hint: answeredAt && inviteAt ? `A chamada foi confirmada em ${this.formatJourneyDelay(delta(inviteAt, answeredAt))}.` : 'Ainda sem 200 OK na sessao observada.' },
+                { label: 'Ultimo sinal', value: last?.signal || event?.final_signal || 'Nao detectado', hint: last?.explanation || 'Ultimo retorno tecnico observado para esta chamada.' },
+            ];
+
+            return cards.map((item) => `
+                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${item.label}</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-800">${item.value}</p>
+                    <p class="mt-1 text-[11px] text-slate-500">${item.hint}</p>
+                </div>
+            `).join('');
+        },
+
+        sipRawPayload(call, event) {
+            return {
+                callcenter_session: this.sanitizeValue(call || {}),
+                sip_event: this.sanitizeValue(event || {}),
+                sip_chunks: {
+                    sngrep: this.maskIpString(String(this.sipStreamData?.chunks?.sngrep || '')),
+                    pjsip: this.maskIpString(String(this.sipStreamData?.chunks?.pjsip || '')),
+                },
+            };
         },
 
         stageFromCall(call) {
@@ -766,7 +1008,9 @@
             }
 
             const call = this.selectedJourneyKey ? this.liveJourneyCalls.get(this.selectedJourneyKey) : null;
+            const activeCall = call || { caller: 'Origem', dest: '-', duracao: '--:--:--', legs: [] };
             const history = call && this.selectedJourneyKey ? (this.liveJourneyHistory[this.selectedJourneyKey] || []) : [];
+            const sipEvent = this.resolveSipEvent(call);
 
             if (!this.monitorEnabled) {
                 meta.textContent = 'Ative o monitoramento para acompanhar as chamadas.';
@@ -788,19 +1032,40 @@
                 return;
             }
 
-            meta.textContent = `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'} • Pernas observadas: ${Array.isArray(call?.legs) ? call.legs.length : 1}`;
+            if (sipEvent && this.sipTimeline(sipEvent).length) {
+                const sipTimeline = this.sipTimeline(sipEvent);
+                const lastSignal = sipTimeline[sipTimeline.length - 1]?.signal || sipEvent?.final_signal || '-';
+                meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Call-ID SIP: ${sipEvent.call_id || '-'} • Ultimo sinal: ${lastSignal} • Conversa atual: ${activeCall.duracao || '--:--:--'}`;
+
+                activeBadge.textContent = 'SIP confirmado';
+                activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
+
+                summary.innerHTML = this.sipSummaryHtml(activeCall, sipEvent);
+                timeline.innerHTML = sipTimeline.map((item, index, arr) => `
+                    <div class="journey-stage ${index === arr.length - 1 ? 'active rounded-r-xl px-3 py-2' : ''}">
+                        <p class="text-sm font-semibold text-slate-700">${item.signal}</p>
+                        <p class="mt-1 text-xs text-slate-500">${item.explanation || 'Evento SIP observado.'}</p>
+                        <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at || 'Nao detectado'}${item.kind ? ` • ${item.kind}` : ''}${activeCall?.dest ? ` • destino ${activeCall.dest}` : ''}</p>
+                        <p class="mt-1 text-[11px] text-slate-400">${this.labelForStage(this.sipTimelineStage(item.signal))}</p>
+                    </div>
+                `).join('');
+                raw.textContent = JSON.stringify(this.sipRawPayload(activeCall, sipEvent), null, 2);
+                return;
+            }
+
+            meta.textContent = `${activeCall.caller || 'Origem'} → ${activeCall.dest || '-'} • Status atual: ${activeCall.status || activeCall.state_raw || '-'} • Conversa atual: ${activeCall.duracao || '--:--:--'} • Pernas observadas: ${Array.isArray(activeCall?.legs) ? activeCall.legs.length : 1}`;
 
             activeBadge.textContent = 'Chamada ao vivo';
             activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
 
             if (!history.length) {
-                this.recordStage(call, this.sessionStage(call), true, {
-                    marker: `session:${this.sessionStage(call)}:${this.rawState(call)}`,
+                this.recordStage(activeCall, this.sessionStage(activeCall), true, {
+                    marker: `session:${this.sessionStage(activeCall)}:${this.rawState(activeCall)}`,
                 });
             }
 
             const timelineHistory = this.liveJourneyHistory[this.selectedJourneyKey] || [];
-            summary.innerHTML = this.summaryHtml(call || {}, timelineHistory);
+            summary.innerHTML = this.summaryHtml(activeCall, timelineHistory);
 
             timeline.innerHTML = timelineHistory.length
                 ? timelineHistory.map((item, index, arr) => `
@@ -814,8 +1079,10 @@
                 : '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transicoes ainda</p></div>';
 
             raw.textContent = JSON.stringify({
-                session: this.sanitizeValue(call),
-                legs: Array.isArray(call?.legs) ? call.legs.map((leg) => this.sanitizeValue(leg)) : [],
+                session: this.sanitizeValue(activeCall),
+                legs: Array.isArray(activeCall?.legs) ? activeCall.legs.map((leg) => this.sanitizeValue(leg)) : [],
+                sip_session: this.sanitizeValue(this.sipSessionMeta || {}),
+                sip_events_detected: this.sanitizeValue(this.sipEventSummaries || []),
             }, null, 2);
         },
 
@@ -867,6 +1134,7 @@
                 this.liveJourneySource.close();
                 this.liveJourneySource = null;
             }
+            this.stopSipPolling();
             this.renderFeedBadge('inactive');
         },
 
@@ -887,6 +1155,7 @@
 
             try {
                 this.renderFeedBadge('connecting');
+                this.startSipPolling();
                 const source = new EventSource(`${this.baseUrl}/callcenter/monitoring-calls`);
                 this.liveJourneySource = source;
 
@@ -910,6 +1179,9 @@
 
             if (!this.monitorEnabled) {
                 this.disconnectFeed();
+                this.stopSipSession().finally(() => {
+                    this.renderDetails();
+                });
             } else {
                 this.connectFeed(true);
             }
@@ -931,6 +1203,11 @@
                 const { visible } = this.filteredCalls();
                 this.selectedJourneyKey = visible.length ? this.journeyKey(visible[0]) : null;
                 this.persistHistory();
+                if (this.monitorEnabled) {
+                    this.stopSipSession().finally(() => {
+                        this.startSipPolling();
+                    });
+                }
                 this.renderCalls();
                 this.renderDetails();
             });

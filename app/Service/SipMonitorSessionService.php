@@ -346,6 +346,7 @@ class SipMonitorSessionService
     {
         $logs = array_reverse(SipMonitorLog::latestBySession($sessionId, 200));
         $byCallId = [];
+        $rowsByCallId = [];
 
         foreach ($logs as $row) {
             $callId = trim((string)($row['detected_call_id'] ?? ''));
@@ -368,6 +369,7 @@ class SipMonitorSessionService
 
             $entry = &$byCallId[$callId];
             $entry['last_seen_at'] = (string)$row['created_at'];
+            $rowsByCallId[$callId][] = $row;
 
             if (!empty($row['detected_method'])) {
                 $entry['methods'][] = (string)$row['detected_method'];
@@ -379,7 +381,10 @@ class SipMonitorSessionService
 
         foreach ($byCallId as &$entry) {
             $timings = self::calculateTimingsForCall($sessionId, $entry['call_id']);
+            $timeline = self::buildTimelineForCall((array)($rowsByCallId[$entry['call_id']] ?? []));
             $entry += $timings;
+            $entry['timeline'] = $timeline;
+            $entry['final_signal'] = $timeline !== [] ? (string)($timeline[count($timeline) - 1]['signal'] ?? '') : null;
             $entry['possible_timeout'] = $entry['invite_to_200_ms'] === null && in_array('INVITE', $entry['methods'], true);
             $entry['possible_operator_delay'] = $entry['invite_to_first_response_ms'] !== null && $entry['invite_to_first_response_ms'] > 3000;
             $entry['methods'] = array_values(array_unique($entry['methods']));
@@ -428,6 +433,55 @@ class SipMonitorSessionService
             'invite_to_180_183_ms' => ($inviteAt && $firstProgressAt) ? (($firstProgressAt - $inviteAt) * 1000) : null,
             'invite_to_200_ms' => ($inviteAt && $okAt) ? (($okAt - $inviteAt) * 1000) : null,
         ];
+    }
+
+    private static function buildTimelineForCall(array $rows): array
+    {
+        $timeline = [];
+        $seen = [];
+
+        foreach ($rows as $row) {
+            $signal = trim((string)($row['detected_status'] ?? $row['detected_method'] ?? ''));
+            if ($signal === '') {
+                continue;
+            }
+
+            $createdAt = (string)($row['created_at'] ?? '');
+            $fingerprint = $signal . '|' . $createdAt;
+            if (isset($seen[$fingerprint])) {
+                continue;
+            }
+            $seen[$fingerprint] = true;
+
+            $timeline[] = [
+                'signal' => $signal,
+                'kind' => !empty($row['detected_status']) ? 'status' : 'method',
+                'at' => $createdAt,
+                'explanation' => self::signalExplanation($signal),
+                'line' => (string)($row['line'] ?? ''),
+            ];
+        }
+
+        return $timeline;
+    }
+
+    private static function signalExplanation(string $signal): string
+    {
+        return match (strtoupper(trim($signal))) {
+            'INVITE' => 'A chamada entrou no servidor e foi enviada para a rede/operadora.',
+            '100 TRYING' => 'A operadora ou o destino confirmou que recebeu a tentativa e esta processando a chamada.',
+            '183 SESSION PROGRESS' => 'A operadora devolveu progresso SIP. Essa e a prova de que a chamada saiu e recebeu retorno tecnico da rota.',
+            '180 RINGING' => 'O destino entrou em toque.',
+            '200 OK' => 'A chamada foi atendida e confirmada pela rede.',
+            'BYE' => 'Foi enviado ou recebido encerramento formal da chamada.',
+            'CANCEL' => 'A tentativa foi cancelada antes do atendimento.',
+            'ACK' => 'Confirmacao SIP de recebimento da resposta final.',
+            '486' => 'O destino respondeu ocupado.',
+            '487' => 'A chamada foi encerrada antes da resposta final.',
+            default => preg_match('/^(4|5|6)\d\d$/', strtoupper(trim($signal)))
+                ? 'A operadora ou o destino respondeu com falha SIP.'
+                : 'Sinalizacao SIP observada durante a jornada da chamada.',
+        };
     }
 
     private static function decorateSession(array $session): array

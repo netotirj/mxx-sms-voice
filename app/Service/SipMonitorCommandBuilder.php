@@ -166,37 +166,38 @@ class SipMonitorCommandBuilder
         }
 
         $rows = [];
-        $lines = preg_split('/\r\n|\r|\n/', $chunk) ?: [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
+        $blocks = preg_split('/(?:\r\n|\r|\n){2,}/', $chunk) ?: [];
+        foreach ($blocks as $block) {
+            $block = trim((string)$block);
+            if ($block === '') {
                 continue;
             }
 
-            $isRelevant = preg_match('/\b(?:INVITE|ACK|BYE|CANCEL|REGISTER|OPTIONS|100 Trying|180 Ringing|183 Session Progress|200 OK|SIP\/2\.0|Call-ID:)\b/i', $line);
+            $isRelevant = preg_match('/\b(?:INVITE|ACK|BYE|CANCEL|REGISTER|OPTIONS|100 Trying|180 Ringing|183 Session Progress|200 OK|4\d\d|5\d\d|6\d\d|SIP\/2\.0|Call-ID:)\b/i', $block);
             if (!$isRelevant) {
                 continue;
             }
 
             $callId = null;
-            if (preg_match('/Call-ID:\s*([^\s]+)/i', $line, $callIdMatch)) {
+            if (preg_match('/Call-ID:\s*([^\s]+)/i', $block, $callIdMatch)) {
                 $callId = mb_substr(trim($callIdMatch[1]), 0, 255);
             }
 
             $method = null;
-            if (preg_match('/\b(INVITE|ACK|BYE|CANCEL|REGISTER|OPTIONS)\b/i', $line, $methodMatch)) {
+            if (preg_match('/(?:^|\n)\s*(INVITE|ACK|BYE|CANCEL|REGISTER|OPTIONS)\b/i', $block, $methodMatch)) {
                 $method = strtoupper($methodMatch[1]);
             }
 
             $status = null;
-            if (preg_match('/\b(100 Trying|180 Ringing|183 Session Progress|200 OK|4\d\d|5\d\d|6\d\d)\b/i', $line, $statusMatch)) {
+            if (preg_match('/(?:^|\n)\s*(?:SIP\/2\.0\s+)?(100 Trying|180 Ringing|183 Session Progress|200 OK|4\d\d|5\d\d|6\d\d)\b/i', $block, $statusMatch)) {
                 $status = strtoupper($statusMatch[1]);
             }
 
+            $compactBlock = preg_replace('/\s+/', ' ', $block) ?? $block;
             $rows[] = [
                 'session_id' => $sessionId,
                 'source' => $source,
-                'line' => mb_substr($line, 0, 1000),
+                'line' => mb_substr($compactBlock, 0, 1000),
                 'detected_call_id' => $callId,
                 'detected_method' => $method,
                 'detected_status' => $status,

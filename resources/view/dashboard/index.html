@@ -1730,84 +1730,26 @@
             return new URL(`${baseUrl}${path}`, window.location.origin).toString();
         }
 
-        let dashboardReconnectTimer = null;
+        let dashboardRenderTimer = null;
         let dashboardCardsLastMessageAt = 0;
         let dashboardChartsLastMessageAt = 0;
-        let dashboardCardsFailureCount = 0;
-        let dashboardChartsFailureCount = 0;
-        const DASHBOARD_CARDS_RETRY_MS = 15000;
-        const DASHBOARD_CHARTS_RETRY_MS = 30000;
-        const DASHBOARD_CARDS_RETRY_MAX_MS = 120000;
-        const DASHBOARD_CHARTS_RETRY_MAX_MS = 180000;
-        const DASHBOARD_SSE_FAILURE_THRESHOLD = 3;
-        const DASHBOARD_SSE_COOLDOWN_MS = 300000;
-        let dashboardSseCooldownUntil = 0;
 
-        function scheduleDashboardReconnect(delay) {
-            if (document.hidden || dashboardReconnectTimer) {
+        function scheduleDashboardRender() {
+            if (dashboardRenderTimer) {
                 return;
             }
 
-            const now = Date.now();
-            if (dashboardSseCooldownUntil > now) {
-                return;
-            }
+            dashboardRenderTimer = window.setTimeout(() => {
+                dashboardRenderTimer = null;
+                if (!cardsPayload || !chartsPayload) {
+                    return;
+                }
 
-            dashboardReconnectTimer = window.setTimeout(() => {
-                dashboardReconnectTimer = null;
-                disconnectDashboardStreams();
-                connectDashboardStreams();
-            }, delay);
-        }
-
-        function resetDashboardSseFailures(kind) {
-            if (kind === 'cards') {
-                dashboardCardsFailureCount = 0;
-                return;
-            }
-
-            if (kind === 'charts') {
-                dashboardChartsFailureCount = 0;
-            }
-        }
-
-        function nextDashboardRetryDelay(kind) {
-            if (kind === 'cards') {
-                dashboardCardsFailureCount += 1;
-                return Math.min(
-                    DASHBOARD_CARDS_RETRY_MS * Math.max(1, Math.pow(2, dashboardCardsFailureCount - 1)),
-                    DASHBOARD_CARDS_RETRY_MAX_MS
-                );
-            }
-
-            dashboardChartsFailureCount += 1;
-            return Math.min(
-                DASHBOARD_CHARTS_RETRY_MS * Math.max(1, Math.pow(2, dashboardChartsFailureCount - 1)),
-                DASHBOARD_CHARTS_RETRY_MAX_MS
-            );
-        }
-
-        function shouldTripDashboardCircuitBreaker() {
-            return dashboardCardsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD
-                || dashboardChartsFailureCount >= DASHBOARD_SSE_FAILURE_THRESHOLD;
-        }
-
-        function tripDashboardCircuitBreaker() {
-            dashboardSseCooldownUntil = Date.now() + DASHBOARD_SSE_COOLDOWN_MS;
-            disconnectDashboardStreams();
-            console.warn('Dashboard SSE em cooldown temporario.', {
-                retryAfterMs: DASHBOARD_SSE_COOLDOWN_MS,
-                cardsFailures: dashboardCardsFailureCount,
-                chartsFailures: dashboardChartsFailureCount
-            });
+                renderSelectedService();
+            }, 60);
         }
 
         function disconnectDashboardStreams() {
-            if (dashboardReconnectTimer) {
-                window.clearTimeout(dashboardReconnectTimer);
-                dashboardReconnectTimer = null;
-            }
-
             if (window.__dashboardSseConnections) {
                 window.__dashboardSseConnections.cards?.close?.();
                 window.__dashboardSseConnections.charts?.close?.();
@@ -1820,10 +1762,6 @@
                 return window.__dashboardSseConnections;
             }
 
-            if (dashboardSseCooldownUntil > Date.now()) {
-                return window.__dashboardSseConnections;
-            }
-
             const cardsSource = new EventSource(dashboardStreamUrl('/dashboard/cards'));
             const chartsSource = new EventSource(dashboardStreamUrl('/dashboard/charts'));
             window.__dashboardSseConnections = {
@@ -1833,7 +1771,6 @@
 
             cardsSource.onmessage = function (event) {
                 dashboardCardsLastMessageAt = Date.now();
-                resetDashboardSseFailures('cards');
                 try {
                     cardsPayload = JSON.parse(event.data);
                 } catch {
@@ -1881,12 +1818,11 @@
                 setOperationalCard('sms', operationalCards.sms);
                 setOperationalCard('whatsapp', operationalCards.whatsapp);
 
-                renderSelectedService();
+                scheduleDashboardRender();
             };
 
             chartsSource.onmessage = function (event) {
                 dashboardChartsLastMessageAt = Date.now();
-                resetDashboardSseFailures('charts');
                 try {
                     if (event.data === chartsPayloadSignature) {
                         return;
@@ -1894,7 +1830,7 @@
 
                     chartsPayloadSignature = event.data;
                     chartsPayload = JSON.parse(event.data);
-                    renderSelectedService();
+                    scheduleDashboardRender();
                 } catch (error) {
                     console.error('Erro ao processar graficos do dashboard:', error, event.data);
                     return;
@@ -1902,45 +1838,17 @@
             };
 
             cardsSource.onerror = function () {
-                if (document.hidden || cardsSource.readyState === EventSource.CONNECTING) {
-                    return;
+                if (!document.hidden) {
+                    console.warn('Stream de cards do dashboard sinalizou erro; aguardando retry nativo do EventSource.');
                 }
-
-                const delay = nextDashboardRetryDelay('cards');
-                if (shouldTripDashboardCircuitBreaker()) {
-                    tripDashboardCircuitBreaker();
-                    return;
-                }
-
-                scheduleDashboardReconnect(delay);
             };
 
             chartsSource.onerror = function (event) {
-                const now = Date.now();
-                const lastMessageAge = dashboardChartsLastMessageAt > 0 ? (now - dashboardChartsLastMessageAt) : null;
-                const connectionState = chartsSource.readyState;
-
-                if (document.hidden) {
-                    return;
+                if (!document.hidden) {
+                    console.warn('Stream de graficos do dashboard sinalizou erro; aguardando retry nativo do EventSource.', {
+                        readyState: chartsSource.readyState
+                    });
                 }
-
-                if (connectionState === EventSource.CONNECTING) {
-                    return;
-                }
-
-                const delay = nextDashboardRetryDelay('charts');
-                console.warn('Reconectando stream dos graficos do dashboard.', {
-                    readyState: connectionState,
-                    lastMessageAge,
-                    retryDelay: delay
-                });
-
-                if (shouldTripDashboardCircuitBreaker()) {
-                    tripDashboardCircuitBreaker();
-                    return;
-                }
-
-                scheduleDashboardReconnect(delay);
             };
 
             return window.__dashboardSseConnections;
@@ -1953,12 +1861,6 @@
             if (document.hidden) {
                 disconnectDashboardStreams();
                 return;
-            }
-
-            if (dashboardSseCooldownUntil > 0 && dashboardSseCooldownUntil <= Date.now()) {
-                dashboardSseCooldownUntil = 0;
-                resetDashboardSseFailures('cards');
-                resetDashboardSseFailures('charts');
             }
 
             connectDashboardStreams();

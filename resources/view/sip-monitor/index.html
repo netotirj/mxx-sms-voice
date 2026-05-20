@@ -273,6 +273,7 @@
         sipSessionPromise: null,
         sipPollInFlight: false,
         sipLastPollAt: 0,
+        sipAggressiveIntervalMs: 1000,
         journeyKey(call) {
             return String(call?.call_id || call?.linkedid || call?.id || '');
         },
@@ -404,6 +405,13 @@
             return this.sanitizeValue(call || {});
         },
 
+        isPageActive() {
+            return this.monitorEnabled
+                && !document.hidden
+                && document.visibilityState === 'visible'
+                && document.hasFocus();
+        },
+
         normalizeDigits(value) {
             return String(value || '').replace(/\D+/g, '');
         },
@@ -437,9 +445,17 @@
         },
 
         sipFilterPayload() {
-            const digits = this.normalizeDigits(this.numberFilter);
-            return digits
-                ? { filter_type: 'number', filter_value: digits }
+            const explicitDigits = this.normalizeDigits(this.numberFilter);
+            if (explicitDigits) {
+                return { filter_type: 'number', filter_value: explicitDigits };
+            }
+
+            const selectedCall = this.selectedJourneyKey ? this.liveJourneyCalls.get(this.selectedJourneyKey) : null;
+            const visibleCall = selectedCall || this.filteredCalls().visible[0] || null;
+            const candidateDigits = this.normalizeDigits(visibleCall?.dest || visibleCall?.caller || '');
+
+            return candidateDigits
+                ? { filter_type: 'number', filter_value: candidateDigits }
                 : { filter_type: 'all', filter_value: '' };
         },
 
@@ -514,13 +530,18 @@
             }
 
             const tick = () => {
+                if (!this.isPageActive()) {
+                    this.stopSipPolling();
+                    return;
+                }
+
                 this.pollSipStream().catch((error) => {
                     console.warn('[sip-monitor] stream failed', error);
                 });
             };
 
             tick();
-            this.sipStreamTimer = window.setInterval(tick, 2000);
+            this.sipStreamTimer = window.setInterval(tick, this.sipAggressiveIntervalMs);
         },
 
         stopSipPolling() {
@@ -531,7 +552,7 @@
         },
 
         async pollSipStream() {
-            if (!this.monitorEnabled || document.hidden) {
+            if (!this.isPageActive()) {
                 return;
             }
 
@@ -807,12 +828,34 @@
         },
 
         sipRawPayload(call, event) {
+            const targetNumber = this.normalizeDigits(call?.dest || call?.caller || '');
+            const targetCallId = String(event?.call_id || call?.call_id || call?.vars?.CALL_ID || call?.vars?.__CALL_ID || '').trim();
+            const filterChunk = (chunk) => {
+                const lines = String(chunk || '')
+                    .split(/\r\n|\r|\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line !== '');
+
+                const relevant = lines.filter((line) => {
+                    const normalizedLine = this.normalizeDigits(line);
+                    if (targetCallId && line.includes(targetCallId)) {
+                        return true;
+                    }
+                    if (targetNumber && normalizedLine.includes(targetNumber)) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                return relevant.join('\n');
+            };
+
             return {
                 callcenter_session: this.sanitizeValue(call || {}),
                 sip_event: this.sanitizeValue(event || {}),
                 sip_chunks: {
-                    sngrep: this.maskIpString(String(this.sipStreamData?.chunks?.sngrep || '')),
-                    pjsip: this.maskIpString(String(this.sipStreamData?.chunks?.pjsip || '')),
+                    sngrep: this.maskIpString(filterChunk(this.sipStreamData?.chunks?.sngrep || '')),
+                    pjsip: this.maskIpString(filterChunk(this.sipStreamData?.chunks?.pjsip || '')),
                 },
             };
         },
@@ -1419,7 +1462,7 @@
                 this.liveJourneySource = null;
             }
 
-            if (!this.monitorEnabled || document.hidden) {
+            if (!this.isPageActive()) {
                 this.renderFeedBadge(this.monitorEnabled ? 'reconnecting' : 'inactive');
                 return;
             }
@@ -1502,11 +1545,21 @@
     });
 
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && sipMonitorJourney.monitorEnabled) {
+        if (sipMonitorJourney.isPageActive()) {
             sipMonitorJourney.connectFeed(true);
             return;
         }
 
+        sipMonitorJourney.disconnectFeed();
+    });
+
+    window.addEventListener('focus', () => {
+        if (sipMonitorJourney.isPageActive()) {
+            sipMonitorJourney.connectFeed(true);
+        }
+    });
+
+    window.addEventListener('blur', () => {
         sipMonitorJourney.disconnectFeed();
     });
 

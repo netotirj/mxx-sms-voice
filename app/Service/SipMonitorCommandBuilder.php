@@ -48,11 +48,15 @@ class SipMonitorCommandBuilder
             return $requested;
         }
 
+        if ($hasAsterisk && in_array($filterType, ['extension', 'number', 'call_id', 'trunk'], true)) {
+            return 'pjsip';
+        }
+
         if ($hasSngrep && $hasAsterisk && ($includeTls || $tlsPort === 5061 || $filterType === 'all')) {
             return 'both';
         }
 
-        if ($hasAsterisk && ($includeTls || in_array($filterType, ['extension', 'number', 'call_id', 'trunk'], true))) {
+        if ($hasAsterisk && $includeTls) {
             return 'pjsip';
         }
 
@@ -126,6 +130,9 @@ class SipMonitorCommandBuilder
         $script = SipMonitorCommandRunner::resolveBinary('script', false);
         $timeout = SipMonitorCommandRunner::resolveBinary('timeout', false);
         $head = SipMonitorCommandRunner::resolveBinary('head', true);
+        $grep = SipMonitorCommandRunner::supportsBinary('grep', false)
+            ? SipMonitorCommandRunner::resolveBinary('grep', false)
+            : '';
         $stdbuf = SipMonitorCommandRunner::supportsBinary('stdbuf', false)
             ? SipMonitorCommandRunner::resolveBinary('stdbuf', false)
             : '';
@@ -141,11 +148,16 @@ class SipMonitorCommandBuilder
             $console = $script . ' -qefc ' . escapeshellarg($console) . ' /dev/null';
         }
 
+        $lineFilter = '';
+        if ($grep !== '' && in_array($filterType, ['extension', 'number', 'call_id', 'trunk'], true) && $filterValue !== '') {
+            $lineFilter = ' | ' . $grep . ' --line-buffered -i -- ' . escapeshellarg($filterValue);
+        }
+
         $inner = 'set -o pipefail; '
             . $asterisk . ' -rx "pjsip set logger off" >/dev/null 2>&1 || true'
             . '; ' . $loggerOn
             . '; trap \'' . $asterisk . ' -rx "pjsip set logger off" >/dev/null 2>&1 || true\' EXIT INT TERM'
-            . '; ' . $console . ' 2>&1 | ' . $head . ' -n ' . $maxLines;
+            . '; ' . $console . ' 2>&1' . $lineFilter . ' | ' . $head . ' -n ' . $maxLines;
 
         $shell = SipMonitorCommandRunner::supportsBinary('timeout', false)
             ? $timeout . ' --signal=TERM ' . $timeoutSeconds . 's ' . $env . ' ' . $bash . ' -lc ' . escapeshellarg($inner)
@@ -269,8 +281,9 @@ class SipMonitorCommandBuilder
 
     public static function captureTimeoutSeconds(array $request): int
     {
-        $seconds = (int)($request['duration_minutes'] ?? 5);
-        return max(5, min(30, $seconds));
+        $minutes = (int)($request['duration_minutes'] ?? 5);
+        $seconds = $minutes * 60;
+        return max(300, min(1800, $seconds));
     }
 
     public static function maxLines(): int

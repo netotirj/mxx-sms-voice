@@ -9,6 +9,24 @@ class SipMonitorCommandRunner
     private static ?array $capabilitiesCache = null;
     private static ?array $diagnosticsSnapshotCache = null;
     private static array $supportsBinaryCache = [];
+    private static array $resolvedBinaryCache = [];
+
+    private const BINARY_CANDIDATES = [
+        'asterisk' => ['/usr/sbin/asterisk', '/sbin/asterisk', '/usr/bin/asterisk', '/bin/asterisk'],
+        'sngrep' => ['/usr/bin/sngrep', '/bin/sngrep', '/usr/sbin/sngrep', '/sbin/sngrep'],
+        'timeout' => ['/usr/bin/timeout', '/bin/timeout'],
+        'script' => ['/usr/bin/script', '/bin/script'],
+        'tail' => ['/usr/bin/tail', '/bin/tail'],
+        'head' => ['/usr/bin/head', '/bin/head'],
+        'wc' => ['/usr/bin/wc', '/bin/wc'],
+        'mkdir' => ['/usr/bin/mkdir', '/bin/mkdir'],
+        'touch' => ['/usr/bin/touch', '/bin/touch'],
+        'kill' => ['/usr/bin/kill', '/bin/kill'],
+        'sh' => ['/usr/bin/sh', '/bin/sh'],
+        'stdbuf' => ['/usr/bin/stdbuf', '/bin/stdbuf'],
+        'bash' => ['/usr/bin/bash', '/bin/bash'],
+        'env' => ['/usr/bin/env', '/bin/env'],
+    ];
 
     public static function profile(): array
     {
@@ -147,6 +165,35 @@ class SipMonitorCommandRunner
         return self::$supportsBinaryCache[$cacheKey];
     }
 
+    public static function resolveBinary(string $binary, bool $useSudo = false): string
+    {
+        $cacheKey = ($useSudo ? '1' : '0') . ':' . $binary;
+        if (isset(self::$resolvedBinaryCache[$cacheKey])) {
+            return self::$resolvedBinaryCache[$cacheKey];
+        }
+
+        foreach (self::BINARY_CANDIDATES[$binary] ?? [] as $candidate) {
+            $result = self::run('[ -x ' . escapeshellarg($candidate) . ' ]', $useSudo);
+            if (!empty($result['ok'])) {
+                self::$resolvedBinaryCache[$cacheKey] = $candidate;
+                return $candidate;
+            }
+        }
+
+        $result = self::run('command -v ' . escapeshellarg($binary) . ' 2>/dev/null || which ' . escapeshellarg($binary) . ' 2>/dev/null || true', $useSudo);
+        $resolved = trim((string)($result['output'] ?? ''));
+        if ($resolved !== '') {
+            $firstLine = trim((string)preg_split('/\r\n|\r|\n/', $resolved)[0]);
+            if ($firstLine !== '') {
+                self::$resolvedBinaryCache[$cacheKey] = $firstLine;
+                return $firstLine;
+            }
+        }
+
+        self::$resolvedBinaryCache[$cacheKey] = $binary;
+        return $binary;
+    }
+
     public static function run(string $command, bool $useSudo = true): array
     {
         $profile = self::profile();
@@ -163,15 +210,19 @@ class SipMonitorCommandRunner
         $profile = self::profile();
         $dir = dirname($outputPath);
         $pidPath = $outputPath . '.pid';
-        $bootstrap = 'mkdir -p ' . escapeshellarg($dir)
-            . ' && touch ' . escapeshellarg($outputPath)
+        $mkdir = self::resolveBinary('mkdir', $useSudo);
+        $touch = self::resolveBinary('touch', $useSudo);
+        $sh = self::resolveBinary('sh', $useSudo);
+        $timeout = self::resolveBinary('timeout', false);
+        $bootstrap = $mkdir . ' -p ' . escapeshellarg($dir)
+            . ' && ' . $touch . ' ' . escapeshellarg($outputPath)
             . ' && : > ' . escapeshellarg($pidPath)
             . ' && printf %s\\n ' . escapeshellarg('[monitor] bootstrap ' . date('Y-m-d H:i:s')) . ' >> ' . escapeshellarg($outputPath)
-            . ' && nohup sh -lc ' . escapeshellarg($shellScript)
+            . ' && nohup ' . $sh . ' -lc ' . escapeshellarg($shellScript)
             . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & PID=$!; printf %s "$PID" > ' . escapeshellarg($pidPath) . '; printf "__PID__:%s\n" "$PID"';
         $command = $bootstrap;
         if (self::supportsBinary('timeout', false)) {
-            $command = 'timeout --signal=TERM 12s /usr/bin/sh -lc ' . escapeshellarg($bootstrap);
+            $command = $timeout . ' --signal=TERM 12s ' . $sh . ' -lc ' . escapeshellarg($bootstrap);
         }
 
         $result = MonitorSshService::run($profile, $command, [
@@ -200,7 +251,8 @@ class SipMonitorCommandRunner
         }
 
         return self::run(
-            'kill -TERM -- -' . $pid . ' 2>/dev/null || kill -TERM ' . $pid . ' 2>/dev/null || true',
+            self::resolveBinary('kill', $useSudo) . ' -TERM -- -' . $pid . ' 2>/dev/null || '
+            . self::resolveBinary('kill', $useSudo) . ' -TERM ' . $pid . ' 2>/dev/null || true',
             $useSudo
         );
     }
@@ -211,14 +263,17 @@ class SipMonitorCommandRunner
         $maxBytes = max(1024, min(262144, $maxBytes));
         $start = $offset + 1;
 
-        $sizeResult = self::run('if [ -f ' . escapeshellarg($path) . ' ]; then wc -c < ' . escapeshellarg($path) . '; else echo 0; fi', true);
+        $wc = self::resolveBinary('wc', true);
+        $tail = self::resolveBinary('tail', true);
+        $head = self::resolveBinary('head', true);
+        $sizeResult = self::run('if [ -f ' . escapeshellarg($path) . ' ]; then ' . $wc . ' -c < ' . escapeshellarg($path) . '; else echo 0; fi', true);
         $size = (int)trim((string)($sizeResult['output'] ?? '0'));
 
         if ($size <= $offset) {
             return ['chunk' => '', 'cursor' => $size, 'size' => $size];
         }
 
-        $command = 'tail -c +' . $start . ' ' . escapeshellarg($path) . ' 2>/dev/null | head -c ' . $maxBytes;
+        $command = $tail . ' -c +' . $start . ' ' . escapeshellarg($path) . ' 2>/dev/null | ' . $head . ' -c ' . $maxBytes;
         $chunkResult = self::run($command, true);
 
         return [
@@ -231,16 +286,18 @@ class SipMonitorCommandRunner
     public static function readSmallFile(string $path, bool $useSudo = true, int $maxBytes = 4096): string
     {
         $maxBytes = max(128, min(65536, $maxBytes));
-        $command = 'if [ -f ' . escapeshellarg($path) . ' ]; then head -c ' . $maxBytes . ' ' . escapeshellarg($path) . '; fi';
+        $head = self::resolveBinary('head', $useSudo);
+        $command = 'if [ -f ' . escapeshellarg($path) . ' ]; then ' . $head . ' -c ' . $maxBytes . ' ' . escapeshellarg($path) . '; fi';
         $result = self::run($command, $useSudo);
         return trim((string)($result['output'] ?? ''));
     }
 
     public static function inspectPath(string $path, bool $useSudo = true): array
     {
+        $wc = self::resolveBinary('wc', $useSudo);
         $command = 'if [ -f ' . escapeshellarg($path) . ' ]; then '
             . 'printf "__FILE__:%s|%s\n" '
-            . '"$(wc -c < ' . escapeshellarg($path) . ' | tr -d \' \')" '
+            . '"$(' . $wc . ' -c < ' . escapeshellarg($path) . ' | tr -d \' \')" '
             . '"$(date -r ' . escapeshellarg($path) . ' \'+%Y-%m-%d %H:%M:%S\' 2>/dev/null || stat -c \'%y\' ' . escapeshellarg($path) . ' 2>/dev/null | cut -d. -f1)"; '
             . 'else printf "__MISSING__\n"; fi';
         $result = self::run($command, $useSudo);
@@ -271,7 +328,7 @@ class SipMonitorCommandRunner
             return false;
         }
 
-        $result = self::run('kill -0 ' . $pid . ' >/dev/null 2>&1', $useSudo);
+        $result = self::run(self::resolveBinary('kill', $useSudo) . ' -0 ' . $pid . ' >/dev/null 2>&1', $useSudo);
         return (bool)($result['ok'] ?? false);
     }
 
@@ -330,10 +387,10 @@ class SipMonitorCommandRunner
             ],
             'ssh_probe' => $connection,
             'which_sngrep' => self::runDiagnostic('command -v sngrep || which sngrep || true', false),
-            'sngrep_version' => self::runDiagnostic('sngrep -V 2>&1 || true', false),
+            'sngrep_version' => self::runDiagnostic(self::resolveBinary('sngrep', false) . ' -V 2>&1 || true', false),
             'which_asterisk' => self::runDiagnostic('command -v asterisk || which asterisk || true', false),
-            'asterisk_version' => self::runDiagnostic('asterisk -rx "core show version" 2>&1 || true', true),
-            'pjsip_endpoints' => self::runDiagnostic('asterisk -rx "pjsip show endpoints" 2>&1 || true', true),
+            'asterisk_version' => self::runDiagnostic(self::resolveBinary('asterisk', true) . ' -rx "core show version" 2>&1 || true', true),
+            'pjsip_endpoints' => self::runDiagnostic(self::resolveBinary('asterisk', true) . ' -rx "pjsip show endpoints" 2>&1 || true', true),
             'which_script' => self::runDiagnostic('command -v script || which script || true', false),
             'which_timeout' => self::runDiagnostic('command -v timeout || which timeout || true', false),
         ];

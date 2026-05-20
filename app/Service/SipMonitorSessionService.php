@@ -158,7 +158,8 @@ class SipMonitorSessionService
             SipMonitorCommandRunner::killProcess((int)($stream['pid'] ?? 0), true);
         }
 
-        SipMonitorCommandRunner::run('asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true', true);
+        $asterisk = SipMonitorCommandRunner::resolveBinary('asterisk', true);
+        SipMonitorCommandRunner::run($asterisk . ' -rx "pjsip set logger off" >/dev/null 2>&1 || true', true);
 
         SipMonitorSession::update($sessionId, [
             'status' => $reason === 'expired' ? 'expired' : 'stopped',
@@ -183,7 +184,8 @@ class SipMonitorSessionService
             }
         }
 
-        SipMonitorCommandRunner::run('asterisk -rx "pjsip set logger off" 2>&1 || true', true);
+        $asterisk = SipMonitorCommandRunner::resolveBinary('asterisk', true);
+        SipMonitorCommandRunner::run($asterisk . ' -rx "pjsip set logger off" 2>&1 || true', true);
 
         return [
             'success' => true,

@@ -71,7 +71,12 @@ class SipMonitorCommandBuilder
     {
         $timeoutSeconds = self::captureTimeoutSeconds($request);
         $maxLines = self::maxLines();
-        $command = ['sngrep'];
+        $sngrep = SipMonitorCommandRunner::resolveBinary('sngrep', true);
+        $head = SipMonitorCommandRunner::resolveBinary('head', true);
+        $timeout = SipMonitorCommandRunner::resolveBinary('timeout', false);
+        $bash = SipMonitorCommandRunner::resolveBinary('bash', false);
+        $env = SipMonitorCommandRunner::resolveBinary('env', false);
+        $command = [$sngrep];
         $textPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.log');
 
         $command[] = '-N';
@@ -97,11 +102,11 @@ class SipMonitorCommandBuilder
         }
 
         $baseCommand = self::quoteCommand(array_merge($command, [$bpf]));
-        $shell = 'set -o pipefail; ' . $baseCommand . ' 2>&1 | head -n ' . $maxLines;
+        $shell = 'set -o pipefail; ' . $baseCommand . ' 2>&1 | ' . $head . ' -n ' . $maxLines;
         if (SipMonitorCommandRunner::supportsBinary('timeout', false)) {
-            $shell = 'timeout --signal=TERM ' . $timeoutSeconds . 's /usr/bin/env bash -lc ' . escapeshellarg($shell);
+            $shell = $timeout . ' --signal=TERM ' . $timeoutSeconds . 's ' . $env . ' ' . $bash . ' -lc ' . escapeshellarg($shell);
         } else {
-            $shell = '/usr/bin/env bash -lc ' . escapeshellarg($shell);
+            $shell = $env . ' ' . $bash . ' -lc ' . escapeshellarg($shell);
         }
 
         return [
@@ -120,25 +125,34 @@ class SipMonitorCommandBuilder
         $filterType = (string)$request['filter_type'];
         $filterValue = (string)($request['filter_value'] ?? '');
         $supportsScript = SipMonitorCommandRunner::supportsBinary('script', false);
+        $asterisk = SipMonitorCommandRunner::resolveBinary('asterisk', true);
+        $script = SipMonitorCommandRunner::resolveBinary('script', false);
+        $timeout = SipMonitorCommandRunner::resolveBinary('timeout', false);
+        $head = SipMonitorCommandRunner::resolveBinary('head', true);
+        $stdbuf = SipMonitorCommandRunner::supportsBinary('stdbuf', false)
+            ? SipMonitorCommandRunner::resolveBinary('stdbuf', false)
+            : '';
+        $bash = SipMonitorCommandRunner::resolveBinary('bash', false);
+        $env = SipMonitorCommandRunner::resolveBinary('env', false);
 
         $loggerOn = ($filterType === 'ip' && $filterValue !== '')
-            ? 'asterisk -rx "pjsip set logger host ' . addslashes($filterValue) . '" >/dev/null 2>&1 || asterisk -rx "pjsip set logger on" >/dev/null 2>&1'
-            : 'asterisk -rx "pjsip set logger on" >/dev/null 2>&1';
+            ? $asterisk . ' -rx "pjsip set logger host ' . addslashes($filterValue) . '" >/dev/null 2>&1 || ' . $asterisk . ' -rx "pjsip set logger on" >/dev/null 2>&1'
+            : $asterisk . ' -rx "pjsip set logger on" >/dev/null 2>&1';
 
-        $console = 'stdbuf -oL -eL asterisk -rvvvvv';
+        $console = ($stdbuf !== '' ? $stdbuf . ' -oL -eL ' : '') . $asterisk . ' -rvvvvv';
         if ($supportsScript) {
-            $console = 'script -qefc ' . escapeshellarg($console) . ' /dev/null';
+            $console = $script . ' -qefc ' . escapeshellarg($console) . ' /dev/null';
         }
 
         $inner = 'set -o pipefail; '
-            . 'asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true'
+            . $asterisk . ' -rx "pjsip set logger off" >/dev/null 2>&1 || true'
             . '; ' . $loggerOn
-            . '; trap \'asterisk -rx "pjsip set logger off" >/dev/null 2>&1 || true\' EXIT INT TERM'
-            . '; ' . $console . ' 2>&1 | head -n ' . $maxLines;
+            . '; trap \'' . $asterisk . ' -rx "pjsip set logger off" >/dev/null 2>&1 || true\' EXIT INT TERM'
+            . '; ' . $console . ' 2>&1 | ' . $head . ' -n ' . $maxLines;
 
         $shell = SipMonitorCommandRunner::supportsBinary('timeout', false)
-            ? 'timeout --signal=TERM ' . $timeoutSeconds . 's /usr/bin/env bash -lc ' . escapeshellarg($inner)
-            : '/usr/bin/env bash -lc ' . escapeshellarg($inner);
+            ? $timeout . ' --signal=TERM ' . $timeoutSeconds . 's ' . $env . ' ' . $bash . ' -lc ' . escapeshellarg($inner)
+            : $env . ' ' . $bash . ' -lc ' . escapeshellarg($inner);
 
         return [
             'command' => $shell,

@@ -30,9 +30,12 @@ use Predis\Client as RedisClient;
 use App\Http\Response;
 use App\Session\User as SessionUser;
 use App\Utils\CampaignNameCode;
+use App\Utils\TenancyHelper;
 use App\Utils\View;
 use App\Model\Entity\CampaignVoice;
 use App\Model\Entity\CampaignVoiceSchedule;
+use App\Model\Entity\TrunkOperationProfile;
+use App\Model\Entity\TrunkUserAssignment;
 use GuzzleHttp\Exception\GuzzleException;
 use Random\RandomException;
 use Throwable;
@@ -1387,26 +1390,42 @@ class Voice extends ViewComponents
             $listTrunks = $asterisk->listTrunks($query);
             $trunks = $listTrunks['data']['data'] ?? $listTrunks['data'] ?? [];
             $desiredBillingType = VoicePricingService::normalizeBillingType($cliType ?? null);
+            $preferredAssignment = TrunkUserAssignment::preferredForUser((string)$tenantId, (int)$userId);
 
-            foreach ((array)$trunks as $candidate) {
-                if (!is_array($candidate)) {
-                    continue;
+            if (is_array($preferredAssignment) && !empty($preferredAssignment)) {
+                foreach ((array)$trunks as $candidate) {
+                    if (!is_array($candidate)) {
+                        continue;
+                    }
+
+                    $candidateApiId = (int)($candidate['id'] ?? 0);
+                    $candidateCode = (string)($candidate['trunk_id'] ?? '');
+                    $assignedApiId = (int)($preferredAssignment['trunk_api_id'] ?? 0);
+                    $assignedCode = (string)($preferredAssignment['trunk_code'] ?? '');
+
+                    if ($candidateApiId !== $assignedApiId && ($assignedCode === '' || $candidateCode !== $assignedCode)) {
+                        continue;
+                    }
+
+                    if (self::trunkIsEligibleForSelection($candidate, $desiredBillingType)) {
+                        $sip_trunk_id = $candidate['id'] ?? null;
+                        $sip_trunk = (string)($candidate['trunk_id'] ?? $candidate['name'] ?? $sip_trunk);
+                        break;
+                    }
                 }
+            }
 
-                $candidateBillingType = VoicePricingService::normalizeBillingType($candidate['billing_type'] ?? null)
-                    ?? VoicePricingService::normalizeBillingType($candidate['cli_type'] ?? null);
-                $candidateStatus = strtoupper((string)($candidate['sip_status'] ?? 'OK'));
+            if (empty($sip_trunk_id)) {
+                foreach ((array)$trunks as $candidate) {
+                    if (!is_array($candidate)) {
+                        continue;
+                    }
 
-                if (
-                    $desiredBillingType !== null
-                    && $candidateBillingType === $desiredBillingType
-                    && ($candidate['status'] ?? '') === 'active'
-                    && in_array(($candidate['direction'] ?? ''), ['outbound', 'both'], true)
-                    && $candidateStatus === 'OK'
-                ) {
-                    $sip_trunk_id = $candidate['id'] ?? null;
-                    $sip_trunk = (string)($candidate['trunk_id'] ?? $candidate['name'] ?? $sip_trunk);
-                    break;
+                    if (self::trunkIsEligibleForSelection($candidate, $desiredBillingType)) {
+                        $sip_trunk_id = $candidate['id'] ?? null;
+                        $sip_trunk = (string)($candidate['trunk_id'] ?? $candidate['name'] ?? $sip_trunk);
+                        break;
+                    }
                 }
             }
         }
@@ -4455,6 +4474,231 @@ class Voice extends ViewComponents
         return $obAgente->cadastrar();
     }
 
+    private static function normalizedActorRole(array $user): string
+    {
+        return strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+    }
+
+    private static function visibleUsersForTrunkScope(array $actor): array
+    {
+        $role = self::normalizedActorRole($actor);
+
+        if ($role === 'super_admin') {
+            return UserSearch::getAllUsersGlobal();
+        }
+
+        $tenancyId = (string)($actor['tenancy_id'] ?? '');
+        if ($tenancyId === '') {
+            return [];
+        }
+
+        if ($role === 'admin') {
+            return UserSearch::getUsers($tenancyId);
+        }
+
+        return UserSearch::getUsers($tenancyId, (int)($actor['id'] ?? 0));
+    }
+
+    private static function canManageUserForTrunk(array $actor, array $target): bool
+    {
+        $role = self::normalizedActorRole($actor);
+        if ($role === 'super_admin') {
+            return true;
+        }
+
+        $actorTenancy = (string)($actor['tenancy_id'] ?? '');
+        $targetTenancy = (string)($target['tenancy_id'] ?? '');
+        if ($actorTenancy === '' || $actorTenancy !== $targetTenancy) {
+            return false;
+        }
+
+        if ($role === 'admin') {
+            return true;
+        }
+
+        $actorId = (int)($actor['id'] ?? 0);
+        $targetOwnerId = (int)($target['user_id'] ?? 0);
+
+        return $actorId > 0 && ($actorId === (int)($target['id'] ?? 0) || $actorId === $targetOwnerId);
+    }
+
+    private static function trunkMatchesDesiredBilling(array $candidate, ?string $desiredBillingType): bool
+    {
+        if ($desiredBillingType === null) {
+            return true;
+        }
+
+        $candidateBillingType = VoicePricingService::normalizeBillingType($candidate['billing_type'] ?? null)
+            ?? VoicePricingService::normalizeBillingType($candidate['cli_type'] ?? null);
+
+        return $candidateBillingType === $desiredBillingType;
+    }
+
+    private static function trunkIsEligibleForSelection(array $candidate, ?string $desiredBillingType): bool
+    {
+        if (!self::trunkMatchesDesiredBilling($candidate, $desiredBillingType)) {
+            return false;
+        }
+
+        if (($candidate['status'] ?? '') !== 'active') {
+            return false;
+        }
+
+        if (!in_array(($candidate['direction'] ?? ''), ['outbound', 'both'], true)) {
+            return false;
+        }
+
+        $candidateStatus = strtoupper((string)($candidate['sip_status'] ?? 'OK'));
+        return $candidateStatus === 'OK';
+    }
+
+    private static function trunkMetricsLast24Hours(string $tenancyId): array
+    {
+        if ($tenancyId === '') {
+            return [];
+        }
+
+        $rows = (new \WilliamCosta\DatabaseManager\Database())->execute(
+            "
+            SELECT
+                COALESCE(NULLIF(TRIM(trunk_id), ''), NULLIF(TRIM(trunk), '')) AS trunk_key,
+                MAX(NULLIF(TRIM(trunk), '')) AS trunk_name,
+                COUNT(*) AS attempted_calls,
+                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) = 'ANSWER' OR COALESCE(billsec, 0) > 0 THEN 1 ELSE 0 END) AS completed_calls,
+                SUM(CASE WHEN UPPER(COALESCE(dialstatus, '')) <> 'ANSWER' AND COALESCE(billsec, 0) <= 0 THEN 1 ELSE 0 END) AS failed_calls,
+                MAX(COALESCE(answered, started, created_at)) AS last_activity
+            FROM cdr
+            WHERE tenancy_id = :tenancy_id
+              AND COALESCE(answered, started, created_at) >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+              AND COALESCE(NULLIF(TRIM(trunk_id), ''), NULLIF(TRIM(trunk), '')) IS NOT NULL
+            GROUP BY trunk_key
+            ",
+            [':tenancy_id' => $tenancyId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $metrics = [];
+        foreach ($rows as $row) {
+            $attempted = (int)($row['attempted_calls'] ?? 0);
+            $completed = (int)($row['completed_calls'] ?? 0);
+            $failed = (int)($row['failed_calls'] ?? 0);
+            $key = (string)($row['trunk_key'] ?? '');
+
+            if ($key === '') {
+                continue;
+            }
+
+            $metrics[$key] = [
+                'attempted_calls' => $attempted,
+                'completed_calls' => $completed,
+                'failed_calls' => $failed,
+                'completion_rate' => $attempted > 0 ? round(($completed / $attempted) * 100, 2) : 0.0,
+                'last_activity' => $row['last_activity'] ?? null,
+                'trunk_name' => $row['trunk_name'] ?? $key,
+            ];
+        }
+
+        return $metrics;
+    }
+
+    private static function isTrunkOnlineOperational(array $trunk): bool
+    {
+        if (($trunk['status'] ?? '') !== 'active') {
+            return false;
+        }
+
+        if (array_key_exists('online', $trunk) && filter_var($trunk['online'], FILTER_VALIDATE_BOOLEAN)) {
+            return true;
+        }
+
+        return strtoupper((string)($trunk['sip_status'] ?? '')) === 'OK';
+    }
+
+    private static function buildTrunkOperationsPayload(array $actor, array $trunks): array
+    {
+        $tenancyId = (string)($actor['tenancy_id'] ?? '');
+        $metricsByKey = $tenancyId !== '' ? self::trunkMetricsLast24Hours($tenancyId) : [];
+        $profiles = $tenancyId !== '' ? TrunkOperationProfile::mapByTenancy($tenancyId) : [];
+        $operationProfile = $tenancyId !== '' ? TrunkOperationProfile::operationTrunk($tenancyId) : null;
+
+        $normalizedTrunks = [];
+        $best = null;
+        $worst = null;
+        $totalFailures = 0;
+        $operationCard = null;
+
+        foreach ($trunks as $trunk) {
+            if (!is_array($trunk)) {
+                continue;
+            }
+
+            $apiId = (int)($trunk['id'] ?? 0);
+            $trunkKey = trim((string)($trunk['trunk_id'] ?? $trunk['name'] ?? ''));
+            $metric = $metricsByKey[$trunkKey] ?? [
+                'attempted_calls' => 0,
+                'completed_calls' => 0,
+                'failed_calls' => 0,
+                'completion_rate' => 0.0,
+                'last_activity' => null,
+                'trunk_name' => (string)($trunk['name'] ?? $trunkKey),
+            ];
+            $profile = $profiles[(string)$apiId] ?? null;
+            $totalFailures += (int)$metric['failed_calls'];
+
+            $statusOperational = self::isTrunkOnlineOperational($trunk) ? 'online' : 'degraded';
+            $enriched = $trunk;
+            $enriched['ranking'] = [
+                'attempted_calls' => (int)$metric['attempted_calls'],
+                'completed_calls' => (int)$metric['completed_calls'],
+                'failed_calls' => (int)$metric['failed_calls'],
+                'completion_rate' => (float)$metric['completion_rate'],
+                'last_activity' => $metric['last_activity'],
+                'status_operational' => $statusOperational,
+                'manual_priority' => (int)($profile['manual_priority'] ?? 0),
+                'is_operation_trunk' => (int)($profile['is_operation_trunk'] ?? 0) === 1,
+            ];
+            $enriched['linked_users_count'] = $tenancyId !== '' ? count(TrunkUserAssignment::listByTrunk($tenancyId, $apiId)) : 0;
+            $normalizedTrunks[] = $enriched;
+
+            if ((int)$metric['attempted_calls'] > 0) {
+                if ($best === null || (float)$metric['completion_rate'] > (float)$best['completion_rate']) {
+                    $best = [
+                        'name' => (string)($trunk['name'] ?? $trunkKey),
+                        'completion_rate' => (float)$metric['completion_rate'],
+                        'attempted_calls' => (int)$metric['attempted_calls'],
+                    ];
+                }
+
+                if ($worst === null || (float)$metric['completion_rate'] < (float)$worst['completion_rate']) {
+                    $worst = [
+                        'name' => (string)($trunk['name'] ?? $trunkKey),
+                        'completion_rate' => (float)$metric['completion_rate'],
+                        'attempted_calls' => (int)$metric['attempted_calls'],
+                    ];
+                }
+            }
+
+            if ($operationProfile && $apiId === (int)($operationProfile['trunk_api_id'] ?? 0)) {
+                $operationCard = [
+                    'name' => (string)($trunk['name'] ?? $trunkKey),
+                    'manual_priority' => (int)($profile['manual_priority'] ?? 0),
+                    'status_operational' => $statusOperational,
+                ];
+            }
+        }
+
+        return [
+            'trunks' => $normalizedTrunks,
+            'cards' => [
+                'best_trunk_today' => $best,
+                'worst_trunk_today' => $worst,
+                'operation_trunk' => $operationCard,
+                'failures_last_24h' => [
+                    'total' => $totalFailures,
+                ],
+            ],
+        ];
+    }
+
 
     public static function getVoiceTrunksView(): Response
     {
@@ -4537,6 +4781,8 @@ class Voice extends ViewComponents
         }
 
         $data = array_values($data);
+        $operationsPayload = self::buildTrunkOperationsPayload($obUser, $data);
+        $data = $operationsPayload['trunks'];
 
         //echo "<pre>";
         //print_r($data);
@@ -4550,6 +4796,7 @@ class Voice extends ViewComponents
             'meta'    => [
                 'role' => strtolower((string)$obUser['function']),
             ],
+            'cards'   => $operationsPayload['cards'],
             'data'    => $data,
         ], 'application/json');
 
@@ -4558,6 +4805,249 @@ class Voice extends ViewComponents
         $response->addHeader('Expires', '0');
 
         return $response;
+    }
+
+    private static function loadManagedTrunk(array $obUser, int $id): array|Response
+    {
+        $query = [
+            'user_id' => $obUser['id'],
+            'tenant_id' => $obUser['tenancy_id'],
+            'role' => self::normalizedActorRole($obUser),
+        ];
+
+        if (($query['role'] ?? '') === 'super_admin') {
+            unset($query['user_id'], $query['tenant_id']);
+        }
+
+        $asterisk = new AsteriskExtensionsSip();
+        $response = $asterisk->getTrunkById($query, $id);
+        $current = $response['data']['data'] ?? $response['data'] ?? null;
+
+        if (!$current || !is_array($current)) {
+            return new Response(404, [
+                'success' => false,
+                'message' => "SIP Trunk #{$id} não encontrado.",
+                'data' => [],
+            ], 'application/json');
+        }
+
+        $authorization = self::assertCanEditTrunk($obUser, $current);
+        if ($authorization instanceof Response) {
+            return $authorization;
+        }
+
+        return $current;
+    }
+
+    public static function getTrunkUsers($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $trunk = self::loadManagedTrunk($obUser, (int)$id);
+        if ($trunk instanceof Response) {
+            return $trunk;
+        }
+
+        $tenancyId = (string)($obUser['tenancy_id'] ?? $trunk['tenant_id'] ?? '');
+        $linked = TrunkUserAssignment::listByTrunk($tenancyId, (int)($trunk['id'] ?? 0));
+        $linkedByUserId = [];
+        foreach ($linked as $item) {
+            $linkedByUserId[(int)($item['user_id'] ?? 0)] = true;
+        }
+
+        $eligible = [];
+        foreach (self::visibleUsersForTrunkScope($obUser) as $user) {
+            if (!is_array($user) || !self::canManageUserForTrunk($obUser, $user)) {
+                continue;
+            }
+
+            $role = strtolower((string)($user['user_function'] ?? ''));
+            if ($role === 'super_admin') {
+                continue;
+            }
+
+            $userId = (int)($user['id'] ?? 0);
+            if ($userId <= 0) {
+                continue;
+            }
+
+            $preferred = TrunkUserAssignment::preferredForUser((string)($user['tenancy_id'] ?? ''), $userId);
+            $eligible[] = [
+                'id' => $userId,
+                'name' => (string)($user['name'] ?? ''),
+                'last_name' => (string)($user['last_name'] ?? ''),
+                'email' => (string)($user['email'] ?? ''),
+                'user_function' => (string)($user['user_function'] ?? ''),
+                'status_account' => (string)($user['status_account'] ?? ''),
+                'assigned_to_current_trunk' => isset($linkedByUserId[$userId]),
+                'current_trunk_api_id' => isset($preferred['trunk_api_id']) ? (int)$preferred['trunk_api_id'] : null,
+                'current_trunk_name' => $preferred['trunk_name'] ?? null,
+            ];
+        }
+
+        return new Response(200, [
+            'success' => true,
+            'data' => [
+                'trunk' => [
+                    'id' => (int)($trunk['id'] ?? 0),
+                    'trunk_id' => (string)($trunk['trunk_id'] ?? ''),
+                    'name' => (string)($trunk['name'] ?? ''),
+                    'techprefix' => (string)($trunk['techprefix'] ?? ''),
+                    'dial_prefix' => (string)($trunk['dial_prefix'] ?? ''),
+                ],
+                'linked_users' => array_values($linked),
+                'eligible_users' => $eligible,
+            ],
+        ], 'application/json');
+    }
+
+    public static function setTrunkUserAssignment($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $trunk = self::loadManagedTrunk($obUser, (int)$id);
+        if ($trunk instanceof Response) {
+            return $trunk;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $targetUserId = (int)($input['user_id'] ?? 0);
+        if ($targetUserId <= 0) {
+            return new Response(400, ['success' => false, 'message' => 'Usuário inválido para vínculo.'], 'application/json');
+        }
+
+        $targetUser = TenancyHelper::isSuperAdmin($obUser)
+            ? UserSearch::getUserByIdGlobal($targetUserId)
+            : UserSearch::getUserById((string)$obUser['tenancy_id'], $targetUserId);
+
+        if (!$targetUser || !self::canManageUserForTrunk($obUser, $targetUser)) {
+            return new Response(403, ['success' => false, 'message' => 'Você não pode vincular este usuário a este tronco.'], 'application/json');
+        }
+
+        $assignment = TrunkUserAssignment::upsertPrimary(
+            (string)($targetUser['tenancy_id'] ?? $obUser['tenancy_id']),
+            $targetUserId,
+            (int)($trunk['id'] ?? 0),
+            (string)($trunk['trunk_id'] ?? ''),
+            (string)($trunk['name'] ?? ''),
+            (int)($obUser['id'] ?? 0)
+        );
+
+        return new Response(200, [
+            'success' => true,
+            'message' => 'Usuário vinculado ao trunk com sucesso.',
+            'data' => $assignment,
+        ], 'application/json');
+    }
+
+    public static function setTrunkUserUnassignment($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $trunk = self::loadManagedTrunk($obUser, (int)$id);
+        if ($trunk instanceof Response) {
+            return $trunk;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $targetUserId = (int)($input['user_id'] ?? 0);
+        if ($targetUserId <= 0) {
+            return new Response(400, ['success' => false, 'message' => 'Usuário inválido para remoção do vínculo.'], 'application/json');
+        }
+
+        $targetUser = TenancyHelper::isSuperAdmin($obUser)
+            ? UserSearch::getUserByIdGlobal($targetUserId)
+            : UserSearch::getUserById((string)$obUser['tenancy_id'], $targetUserId);
+
+        if (!$targetUser || !self::canManageUserForTrunk($obUser, $targetUser)) {
+            return new Response(403, ['success' => false, 'message' => 'Você não pode remover este vínculo.'], 'application/json');
+        }
+
+        TrunkUserAssignment::removeActiveAssignment(
+            (string)($targetUser['tenancy_id'] ?? $obUser['tenancy_id']),
+            $targetUserId,
+            (int)($trunk['id'] ?? 0)
+        );
+
+        return new Response(200, [
+            'success' => true,
+            'message' => 'Vínculo removido com sucesso.',
+        ], 'application/json');
+    }
+
+    public static function getTrunkRoutesPreview($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $trunk = self::loadManagedTrunk($obUser, (int)$id);
+        if ($trunk instanceof Response) {
+            return $trunk;
+        }
+
+        return new Response(200, [
+            'success' => true,
+            'data' => [
+                'trunk' => $trunk,
+                'legacy_compatibility' => [
+                    'techprefix' => (string)($trunk['techprefix'] ?? ''),
+                    'dial_prefix' => (string)($trunk['dial_prefix'] ?? ''),
+                    'billing_type' => VoicePricingService::normalizeBillingType($trunk['billing_type'] ?? $trunk['cli_type'] ?? null),
+                ],
+                'future_route_classes' => [
+                    'Brasil',
+                    'Internacional',
+                    'Fixo',
+                    'Celular',
+                    'DDD',
+                    'DDI',
+                ],
+            ],
+        ], 'application/json');
+    }
+
+    public static function setTrunkRankingProfile($request, $id): Response
+    {
+        $obUser = SessionUser::getLogged();
+        if (!$obUser) {
+            return new Response(401, ['success' => false, 'message' => 'Usuário não autenticado.'], 'application/json');
+        }
+
+        $trunk = self::loadManagedTrunk($obUser, (int)$id);
+        if ($trunk instanceof Response) {
+            return $trunk;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $manualPriority = max(-1000, min(1000, (int)($input['manual_priority'] ?? 0)));
+        $isOperationTrunk = !empty($input['is_operation_trunk']);
+        $tenancyId = (string)($obUser['tenancy_id'] ?? $trunk['tenant_id'] ?? '');
+
+        TrunkOperationProfile::upsert(
+            $tenancyId,
+            (int)($trunk['id'] ?? 0),
+            (string)($trunk['trunk_id'] ?? ''),
+            (string)($trunk['name'] ?? ''),
+            $manualPriority,
+            $isOperationTrunk,
+            (int)($obUser['id'] ?? 0)
+        );
+
+        return new Response(200, [
+            'success' => true,
+            'message' => 'Configuração operacional do trunk atualizada.',
+        ], 'application/json');
     }
 
 

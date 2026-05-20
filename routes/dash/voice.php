@@ -117,6 +117,61 @@ $obRouter->patch('/campaign/voice/sip-trunks/{id}/status', [
     }
 ]);
 
+$obRouter->get('/campaign/voice/sip-trunks/{id}/users', [
+    'name' => '/campaign/voice/sip-trunks/{id}/users',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::getTrunkUsers($request, $id));
+    }
+]);
+
+$obRouter->post('/campaign/voice/sip-trunks/{id}/users', [
+    'name' => '/campaign/voice/sip-trunks/{id}/users',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::setTrunkUserAssignment($request, $id));
+    }
+]);
+
+$obRouter->post('/campaign/voice/sip-trunks/{id}/users/remove', [
+    'name' => '/campaign/voice/sip-trunks/{id}/users/remove',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::setTrunkUserUnassignment($request, $id));
+    }
+]);
+
+$obRouter->get('/campaign/voice/sip-trunks/{id}/routes', [
+    'name' => '/campaign/voice/sip-trunks/{id}/routes',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::getTrunkRoutesPreview($request, $id));
+    }
+]);
+
+$obRouter->post('/campaign/voice/sip-trunks/{id}/ranking', [
+    'name' => '/campaign/voice/sip-trunks/{id}/ranking',
+    'middlewares' => [
+        'require-session-login',
+        'require-permissions-tenancies'
+    ],
+    function ($request, $id) {
+        return new Response(200, Pages\Voice::setTrunkRankingProfile($request, $id));
+    }
+]);
+
 
 $obRouter->post('/campaign/voice/{id}/{action}', [
     'name' => '/campaign/voice/{id}/{action}', // nome da rota

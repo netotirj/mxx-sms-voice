@@ -1,979 +1,1015 @@
 <div class="w-full px-6 py-6 mx-auto">
-
-    <div class="flex flex-wrap -mx-3">
-        <div class="flex-none w-full max-w-full px-3">
-            <div
-                    class="relative flex flex-col bg-white shadow-xl dark:bg-slate-850 dark:shadow-dark-xl rounded-2xl"
-            >
-                <!-- Cabeçalho -->
-                <div class="p-6 pb-0 mb-0 flex justify-between items-center">
-                    <h6 class="dark:text-white font-semibold text-lg">SIP Trunks</h6>
-                    <div class="flex gap-3">
-                        <button
-                                id="deleteTrunkSelected"
-                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-red-500 to-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition opacity-60 cursor-not-allowed"
-                                disabled
-                        >
-                            <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                            >
-                                <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                            </svg>
-                            Excluir Selecionados
-                        </button>
-
-                        <button
-                                id="createTrunk"
-                                class="inline-flex items-center gap-2 bg-gradient-to-tr from-emerald-500 to-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow hover:shadow-md transition"
-                        >
-                            <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                            >
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                            </svg>
-                            Create
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Busca -->
-                <div class="px-6 py-4 flex justify-end">
-                    <div class="relative w-[250px]">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg
-                                    class="w-5 h-5 text-slate-400"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                            >
-                                <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M21 21l-4.35-4.35M16 10a6 6 0 11-12 0 6 6 0 0112 0z"
-                                />
-                            </svg>
-                        </div>
-                        <input
-                                type="text"
-                                id="searchTrunkInput"
-                                placeholder="Buscar Trunks..."
-                                class="pl-10 pr-4 py-2 text-sm border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white dark:border-slate-700"
-                        />
-                    </div>
-                </div>
-
-                <!-- Tabela -->
-                <div class="flex-auto px-0 pt-0 pb-2">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-center border-collapse text-slate-500 dark:text-white">
-                            <thead class="bg-gray-50 dark:bg-slate-800">
-                            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
-                                <th class="px-4 py-3 text-xs font-bold uppercase">
-                                    <input type="checkbox" id="selectAll" class="accent-emerald-500 w-4 h-4 cursor-pointer" />
-                                </th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Nome</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Host</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Usuário</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Porta</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Transporte</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">TechPrefix</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Direção</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Dial Prefix</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Tipo</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Criado</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Modificado</th>
-                                <th class="px-4 py-3 text-xs font-bold uppercase">Status</th>
-                            </tr>
-                            </thead>
-
-                            <tbody id="trunksTableBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Paginação -->
-                <div class="flex items-center justify-between px-6 py-4 border-t dark:border-slate-700">
-                    <button
-                            id="prevPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
-                    >
-                        Anterior
-                    </button>
-                    <span id="pageInfo" class="text-sm text-slate-600 dark:text-slate-300"
-                    >Página 1 de 1</span
-                    >
-                    <button
-                            id="nextPage"
-                            class="px-3 py-1 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition"
-                    >
-                        Próxima
-                    </button>
-                </div>
-            </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Melhor tronco hoje</p>
+            <h3 id="card-best-name" class="mt-3 text-lg font-semibold text-slate-800">Sem dados</h3>
+            <p id="card-best-detail" class="mt-2 text-sm text-slate-500">Aguardando chamadas nas ultimas 24h.</p>
+        </div>
+        <div class="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">Pior tronco hoje</p>
+            <h3 id="card-worst-name" class="mt-3 text-lg font-semibold text-slate-800">Sem dados</h3>
+            <p id="card-worst-detail" class="mt-2 text-sm text-slate-500">Aguardando chamadas nas ultimas 24h.</p>
+        </div>
+        <div class="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Tronco da operacao</p>
+            <h3 id="card-operation-name" class="mt-3 text-lg font-semibold text-slate-800">Nao definido</h3>
+            <p id="card-operation-detail" class="mt-2 text-sm text-slate-500">Defina manualmente no painel de ranking.</p>
+        </div>
+        <div class="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600">Falhas ultimas 24h</p>
+            <h3 id="card-failures-total" class="mt-3 text-3xl font-semibold text-slate-800">0</h3>
+            <p class="mt-2 text-sm text-slate-500">Falhas consolidadas por trunk no CDR local.</p>
         </div>
     </div>
 
-    <!-- Modal Trunk -->
-    <div id="trunkModal"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="trunkModalTitle"
-         class="fixed inset-0 z-[100050] hidden items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-
-        <div
-            class="relative z-[100051] w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white text-left shadow-2xl scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent transition-all duration-200 dark:border-slate-700 dark:bg-slate-900 dark:scrollbar-thumb-slate-700">
-
-            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
-                <div class="min-w-0 flex items-center gap-2">
-                    <span class="text-lg leading-none">➕</span>
-                    <h3 id="trunkModalTitle"
-                        class="text-lg font-semibold text-slate-800 dark:text-white">
-                        Adicionar SIP Trunk
-                    </h3>
-                </div>
-
-                <button type="button"
-                        id="closeTrunkModal"
-                        data-modal-close
-                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                        aria-label="Fechar modal de trunk">
-                    <i class="fa fa-xmark text-lg"></i>
-                </button>
+    <div class="mt-6 rounded-2xl bg-white shadow-xl">
+        <div class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-800">Central de Troncos</h2>
+                <p class="mt-1 text-sm text-slate-500">Gestao operacional de trunks, usuarios vinculados e preparo para ranking/rotas.</p>
             </div>
 
-            <form id="trunkForm" class="space-y-4 px-6 py-5">
+            <div class="flex flex-col gap-3 sm:flex-row">
+                <button
+                    id="deleteTrunkSelected"
+                    class="inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled
+                >
+                    Excluir selecionados
+                </button>
+                <button
+                    id="createTrunk"
+                    class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                    Novo trunk
+                </button>
+            </div>
+        </div>
 
-                <input type="hidden" name="trunk_id">
+        <div class="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between">
+            <div class="text-sm text-slate-500">
+                <span id="trunk-total-label">0 trunks carregados</span>
+            </div>
+            <div class="relative w-full md:w-80">
+                <input
+                    id="searchTrunkInput"
+                    type="text"
+                    placeholder="Buscar por nome, host ou tipo"
+                    class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-700 outline-none transition focus:border-emerald-500"
+                />
+            </div>
+        </div>
 
-                <!-- Nome -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full border-collapse text-left">
+                <thead class="bg-slate-50">
+                    <tr class="text-xs uppercase tracking-[0.18em] text-slate-500">
+                        <th class="px-4 py-3">
+                            <input type="checkbox" id="selectAll" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                        </th>
+                        <th class="px-4 py-3">Nome</th>
+                        <th class="px-4 py-3">Host</th>
+                        <th class="px-4 py-3">Tipo</th>
+                        <th class="px-4 py-3">Direcao</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Tech Prefix</th>
+                        <th class="px-4 py-3">Usuarios</th>
+                        <th class="px-4 py-3 text-right">Acoes</th>
+                    </tr>
+                </thead>
+                <tbody id="trunksTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-slate-100 px-6 py-4">
+            <button id="prevPage" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">Anterior</button>
+            <span id="pageInfo" class="text-sm text-slate-500">Pagina 1 de 1</span>
+            <button id="nextPage" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">Proxima</button>
+        </div>
+    </div>
+</div>
+
+<div id="trunkModal" class="fixed inset-0 z-[100050] hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+                <h3 id="trunkModalTitle" class="text-lg font-semibold text-slate-800">Novo trunk</h3>
+                <p class="mt-1 text-sm text-slate-500">Campos tecnicos preservados para manter compatibilidade atual.</p>
+            </div>
+            <button id="closeTrunkModal" class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">Fechar</button>
+        </div>
+
+        <form id="trunkForm" class="space-y-5 px-6 py-6">
+            <input type="hidden" name="trunk_id">
+
+            <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label class="block text-sm font-medium mb-1">Nome do Trunk</label>
-                    <input name="name" required
-                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Nome</label>
+                    <input name="name" required class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
                 </div>
-
-                <!-- Tipo Auth -->
                 <div>
-                    <label class="block text-sm font-medium mb-1">Autenticação</label>
-                    <select name="auth_type" id="auth_type"
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                        <option value="register">REGISTER (Usuário/Senha)</option>
-                        <option value="ip">IP AUTH (Sem senha)</option>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Host</label>
+                    <input name="host" required class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Autenticacao</label>
+                    <select name="auth_type" id="auth_type" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                        <option value="register">REGISTER</option>
+                        <option value="ip">IP AUTH</option>
                     </select>
                 </div>
-
-                <!-- Host / IP -->
                 <div>
-                    <label class="block text-sm font-medium mb-1">Host / IP</label>
-                    <input name="host" required
-                           placeholder="sip.operadora.com ou 200.200.200.200"
-                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                </div>
-
-                <!-- REGISTER Fields -->
-                <div id="authFields" class="space-y-3">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Username</label>
-                        <input name="username"
-                               class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Password</label>
-                        <input name="password"
-                               placeholder="Preencha apenas para alterar a senha"
-                               class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                    </div>
-                </div>
-
-                <!-- Porta -->
-                <div>
-                    <label class="block text-sm font-medium mb-1">Porta</label>
-                    <input name="port" value="5060"
-                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                </div>
-
-                <!-- Transporte -->
-                <div>
-                    <label class="block text-sm font-medium mb-1">Transporte</label>
-                    <select name="transport"
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                        <option value="udp">UDP</option>
-                        <option value="tcp">TCP</option>
-                        <option value="tls">TLS</option>
-                    </select>
-                </div>
-
-                <!-- Direção -->
-                <div>
-                    <label class="block text-sm font-medium mb-1">Direção</label>
-                    <select name="direction"
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Direcao</label>
+                    <select name="direction" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
                         <option value="outbound">Outbound</option>
                         <option value="inbound">Inbound</option>
                         <option value="both">Both</option>
                     </select>
                 </div>
+            </div>
 
-                <!-- cli_type -->
+            <div id="authFields" class="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label class="block text-sm font-medium mb-1">Tipo</label>
-                    <select id="cli_type" name="cli_type"
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                        <option value="cli_aberta">Cli-Aberta</option>
-                        <option value="bina_inteligente">Bina</option>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Username</label>
+                    <input name="username" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Password</label>
+                    <input name="password" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Tipo de tarifacao</label>
+                    <select id="cli_type" name="cli_type" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                        <option value="cli_aberta">CLI Aberta</option>
+                        <option value="bina_inteligente">Bina Inteligente</option>
                     </select>
                 </div>
-
-
-                <!-- Tech Prefix -->
                 <div>
-                    <label class="block text-sm font-medium mb-1">Tech Prefix</label>
-                    <input name="techprefix" placeholder="Ex: 5555, 0"
-                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium mb-1">Dial Prefix</label>
-                    <input name="dial_prefix" placeholder="Ex: 55, 65"
-                           class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                </div>
-
-                <!-- Status -->
-                <div>
-                    <label class="block text-sm font-medium mb-1">Status</label>
-                    <select name="status"
-                            class="w-full border rounded-lg px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Status</label>
+                    <select name="status" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
                         <option value="active">Ativo</option>
                         <option value="inactive">Inativo</option>
                     </select>
                 </div>
+            </div>
 
-                <!-- Botões -->
-                <div class="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
-                    <button type="button" id="cancelTrunk"
-                            class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
-                        Cancelar
-                    </button>
-
-                    <button type="submit"
-                            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
-                        Salvar
-                    </button>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Tech Prefix</label>
+                    <input name="techprefix" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500" placeholder="Ex.: 0 ou 5555">
                 </div>
-            </form>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Dial Prefix</label>
+                    <input name="dial_prefix" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500" placeholder="Ex.: 55 ou 65">
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Porta</label>
+                    <input name="port" value="5060" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Transporte</label>
+                    <select name="transport" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                        <option value="udp">UDP</option>
+                        <option value="tcp">TCP</option>
+                        <option value="tls">TLS</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-slate-100 pt-5">
+                <button type="button" id="cancelTrunk" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Cancelar</button>
+                <button type="submit" id="submitTrunkButton" class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="trunkUsersModal" class="fixed inset-0 z-[100060] hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+                <h3 id="trunkUsersTitle" class="text-lg font-semibold text-slate-800">Usuarios do trunk</h3>
+                <p class="mt-1 text-sm text-slate-500">Cada usuario pode ter apenas um trunk principal ativo.</p>
+            </div>
+            <button data-close-users class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">Fechar</button>
+        </div>
+        <div class="grid gap-6 px-6 py-6 lg:grid-cols-2">
+            <div>
+                <h4 class="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Vinculados</h4>
+                <div id="linkedUsersWrap" class="mt-3 space-y-3"></div>
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Disponiveis</h4>
+                <div id="eligibleUsersWrap" class="mt-3 space-y-3"></div>
+            </div>
         </div>
     </div>
 </div>
 
+<div id="trunkRoutesModal" class="fixed inset-0 z-[100070] hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="w-full max-w-2xl rounded-[2rem] bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+                <h3 id="trunkRoutesTitle" class="text-lg font-semibold text-slate-800">Rotas do trunk</h3>
+                <p class="mt-1 text-sm text-slate-500">Preparacao para classificacao futura sem remover compatibilidade legada.</p>
+            </div>
+            <button data-close-routes class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">Fechar</button>
+        </div>
+        <div id="trunkRoutesContent" class="space-y-4 px-6 py-6 text-sm text-slate-600"></div>
+    </div>
+</div>
 
+<div id="trunkRankingModal" class="fixed inset-0 z-[100080] hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="w-full max-w-2xl rounded-[2rem] bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+                <h3 id="trunkRankingTitle" class="text-lg font-semibold text-slate-800">Ranking operacional</h3>
+                <p class="mt-1 text-sm text-slate-500">Ajustes manuais sem impacto direto no contrato atual de chamadas.</p>
+            </div>
+            <button data-close-ranking class="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">Fechar</button>
+        </div>
+        <form id="trunkRankingForm" class="space-y-5 px-6 py-6">
+            <div id="trunkRankingSummary" class="grid gap-3 md:grid-cols-2"></div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Prioridade manual</label>
+                    <input id="rankingManualPriority" name="manual_priority" type="number" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+                <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
+                    <input id="rankingOperationFlag" name="is_operation_trunk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                    Definir como tronco da operacao
+                </label>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-slate-100 pt-5">
+                <button type="button" data-close-ranking class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Cancelar</button>
+                <button type="submit" id="submitRankingButton" class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Salvar ranking</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const API = {
-            list: `${baseUrl}/campaign/voice/sip-trunks/view`,
-            create: `${baseUrl}/campaign/voice/sip-trunks/new`,
-            edit: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
-            update: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
-            delete: `${baseUrl}/campaign/voice/sip-trunks/delete`,
-            status: id => `${baseUrl}/campaign/voice/sip-trunks/${id}/status`
-        };
+document.addEventListener("DOMContentLoaded", () => {
+    const API = {
+        list: `${baseUrl}/campaign/voice/sip-trunks/view`,
+        create: `${baseUrl}/campaign/voice/sip-trunks/new`,
+        edit: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
+        update: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/edit`,
+        delete: `${baseUrl}/campaign/voice/sip-trunks/delete`,
+        status: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/status`,
+        users: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/users`,
+        usersRemove: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/users/remove`,
+        routes: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/routes`,
+        ranking: (id) => `${baseUrl}/campaign/voice/sip-trunks/${id}/ranking`
+    };
 
-        const state = {
-            trunks: [],
-            filtered: [],
-            page: 1,
-            perPage: 10,
-            editMode: false,
-            editingId: null,
-            isModalOpen: false,
-            listRequestInFlight: false,
-            saveRequestInFlight: false,
-            editRequestInFlight: false
-        };
+    const state = {
+        trunks: [],
+        filtered: [],
+        cards: {},
+        page: 1,
+        perPage: 10,
+        editMode: false,
+        editingId: null,
+        authRole: "",
+        selectedRankingId: null,
+        refreshTimer: null
+    };
 
-        const tbody = document.getElementById("trunksTableBody");
-        const searchInput = document.getElementById("searchTrunkInput");
-        const selectAll = document.getElementById("selectAll");
-        const deleteBtn = document.getElementById("deleteTrunkSelected");
-        const prevBtn = document.getElementById("prevPage");
-        const nextBtn = document.getElementById("nextPage");
-        const pageInfo = document.getElementById("pageInfo");
-        const modal = document.getElementById("trunkModal");
-        const modalTitle = document.getElementById("trunkModalTitle");
-        const form = document.getElementById("trunkForm");
-        const createBtn = document.getElementById("createTrunk");
-        const cancelBtn = document.getElementById("cancelTrunk");
-        const closeModalBtn = document.getElementById("closeTrunkModal");
-        const authTypeSel = document.getElementById("auth_type");
-        const authFields = document.getElementById("authFields");
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const auth = { role: "" };
-        let trunksRefreshTimer = null;
+    const tbody = document.getElementById("trunksTableBody");
+    const searchInput = document.getElementById("searchTrunkInput");
+    const selectAll = document.getElementById("selectAll");
+    const deleteBtn = document.getElementById("deleteTrunkSelected");
+    const createBtn = document.getElementById("createTrunk");
+    const prevBtn = document.getElementById("prevPage");
+    const nextBtn = document.getElementById("nextPage");
+    const pageInfo = document.getElementById("pageInfo");
+    const totalLabel = document.getElementById("trunk-total-label");
 
-        const FORM_FIELDS = [
-            "trunk_id",
-            "name",
-            "auth_type",
-            "host",
-            "username",
-            "password",
-            "port",
-            "transport",
-            "direction",
-            "cli_type",
-            "techprefix",
-            "dial_prefix",
-            "status"
-        ];
+    const trunkModal = document.getElementById("trunkModal");
+    const trunkForm = document.getElementById("trunkForm");
+    const trunkModalTitle = document.getElementById("trunkModalTitle");
+    const submitTrunkButton = document.getElementById("submitTrunkButton");
+    const authTypeSelect = document.getElementById("auth_type");
+    const authFields = document.getElementById("authFields");
 
-        const isSuperAdmin = () => auth.role === "super_admin";
-        const isSystemLocked = (trunk) => Number(trunk?.is_system ?? 0) === 1 && !isSuperAdmin();
-        const formatDate = d => new Date(d).toLocaleDateString("pt-BR");
-        const selectedIds = () =>
-            [...tbody.querySelectorAll(".row-checkbox:checked:not(:disabled)")]
-                .map(cb => cb.value);
+    const usersModal = document.getElementById("trunkUsersModal");
+    const linkedUsersWrap = document.getElementById("linkedUsersWrap");
+    const eligibleUsersWrap = document.getElementById("eligibleUsersWrap");
+    const trunkUsersTitle = document.getElementById("trunkUsersTitle");
 
-        function buildNoCacheUrl(url) {
-            const freshUrl = new URL(url, window.location.origin);
-            freshUrl.searchParams.set("_ts", String(Date.now()));
-            return freshUrl.toString();
+    const routesModal = document.getElementById("trunkRoutesModal");
+    const routesContent = document.getElementById("trunkRoutesContent");
+    const routesTitle = document.getElementById("trunkRoutesTitle");
+
+    const rankingModal = document.getElementById("trunkRankingModal");
+    const rankingForm = document.getElementById("trunkRankingForm");
+    const rankingTitle = document.getElementById("trunkRankingTitle");
+    const rankingSummary = document.getElementById("trunkRankingSummary");
+    const rankingManualPriority = document.getElementById("rankingManualPriority");
+    const rankingOperationFlag = document.getElementById("rankingOperationFlag");
+    const submitRankingButton = document.getElementById("submitRankingButton");
+
+    const formFields = [
+        "trunk_id",
+        "name",
+        "auth_type",
+        "host",
+        "username",
+        "password",
+        "port",
+        "transport",
+        "direction",
+        "cli_type",
+        "techprefix",
+        "dial_prefix",
+        "status"
+    ];
+
+    function buildNoCacheUrl(url) {
+        const parsed = new URL(url, window.location.origin);
+        parsed.searchParams.set("_ts", String(Date.now()));
+        return parsed.toString();
+    }
+
+    async function parseJsonResponse(response, fallbackMessage) {
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/json")) {
+            const text = await response.text();
+            throw new Error(text || fallbackMessage);
         }
 
-        async function parseJsonResponse(response, fallbackMessage) {
-            const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-            const redirected = response.redirected || response.url.includes("/login");
-
-            if (redirected) {
-                const error = new Error("Sessão expirada. Faça login novamente.");
-                error.code = response.status || 302;
-                throw error;
-            }
-
-            if (!contentType.includes("application/json")) {
-                const text = await response.text();
-                const message = /<html|<body|<form/i.test(text)
-                    ? "A rota retornou HTML em vez de JSON. Verifique sessão, middleware ou redirecionamento."
-                    : (text || fallbackMessage);
-                const error = new Error(message);
-                error.code = response.status || 500;
-                error.responseText = text;
-                throw error;
-            }
-
-            const payload = await response.json();
-            if (!response.ok || payload?.success === false) {
-                const error = new Error(payload?.message || fallbackMessage);
-                error.code = payload?.status || response.status || 500;
-                error.payload = payload;
-                throw error;
-            }
-
-            return payload;
+        const payload = await response.json();
+        if (!response.ok || payload?.success === false) {
+            throw new Error(payload?.message || payload?.error || fallbackMessage);
         }
 
-        function setSubmitLoading(loading) {
-            state.saveRequestInFlight = loading;
-            submitBtn.disabled = loading;
-            submitBtn.textContent = loading ? "Salvando..." : "Salvar";
-        }
+        return payload;
+    }
 
-        function openModal() {
-            state.isModalOpen = true;
-            document.body.classList.add("overflow-hidden");
-            modal.classList.remove("hidden");
-            modal.classList.add("flex");
-        }
+    function isSystemLocked(trunk) {
+        return Number(trunk?.is_system ?? 0) === 1 && state.authRole !== "super_admin";
+    }
 
-        function closeModal() {
-            state.isModalOpen = false;
+    function selectedIds() {
+        return Array.from(tbody.querySelectorAll(".row-checkbox:checked:not(:disabled)")).map((el) => el.value);
+    }
+
+    function openModal(el) {
+        el.classList.remove("hidden");
+        el.classList.add("flex");
+        document.body.classList.add("overflow-hidden");
+    }
+
+    function closeModal(el) {
+        el.classList.add("hidden");
+        el.classList.remove("flex");
+        if (!document.querySelector(".fixed.flex")) {
             document.body.classList.remove("overflow-hidden");
-            modal.classList.add("hidden");
-            modal.classList.remove("flex");
-            state.editMode = false;
-            state.editingId = null;
-            state.editRequestInFlight = false;
-            setSubmitLoading(false);
-            form.reset();
-            authFields.classList.remove("hidden");
+        }
+    }
+
+    function formatRole(role) {
+        const map = {
+            admin: "Administrador",
+            reseller: "Revendedor",
+            agent: "Agente",
+            operator: "Operador",
+            o: "Operador"
+        };
+        return map[String(role || "").toLowerCase()] || (role || "Usuario");
+    }
+
+    function formatDirection(direction) {
+        const value = String(direction || "").toLowerCase();
+        if (value === "inbound") return "Inbound";
+        if (value === "outbound") return "Outbound";
+        if (value === "both") return "Both";
+        return "-";
+    }
+
+    function formatType(trunk) {
+        const value = String(trunk?.cli_type || "").toLowerCase();
+        if (value === "cli_aberta") return "CLI Aberta";
+        if (value === "bina_inteligente") return "Bina Inteligente";
+        return trunk?.billing_type || "-";
+    }
+
+    function formatStatusBadge(trunk) {
+        const active = trunk?.status === "active";
+        const sipOk = String(trunk?.sip_status || "").toUpperCase() === "OK";
+        const color = active && sipOk ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700";
+        const label = active ? (sipOk ? "Ativo / OK" : "Ativo / Degradado") : "Inativo";
+        return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${color}">${label}</span>`;
+    }
+
+    function renderCards() {
+        const best = state.cards?.best_trunk_today || null;
+        const worst = state.cards?.worst_trunk_today || null;
+        const operation = state.cards?.operation_trunk || null;
+        const failures = state.cards?.failures_last_24h || { total: 0 };
+
+        document.getElementById("card-best-name").textContent = best?.name || "Sem dados";
+        document.getElementById("card-best-detail").textContent = best ? `${best.completion_rate}% de completamento em ${best.attempted_calls} tentativa(s).` : "Aguardando chamadas nas ultimas 24h.";
+
+        document.getElementById("card-worst-name").textContent = worst?.name || "Sem dados";
+        document.getElementById("card-worst-detail").textContent = worst ? `${worst.completion_rate}% de completamento em ${worst.attempted_calls} tentativa(s).` : "Aguardando chamadas nas ultimas 24h.";
+
+        document.getElementById("card-operation-name").textContent = operation?.name || "Nao definido";
+        document.getElementById("card-operation-detail").textContent = operation ? `Prioridade manual ${operation.manual_priority}. Status ${operation.status_operational}.` : "Defina manualmente no painel de ranking.";
+
+        document.getElementById("card-failures-total").textContent = String(failures?.total || 0);
+    }
+
+    function renderPagination() {
+        const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.perPage));
+        if (state.page > totalPages) state.page = totalPages;
+        pageInfo.textContent = `Pagina ${state.page} de ${totalPages}`;
+        prevBtn.disabled = state.page <= 1;
+        nextBtn.disabled = state.page >= totalPages;
+    }
+
+    function updateDeleteButton() {
+        const ids = selectedIds();
+        deleteBtn.disabled = ids.length === 0;
+        const checkboxes = Array.from(tbody.querySelectorAll(".row-checkbox:not(:disabled)"));
+        const checked = checkboxes.filter((item) => item.checked);
+        selectAll.checked = checkboxes.length > 0 && checked.length === checkboxes.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+    }
+
+    function applyFilter() {
+        const q = String(searchInput.value || "").trim().toLowerCase();
+        state.filtered = state.trunks.filter((trunk) => {
+            return String(trunk?.name || "").toLowerCase().includes(q)
+                || String(trunk?.host || "").toLowerCase().includes(q)
+                || String(trunk?.cli_type || trunk?.billing_type || "").toLowerCase().includes(q);
+        });
+        state.page = 1;
+        renderTable();
+    }
+
+    function renderEmptyState(message) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="px-6 py-14 text-center text-sm text-slate-500">${message}</td>
+            </tr>
+        `;
+        renderPagination();
+        updateDeleteButton();
+    }
+
+    function renderTable() {
+        totalLabel.textContent = `${state.trunks.length} trunk(s) carregado(s)`;
+
+        if (state.filtered.length === 0) {
+            renderEmptyState(searchInput.value ? "Nenhum trunk encontrado para o filtro informado." : "Nenhum trunk cadastrado.");
+            return;
         }
 
-        function fillFormFromTrunk(trunk) {
-            FORM_FIELDS.forEach((field) => {
-                if (!form.elements[field]) {
-                    return;
-                }
+        const start = (state.page - 1) * state.perPage;
+        const rows = state.filtered.slice(start, start + state.perPage);
 
-                let value = trunk?.[field] ?? "";
-                if (field === "trunk_id" && !value) {
-                    value = trunk?.trunk_id ?? trunk?.id ?? "";
-                }
-                form.elements[field].value = value;
-            });
+        tbody.innerHTML = rows.map((trunk) => {
+            const locked = isSystemLocked(trunk);
+            const ranking = trunk?.ranking || {};
+            const linkedCount = Number(trunk?.linked_users_count || 0);
 
-            authFields.classList.toggle("hidden", String(trunk?.auth_type || "register") === "ip");
-        }
-
-        async function fetchTrunks() {
-            if (state.listRequestInFlight) {
-                return;
-            }
-
-            state.listRequestInFlight = true;
-            try {
-                const res = await fetch(buildNoCacheUrl(API.list), {
-                    cache: "no-store",
-                    headers: {
-                        "Accept": "application/json",
-                        "Cache-Control": "no-cache",
-                        "Pragma": "no-cache",
-                        "X-Requested-With": "XMLHttpRequest"
-                    },
-                    credentials: "same-origin"
-                });
-
-                const json = await parseJsonResponse(res, "Falha ao consultar SIP Trunks.");
-                auth.role = String(json?.meta?.role || "").toLowerCase();
-                state.trunks = Array.isArray(json.data) ? json.data : [];
-                applyFilter();
-            } finally {
-                state.listRequestInFlight = false;
-            }
-        }
-
-        async function fetchTrunkForEdit(id) {
-            const res = await fetch(buildNoCacheUrl(API.edit(id)), {
-                cache: "no-store",
-                headers: {
-                    "Accept": "application/json",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                credentials: "same-origin"
-            });
-
-            const payload = await parseJsonResponse(res, "Falha ao carregar os dados do trunk para edição.");
-            return payload?.data || null;
-        }
-
-        async function saveTrunk(data) {
-            const isEdit = state.editMode && state.editingId;
-            const url = isEdit ? API.update(state.editingId) : API.create;
-
-            const res = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                credentials: "same-origin",
-                body: JSON.stringify(data)
-            });
-
-            await parseJsonResponse(res, "Erro ao salvar trunk.");
-            await fetchTrunks();
-        }
-
-        async function deleteTrunks(ids) {
-            const res = await fetch(API.delete, {
-                method: "POST",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                credentials: "same-origin",
-                body: JSON.stringify({ ids })
-            });
-
-            await parseJsonResponse(res, "Erro ao excluir trunk.");
-            await fetchTrunks();
-        }
-
-        async function toggleStatus(id, status) {
-            const res = await fetch(API.status(id), {
-                method: "PATCH",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                credentials: "same-origin",
-                body: JSON.stringify({ status })
-            });
-
-            await parseJsonResponse(res, "Erro ao atualizar status.");
-        }
-
-        function startTrunksAutoRefresh() {
-            stopTrunksAutoRefresh();
-            trunksRefreshTimer = window.setInterval(() => {
-                if (!document.hidden && !state.isModalOpen && !state.listRequestInFlight) {
-                    fetchTrunks().catch((error) => {
-                        console.error("[trunks] auto-refresh error", error);
-                    });
-                }
-            }, 10000);
-        }
-
-        function stopTrunksAutoRefresh() {
-            if (trunksRefreshTimer) {
-                clearInterval(trunksRefreshTimer);
-                trunksRefreshTimer = null;
-            }
-        }
-
-        /* =====================================================
-         * RENDER
-         * ===================================================== */
-        function renderTable() {
-            tbody.innerHTML = "";
-
-            const TOTAL_COLS = 13;
-
-            // 🔹 garante que a página atual não fique inválida após filtro
-            const total = state.filtered.length;
-            const totalPages = Math.max(1, Math.ceil(total / state.perPage));
-            if (state.page > totalPages) state.page = totalPages;
-
-            const start = (state.page - 1) * state.perPage;
-            const rows = state.filtered.slice(start, start + state.perPage);
-
-            // 🔹 Empty state
-            if (rows.length === 0) {
-                const hasFilter = !!searchInput?.value?.trim();
-
-                tbody.innerHTML = `
-                <tr>
-                  <td colspan="${TOTAL_COLS}" class="py-14 text-center">
-                    <div class="flex flex-col items-center gap-2 text-slate-400">
-                      <div class="text-4xl">${hasFilter ? "🔍" : "📭"}</div>
-
-                      <div class="text-sm font-semibold text-slate-500">
-                        ${hasFilter ? "Nenhum trunk encontrado para esta busca" : "Nenhum SIP Trunk cadastrado"}
-                      </div>
-
-                      <div class="text-xs text-slate-400">
-                        ${hasFilter ? "Tente ajustar o termo de pesquisa." : "Clique em “Create” para adicionar um novo trunk."}
-                      </div>
-                    </div>
-                  </td>
+            return `
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-4 align-top">
+                        <input type="checkbox" value="${trunk.id}" class="row-checkbox h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" ${locked ? "disabled" : ""}>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="font-semibold text-slate-800">${trunk.name || "-"}</div>
+                        <div class="mt-1 text-xs text-slate-500">${trunk.trunk_id || "-"}</div>
+                    </td>
+                    <td class="px-4 py-4 align-top text-sm text-slate-600">${trunk.host || "-"}</td>
+                    <td class="px-4 py-4 align-top text-sm text-slate-600">${formatType(trunk)}</td>
+                    <td class="px-4 py-4 align-top text-sm text-slate-600">${formatDirection(trunk.direction)}</td>
+                    <td class="px-4 py-4 align-top">
+                        ${formatStatusBadge(trunk)}
+                        <div class="mt-2 flex items-center gap-2">
+                            <label class="inline-flex items-center ${locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"}">
+                                <input type="checkbox" class="status-toggle sr-only" data-id="${trunk.id}" ${trunk.status === "active" ? "checked" : ""} ${locked ? "disabled" : ""}>
+                                <span class="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 transition ${trunk.status === "active" ? "!bg-emerald-500" : ""}">
+                                    <span class="inline-block h-4 w-4 translate-x-1 rounded-full bg-white transition ${trunk.status === "active" ? "!translate-x-6" : ""}"></span>
+                                </span>
+                            </label>
+                            <span class="text-xs text-slate-500">${trunk.sip_status || "Sem SIP status"}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 align-top text-sm text-slate-600">${trunk.techprefix || "-"}</td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="text-sm font-semibold text-slate-700">${linkedCount}</div>
+                        <div class="mt-1 text-xs text-slate-500">usuarios vinculados</div>
+                    </td>
+                    <td class="px-4 py-4 align-top">
+                        <div class="flex flex-wrap justify-end gap-2">
+                            <button class="action-users rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 ${locked ? "opacity-50" : ""}" data-id="${trunk.id}" ${locked ? "disabled" : ""}>Usuarios</button>
+                            <button class="action-routes rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50" data-id="${trunk.id}">Rotas</button>
+                            <button class="action-ranking rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 ${locked ? "opacity-50" : ""}" data-id="${trunk.id}" ${locked ? "disabled" : ""}>Ranking</button>
+                            <button class="action-edit rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 ${locked ? "opacity-50" : ""}" data-id="${trunk.id}" ${locked ? "disabled" : ""}>Editar</button>
+                        </div>
+                        <div class="mt-3 text-right text-xs text-slate-500">
+                            ${ranking.attempted_calls || 0} tentativa(s) | ${ranking.completed_calls || 0} completas | ${ranking.failed_calls || 0} falhas
+                        </div>
+                    </td>
                 </tr>
             `;
+        }).join("");
 
-                updatePagination();
-                updateDeleteButton();
-                return;
+        renderPagination();
+        updateDeleteButton();
+    }
+
+    function fillTrunkForm(trunk) {
+        formFields.forEach((field) => {
+            if (trunkForm.elements[field]) {
+                trunkForm.elements[field].value = trunk?.[field] ?? "";
             }
+        });
+        authFields.classList.toggle("hidden", String(trunk?.auth_type || "register") === "ip");
+    }
 
-            rows.forEach(trunk => {
-                const locked = isSystemLocked(trunk);
+    function setTrunkFormLoading(loading) {
+        submitTrunkButton.disabled = loading;
+        submitTrunkButton.textContent = loading ? "Salvando..." : "Salvar";
+    }
 
-                const editCell = locked
-                    ? `<span class="text-slate-300 text-xs font-semibold cursor-not-allowed"
-             title="Apenas Super Admin pode editar trunk de sistema">
-             ${trunk.name}
-           </span>`
-                    : `<a href="javascript:void(0)"
-             class="edit-link text-emerald-400 font-semibold text-xs"
-             data-id="${trunk.id}">
-             ${trunk.name}
-           </a>`;
+    async function fetchTrunks() {
+        const response = await fetch(buildNoCacheUrl(API.list), {
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
 
-                const checkboxCell = `
-        <input
-          type="checkbox"
-          value="${trunk.id}"
-          class="row-checkbox accent-emerald-500 w-4 h-4 cursor-pointer"
-          ${locked ? "disabled" : ""}
-        >
-    `;
+        const payload = await parseJsonResponse(response, "Falha ao consultar trunks.");
+        state.authRole = String(payload?.meta?.role || "").toLowerCase();
+        state.cards = payload?.cards || {};
+        state.trunks = Array.isArray(payload?.data) ? payload.data : [];
+        renderCards();
+        applyFilter();
+    }
 
-                const toggleCell = `
-        <label class="inline-flex relative items-center ${locked ? "cursor-not-allowed" : "cursor-pointer"}">
-          <input
-            type="checkbox"
-            class="peer sr-only status-toggle"
-            data-id="${trunk.id}"
-            ${trunk.status === "active" ? "checked" : ""}
-            ${locked ? "disabled" : ""}
-          >
-          <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-emerald-500 peer-focus:ring-2 peer-focus:ring-emerald-300 transition-colors ${locked ? "opacity-50" : ""}"></div>
-          <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5 ${locked ? "opacity-80" : ""}"></div>
-        </label>
-    `;
+    async function fetchTrunkForEdit(id) {
+        const response = await fetch(buildNoCacheUrl(API.edit(id)), {
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
+        const payload = await parseJsonResponse(response, "Falha ao carregar trunk.");
+        return payload?.data || null;
+    }
 
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-        <!-- Checkbox -->
-        <td class="px-4 py-3">${checkboxCell}</td>
+    async function saveTrunk(data) {
+        const isEdit = state.editMode && state.editingId;
+        const response = await fetch(isEdit ? API.update(state.editingId) : API.create, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify(data)
+        });
+        await parseJsonResponse(response, "Falha ao salvar trunk.");
+    }
 
-        <!-- Nome + Status -->
-        <td>
-      <div class="flex items-center gap-2 justify-start group relative">
-        <span class="w-2.5 h-2.5 rounded-full ${
-                    trunk.sip_status === 'OK'
-                        ? 'bg-emerald-600 animate-pulse'
-                        : trunk.sip_status === 'WARN'
-                            ? 'bg-yellow-600 animate-pulse'
-                            : trunk.sip_status === 'DOWN'
-                                ? 'bg-red-600'
-                                : 'bg-slate-600'
-                }"></span>
+    async function deleteTrunks(ids) {
+        const response = await fetch(API.delete, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify({ ids })
+        });
+        await parseJsonResponse(response, "Falha ao excluir trunks.");
+    }
 
-            <span class="truncate max-w-[160px] inline-block">
-              ${editCell}
-            </span>
+    async function toggleTrunkStatus(id, status) {
+        const response = await fetch(API.status(id), {
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify({ status })
+        });
+        await parseJsonResponse(response, "Falha ao atualizar status do trunk.");
+    }
 
-            <!-- Tooltip -->
-            <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block
-                        bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-lg z-50
-                        whitespace-nowrap">
-              ${trunk.sip_status}
-              ${trunk.sip_detail ? ' — ' + trunk.sip_detail : ''}
+    function renderLinkedUsers(items, trunkId) {
+        if (!items.length) {
+            linkedUsersWrap.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">Nenhum usuario vinculado a este trunk.</div>`;
+            return;
+        }
+
+        linkedUsersWrap.innerHTML = items.map((user) => `
+            <div class="rounded-2xl border border-slate-200 px-4 py-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="font-semibold text-slate-800">${user.name || ""} ${user.last_name || ""}</div>
+                        <div class="mt-1 text-xs text-slate-500">${formatRole(user.user_function)} | ${user.email || "Sem e-mail"}</div>
+                    </div>
+                    <button class="remove-linked-user rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" data-trunk-id="${trunkId}" data-user-id="${user.user_id}">Remover</button>
+                </div>
             </div>
-          </div>
-        </td>
+        `).join("");
+    }
 
-
-
-        <!-- Host -->
-        <td class="text-xs text-slate-400 whitespace-nowrap text-center"
-            title="${trunk.sip_detail ?? ''}">
-          ${trunk.host}
-        </td>
-
-        <!-- Usuário -->
-        <td class="font-semibold text-xs">${trunk.username || "-"}</td>
-
-        <!-- Porta -->
-        <td class="font-semibold text-xs">${trunk.port}</td>
-
-        <!-- Transporte -->
-        <td class="font-semibold text-xs">${String(trunk.transport || '').toUpperCase()}</td>
-
-        <!-- TechPrefix -->
-        <td class="font-semibold text-xs text-slate-400">
-          ${trunk.techprefix || '—'}
-        </td>
-
-        <!-- Direção -->
-        <td class="text-center">
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold
-            ${trunk.direction === 'inbound'
-                    ? 'bg-blue-100 text-blue-700'
-                    : trunk.direction === 'outbound'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-purple-100 text-purple-700'}">
-            ${trunk.direction === 'inbound'
-                    ? '⬅ Inbound'
-                    : trunk.direction === 'outbound'
-                        ? '➡ Outbound'
-                        : '🔁 Both'}
-          </span>
-        </td>
-
-        <td class="font-semibold text-xs text-slate-400">
-          ${trunk.dial_prefix || '—'}
-        </td>
-
-        <!-- Tipo -->
-        <td class="text-center">
-          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold
-            ${trunk.cli_type === 'cli_aberta'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : trunk.cli_type === 'bina_inteligente'
-                        ? 'bg-indigo-100 text-indigo-700'
-                        : 'bg-slate-100 text-slate-500'}">
-            ${trunk.cli_type === 'cli_aberta'
-                    ? 'CLI Aberta'
-                    : trunk.cli_type === 'bina_inteligente'
-                        ? 'BINA Inteligente'
-                        : '—'}
-          </span>
-        </td>
-
-        <!-- Criado -->
-        <td class="text-xs text-slate-400 whitespace-nowrap">
-          ${formatDate(trunk.created_at)}
-        </td>
-
-        <!-- Modificado -->
-        <td class="text-xs text-slate-400 whitespace-nowrap">
-          ${formatDate(trunk.updated_at)}
-        </td>
-
-        <!-- Status -->
-        <td class="px-6 py-2 text-center">${toggleCell}</td>
-    `;
-
-                tbody.appendChild(tr);
-            });
-
-
-
-
-            updatePagination();
-            updateDeleteButton();
+    function renderEligibleUsers(items, trunkId) {
+        if (!items.length) {
+            eligibleUsersWrap.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">Nenhum usuario disponivel neste escopo.</div>`;
+            return;
         }
 
-        function updatePagination() {
-            const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.perPage));
-            pageInfo.textContent = `Página ${state.page} de ${totalPages}`;
-            prevBtn.disabled = state.page === 1;
-            nextBtn.disabled = state.page === totalPages;
-        }
+        eligibleUsersWrap.innerHTML = items.map((user) => {
+            const alreadyAssigned = !!user.assigned_to_current_trunk;
+            const hasOtherTrunk = !alreadyAssigned && !!user.current_trunk_name;
+            return `
+                <div class="rounded-2xl border border-slate-200 px-4 py-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="font-semibold text-slate-800">${user.name || ""} ${user.last_name || ""}</div>
+                            <div class="mt-1 text-xs text-slate-500">${formatRole(user.user_function)} | ${user.email || "Sem e-mail"}</div>
+                            <div class="mt-2 text-xs text-slate-500">${alreadyAssigned ? "Ja vinculado a este trunk." : (hasOtherTrunk ? `Trunk atual: ${user.current_trunk_name}` : "Sem trunk principal ativo.")}</div>
+                        </div>
+                        <button class="assign-eligible-user rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${alreadyAssigned ? "bg-slate-300 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}" data-trunk-id="${trunkId}" data-user-id="${user.id}" ${alreadyAssigned ? "disabled" : ""}>Vincular</button>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
 
-        function updateDeleteButton() {
-            // ✅ ignora checkboxes travados (disabled)
-            const checkboxes = [...tbody.querySelectorAll(".row-checkbox:not(:disabled)")];
-            const checked    = checkboxes.filter(cb => cb.checked);
-
-            const hasSelection = checked.length > 0;
-            deleteBtn.disabled = !hasSelection;
-            deleteBtn.classList.toggle("opacity-60", !hasSelection);
-            deleteBtn.classList.toggle("cursor-not-allowed", !hasSelection);
-
-            if (!checkboxes.length) {
-                selectAll.checked = false;
-                selectAll.indeterminate = false;
-                return;
-            }
-
-            selectAll.checked = checked.length === checkboxes.length;
-            selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
-        }
-
-        /* =====================================================
-         * FILTER
-         * ===================================================== */
-        function applyFilter() {
-            const q = searchInput.value.toLowerCase();
-            state.filtered = state.trunks.filter(t =>
-                String(t.name || "").toLowerCase().includes(q) ||
-                String(t.host || "").toLowerCase().includes(q) ||
-                String(t.cli_type || "").toLowerCase().includes(q)
-            );
-            state.page = 1;
-            renderTable();
-        }
-
-        searchInput.addEventListener("input", applyFilter);
-
-        selectAll.addEventListener("change", (e) => {
-            tbody
-                .querySelectorAll(".row-checkbox:not(:disabled)")
-                .forEach(cb => {
-                    cb.checked = e.target.checked;
-                });
-
-            updateDeleteButton();
-        });
-
-        modal.addEventListener("click", (e) => {
-            if (e.target === modal) {
-                closeModal();
+    async function openUsersModal(trunk) {
+        const response = await fetch(buildNoCacheUrl(API.users(trunk.id)), {
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
             }
         });
+        const payload = await parseJsonResponse(response, "Falha ao carregar usuarios do trunk.");
+        const data = payload?.data || {};
+        trunkUsersTitle.textContent = `Usuarios do trunk ${data?.trunk?.name || trunk.name || ""}`;
+        renderLinkedUsers(Array.isArray(data?.linked_users) ? data.linked_users : [], trunk.id);
+        renderEligibleUsers(Array.isArray(data?.eligible_users) ? data.eligible_users : [], trunk.id);
+        openModal(usersModal);
+    }
 
-        tbody.addEventListener("change", async (e) => {
-            if (e.target.classList.contains("status-toggle")) {
-                const id = e.target.dataset.id;
-                const trunk = state.trunks.find(t => String(t.id) === String(id));
+    async function assignUserToTrunk(trunkId, userId) {
+        const response = await fetch(API.users(trunkId), {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify({ user_id: userId })
+        });
+        await parseJsonResponse(response, "Falha ao vincular usuario ao trunk.");
+    }
 
-                if (trunk && isSystemLocked(trunk)) {
-                    e.preventDefault();
-                    e.target.checked = (trunk.status === "active");
-                    notyf.error("Apenas o Super Admin pode alterar o status deste trunk");
-                    return;
-                }
+    async function removeUserFromTrunk(trunkId, userId) {
+        const response = await fetch(API.usersRemove(trunkId), {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify({ user_id: userId })
+        });
+        await parseJsonResponse(response, "Falha ao remover vinculo do usuario.");
+    }
 
-                const status = e.target.checked ? "active" : "inactive";
-                e.target.disabled = true;
-
-                try {
-                    await toggleStatus(id, status);
-                    await fetchTrunks();
-                    notyf.success("Status atualizado");
-                } catch (error) {
-                    e.target.checked = !e.target.checked;
-                    notyf.error(error.message || "Erro ao atualizar status");
-                } finally {
-                    e.target.disabled = false;
-                }
-
-                return;
-            }
-
-            if (e.target.classList.contains("row-checkbox")) {
-                updateDeleteButton();
+    async function openRoutesModal(trunk) {
+        const response = await fetch(buildNoCacheUrl(API.routes(trunk.id)), {
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
             }
         });
+        const payload = await parseJsonResponse(response, "Falha ao carregar preview de rotas.");
+        const data = payload?.data || {};
+        routesTitle.textContent = `Rotas do trunk ${data?.trunk?.name || trunk.name || ""}`;
+        routesContent.innerHTML = `
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Compatibilidade legada preservada</p>
+                <div class="mt-3 space-y-2">
+                    <div><strong>Tech Prefix:</strong> ${data?.legacy_compatibility?.techprefix || "-"}</div>
+                    <div><strong>Dial Prefix:</strong> ${data?.legacy_compatibility?.dial_prefix || "-"}</div>
+                    <div><strong>Billing Type:</strong> ${data?.legacy_compatibility?.billing_type || "-"}</div>
+                </div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Classificacoes futuras preparadas</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    ${(data?.future_route_classes || []).map((item) => `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">${item}</span>`).join("")}
+                </div>
+            </div>
+        `;
+        openModal(routesModal);
+    }
 
-        tbody.addEventListener("click", async (e) => {
-            const link = e.target.closest(".edit-link");
-            if (!link) {
-                return;
-            }
+    function openRankingModal(trunk) {
+        state.selectedRankingId = trunk.id;
+        const ranking = trunk?.ranking || {};
+        rankingTitle.textContent = `Ranking operacional - ${trunk.name || ""}`;
+        rankingSummary.innerHTML = `
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ultimas 24h</p>
+                <div class="mt-3 space-y-2 text-sm text-slate-600">
+                    <div>Tentadas: <strong>${ranking.attempted_calls || 0}</strong></div>
+                    <div>Completadas: <strong>${ranking.completed_calls || 0}</strong></div>
+                    <div>Falhadas: <strong>${ranking.failed_calls || 0}</strong></div>
+                </div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Operacao</p>
+                <div class="mt-3 space-y-2 text-sm text-slate-600">
+                    <div>Taxa de completamento: <strong>${ranking.completion_rate || 0}%</strong></div>
+                    <div>Status operacional: <strong>${ranking.status_operational || "-"}</strong></div>
+                    <div>Ultima atividade: <strong>${ranking.last_activity || "-"}</strong></div>
+                </div>
+            </div>
+        `;
+        rankingManualPriority.value = ranking.manual_priority || 0;
+        rankingOperationFlag.checked = !!ranking.is_operation_trunk;
+        openModal(rankingModal);
+    }
 
-            e.preventDefault();
-
-            if (state.editRequestInFlight) {
-                return;
-            }
-
-            const id = link.dataset.id;
-            const trunk = state.trunks.find(t => String(t.id) === String(id));
-            if (!trunk) {
-                notyf.error("Trunk não encontrado na listagem atual.");
-                return;
-            }
-
-            if (isSystemLocked(trunk)) {
-                notyf.error("Apenas o Super Admin pode editar trunks de sistema");
-                return;
-            }
-
-            state.editRequestInFlight = true;
-            state.editMode = true;
-            state.editingId = id;
-            modalTitle.textContent = "Editar SIP Trunk";
-            form.reset();
-            openModal();
-            setSubmitLoading(true);
-
-            try {
-                const freshTrunk = await fetchTrunkForEdit(id);
-                if (!freshTrunk || typeof freshTrunk !== "object") {
-                    throw new Error("Resposta de edição inválida para o trunk.");
-                }
-
-                fillFormFromTrunk(freshTrunk);
-                notyf.success("Dados do trunk carregados.");
-            } catch (error) {
-                closeModal();
-                console.error("[trunks] edit modal load failed", error);
-                notyf.error(error.message || "Falha ao abrir o modal de edição.");
-            } finally {
-                state.editRequestInFlight = false;
-                setSubmitLoading(false);
-            }
+    async function saveRankingProfile(trunkId, data) {
+        const response = await fetch(API.ranking(trunkId), {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify(data)
         });
+        await parseJsonResponse(response, "Falha ao salvar ranking do trunk.");
+    }
 
-        prevBtn.addEventListener("click", () => {
-            state.page--;
-            renderTable();
-        });
-
-        nextBtn.addEventListener("click", () => {
-            state.page++;
-            renderTable();
-        });
-
-        deleteBtn.addEventListener("click", async () => {
-            const ids = selectedIds();
-            if (!ids.length) {
-                return;
+    function startAutoRefresh() {
+        if (state.refreshTimer) clearInterval(state.refreshTimer);
+        state.refreshTimer = window.setInterval(() => {
+            if (!document.hidden && !document.querySelector(".fixed.flex")) {
+                fetchTrunks().catch((error) => console.error("[trunks] auto refresh", error));
             }
+        }, 10000);
+    }
 
-            const confirm = await Swal.fire({
-                title: "Excluir trunks?",
-                text: `Deseja remover ${ids.length} registro(s)?`,
-                icon: "warning",
-                showCancelButton: true,
-                confirmButtonColor: "#e3342f",
-                confirmButtonText: "Excluir"
-            });
-
-            if (!confirm.isConfirmed) {
-                return;
-            }
-
-            try {
-                await deleteTrunks(ids);
-                notyf.success("Trunks removidos");
-            } catch (error) {
-                notyf.error(error.message || "Erro ao excluir trunks.");
-            }
+    selectAll.addEventListener("change", (event) => {
+        tbody.querySelectorAll(".row-checkbox:not(:disabled)").forEach((checkbox) => {
+            checkbox.checked = event.target.checked;
         });
-
-        createBtn.addEventListener("click", () => {
-            state.editMode = false;
-            state.editingId = null;
-            modalTitle.textContent = "Adicionar SIP Trunk";
-            form.reset();
-            authFields.classList.remove("hidden");
-            setSubmitLoading(false);
-            openModal();
-        });
-
-        cancelBtn.addEventListener("click", closeModal);
-        closeModalBtn.addEventListener("click", closeModal);
-
-        authTypeSel.addEventListener("change", () => {
-            authFields.classList.toggle("hidden", authTypeSel.value === "ip");
-        });
-
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            if (state.saveRequestInFlight) {
-                return;
-            }
-
-            const data = Object.fromEntries(new FormData(form));
-            if (data.auth_type === "ip") {
-                delete data.username;
-                delete data.password;
-            }
-
-            data.port = Number(data.port || 5060);
-
-            setSubmitLoading(true);
-            try {
-                await saveTrunk(data);
-                notyf.success(state.editMode ? "Trunk atualizado" : "Trunk criado");
-                closeModal();
-            } catch (error) {
-                console.error("[trunks] save failed", error);
-                notyf.error(error.message || "Falha ao salvar trunk.");
-            } finally {
-                setSubmitLoading(false);
-            }
-        });
-
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && !state.isModalOpen) {
-                fetchTrunks().catch((error) => {
-                    console.error("[trunks] visibility refresh failed", error);
-                });
-            }
-        });
-
-        window.addEventListener("beforeunload", stopTrunksAutoRefresh, { once: true });
-
-        fetchTrunks().catch((error) => {
-            console.error("[trunks] initial load failed", error);
-            notyf.error(error.message || "Falha ao carregar trunks.");
-        });
-        startTrunksAutoRefresh();
+        updateDeleteButton();
     });
+
+    searchInput.addEventListener("input", applyFilter);
+
+    prevBtn.addEventListener("click", () => {
+        if (state.page > 1) {
+            state.page -= 1;
+            renderTable();
+        }
+    });
+
+    nextBtn.addEventListener("click", () => {
+        const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.perPage));
+        if (state.page < totalPages) {
+            state.page += 1;
+            renderTable();
+        }
+    });
+
+    createBtn.addEventListener("click", () => {
+        state.editMode = false;
+        state.editingId = null;
+        trunkModalTitle.textContent = "Novo trunk";
+        trunkForm.reset();
+        authFields.classList.remove("hidden");
+        setTrunkFormLoading(false);
+        openModal(trunkModal);
+    });
+
+    document.getElementById("cancelTrunk").addEventListener("click", () => closeModal(trunkModal));
+    document.getElementById("closeTrunkModal").addEventListener("click", () => closeModal(trunkModal));
+    trunkModal.addEventListener("click", (event) => {
+        if (event.target === trunkModal) closeModal(trunkModal);
+    });
+
+    usersModal.addEventListener("click", (event) => {
+        if (event.target === usersModal) closeModal(usersModal);
+    });
+    routesModal.addEventListener("click", (event) => {
+        if (event.target === routesModal) closeModal(routesModal);
+    });
+    rankingModal.addEventListener("click", (event) => {
+        if (event.target === rankingModal) closeModal(rankingModal);
+    });
+
+    document.querySelectorAll("[data-close-users]").forEach((btn) => btn.addEventListener("click", () => closeModal(usersModal)));
+    document.querySelectorAll("[data-close-routes]").forEach((btn) => btn.addEventListener("click", () => closeModal(routesModal)));
+    document.querySelectorAll("[data-close-ranking]").forEach((btn) => btn.addEventListener("click", () => closeModal(rankingModal)));
+
+    authTypeSelect.addEventListener("change", () => {
+        authFields.classList.toggle("hidden", authTypeSelect.value === "ip");
+    });
+
+    trunkForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = Object.fromEntries(new FormData(trunkForm).entries());
+        setTrunkFormLoading(true);
+
+        try {
+            await saveTrunk(formData);
+            closeModal(trunkModal);
+            await fetchTrunks();
+            notyf.success("Trunk salvo com sucesso.");
+        } catch (error) {
+            notyf.error(error.message || "Falha ao salvar trunk.");
+        } finally {
+            setTrunkFormLoading(false);
+        }
+    });
+
+    rankingForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!state.selectedRankingId) return;
+
+        submitRankingButton.disabled = true;
+        submitRankingButton.textContent = "Salvando...";
+
+        try {
+            await saveRankingProfile(state.selectedRankingId, {
+                manual_priority: Number(rankingManualPriority.value || 0),
+                is_operation_trunk: rankingOperationFlag.checked
+            });
+            closeModal(rankingModal);
+            await fetchTrunks();
+            notyf.success("Ranking atualizado.");
+        } catch (error) {
+            notyf.error(error.message || "Falha ao salvar ranking.");
+        } finally {
+            submitRankingButton.disabled = false;
+            submitRankingButton.textContent = "Salvar ranking";
+        }
+    });
+
+    deleteBtn.addEventListener("click", async () => {
+        const ids = selectedIds();
+        if (!ids.length) return;
+
+        const result = await Swal.fire({
+            title: "Excluir trunks selecionados?",
+            text: `Voce esta prestes a excluir ${ids.length} trunk(s).`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#dc2626",
+            confirmButtonText: "Excluir",
+            cancelButtonText: "Cancelar"
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            await deleteTrunks(ids);
+            await fetchTrunks();
+            notyf.success("Trunks excluidos.");
+        } catch (error) {
+            notyf.error(error.message || "Falha ao excluir trunks.");
+        }
+    });
+
+    tbody.addEventListener("change", async (event) => {
+        if (event.target.classList.contains("row-checkbox")) {
+            updateDeleteButton();
+            return;
+        }
+
+        if (event.target.classList.contains("status-toggle")) {
+            const trunkId = event.target.dataset.id;
+            const nextStatus = event.target.checked ? "active" : "inactive";
+            event.target.disabled = true;
+
+            try {
+                await toggleTrunkStatus(trunkId, nextStatus);
+                await fetchTrunks();
+                notyf.success("Status do trunk atualizado.");
+            } catch (error) {
+                notyf.error(error.message || "Falha ao atualizar status.");
+            } finally {
+                event.target.disabled = false;
+            }
+        }
+    });
+
+    tbody.addEventListener("click", async (event) => {
+        const trunkId = event.target.dataset.id;
+        if (!trunkId) return;
+
+        const trunk = state.trunks.find((item) => String(item.id) === String(trunkId));
+        if (!trunk) return;
+
+        try {
+            if (event.target.classList.contains("action-edit")) {
+                state.editMode = true;
+                state.editingId = trunk.id;
+                trunkModalTitle.textContent = `Editar trunk - ${trunk.name || ""}`;
+                setTrunkFormLoading(true);
+                openModal(trunkModal);
+                const fresh = await fetchTrunkForEdit(trunk.id);
+                trunkForm.reset();
+                fillTrunkForm(fresh || trunk);
+                return;
+            }
+
+            if (event.target.classList.contains("action-users")) {
+                await openUsersModal(trunk);
+                return;
+            }
+
+            if (event.target.classList.contains("action-routes")) {
+                await openRoutesModal(trunk);
+                return;
+            }
+
+            if (event.target.classList.contains("action-ranking")) {
+                openRankingModal(trunk);
+            }
+        } catch (error) {
+            closeModal(trunkModal);
+            notyf.error(error.message || "Falha ao abrir acao do trunk.");
+        } finally {
+            setTrunkFormLoading(false);
+        }
+    });
+
+    linkedUsersWrap.addEventListener("click", async (event) => {
+        const button = event.target.closest(".remove-linked-user");
+        if (!button) return;
+
+        try {
+            await removeUserFromTrunk(button.dataset.trunkId, button.dataset.userId);
+            const trunk = state.trunks.find((item) => String(item.id) === String(button.dataset.trunkId));
+            if (trunk) {
+                await openUsersModal(trunk);
+                await fetchTrunks();
+            }
+            notyf.success("Vinculo removido.");
+        } catch (error) {
+            notyf.error(error.message || "Falha ao remover vinculo.");
+        }
+    });
+
+    eligibleUsersWrap.addEventListener("click", async (event) => {
+        const button = event.target.closest(".assign-eligible-user");
+        if (!button || button.disabled) return;
+
+        try {
+            await assignUserToTrunk(button.dataset.trunkId, button.dataset.userId);
+            const trunk = state.trunks.find((item) => String(item.id) === String(button.dataset.trunkId));
+            if (trunk) {
+                await openUsersModal(trunk);
+                await fetchTrunks();
+            }
+            notyf.success("Usuario vinculado ao trunk.");
+        } catch (error) {
+            notyf.error(error.message || "Falha ao vincular usuario.");
+        }
+    });
+
+    fetchTrunks().catch((error) => {
+        console.error("[trunks] init", error);
+        notyf.error(error.message || "Falha ao carregar a Central de Troncos.");
+    });
+    startAutoRefresh();
+});
 </script>

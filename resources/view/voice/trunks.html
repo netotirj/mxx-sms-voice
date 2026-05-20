@@ -134,20 +134,18 @@
          role="dialog"
          aria-modal="true"
          aria-labelledby="trunkModalTitle"
-         class="fixed inset-0 z-[100050] hidden flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+         class="fixed inset-0 z-[100050] hidden items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
 
         <div
             class="relative z-[100051] w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white text-left shadow-2xl transition-all duration-200 dark:border-slate-700 dark:bg-slate-900">
 
             <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
-                <div class="min-w-0">
+                <div class="min-w-0 flex items-center gap-2">
+                    <span class="text-lg leading-none">➕</span>
                     <h3 id="trunkModalTitle"
                         class="text-lg font-semibold text-slate-800 dark:text-white">
                         Adicionar SIP Trunk
                     </h3>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        Configure o tronco usando o mesmo padrao visual dos modais do sistema.
-                    </p>
                 </div>
 
                 <button type="button"
@@ -400,12 +398,14 @@
             state.isModalOpen = true;
             document.body.classList.add("overflow-hidden");
             modal.classList.remove("hidden");
+            modal.classList.add("flex");
         }
 
         function closeModal() {
             state.isModalOpen = false;
             document.body.classList.remove("overflow-hidden");
             modal.classList.add("hidden");
+            modal.classList.remove("flex");
             state.editMode = false;
             state.editingId = null;
             state.editRequestInFlight = false;

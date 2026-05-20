@@ -1170,7 +1170,16 @@ class Dashboard extends ViewComponents
             }
         }
 
-        return $map;
+        uasort($map, static function (array $left, array $right): int {
+            $quantityComparison = (int)($right['quantity'] ?? 0) <=> (int)($left['quantity'] ?? 0);
+            if ($quantityComparison !== 0) {
+                return $quantityComparison;
+            }
+
+            return (float)($right['cost'] ?? 0) <=> (float)($left['cost'] ?? 0);
+        });
+
+        return array_slice($map, 0, 8, true);
     }
 
     private static function buildDashboardWhatsAppCharts(array $obUser): array

@@ -910,14 +910,12 @@
             const currentKey = `total${periodKey}Atual${suffix}`;
             const previousKey = `total${periodKey}Anterior${suffix}`;
             const statusKey = `statusMap${periodKey}${suffix}`;
-            const previousStatusKey = `statusMap${periodKey}Anterior${suffix}`;
             const current = Number(chartsPayload?.[currentKey] || 0);
             const previous = Number(chartsPayload?.[previousKey] || 0);
-            const usePreviousStatus = current <= 0 && previous > 0;
 
             return {
-                status: normalizeStatusMap(chartsPayload?.[usePreviousStatus ? previousStatusKey : statusKey] || {}),
-                statusPeriod: usePreviousStatus ? 'previous' : 'current',
+                status: normalizeStatusMap(chartsPayload?.[statusKey] || {}),
+                statusPeriod: 'current',
                 current,
                 previous,
                 labels: getPeriodLabel()
@@ -956,14 +954,17 @@
 
         function getWhatsCompanyCostForPeriod() {
             const periodKey = selectedPeriod === 'week' ? 'Semana' : (selectedPeriod === 'month' ? 'Mes' : 'Dia');
-            return Object.entries(chartsPayload?.[`companyCostMap${periodKey}Whats`] || {});
-        }
+            return Object.entries(chartsPayload?.[`companyCostMap${periodKey}Whats`] || {})
+                .sort(([, left], [, right]) => {
+                    const leftQuantity = Number(left?.quantity || 0);
+                    const rightQuantity = Number(right?.quantity || 0);
+                    if (rightQuantity !== leftQuantity) {
+                        return rightQuantity - leftQuantity;
+                    }
 
-        function getPeriodContextValue(suffix = '') {
-            const key = selectedPeriod === 'month'
-                ? `totalDiaAtual${suffix}`
-                : `totalMesAtual${suffix}`;
-            return Number(chartsPayload?.[key] || 0);
+                    return Number(right?.cost || 0) - Number(left?.cost || 0);
+                })
+                .slice(0, 8);
         }
 
         function updatePeriodState(period) {
@@ -979,20 +980,16 @@
         }
 
         function getTrunkCountsForPeriod() {
-            const voicePeriod = getPeriodPayload('', 'Voice');
-            const previousSuffix = voicePeriod.statusPeriod === 'previous' ? 'Previous' : '';
             const key = selectedPeriod === 'week'
-                ? `trunkCountsWeek${previousSuffix}`
-                : (selectedPeriod === 'month' ? `trunkCountsMonth${previousSuffix}` : `trunkCountsDay${previousSuffix}`);
+                ? 'trunkCountsWeek'
+                : (selectedPeriod === 'month' ? 'trunkCountsMonth' : 'trunkCountsDay');
             return Object.entries(chartsPayload?.[key] || {});
         }
 
         function getSipCodesForPeriod() {
-            const voicePeriod = getPeriodPayload('', 'Voice');
-            const previousSuffix = voicePeriod.statusPeriod === 'previous' ? 'Previous' : '';
             const key = selectedPeriod === 'week'
-                ? `sipCodeCountsWeek${previousSuffix}`
-                : (selectedPeriod === 'month' ? `sipCodeCountsMonth${previousSuffix}` : `sipCodeCountsDay${previousSuffix}`);
+                ? 'sipCodeCountsWeek'
+                : (selectedPeriod === 'month' ? 'sipCodeCountsMonth' : 'sipCodeCountsDay');
             return Object.entries(chartsPayload?.[key] || {});
         }
 
@@ -1000,17 +997,7 @@
             const baseKey = selectedPeriod === 'week'
                 ? 'totalOperatorWeek'
                 : (selectedPeriod === 'month' ? 'totalOperatorMonth' : 'totalOperatorDay');
-            const currentEntries = Object.entries(chartsPayload?.[baseKey] || {});
-            if (currentEntries.length) {
-                return currentEntries;
-            }
-
-            const previousEntries = Object.entries(chartsPayload?.[`${baseKey}Previous`] || {});
-            if (previousEntries.length) {
-                return previousEntries;
-            }
-
-            return Object.entries(chartsPayload?.totalOperator || {});
+            return Object.entries(chartsPayload?.[baseKey] || {});
         }
 
         function getSipCodeDetails(code, item = {}) {
@@ -1075,14 +1062,14 @@
             }));
             const smsPeriod = getPeriodPayload('', '');
             const smsCost = getCostForPeriod('Sms');
-            const smsCostValue = smsPeriod.statusPeriod === 'previous' ? smsCost.previous : smsCost.current;
-            const smsCostLabel = smsPeriod.statusPeriod === 'previous' ? smsPeriod.labels.previous : smsPeriod.labels.current;
+            const smsCostValue = smsCost.current;
+            const smsCostLabel = smsPeriod.labels.current;
             const whatsPeriod = getPeriodPayload('', 'Whats');
             const whatsCost = getWhatsCostForPeriod();
             const voicePeriod = getPeriodPayload('', 'Voice');
             const voiceCost = getCostForPeriod('Voice');
-            const voiceCostValue = voicePeriod.statusPeriod === 'previous' ? voiceCost.previous : voiceCost.current;
-            const voiceCostLabel = voicePeriod.statusPeriod === 'previous' ? voicePeriod.labels.previous : voicePeriod.labels.current;
+            const voiceCostValue = voiceCost.current;
+            const voiceCostLabel = voicePeriod.labels.current;
             const operatorEntries = getOperatorCountsForPeriod();
             const operatorLabels = operatorEntries.map(([name]) => name);
             const operatorValues = operatorEntries.map(([, item]) => {
@@ -1375,14 +1362,9 @@
             }
         };
 
-        function ensureSecondaryChart(forceRebuild = false) {
+        function ensureSecondaryChart() {
             const canvas = document.getElementById('service-secondary-chart');
             if (!canvas || typeof Chart === 'undefined') return;
-
-            if (forceRebuild && secondaryChart) {
-                secondaryChart.destroy();
-                secondaryChart = null;
-            }
 
             if (secondaryChart) return;
 
@@ -1500,8 +1482,12 @@
                 meta: secondary.meta || []
             });
 
+            if (signature === secondaryChartSignature) {
+                return;
+            }
+
             secondaryChartSignature = signature;
-            ensureSecondaryChart(true);
+            ensureSecondaryChart();
             if (!secondaryChart) return;
             setValue('service-secondary-title', secondary.title || 'Visao complementar');
             setValue('service-secondary-tag', secondary.tag || 'Resumo');
@@ -1564,8 +1550,7 @@
                     }
                 };
             }
-            secondaryChart.resize();
-            secondaryChart.update();
+            secondaryChart.update('none');
         }
 
         function ensureSipCodeChart() {

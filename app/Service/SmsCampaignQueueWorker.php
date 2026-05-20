@@ -3,7 +3,10 @@
 namespace App\Service;
 
 use App\Controller\Pages\DisproClient;
+use App\Model\Entity\BalanceSms;
 use App\Model\Entity\CallbackSms;
+use App\Model\Entity\Rates;
+use App\Model\Entity\UserSearch;
 
 class SmsCampaignQueueWorker
 {
@@ -30,6 +33,7 @@ class SmsCampaignQueueWorker
         foreach ($items as $item) {
             $summary['processed']++;
             $scheduleTouched[(int)$item['schedule_id']] = true;
+            $initialChargeableStatuses = ['ACCEPTED', 'SENT', 'DELIVERED', 'UNDELIVERABLE', 'EXPIRED'];
 
             $messages = [[
                 'numero' => (string)$item['contact_phone'],
@@ -68,8 +72,10 @@ class SmsCampaignQueueWorker
             $callback->batch_id = $item['batch_id'] !== null ? (int)$item['batch_id'] : null;
             $callback->date_send = date('Y-m-d H:i:s');
             $callback->operator = 'UNKNOWN';
-            $callback->value_sms = strtoupper((string)($detail['status'] ?? '')) === 'ACCEPTED'
-                ? (string)round((int)$item['sms_units'] * 1.0, 4)
+            $initialStatus = strtoupper(trim((string)($detail['status'] ?? '')));
+            $unitRate = self::resolveUnitRate($item);
+            $callback->value_sms = in_array($initialStatus, $initialChargeableStatuses, true)
+                ? (string)round((int)$item['sms_units'] * $unitRate, 4)
                 : '0.00';
             $callback->insertStatus();
 
@@ -90,5 +96,30 @@ class SmsCampaignQueueWorker
         }
 
         return $summary;
+    }
+
+    private static function resolveUnitRate(array $item): float
+    {
+        $queuedUnitRate = round((float)($item['unit_rate'] ?? 0), 4);
+        if ($queuedUnitRate > 0) {
+            return $queuedUnitRate;
+        }
+
+        $userId = (int)($item['user_id'] ?? 0);
+        $tenancyId = (string)($item['tenancy_id'] ?? '');
+        if ($userId <= 0 || $tenancyId === '') {
+            return 0.0;
+        }
+
+        $user = UserSearch::getUserById($tenancyId, $userId);
+        $role = strtolower(trim((string)($user['user_function'] ?? $user['function'] ?? '')));
+
+        if ($role === 'reseller') {
+            $rateData = Rates::getLatestActiveRate($tenancyId, $userId, 'sms');
+            return round((float)($rateData['rate'] ?? 0), 4);
+        }
+
+        $balance = BalanceSms::getBalanceSms($userId, $tenancyId);
+        return round((float)($balance->value_sms ?? 0), 4);
     }
 }

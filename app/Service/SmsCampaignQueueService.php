@@ -53,6 +53,7 @@ class SmsCampaignQueueService
                 'charset_msg' => (string)$contact['charset_msg'],
                 'message_body' => (string)$contact['message'],
                 'sms_units' => (int)$contact['sms_units'],
+                'unit_rate' => round((float)$prepared['unit_rate'], 4),
                 'partner_id' => $partnerId,
                 'dedupe_key' => $dedupeKey,
                 'status' => 'pending',

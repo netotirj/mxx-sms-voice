@@ -150,6 +150,7 @@ class CallbackSms
                 camp_name,
                 operator,
                 status_sms,
+                value_sms,
                 date_send,
                 update_date,
                 received_at

@@ -110,6 +110,7 @@ class CampaignDispatchSchema
                 charset_msg VARCHAR(8) NOT NULL DEFAULT '0',
                 message_body TEXT NOT NULL,
                 sms_units INT UNSIGNED NOT NULL DEFAULT 1,
+                unit_rate DECIMAL(14,4) NOT NULL DEFAULT 0,
                 partner_id VARCHAR(100) NOT NULL,
                 dedupe_key VARCHAR(191) NOT NULL,
                 status VARCHAR(32) NOT NULL DEFAULT 'pending',
@@ -133,6 +134,26 @@ class CampaignDispatchSchema
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
 
+        self::ensureColumn('campaign_sms_queue', 'unit_rate', 'ALTER TABLE campaign_sms_queue ADD COLUMN unit_rate DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER sms_units');
+
         $checked = true;
+    }
+
+    private static function ensureColumn(string $table, string $column, string $sql): void
+    {
+        try {
+            $exists = (new Database())->execute(
+                "SHOW COLUMNS FROM {$table} LIKE :column",
+                [':column' => $column]
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            if ($exists) {
+                return;
+            }
+
+            (new Database())->execute($sql);
+        } catch (\Throwable $e) {
+            error_log('[campaign_dispatch_schema] ' . $e->getMessage());
+        }
     }
 }

@@ -51,6 +51,10 @@ class SipMonitorSessionService
 
     public static function start(array $user, array $input): array
     {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(30);
+        }
+
         self::cleanupExpiredSessions();
 
         $tenancyId = (string)($user['tenancy_id'] ?? '');
@@ -69,8 +73,7 @@ class SipMonitorSessionService
         }
 
         $request = SipMonitorCommandBuilder::normalizeRequest($input);
-        $capabilities = self::capabilities();
-        $resolvedMode = SipMonitorCommandBuilder::resolveMode($request, $capabilities);
+        $resolvedMode = self::resolveStartMode($request);
 
         $now = date('Y-m-d H:i:s');
         $expiresAt = date('Y-m-d H:i:s', time() + (((int)$request['duration_minutes']) * 60));
@@ -448,5 +451,37 @@ class SipMonitorSessionService
     {
         $value = (int)TelephonyConfig::env('SIP_MONITOR_MAX_SIMULTANEOUS', 1);
         return max(1, min(10, $value));
+    }
+
+    private static function resolveStartMode(array $request): string
+    {
+        $requested = (string)($request['mode'] ?? 'auto');
+        if ($requested !== 'auto') {
+            return $requested;
+        }
+
+        $hasSngrep = SipMonitorCommandRunner::supportsBinary('sngrep', false);
+        $hasAsterisk = SipMonitorCommandRunner::supportsBinary('asterisk', true);
+        $filterType = (string)($request['filter_type'] ?? 'all');
+        $includeTls = !empty($request['include_tls']);
+        $tlsPort = (int)($request['tls_port'] ?? 5061);
+
+        if ($hasSngrep && $hasAsterisk && ($includeTls || $tlsPort === 5061 || $filterType === 'all')) {
+            return 'both';
+        }
+
+        if ($hasAsterisk && ($includeTls || in_array($filterType, ['extension', 'number', 'call_id', 'trunk'], true))) {
+            return 'pjsip';
+        }
+
+        if ($hasSngrep) {
+            return 'sngrep';
+        }
+
+        if ($hasAsterisk) {
+            return 'pjsip';
+        }
+
+        throw new \RuntimeException('Nenhum backend de captura SIP está disponível neste servidor.');
     }
 }

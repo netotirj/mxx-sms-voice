@@ -6,6 +6,9 @@ use App\Config\TelephonyConfig;
 
 class SipMonitorCommandRunner
 {
+    private static ?array $capabilitiesCache = null;
+    private static array $supportsBinaryCache = [];
+
     public static function profile(): array
     {
         $host = trim((string)TelephonyConfig::env('SIP_MONITOR_HOST', TelephonyConfig::env('SERVICES_MONITOR_ASTERISK_HOST', TelephonyConfig::env('SERVERASTERISK', ''))));
@@ -27,9 +30,13 @@ class SipMonitorCommandRunner
 
     public static function capabilities(): array
     {
+        if (self::$capabilitiesCache !== null) {
+            return self::$capabilitiesCache;
+        }
+
         $profile = self::profile();
 
-        return [
+        self::$capabilitiesCache = [
             'profile' => [
                 'mode' => $profile['mode'],
                 'host' => $profile['mode'] === 'ssh' ? (string)$profile['host'] : (gethostname() ?: php_uname('n')),
@@ -45,12 +52,20 @@ class SipMonitorCommandRunner
             'which_script' => self::run('command -v script || which script || true', false),
             'which_timeout' => self::run('command -v timeout || which timeout || true', false),
         ];
+
+        return self::$capabilitiesCache;
     }
 
     public static function supportsBinary(string $binary, bool $useSudo = false): bool
     {
+        $cacheKey = ($useSudo ? '1' : '0') . ':' . $binary;
+        if (array_key_exists($cacheKey, self::$supportsBinaryCache)) {
+            return self::$supportsBinaryCache[$cacheKey];
+        }
+
         $result = self::run('command -v ' . escapeshellarg($binary) . ' >/dev/null 2>&1', $useSudo);
-        return (bool)$result['ok'];
+        self::$supportsBinaryCache[$cacheKey] = (bool)$result['ok'];
+        return self::$supportsBinaryCache[$cacheKey];
     }
 
     public static function run(string $command, bool $useSudo = true): array

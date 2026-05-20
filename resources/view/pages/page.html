@@ -1262,6 +1262,28 @@
             syncBodyModalState();
         }
 
+        function collectModalCandidates(root) {
+            if (!(root instanceof HTMLElement)) {
+                return false;
+            }
+
+            let found = false;
+
+            if (isModalRoot(root)) {
+                wireModal(root);
+                found = true;
+            }
+
+            root.querySelectorAll('[role="dialog"], [aria-modal="true"], [id*="modal"], [class*="modal"]').forEach((element) => {
+                if (element instanceof HTMLElement && isModalRoot(element)) {
+                    wireModal(element);
+                    found = true;
+                }
+            });
+
+            return found;
+        }
+
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') {
                 return;
@@ -1285,19 +1307,23 @@
             mutations.forEach((mutation) => {
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach((node) => {
-                        if (node instanceof HTMLElement) {
-                            if (isModalRoot(node)) {
-                                wireModal(node);
-                            }
-                            collectModals(node);
+                        if (node instanceof HTMLElement && collectModalCandidates(node)) {
+                            shouldSync = true;
                         }
                     });
-                    shouldSync = true;
                     return;
                 }
 
                 if (mutation.target instanceof HTMLElement && managedModals.has(mutation.target)) {
-                    applyModalChrome(mutation.target);
+                    const modal = mutation.target;
+                    observer.disconnect();
+                    applyModalChrome(modal);
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true,
+                        attributeFilter: ['class', 'style']
+                    });
                     shouldSync = true;
                 }
             });

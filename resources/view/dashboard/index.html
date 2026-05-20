@@ -72,7 +72,7 @@
     </div>
 
     
-    <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in-slow">
+    <div class="hidden flex flex-wrap -mx-3 mb-6 animate-fade-in-slow" aria-hidden="true">
         <div class="w-full max-w-full px-3 mb-6 sm:w-1/4">
             <div id="health-card-asterisk" class="dash-card relative flex flex-col min-w-0 break-words bg-white shadow-xl dark:bg-slate-850 rounded-2xl p-4 border-b-4 border-emerald-500">
                 <div class="flex items-start justify-between gap-3">
@@ -177,7 +177,7 @@
         </div>
     </div>
 
-    <div id="details-section" class="flex flex-wrap -mx-3">
+    <div id="details-section" class="hidden flex flex-wrap -mx-3" aria-hidden="true">
         <div class="w-full max-w-full px-3 mt-0 lg:w-8/12 lg:flex-none">
             <div class="dash-card relative z-20 flex min-w-0 flex-col break-words bg-white border-0 border-solid shadow-xl dark:bg-slate-850 rounded-2xl p-6">
                 <div class="flex flex-col gap-3 mb-3 md:flex-row md:items-start md:justify-between">
@@ -1820,13 +1820,6 @@
             setOperationalCard('whatsapp', operationalCards.whatsapp);
         }
 
-        function applyDashboardChartsPayload(data) {
-            chartsPayload = data || {};
-            dashboardChartsLastMessageAt = Date.now();
-            chartsPayloadSignature = JSON.stringify(chartsPayload);
-            scheduleDashboardRender();
-        }
-
         async function fetchDashboardSnapshot(path) {
             const response = await fetch(dashboardStreamUrl(path), {
                 headers: {
@@ -1849,21 +1842,18 @@
             return JSON.parse(match[1]);
         }
 
-        async function loadDashboardSnapshots() {
+        async function loadDashboardCardsSnapshot() {
             try {
-                const [cardsData, chartsData] = await Promise.all([
-                    fetchDashboardSnapshot('/dashboard/cards'),
-                    fetchDashboardSnapshot('/dashboard/charts')
-                ]);
+                const cardsData = await fetchDashboardSnapshot('/dashboard/cards');
                 applyDashboardCardsPayload(cardsData);
-                applyDashboardChartsPayload(chartsData);
             } catch (error) {
-                console.error('Falha ao carregar snapshots do dashboard:', error);
+                console.error('Falha ao carregar cards do dashboard:', error);
             }
         }
 
-        bootstrapStaticCounts();
-        updatePeriodState(selectedPeriod);
-        loadDashboardSnapshots();
+        window.addEventListener('load', () => {
+            bootstrapStaticCounts();
+            loadDashboardCardsSnapshot();
+        }, { once: true });
     });
 </script>

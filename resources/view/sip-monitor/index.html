@@ -32,6 +32,96 @@
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
 
+    #sipMonitorApp .journey-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    #sipMonitorApp .journey-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 2.5rem;
+    }
+
+    #sipMonitorApp .journey-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 1.25rem;
+        padding: 1rem;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+        box-shadow: 0 18px 45px -32px rgba(15, 23, 42, 0.35);
+    }
+
+    #sipMonitorApp .journey-card-strong {
+        background:
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 34%),
+            linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+    }
+
+    #sipMonitorApp .journey-card-alert {
+        background:
+            radial-gradient(circle at top right, rgba(251, 146, 60, 0.16), transparent 36%),
+            linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+        border-color: rgba(251, 146, 60, 0.28);
+    }
+
+    #sipMonitorApp .journey-card-good {
+        background:
+            radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 36%),
+            linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+        border-color: rgba(16, 185, 129, 0.22);
+    }
+
+    #sipMonitorApp .journey-kicker {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #94a3b8;
+    }
+
+    #sipMonitorApp .journey-metric {
+        margin-top: 0.35rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    #sipMonitorApp .journey-metric-xl {
+        margin-top: 0.35rem;
+        font-size: 1.35rem;
+        line-height: 1.2;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    #sipMonitorApp .journey-submetric {
+        margin-top: 0.45rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 9999px;
+        background: rgba(15, 23, 42, 0.06);
+        padding: 0.3rem 0.6rem;
+        font-size: 11px;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    #sipMonitorApp .journey-submetric.warm {
+        background: rgba(249, 115, 22, 0.12);
+        color: #9a3412;
+    }
+
+    #sipMonitorApp .journey-submetric.good {
+        background: rgba(16, 185, 129, 0.12);
+        color: #065f46;
+    }
+
     #sipMonitorApp .journey-stage {
         border-left: 3px solid #cbd5e1;
         padding-left: 0.9rem;
@@ -54,7 +144,7 @@
         <div class="flex-none w-full max-w-full px-3">
             <div class="journey-shell relative flex flex-col min-w-0 mb-6 rounded-[2rem] border border-slate-100 shadow-xl">
                 <div class="border-b border-slate-100 px-6 py-6">
-                    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div class="flex flex-col gap-5">
                         <div class="flex min-w-0 items-start gap-4">
                             <span class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-xl text-white shadow-lg">
                                 <i class="fa fa-route"></i>
@@ -68,12 +158,18 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
-                            <span id="sipJourneyLiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: inativo</span>
-                            <span id="sipJourneyActiveBadge" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
-                            <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white xl:whitespace-nowrap">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Leitura rapida</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-700">Compare o tempo atual da chamada com a media observada na captura e destaque gargalos de conexao.</p>
+                            </div>
+                            <div class="journey-toolbar">
+                                <span id="sipJourneyLiveBadge" class="journey-chip inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Feed: inativo</span>
+                                <span id="sipJourneyActiveBadge" class="journey-chip inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">Sem chamada ao vivo</span>
+                                <button type="button" id="sipJourneyToggleBtn" onclick="sipMonitorJourney.toggleMonitoring()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-[11px] font-black uppercase tracking-wide text-white">
                                 <i class="fa fa-play"></i> Iniciar monitoramento
-                            </button>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -525,6 +621,72 @@
             return 'progress';
         },
 
+        averageMetrics() {
+            const events = Array.isArray(this.sipEventSummaries) ? this.sipEventSummaries : [];
+            const averageFrom = (key) => {
+                const values = events
+                    .map((event) => Number(event?.[key]))
+                    .filter((value) => Number.isFinite(value) && value >= 0);
+                if (!values.length) {
+                    return null;
+                }
+                return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+            };
+
+            const operatorDelayCount = events.filter((event) => !!event?.possible_operator_delay).length;
+
+            return {
+                sampleSize: events.length,
+                avgFirstResponseMs: averageFrom('invite_to_first_response_ms'),
+                avgProgressMs: averageFrom('invite_to_180_183_ms'),
+                avgAnswerMs: averageFrom('invite_to_200_ms'),
+                operatorDelayCount,
+            };
+        },
+
+        connectionHealth(currentMs, averageMs) {
+            if (currentMs === null && averageMs === null) {
+                return {
+                    tone: 'neutral',
+                    label: 'Sem base comparativa',
+                    className: '',
+                };
+            }
+
+            const reference = averageMs ?? currentMs ?? 0;
+            const observed = currentMs ?? averageMs ?? 0;
+
+            if (reference <= 0) {
+                return {
+                    tone: 'neutral',
+                    label: 'Sem base comparativa',
+                    className: '',
+                };
+            }
+
+            if (observed > reference * 1.35) {
+                return {
+                    tone: 'alert',
+                    label: 'Acima da media',
+                    className: 'warm',
+                };
+            }
+
+            if (observed < reference * 0.85) {
+                return {
+                    tone: 'good',
+                    label: 'Abaixo da media',
+                    className: 'good',
+                };
+            }
+
+            return {
+                tone: 'neutral',
+                label: 'Dentro da media',
+                className: '',
+            };
+        },
+
         sipSummaryHtml(call, event) {
             const timeline = this.sipTimeline(event);
             const invite = timeline.find((item) => String(item?.signal || '').toUpperCase() === 'INVITE') || null;
@@ -547,20 +709,99 @@
                 return Math.max(0, end.getTime() - start.getTime());
             };
 
+            const currentFirstResponseMs = delta(inviteAt, firstResponseAt);
+            const currentProgressMs = delta(inviteAt, progressAt || ringingAt);
+            const currentAnswerMs = delta(inviteAt, answeredAt);
+            const averages = this.averageMetrics();
+            const connectionHealth = this.connectionHealth(currentProgressMs, averages.avgProgressMs || averages.avgFirstResponseMs);
+            const answerHealth = this.connectionHealth(currentAnswerMs, averages.avgAnswerMs);
+            const delayedShare = averages.sampleSize
+                ? Math.round((averages.operatorDelayCount / averages.sampleSize) * 100)
+                : null;
+
             const cards = [
-                { label: 'Entrada', value: invite?.at || event?.first_seen_at || 'Nao detectado', hint: 'Momento em que o INVITE entrou no monitor SIP.' },
-                { label: 'Primeira resposta', value: firstResponse?.signal || 'Nao detectado', hint: firstResponseAt && inviteAt ? `Resposta em ${this.formatJourneyDelay(delta(inviteAt, firstResponseAt))}.` : 'Sem resposta SIP identificada ainda.' },
-                { label: 'Progress', value: progress?.signal || 'Nao detectado', hint: progressAt && inviteAt ? `A operadora devolveu ${progress.signal} em ${this.formatJourneyDelay(delta(inviteAt, progressAt))}.` : 'Sem 183 Session Progress ate o momento.' },
-                { label: 'Ringing', value: ringing?.signal || 'Nao detectado', hint: ringingAt && inviteAt ? `O toque apareceu em ${this.formatJourneyDelay(delta(inviteAt, ringingAt))}.` : 'Sem 180 Ringing identificado.' },
-                { label: 'Atendimento', value: answered?.signal || 'Nao detectado', hint: answeredAt && inviteAt ? `A chamada foi confirmada em ${this.formatJourneyDelay(delta(inviteAt, answeredAt))}.` : 'Ainda sem 200 OK na sessao observada.' },
-                { label: 'Ultimo sinal', value: last?.signal || event?.final_signal || 'Nao detectado', hint: last?.explanation || 'Ultimo retorno tecnico observado para esta chamada.' },
+                {
+                    label: 'Conexao atual',
+                    value: this.formatJourneyDelay(currentProgressMs ?? currentFirstResponseMs),
+                    headline: progress?.signal || ringing?.signal || firstResponse?.signal || 'Sem retorno ainda',
+                    hint: currentProgressMs !== null
+                        ? `A chamada recebeu progress/toque em ${this.formatJourneyDelay(currentProgressMs)}.`
+                        : firstResponseAt && inviteAt
+                            ? `A primeira resposta apareceu em ${this.formatJourneyDelay(currentFirstResponseMs)}.`
+                            : 'Ainda sem retorno claro de progress ou ringing.',
+                    submetric: `Media da captura: ${this.formatJourneyDelay(averages.avgProgressMs ?? averages.avgFirstResponseMs)}`,
+                    tone: connectionHealth.tone === 'alert' ? 'journey-card-alert' : connectionHealth.tone === 'good' ? 'journey-card-good' : 'journey-card-strong',
+                    pillClass: connectionHealth.className,
+                    badge: connectionHealth.label,
+                },
+                {
+                    label: 'Tempo medio',
+                    value: this.formatJourneyDelay(averages.avgProgressMs ?? averages.avgFirstResponseMs),
+                    headline: averages.sampleSize ? `${averages.sampleSize} chamada(s) na captura` : 'Sem base estatistica',
+                    hint: averages.avgFirstResponseMs !== null
+                        ? `Primeira resposta media: ${this.formatJourneyDelay(averages.avgFirstResponseMs)}. Atendimento medio: ${this.formatJourneyDelay(averages.avgAnswerMs)}.`
+                        : 'Quando a captura acumular mais chamadas, mostramos a media automaticamente.',
+                    submetric: delayedShare !== null ? `${delayedShare}% com atraso percebido` : 'Sem amostra suficiente',
+                    tone: delayedShare !== null && delayedShare >= 40 ? 'journey-card-alert' : 'journey-card',
+                    pillClass: delayedShare !== null && delayedShare >= 40 ? 'warm' : delayedShare !== null && delayedShare <= 15 ? 'good' : '',
+                    badge: delayedShare !== null ? 'Saude da rota' : 'Aguardando amostra',
+                },
+                {
+                    label: 'Progress',
+                    value: progress?.signal || ringing?.signal || 'Nao detectado',
+                    headline: this.formatJourneyDelay(currentProgressMs),
+                    hint: progressAt && inviteAt
+                        ? `A operadora devolveu ${progress.signal} em ${this.formatJourneyDelay(delta(inviteAt, progressAt))}.`
+                        : ringingAt && inviteAt
+                            ? `Sem 183, mas o toque entrou em ${this.formatJourneyDelay(delta(inviteAt, ringingAt))}.`
+                            : 'Sem 183 Session Progress ou 180 Ringing ate o momento.',
+                    submetric: `Media de progress: ${this.formatJourneyDelay(averages.avgProgressMs)}`,
+                    tone: connectionHealth.tone === 'alert' ? 'journey-card-alert' : 'journey-card',
+                    pillClass: connectionHealth.className,
+                    badge: connectionHealth.label,
+                },
+                {
+                    label: 'Atendimento',
+                    value: answered?.signal || 'Nao detectado',
+                    headline: this.formatJourneyDelay(currentAnswerMs),
+                    hint: answeredAt && inviteAt
+                        ? `A chamada foi confirmada em ${this.formatJourneyDelay(currentAnswerMs)}.`
+                        : 'Ainda sem 200 OK na sessao observada.',
+                    submetric: `Media ate 200 OK: ${this.formatJourneyDelay(averages.avgAnswerMs)}`,
+                    tone: answerHealth.tone === 'alert' ? 'journey-card-alert' : answerHealth.tone === 'good' ? 'journey-card-good' : 'journey-card',
+                    pillClass: answerHealth.className,
+                    badge: answerHealth.label,
+                },
+                {
+                    label: 'Entrada',
+                    value: invite?.at || event?.first_seen_at || 'Nao detectado',
+                    headline: firstResponse?.signal || 'Sem resposta ainda',
+                    hint: 'Momento em que o INVITE entrou no monitor SIP e qual foi a primeira resposta capturada.',
+                    submetric: `Primeira resposta: ${this.formatJourneyDelay(currentFirstResponseMs)}`,
+                    tone: 'journey-card',
+                    pillClass: '',
+                    badge: 'Inicio da jornada',
+                },
+                {
+                    label: 'Ultimo sinal',
+                    value: last?.signal || event?.final_signal || 'Nao detectado',
+                    headline: last?.at || event?.last_seen_at || 'Nao detectado',
+                    hint: last?.explanation || 'Ultimo retorno tecnico observado para esta chamada.',
+                    submetric: `Call-ID: ${event?.call_id || '-'}`,
+                    tone: 'journey-card',
+                    pillClass: '',
+                    badge: 'Fechamento tecnico',
+                },
             ];
 
             return cards.map((item) => `
-                <div class="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">${item.label}</p>
-                    <p class="mt-1 text-sm font-semibold text-slate-800">${item.value}</p>
-                    <p class="mt-1 text-[11px] text-slate-500">${item.hint}</p>
+                <div class="journey-card ${item.tone || ''}">
+                    <p class="journey-kicker">${item.label}</p>
+                    <p class="journey-metric-xl">${item.value}</p>
+                    <p class="journey-metric">${item.headline || ''}</p>
+                    <span class="journey-submetric ${item.pillClass || ''}">${item.badge || ''}</span>
+                    <p class="mt-3 text-[11px] text-slate-500">${item.hint}</p>
+                    <p class="mt-2 text-[11px] font-semibold text-slate-400">${item.submetric || ''}</p>
                 </div>
             `).join('');
         },

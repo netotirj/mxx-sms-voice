@@ -414,6 +414,7 @@
                 const result = await this.fetchJson('/admin/sip-monitor/test-connection', {}, { _: Date.now() });
                 this.renderConnection(result.data || {});
                 this.showFeedback(result.data?.ok ? 'success' : 'error', result.data?.friendly_message || result.message || 'Teste concluído.');
+                await this.reloadStatus(true);
             } catch (error) {
                 this.showFeedback('error', error.message || 'Falha no teste de conexão SSH.');
                 this.notify('error', error.message || 'Falha no teste de conexão SSH.');

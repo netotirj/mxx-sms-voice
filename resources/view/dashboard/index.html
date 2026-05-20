@@ -128,7 +128,7 @@
 
     <div class="flex flex-wrap -mx-3 mb-6 animate-fade-in-slow">
         
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('voip')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('voip')">
             <div id="card-voip" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-indigo-500 opacity-80 hover:opacity-100">
                 <h6 id="card-voip-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-indigo-500"><i class="fa fa-phone"></i></span> VoIP Performance
@@ -144,7 +144,7 @@
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('sms')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('sms')">
             <div id="card-sms" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-amber-500 opacity-80 hover:opacity-100">
                 <h6 id="card-sms-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-amber-500"><i class="fa fa-comment-sms"></i></span> SMS Gateway
@@ -160,7 +160,7 @@
             </div>
         </div>
 
-        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer transform transition-all hover:-translate-y-1" onclick="selectService('whatsapp')">
+        <div class="w-full max-w-full px-3 lg:w-4/12 mb-6 cursor-pointer" onclick="selectService('whatsapp')">
             <div id="card-whatsapp" class="service-card dash-card bg-white dark:bg-slate-850 shadow-xl rounded-2xl p-4 border-t-4 border-emerald-500 opacity-80 hover:opacity-100">
                 <h6 id="card-whatsapp-title" class="font-bold dark:text-white flex items-center uppercase text-xs">
                     <span class="service-icon bg-emerald-500"><i class="fa-brands fa-whatsapp"></i></span> WhatsApp
@@ -453,20 +453,16 @@
     }
 
     .dash-card {
-        transform: translateZ(0);
-        transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
-        will-change: transform;
+        transition: box-shadow 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
     }
 
     .dash-card:hover {
-        transform: translateY(-4px) scale(1.02);
-        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
+        box-shadow: 0 18px 30px -14px rgba(15, 23, 42, 0.18);
     }
 
     .service-card-active {
         opacity: 1 !important;
-        transform: translateY(-4px) scale(1.02);
-        box-shadow: 0 20px 35px -12px rgba(15, 23, 42, 0.22);
+        box-shadow: 0 18px 30px -14px rgba(15, 23, 42, 0.18);
     }
 
     .period-filter-btn {
@@ -846,6 +842,23 @@
         function setValue(id, value) {
             const el = document.getElementById(id);
             if (el) el.textContent = value ?? '--';
+        }
+
+        function setMetricNumber(id, rawValue, prefix = '') {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const value = parseNumber(rawValue);
+            let decimals = getForcedDecimals(el);
+            if (decimals === null) {
+                decimals = getSmartDecimals(value, 4);
+            }
+
+            el.dataset.lastValue = String(value);
+            el.textContent = prefix + value.toLocaleString('pt-BR', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
         }
 
         function normalizeStatusMap(statusMap) {
@@ -1667,13 +1680,13 @@
                 setValue('service-stat-current-title', config.currentTitle || periodLabels.current);
                 setValue('service-stat-month-title', config.monthTitle || periodLabels.previous);
                 setValue('service-stat-previous-title', config.previousTitle || periodLabels.context);
-                animateCountUp(document.getElementById('service-stat-today'), config.today);
-                animateCountUp(document.getElementById('service-stat-month'), config.month);
+                setMetricNumber('service-stat-today', config.today);
+                setMetricNumber('service-stat-month', config.month);
                 const previousStat = document.getElementById('service-stat-previous');
                 if (previousStat) {
                     previousStat.dataset.decimals = config.previousDecimals || 'int';
                 }
-                animateCountUp(previousStat, config.previous, config.previousPrefix || '');
+                setMetricNumber('service-stat-previous', config.previous, config.previousPrefix || '');
                 setValue('service-stat-today-label', config.todayLabel);
                 setValue('service-stat-month-label', config.monthLabel);
                 setValue('service-stat-previous-label', config.previousLabel);
@@ -1717,10 +1730,6 @@
             }
 
             selectedService = service;
-            mainChartSignature = '';
-            statusChartSignature = '';
-            secondaryChartSignature = '';
-            sipCodeChartSignature = '';
             scheduleDashboardRender();
         };
 
@@ -1731,10 +1740,6 @@
                     return;
                 }
 
-                mainChartSignature = '';
-                statusChartSignature = '';
-                secondaryChartSignature = '';
-                sipCodeChartSignature = '';
                 scheduleDashboardRender();
             });
         });

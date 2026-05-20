@@ -214,12 +214,18 @@ class SipMonitorCommandRunner
         $touch = self::resolveBinary('touch', $useSudo);
         $sh = self::resolveBinary('sh', $useSudo);
         $timeout = self::resolveBinary('timeout', false);
+        $wc = self::resolveBinary('wc', $useSudo);
+        $escapedDir = escapeshellarg($dir);
+        $escapedOutputPath = escapeshellarg($outputPath);
+        $escapedPidPath = escapeshellarg($pidPath);
         $bootstrap = $mkdir . ' -p ' . escapeshellarg($dir)
             . ' && ' . $touch . ' ' . escapeshellarg($outputPath)
-            . ' && : > ' . escapeshellarg($pidPath)
             . ' && printf %s\\n ' . escapeshellarg('[monitor] bootstrap ' . date('Y-m-d H:i:s')) . ' >> ' . escapeshellarg($outputPath)
             . ' && nohup ' . $sh . ' -lc ' . escapeshellarg($shellScript)
-            . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & PID=$!; printf %s "$PID" > ' . escapeshellarg($pidPath) . '; printf "__PID__:%s\n" "$PID"';
+            . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & PID=$!; '
+            . '(' . $mkdir . ' -p ' . $escapedDir . ' && printf %s "$PID" > ' . $escapedPidPath . ') >/dev/null 2>&1 || true; '
+            . 'if [ -f ' . $escapedOutputPath . ' ]; then printf "__LOG__:%s\n" "$(' . $touch . ' ' . $escapedOutputPath . ' >/dev/null 2>&1; ' . $wc . ' -c < ' . $escapedOutputPath . ' 2>/dev/null || echo 0)"; fi; '
+            . 'printf "__PID__:%s\n" "$PID"';
         $command = $bootstrap;
         if (self::supportsBinary('timeout', false)) {
             $command = $timeout . ' --signal=TERM 12s ' . $sh . ' -lc ' . escapeshellarg($bootstrap);

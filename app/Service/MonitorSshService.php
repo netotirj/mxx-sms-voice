@@ -173,6 +173,8 @@ class MonitorSshService
             '-o',
             'ConnectTimeout=' . $connectTimeout,
             '-o',
+            'LogLevel=ERROR',
+            '-o',
             'ServerAliveInterval=5',
             '-o',
             'ServerAliveCountMax=1',

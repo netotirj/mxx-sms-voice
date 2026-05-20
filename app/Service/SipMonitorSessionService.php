@@ -119,7 +119,7 @@ class SipMonitorSessionService
         if (in_array($resolvedMode, ['sngrep', 'both'], true)) {
             $script = SipMonitorCommandBuilder::buildSngrepScript($sessionId, $request);
             $logPath = (string)($script['log_path'] ?? SipMonitorCommandRunner::remotePathForSession($sessionId, 'sngrep.txt'));
-            $started = SipMonitorCommandRunner::startBackground($script['command'], $logPath, true);
+            $started = self::startStreamOrFail($sessionId, 'sngrep', $script['command'], $logPath);
             $streams['sngrep'] = [
                 'pid' => (int)($started['pid'] ?? 0),
                 'log_path' => $logPath,
@@ -127,6 +127,7 @@ class SipMonitorSessionService
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
                 'started_ok' => (bool)($started['ok'] ?? false),
+                'bootstrap_output' => mb_substr(trim((string)($started['output'] ?? '')), 0, 800),
             ];
             if ($primaryPid === null && !empty($started['pid'])) {
                 $primaryPid = (int)$started['pid'];
@@ -136,7 +137,7 @@ class SipMonitorSessionService
         if (in_array($resolvedMode, ['pjsip', 'both'], true)) {
             $script = SipMonitorCommandBuilder::buildPjsipLoggerScript($request);
             $logPath = SipMonitorCommandRunner::remotePathForSession($sessionId, 'pjsip.log');
-            $started = SipMonitorCommandRunner::startBackground($script['command'], $logPath, true);
+            $started = self::startStreamOrFail($sessionId, 'pjsip', $script['command'], $logPath);
             $streams['pjsip'] = [
                 'pid' => (int)($started['pid'] ?? 0),
                 'log_path' => $logPath,
@@ -144,6 +145,7 @@ class SipMonitorSessionService
                 'command' => $script['command'],
                 'filter' => $script['filter_label'],
                 'started_ok' => (bool)($started['ok'] ?? false),
+                'bootstrap_output' => mb_substr(trim((string)($started['output'] ?? '')), 0, 800),
             ];
             if ($primaryPid === null && !empty($started['pid'])) {
                 $primaryPid = (int)$started['pid'];
@@ -451,6 +453,33 @@ class SipMonitorSessionService
     {
         $value = (int)TelephonyConfig::env('SIP_MONITOR_MAX_SIMULTANEOUS', 1);
         return max(1, min(10, $value));
+    }
+
+    private static function startStreamOrFail(int $sessionId, string $source, string $command, string $logPath): array
+    {
+        $started = SipMonitorCommandRunner::startBackground($command, $logPath, true);
+        $output = trim((string)($started['output'] ?? ''));
+        $pid = (int)($started['pid'] ?? 0);
+
+        if (!empty($started['ok']) && $pid > 0) {
+            return $started;
+        }
+
+        SipMonitorSession::update($sessionId, [
+            'status' => 'failed',
+            'ended_at' => date('Y-m-d H:i:s'),
+            'notes' => json_encode([
+                'failed_source' => $source,
+                'failed_log_path' => $logPath,
+                'bootstrap_output' => mb_substr($output, 0, 2000),
+                'bootstrap_status' => (int)($started['status'] ?? 0),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+
+        throw new \RuntimeException(
+            'Falha ao iniciar captura ' . strtoupper($source) . '. '
+            . ($output !== '' ? $output : 'O servidor remoto não devolveu saída útil.')
+        );
     }
 
     private static function resolveStartMode(array $request): string

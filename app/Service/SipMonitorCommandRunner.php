@@ -83,12 +83,16 @@ class SipMonitorCommandRunner
         $profile = self::profile();
         $dir = dirname($outputPath);
         $pidPath = $outputPath . '.pid';
-        $command = 'mkdir -p ' . escapeshellarg($dir)
+        $bootstrap = 'mkdir -p ' . escapeshellarg($dir)
             . ' && touch ' . escapeshellarg($outputPath)
             . ' && : > ' . escapeshellarg($pidPath)
             . ' && printf %s\\n ' . escapeshellarg('[monitor] bootstrap ' . date('Y-m-d H:i:s')) . ' >> ' . escapeshellarg($outputPath)
             . ' && nohup sh -lc ' . escapeshellarg($shellScript)
             . ' >> ' . escapeshellarg($outputPath) . ' 2>&1 < /dev/null & PID=$!; printf %s "$PID" > ' . escapeshellarg($pidPath) . '; printf "__PID__:%s\n" "$PID"';
+        $command = $bootstrap;
+        if (self::supportsBinary('timeout', false)) {
+            $command = 'timeout --signal=TERM 12s /usr/bin/sh -lc ' . escapeshellarg($bootstrap);
+        }
 
         $result = ($profile['mode'] ?? 'local') === 'ssh'
             ? self::runSsh($profile, $command, $useSudo)

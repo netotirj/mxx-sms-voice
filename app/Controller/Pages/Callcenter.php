@@ -600,14 +600,14 @@ class Callcenter extends ViewComponents
 
     private static function sanitizeMonitoringValue(mixed $value, ?string $key = null): mixed
     {
+        if ($key && self::shouldMaskMonitoringKey($key)) {
+            return self::maskMonitoringSensitiveValue($value);
+        }
+
         if (is_array($value)) {
             $sanitized = [];
             foreach ($value as $itemKey => $itemValue) {
                 $normalizedKey = is_string($itemKey) ? strtolower($itemKey) : null;
-                if (self::shouldOmitMonitoringKey($normalizedKey)) {
-                    continue;
-                }
-
                 $sanitized[$itemKey] = self::sanitizeMonitoringValue($itemValue, $normalizedKey);
             }
 
@@ -632,13 +632,26 @@ class Callcenter extends ViewComponents
         ) ?? $value;
     }
 
-    private static function shouldOmitMonitoringKey(?string $key): bool
+    private static function shouldMaskMonitoringKey(?string $key): bool
     {
         if (!$key) {
             return false;
         }
 
         return (bool)preg_match('/tech_?prefix|techprefix|dial_?prefix|prefixo_?tecnico/i', $key);
+    }
+
+    private static function maskMonitoringSensitiveValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map(static fn($item) => self::maskMonitoringSensitiveValue($item), $value);
+        }
+
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        return '[mascarado]';
     }
 
 

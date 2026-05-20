@@ -173,6 +173,10 @@
             return String(call?.call_id || call?.linkedid || call?.id || '');
         },
 
+        legKey(call) {
+            return String(call?.id || call?.peer || `${call?.caller || ''}->${call?.dest || ''}`);
+        },
+
         journeyClockMs(value, fallback = null) {
             if (value === null || value === undefined || value === '') {
                 return fallback;
@@ -227,6 +231,17 @@
             return String(call?.state_raw || call?.status || '-').trim() || '-';
         },
 
+        statusLabel(call) {
+            return String(call?.status || '').trim() || this.rawState(call);
+        },
+
+        legLabel(call) {
+            const origin = call?.caller || 'Origem';
+            const dest = call?.dest || '-';
+            const peer = call?.peer ? ` • canal ${call.peer}` : '';
+            return `${origin} → ${dest}${peer}`;
+        },
+
         maskIpString(value) {
             return String(value || '').replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, (match) => {
                 const parts = match.split('.');
@@ -238,7 +253,29 @@
             return /tech_?prefix|techprefix|dial_?prefix|prefixo_?tecnico/i.test(String(key || ''));
         },
 
+        maskSensitiveValue(value) {
+            if (Array.isArray(value)) {
+                return value.map((item) => this.maskSensitiveValue(item));
+            }
+
+            if (value && typeof value === 'object') {
+                return Object.fromEntries(
+                    Object.entries(value).map(([childKey, childValue]) => [childKey, this.maskSensitiveValue(childValue)])
+                );
+            }
+
+            if (value === null || value === undefined || value === '') {
+                return value;
+            }
+
+            return '[mascarado]';
+        },
+
         sanitizeValue(value, key = '') {
+            if (this.isSensitiveKey(key)) {
+                return this.maskSensitiveValue(value);
+            }
+
             if (Array.isArray(value)) {
                 return value
                     .map((item) => this.sanitizeValue(item, key))
@@ -247,10 +284,6 @@
 
             if (value && typeof value === 'object') {
                 return Object.entries(value).reduce((acc, [childKey, childValue]) => {
-                    if (this.isSensitiveKey(childKey)) {
-                        return acc;
-                    }
-
                     acc[childKey] = this.sanitizeValue(childValue, childKey);
                     return acc;
                 }, {});
@@ -332,6 +365,23 @@
 
         finalStageForCall(call) {
             return this.stageFromCall(call) === 'answered' ? 'ended' : 'failed';
+        },
+
+        sessionStage(call) {
+            const legs = Array.isArray(call?.legs) ? call.legs : [call];
+            if (legs.some((leg) => this.stageFromCall(leg) === 'answered')) {
+                return 'answered';
+            }
+            if (legs.some((leg) => this.stageFromCall(leg) === 'ringing')) {
+                return 'ringing';
+            }
+            if (legs.some((leg) => this.stageFromCall(leg) === 'progress')) {
+                return 'progress';
+            }
+            if (legs.some((leg) => this.stageFromCall(leg) === 'failed')) {
+                return 'failed';
+            }
+            return 'dialing';
         },
 
         hangupInsight(call, history = []) {
@@ -489,6 +539,12 @@
                     String(call?.call_id || ''),
                     String(call?.linkedid || ''),
                     String(call?.id || ''),
+                    ...((Array.isArray(call?.legs) ? call.legs : []).flatMap((leg) => [
+                        String(leg?.caller || ''),
+                        String(leg?.dest || ''),
+                        String(leg?.id || ''),
+                        String(leg?.peer || ''),
+                    ])),
                 ].map((value) => value.replace(/\D+/g, ''));
 
                 return haystacks.some((value) => value.includes(normalizedFilter));
@@ -500,7 +556,7 @@
             };
         },
 
-        recordStage(call, stage, force = false) {
+        recordStage(call, stage, force = false, meta = {}) {
             const key = this.journeyKey(call);
             if (!key) {
                 return;
@@ -510,8 +566,9 @@
             const history = this.liveJourneyHistory[key] || [];
             const last = history[history.length - 1] || null;
             const rawState = this.rawState(sanitizedCall);
+            const marker = String(meta.marker || `${stage}:${rawState}`);
 
-            if (!force && last && last.stage === stage && last.raw_state === rawState) {
+            if (!force && last && last.marker === marker) {
                 return;
             }
 
@@ -525,13 +582,93 @@
                 at_ms: atMs,
                 raw_state: rawState,
                 status: String(sanitizedCall?.status || '').trim() || null,
+                leg_label: meta.legLabel || null,
+                marker,
                 explanation: this.explanationForStage(stage, sanitizedCall),
                 since_start_ms: Math.max(0, atMs - firstAtMs),
                 since_prev_ms: last ? Math.max(0, atMs - previousAtMs) : 0,
             });
 
-            this.liveJourneyHistory[key] = history.slice(-20);
+            this.liveJourneyHistory[key] = history.slice(-80);
             this.persistHistory();
+        },
+
+        buildSession(call, existingSession = null) {
+            const base = existingSession && typeof existingSession === 'object' ? existingSession : {};
+            const legs = [];
+            legs.push(call);
+
+            const uniqueLegs = [];
+            const seenLegs = new Set();
+            legs.forEach((leg) => {
+                const legKey = this.legKey(leg);
+                if (seenLegs.has(legKey)) {
+                    return;
+                }
+                seenLegs.add(legKey);
+                uniqueLegs.push(leg);
+            });
+
+            const startedCandidates = uniqueLegs
+                .map((leg) => this.journeyClockMs(leg?.started_at, null))
+                .filter((value) => value !== null);
+            const answeredCandidates = uniqueLegs
+                .map((leg) => this.journeyClockMs(leg?.answered_at, null))
+                .filter((value) => value !== null);
+            const rawStates = [...new Set(uniqueLegs.map((leg) => this.rawState(leg)).filter(Boolean))];
+            const statuses = [...new Set(uniqueLegs.map((leg) => this.statusLabel(leg)).filter(Boolean))];
+
+            return {
+                ...base,
+                id: base.id || call?.id || null,
+                call_id: base.call_id || call?.call_id || null,
+                linkedid: base.linkedid || call?.linkedid || null,
+                caller: base.caller || call?.caller || 'Origem desconhecida',
+                dest: base.dest || call?.dest || '-',
+                peer: base.peer || call?.peer || null,
+                duracao: uniqueLegs.find((leg) => String(leg?.duracao || '').trim() !== '')?.duracao || base.duracao || '--:--:--',
+                started_at: startedCandidates.length ? Math.min(...startedCandidates) : (base.started_at || call?.started_at || null),
+                answered_at: answeredCandidates.length ? Math.min(...answeredCandidates) : (base.answered_at || call?.answered_at || null),
+                is_up: uniqueLegs.some((leg) => !!leg?.is_up),
+                status: statuses.join(' / ') || this.statusLabel(call),
+                state_raw: rawStates.join(' / ') || this.rawState(call),
+                legs: uniqueLegs,
+            };
+        },
+
+        trackSessionLegChanges(session, previousSession = null) {
+            const previousLegs = new Map(((previousSession?.legs) || []).map((leg) => [this.legKey(leg), leg]));
+            const sessionKey = this.journeyKey(session);
+            const hadHistory = Array.isArray(this.liveJourneyHistory[sessionKey]) && this.liveJourneyHistory[sessionKey].length > 0;
+
+            session.legs.forEach((leg) => {
+                const legKey = this.legKey(leg);
+                const previousLeg = previousLegs.get(legKey) || null;
+                const legStage = this.stageFromCall(leg);
+                const meta = {
+                    legLabel: this.legLabel(leg),
+                    marker: `${legKey}:${legStage}:${this.rawState(leg)}:${this.statusLabel(leg)}`,
+                };
+
+                if (!previousLeg) {
+                    if (!hadHistory) {
+                        this.recordStage(session, 'dialing', true, {
+                            legLabel: this.legLabel(leg),
+                            marker: `${legKey}:dialing:${this.rawState(leg)}`,
+                        });
+                    }
+
+                    this.recordStage(session, legStage, true, meta);
+                    return;
+                }
+
+                const previousStage = this.stageFromCall(previousLeg);
+                const previousRaw = this.rawState(previousLeg);
+                const previousStatus = this.statusLabel(previousLeg);
+                if (previousStage !== legStage || previousRaw !== this.rawState(leg) || previousStatus !== this.statusLabel(leg)) {
+                    this.recordStage(session, legStage, true, meta);
+                }
+            });
         },
 
         summaryHtml(call, history = []) {
@@ -587,7 +724,7 @@
             container.innerHTML = visible.map((call) => {
                 const key = this.journeyKey(call);
                 const active = key === this.selectedJourneyKey;
-                const stage = this.stageFromCall(call);
+                const stage = this.sessionStage(call);
                 const history = this.liveJourneyHistory[key] || [];
                 const metrics = this.metricsForJourney(call, history);
 
@@ -601,7 +738,7 @@
                             Status atual: ${call?.status || call?.state_raw || '-'} • Conversa: ${call?.duracao || '--:--:--'}
                         </div>
                         <div class="mt-2 text-[11px] ${active ? 'text-slate-300' : 'text-slate-400'}">
-                            Entrada: ${this.formatClock(metrics.firstAt)} • Atendimento: ${this.formatDurationMs(metrics.toAnsweredMs)}
+                            Entrada: ${this.formatClock(metrics.firstAt)} • Atendimento: ${this.formatDurationMs(metrics.toAnsweredMs)} • Pernas: ${Array.isArray(call?.legs) ? call.legs.length : 1}
                         </div>
                     </button>
                 `;
@@ -651,13 +788,15 @@
                 return;
             }
 
-            meta.textContent = `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'}`;
+            meta.textContent = `${call.caller || 'Origem'} → ${call.dest || '-'} • Status atual: ${call.status || call.state_raw || '-'} • Conversa atual: ${call.duracao || '--:--:--'} • Pernas observadas: ${Array.isArray(call?.legs) ? call.legs.length : 1}`;
 
             activeBadge.textContent = 'Chamada ao vivo';
             activeBadge.className = 'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700';
 
             if (!history.length) {
-                this.recordStage(call, this.stageFromCall(call), true);
+                this.recordStage(call, this.sessionStage(call), true, {
+                    marker: `session:${this.sessionStage(call)}:${this.rawState(call)}`,
+                });
             }
 
             const timelineHistory = this.liveJourneyHistory[this.selectedJourneyKey] || [];
@@ -668,13 +807,16 @@
                     <div class="journey-stage ${index === arr.length - 1 ? 'active rounded-r-xl px-3 py-2' : ''}">
                         <p class="text-sm font-semibold text-slate-700">${this.labelForStage(item.stage)}</p>
                         <p class="mt-1 text-xs text-slate-500">${item.explanation}</p>
-                        <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at}${item.raw_state ? ` • bruto: ${item.raw_state}` : ''}</p>
+                        <p class="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">${item.at}${item.raw_state ? ` • bruto: ${item.raw_state}` : ''}${item.leg_label ? ` • ${item.leg_label}` : ''}</p>
                         <p class="mt-1 text-[11px] text-slate-400">+${this.formatDurationMs(item.since_start_ms || 0)} desde o inicio${index > 0 ? ` • +${this.formatDurationMs(item.since_prev_ms || 0)} desde a etapa anterior` : ''}</p>
                     </div>
                 `).join('')
                 : '<div class="journey-stage"><p class="text-sm font-semibold text-slate-700">Sem transicoes ainda</p></div>';
 
-            raw.textContent = JSON.stringify(this.sanitizeValue(call), null, 2);
+            raw.textContent = JSON.stringify({
+                session: this.sanitizeValue(call),
+                legs: Array.isArray(call?.legs) ? call.legs.map((leg) => this.sanitizeValue(leg)) : [],
+            }, null, 2);
         },
 
         handleUpdate(payload) {
@@ -690,23 +832,20 @@
                 }
 
                 const sanitizedCall = this.sanitizeCall(call);
-                currentCalls.set(key, sanitizedCall);
-                const previous = this.liveJourneyCalls.get(key) || null;
-                const stage = this.stageFromCall(sanitizedCall);
+                const previousSession = currentCalls.get(key) || this.liveJourneyCalls.get(key) || null;
+                currentCalls.set(key, this.buildSession(sanitizedCall, previousSession));
+            });
 
-                if (!previous) {
-                    this.recordStage(sanitizedCall, 'dialing', true);
-                    if (stage !== 'dialing') {
-                        this.recordStage(sanitizedCall, stage, true);
-                    }
-                } else if (this.stageFromCall(previous) !== stage || this.rawState(previous) !== this.rawState(sanitizedCall)) {
-                    this.recordStage(sanitizedCall, stage, true);
-                }
+            currentCalls.forEach((session, key) => {
+                const previous = this.liveJourneyCalls.get(key) || null;
+                this.trackSessionLegChanges(session, previous);
             });
 
             for (const [key, call] of this.liveJourneyCalls.entries()) {
                 if (!currentCalls.has(key)) {
-                    this.recordStage(call, this.finalStageForCall(call), true);
+                    this.recordStage(call, this.finalStageForCall(call), true, {
+                        marker: `session:end:${this.rawState(call)}`,
+                    });
                 }
             }
 

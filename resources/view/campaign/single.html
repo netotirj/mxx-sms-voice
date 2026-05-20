@@ -466,6 +466,8 @@
         scheduleTimeOptions?.classList.add("hidden");
     }
 
+    const sendBtn = document.querySelector("#sendBtnUnique");
+
     function setSingleSmsScheduleMode(enabled) {
         schedulePanel?.classList.toggle("hidden", !enabled);
         scheduleButton?.classList.toggle("hidden", enabled);
@@ -631,7 +633,6 @@
     }
 
     // ===================== BOTÃO ENVIAR =====================
-    const sendBtn = document.querySelector("#sendBtnUnique"); // usei id único no botão
     if (sendBtn) {
         sendBtn.addEventListener("click", async () => {
             if (sendBtn.disabled) return;

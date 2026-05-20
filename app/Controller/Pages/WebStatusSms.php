@@ -184,8 +184,8 @@ class WebStatusSms
             if (!$batch) continue;
 
             $planId = RegisterTenancies::getActivePlanId($obUser->tenancy_id);
-            $planInfo = UserPlans::getUserPlanInfo($planId, $obUser->id, $obUser->tenancy_id);
-            $valueSmsPlan = $planInfo->value_sms ?? 0.00;
+            $planInfo = UserPlans::getUserPlanInfoByPlanId((int)$planId, (string)$obUser->tenancy_id);
+            $valueSmsPlan = round((float)($planInfo->value_sms ?? 0), 4);
 
             $updateDate = $normalizeDate($item['data_atualizacao'] ?? null);
             $dateSend   = $normalizeDate($item['data_insercao'] ?? null);
@@ -216,11 +216,17 @@ class WebStatusSms
 
             $status = strtoupper(trim($callback->status_sms));
             $isReseller = (($obUser->user_function ?? '') === 'reseller');
+            $existingCallback = CallbackSms::findLatestOutboundContext(
+                (string)$obUser->tenancy_id,
+                (string)$partnerId,
+                (string)$phone
+            );
+            $existingValueSms = round((float)($existingCallback['value_sms'] ?? 0), 4);
 
             if (in_array($status, $statusChargeable, true)) {
                 $callback->value_sms = $isReseller
                     ? (float)(Rates::getLatestActiveRate($obUser->tenancy_id, $obUser->id)['rate'] ?? 0)
-                    : (float)$valueSmsPlan;
+                    : (float)($valueSmsPlan > 0 ? $valueSmsPlan : $existingValueSms);
             } else {
                 $callback->value_sms = 0.00;
             }

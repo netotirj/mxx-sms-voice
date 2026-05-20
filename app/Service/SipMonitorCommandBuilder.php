@@ -88,9 +88,6 @@ class SipMonitorCommandBuilder
             $command[] = $iface;
         }
 
-        $command[] = '-O';
-        $command[] = $textPath;
-
         $ports = ['port ' . (int)$request['port']];
         if (!empty($request['include_tls'])) {
             $ports[] = 'port ' . (int)$request['tls_port'];
